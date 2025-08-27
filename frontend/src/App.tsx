@@ -1,20 +1,16 @@
-import { Box, Heading, Button, VStack, Text } from '@chakra-ui/react'
+import { BrowserRouter} from 'react-router-dom';
+import { ChakraProvider } from '@chakra-ui/react';
+import { AppRouter } from './routes/AppRouter.tsx';
 
-function App() {
+const App: React.FC = () => {
   return (
-    // Box es como un <div> pero con superpoderes de estilo
-    <Box p={8} textAlign="center">
-      <VStack spacing={6}> {/* VStack apila elementos verticalmente con un espacio de 6 */}
-        <Heading as="h1" size="2xl" color="teal.500">
-          Bienvenido a FitFlow
-        </Heading>
-        <Text fontSize="xl">Tu compañero de fitness definitivo.</Text>
-        <Button colorScheme="teal" size="lg">
-          Empezar ahora
-        </Button>
-      </VStack>
-    </Box>
-  )
+    <ChakraProvider>
+      <BrowserRouter>
+        <AppRouter/>
+      </BrowserRouter>
+    </ChakraProvider>
+  );
 }
+
 export default App;
 
