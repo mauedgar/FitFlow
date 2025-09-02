@@ -1,10 +1,23 @@
-from logging.config import fileConfig
+import os
+import sys
 
+from logging.config import fileConfig
+from app.models.user import Base # Asumiendo que en models.py tienes tu `Base = declarative_base()`
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
 
+load_dotenv()
+# Añade la ruta del proyecto al path de Python para que pueda encontrar 'app'
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# 2. Cargar las variables de entorno desde el archivo .env en la raíz del proyecto
+# OJO: La ruta es relativa a la carpeta 'backend', por eso subimos un nivel con '..'
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
+target_metadata = Base.metadata
+# Importa tu Base de SQLAlchemy desde tus modelos
+# La ruta puede variar según tu estructura, pero esta es la común.
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -18,8 +31,11 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = None
+db_url = os.getenv("DATABASE_URL")
+if not db_url:
+    raise ValueError("DATABASE_URL no está configurada en el archivo .env")
 
+config.set_main_option("sqlalchemy.url", db_url)
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")

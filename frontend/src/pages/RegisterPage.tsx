@@ -13,18 +13,20 @@ import {
   useToast
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { registerUser } from '../services/api';
 
 const RegisterPage = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+  const [isLoading, setIsLoading] = useState(false); // ⭐ 2. Añadimos estado de carga
   const navigate = useNavigate();
   const toast = useToast();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setIsLoading(true); // Empezamos la carga
 
     if (password !== confirmPassword) {
       toast({
@@ -34,25 +36,39 @@ const RegisterPage = () => {
         duration: 5000,
         isClosable: true,
       });
+      setIsLoading(false); // Detenemos la carga si hay error de validación
+
       return;
     }
+    try {
+      await registerUser(name, email, password);
 
-    console.log('Datos de Registro:', { name, email, password });
+      toast({
+        title: "Cuenta creada.",
+        description: "¡Registro exitoso! Ahora puedes iniciar sesión.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      console.log('Datos de Registro:', { name, email, password });  
+      navigate('/login'); // Redirigimos al login tras el éxito
 
-    toast({
-      title: "Cuenta creada.",
-      description: "Hemos creado tu cuenta exitosamente.",
-      status: "success",
-      duration: 3000,
-      isClosable: true,
-    });
-    
-    navigate('/login');
-  };
+    } catch (error) {
+      // Mostramos el error que nos llega desde el servicio de API
+      toast({
+        title: "Error en el registro",
+        description: error instanceof Error ? error.message : "Ocurrió un error inesperado.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false); // ⭐ 5. Detenemos la carga en cualquier caso (éxito o error)
+    }
+  };      
 
   return (
     <Flex minHeight="calc(100vh - 128px)" align="center" justify="center" bg="gray.50">
-      {/* ===== INICIO DE LA CORRECCIÓN ===== */}
       <Box
         as="form" // El Box ahora es el formulario
         onSubmit={handleSubmit} // El handler se aplica aquí
@@ -110,7 +126,7 @@ const RegisterPage = () => {
             />
           </FormControl>
 
-          <Button type="submit" colorScheme="teal" width="full" size="lg">
+          <Button type="submit" colorScheme="teal" width="full" size="lg" isLoading={isLoading}>
             Registrarse
           </Button>
 

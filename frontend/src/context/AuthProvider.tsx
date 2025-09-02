@@ -1,7 +1,7 @@
 import { useState, useEffect, type ReactNode } from 'react';
 import { AuthContext } from './AuthContext';
 
-type UserRole = 'admin' | 'cliente';
+type UserRole = 'admin' | 'client'|'trainer' ;
 
 // Atendiendo a tu nota sobre TypeScript: esta es la forma más clara de tipar los children.
 export function AuthProvider({ children }: { children: ReactNode }) {

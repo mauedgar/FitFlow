@@ -44,14 +44,14 @@ export const Navbar = () => {
     <Box bg="gray.800" color="white" width="100%" position="sticky" top="0" zIndex="sticky">
       <Container maxW="container.xl" px={4}>
         <Flex h={16} alignItems="center">
-          <Heading as={RouterLink} to="/" size="md">
+          <Heading as={RouterLink} to="landing" size="md">
             FitFlow
           </Heading>
 
           {/* ENLACES DE NAVEGACIÓN PARA DESKTOP */}
           <HStack as='nav' spacing={5} ml={10} display={{ base: 'none', md: 'flex' }}>
             <Link as={RouterLink} to="/">Inicio</Link>
-            {rol === 'cliente' && (
+            {rol === 'client' && (
               <Link as={RouterLink} to="/home">
                 Mi Perfil
               </Link>
@@ -104,7 +104,7 @@ export const Navbar = () => {
           <DrawerBody>
             <VStack spacing={4} align="stretch" mt={4}>
               <Link onClick={() => handleDrawerNavigate('/')}>Inicio</Link>
-              {rol === 'cliente' && (
+              {rol === 'client' && (
               <Link onClick={() => handleDrawerNavigate('/home')}>
                 Mi Perfil
               </Link>

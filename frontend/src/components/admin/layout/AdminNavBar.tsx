@@ -21,6 +21,7 @@ import { FiHome, FiUsers, FiLogOut, FiBriefcase, FiClipboard } from 'react-icons
 import { ChevronDownIcon } from '@chakra-ui/icons';
 
 const AdminNavBar: React.FC = () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { rol, logout } = useAuth();
   const navigate = useNavigate();
 

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
 import React, { useState } from 'react';
 import {
@@ -15,51 +16,58 @@ import {
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth, isUserRole } from '../context/AuthContext'; // Importamos el type guard
+import { loginUser } from '../services/api'; // ⭐ 1. Importamos nuestra nueva función
+import { jwtDecode } from 'jwt-decode'; // ⭐ 2. Importamos el decodificador de JWT
+
+// Creamos un tipo para la información que esperamos del token
+type DecodedToken = {
+  sub: string; // "subject", que en nuestro caso es el email
+  role: string; // el rol que añadimos en el backend
+  exp: number; // fecha de expiración
+};
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // Para feedback visual
   const { login } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setIsLoading(true);
 
     try {
-      const fakeResponse = {
-        ok: true,
-        json: async () => ({
-          token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwicm9sIjoiYWRtaW4ifQ.fakeTokenForAdmin',
-          rol: 'admin', // Puedes cambiar a 'cliente' para probar
-        }),
-      };
+      // ⭐ 3. Reemplazamos la lógica falsa con la llamada real a la API
+      const data = await loginUser(email, password);
+      
+      const token = data.access_token;
+      
+      // Decodificamos el token para obtener el rol
+      const decodedToken = jwtDecode<DecodedToken>(token);
+      const rol = decodedToken.role;
 
-      if (!fakeResponse.ok) {
-        throw new Error('Credenciales incorrectas');
-      }
-
-      const data = await fakeResponse.json();
-      const { token, rol } = data;
-
-      // Verificamos que los datos son correctos y el rol es válido antes de proceder
       if (token && isUserRole(rol)) {
-        // Dentro de este bloque, TypeScript entiende que 'rol' es 'admin' | 'cliente'
+        // Dentro de este bloque, TypeScript entiende que 'rol' es 'admin' | 'client' | 'trainer'
         login(token, rol);
-
+        console.log(rol)
         toast({
           title: "Inicio de sesión exitoso",
           status: "success",
           duration: 3000,
           isClosable: true,
         });
-        if (rol === 'admin'){
-          navigate('/admin')
-        }else{
+
+        // Redirigimos basado en el rol obtenido del token
+        if (rol === 'admin') {
+          navigate('/admin');
+        } else {
           navigate('/home');
-        }        
+        }
       } else {
         // Si el rol no es 'admin' o 'cliente', o no hay token, lanzamos un error
+
         throw new Error('Datos de autenticación inválidos desde el servidor.');
       }
 
@@ -72,6 +80,8 @@ const LoginPage = () => {
         isClosable: true,
       });
       console.error('Error de login:', error);
+    } finally {
+      setIsLoading(false); // Detenemos la carga, ya sea éxito o error
     }
   };
   

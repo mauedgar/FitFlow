@@ -15,11 +15,11 @@ interface AuthContextType {
 // 3. Crear el contexto con un valor inicial de undefined
 //    TypeScript nos obligará a proveer un valor real más adelante.
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-export type UserRole = 'admin' | 'cliente';
+export type UserRole = 'admin' | 'client'| 'trainer';
 // Esta es la función Type Guard
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isUserRole(value: any): value is UserRole {
-  return value === 'admin' || value === 'cliente';
+  return value === 'admin' || value === 'client'|| value === 'trainer';
 }
 // 4. Crear un hook personalizado para consumir el contexto fácilmente
 //    Esto nos evita tener que importar useContext y AuthContext en cada componente.
