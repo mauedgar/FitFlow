@@ -19,7 +19,7 @@ export const loginUser = async (email: string, password: string) => {
   formData.append('password', password);
 
   try {
-    const response = await apiClient.post('/users/login/token', formData, {
+    const response = await apiClient.post('/login/token', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },

@@ -1,4 +1,19 @@
 services:
+  # --- NUEVO SERVICIO BACKEND ---
+  backend:
+    build: . # Le dice a Docker que construya la imagen usando el Dockerfile en el directorio actual
+    container_name: fitflow-backend-1
+    command: /app/start.sh # El comando para iniciar
+    volumes:
+      - ./backend:/app # Monta tu código local en el contenedor para desarrollo en vivo
+    ports:
+      - "8000:8000" # Mapea el puerto 8000 del contenedor a tu máquina
+    environment:
+      - DATABASE_URL=postgresql://fitflow_admin:159753Lu@fitflow_postgres:5432/fitflow_db
+    networks:
+      - fitflow_network
+    depends_on:
+      - postgres # Se asegura de que el contenedor de postgres se inicie antes que el backend
   # Base de datos PostgreSQL
   postgres:
     image: postgres:15-alpine

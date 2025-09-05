@@ -9,13 +9,15 @@ from ..models.user import UserRole # Importamos el Enum del modelo
 # Propiedades compartidas que tienen todos los esquemas
 class UserBase(BaseModel):
     email: EmailStr
-    full_name: Optional[str] = None
-
 # Esquema para la creación de un usuario (lo que recibe la API)
 class UserCreate(UserBase):
     password: str
     role: Optional[UserRole] = UserRole.CLIENT
-
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None    
+    password: Optional[str] = None
+    is_active: Optional[bool] = None
+    role: Optional[UserRole] = None
 # Esquema para la respuesta de la API (lo que enviamos al frontend)
 # NUNCA debe incluir la contraseña.
 class UserResponse(UserBase):
@@ -28,11 +30,4 @@ class UserResponse(UserBase):
     class Config:
         from_attributes = True # Permite que Pydantic lea datos desde modelos de SQLAlchemy
 
-# Esquema para el token JWT que devolvemos al hacer login
-class Token(BaseModel):
-    access_token: str
-    token_type: str
 
-# Esquema para los datos que van DENTRO del token
-class TokenData(BaseModel):
-    email: Optional[str] = None

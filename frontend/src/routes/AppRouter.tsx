@@ -20,6 +20,7 @@ const ClientsPage = React.lazy(() => import('../pages/admin/ClientsPage'));
 const TeachersPage = React.lazy(() => import('../pages/admin/TeachersPage'));
 const CrudClassesPage = React.lazy(() => import('../pages/admin/CrudClassesPage'));
 const RootAuthGuard = React.lazy(() => import('../components/auth/RootAuthGuard'));
+const ClassDetailPage = React.lazy(() => import('../pages/ClassDetailPage'));
 
 
 
@@ -42,6 +43,7 @@ export const AppRouter: React.FC = () => {
           <Route path="about" element={<AboutPage />} />          
           <Route path="plans" element={<PlansPage />} />
           <Route path="classes" element={<ClassesPage />} />
+          <Route path="classes/:classId" element={<ClassDetailPage />} />
           <Route path="join-us" element={<JoinUsPage />} />
           <Route path="nutrition" element={<NutritionPage />} />
           <Route element={<ProtectedRoute allowedRoles={['client', 'admin','trainer']} />}>
