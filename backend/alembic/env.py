@@ -2,7 +2,7 @@ import os
 import sys
 
 from logging.config import fileConfig
-from app.models.user import Base # Asumiendo que en models.py tienes tu `Base = declarative_base()`
+from app.db.base import Base
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool

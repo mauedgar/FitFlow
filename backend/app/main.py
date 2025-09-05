@@ -20,9 +20,9 @@ app.add_middleware(
     allow_methods=["*"], # Permite todos los métodos (GET, POST, etc.)
     allow_headers=["*"], # Permite todos los encabezados
 )
+# Incluimos el enrutador de la v1 con un prefijo
+app.include_router(api_router, prefix="/api/v1")
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to FitFlow API"}
-
-# Incluimos el enrutador de la v1 con un prefijo
-app.include_router(api_router, prefix="/api/v1")

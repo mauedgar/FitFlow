@@ -14,6 +14,7 @@
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@tanstack/react-query": "^5.86.0",
     "axios": "^1.11.0",
     "framer-motion": "^11.18.2",
     "jwt-decode": "^4.0.0",
