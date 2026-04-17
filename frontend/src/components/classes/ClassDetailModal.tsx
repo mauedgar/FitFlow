@@ -16,7 +16,7 @@ interface ClassDetailModalProps {
 
 const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ classId, isOpen, onClose }) => {
   // --- TANSTACK QUERY EN SU MÁXIMA EXPRESIÓN ---
-  const { data: gymClass, isLoading, isError } = useQuery({
+  const { data: gymClass, isLoading, isError, error } = useQuery({
     // 1. Query Key Dinámica: La clave incluye el 'classId'. Esto significa que
     // TanStack Query cacheará los detalles de cada clase individualmente. Si
     // cierras y vuelves a abrir el modal de la misma clase, los datos serán
@@ -46,8 +46,8 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ classId, isOpen, on
         <ModalBody pb={6}>
           {/* Los booleanos de TanStack Query controlan la UI del modal */}
           {isLoading && <LoadingSpinner />}
-          {isError && <ErrorDisplay message="No se pudieron cargar los detalles de la clase." />}
-          {gymClass && <ClassDetailView gymClass={gymClass} />}
+          {isError && <ErrorDisplay message={error?.message || "No se pudieron cargar los detalles de la clase."} />}
+          {gymClass && <ClassDetailView gymClass={gymClass} onCloseModal={onClose} />} {/* PASAMOS onCloseModal */}
         </ModalBody>
       </ModalContent>
     </Modal>

@@ -5,7 +5,10 @@ import enum
 from sqlalchemy import Column, DateTime, String, Boolean, Enum as SQLAlchemyEnum, func
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.base_class import Base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .person import Person
 
 
 class UserRole(str, enum.Enum):
@@ -25,7 +28,7 @@ class User(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
     deleted_at = Column(DateTime, nullable=True)   
      
-    person_profile = relationship("Person", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    person_profile: Mapped["Person"] = relationship("Person", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(email='{self.email}', role='{self.role}')>"

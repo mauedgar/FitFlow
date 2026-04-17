@@ -19,13 +19,13 @@ import {
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { HamburgerIcon } from '@chakra-ui/icons';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 
 export const Navbar = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const navigate = useNavigate();
   //Obtenemos el rol y la función logout del contexto
-  const { rol, logout } = useAuth();
+  const { userRole, logout } = useAuth();
 
   // --- Handlers ---  
 
@@ -51,7 +51,7 @@ export const Navbar = () => {
           {/* ENLACES DE NAVEGACIÓN PARA DESKTOP */}
           <HStack as='nav' spacing={5} ml={10} display={{ base: 'none', md: 'flex' }}>
             <Link as={RouterLink} to="/">Inicio</Link>
-            {rol === 'client' && (
+            {userRole === 'client' && (
               <Link as={RouterLink} to="/home">
                 Mi Perfil
               </Link>
@@ -66,7 +66,7 @@ export const Navbar = () => {
 
           {/* 3. BOTONES DINÁMICOS PARA DESKTOP */}
           <HStack spacing={4} display={{ base: 'none', md: 'flex' }}>
-            {rol ? (
+            {userRole ? (
               // Si el usuario está logueado, muestra el botón de Logout
               <Button colorScheme="red" variant="solid" onClick={logoutUser}>
                 Cerrar Sesión
@@ -104,7 +104,7 @@ export const Navbar = () => {
           <DrawerBody>
             <VStack spacing={4} align="stretch" mt={4}>
               <Link onClick={() => handleDrawerNavigate('/')}>Inicio</Link>
-              {rol === 'client' && (
+              {userRole === 'client' && (
               <Link onClick={() => handleDrawerNavigate('/home')}>
                 Mi Perfil
               </Link>
@@ -113,7 +113,7 @@ export const Navbar = () => {
               <Spacer />
 
               {/* 5. BOTONES DINÁMICOS PARA MÓVIL */}
-              {rol ? (
+              {userRole ? (
                 // Si el usuario está logueado
                 <Button
                   colorScheme="red"

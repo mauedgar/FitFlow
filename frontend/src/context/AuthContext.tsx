@@ -1,34 +1,22 @@
-import { createContext, useContext } from 'react';
+import { createContext } from "react";
+import type { User, UserRole, Booking, Client } from "../types";
 
-// 1. Definir el tipo para el rol del usuario
-
-// 2. Definir la forma de los datos y funciones del contexto
-interface AuthContextType {
+// Debes mantener el tipo sincronizado con el value de tu provider
+export interface AuthContextType {
   token: string | null;
-  rol: UserRole | null;
-  login: (token: string, rol: UserRole) => void;
+  currentUser: User | null;
+  currentClient: Client | null;
+  userRole: UserRole | null;
+  isAuthenticated: boolean;
+  isClient: boolean;
+  isTrainer: boolean;
+  isAdmin: boolean;
+  login: (accessToken: string) => void;
   logout: () => void;
-  isLoading: boolean;
-  
+  userBookings: Booking[] | undefined;
+  isLoadingBookings: boolean;
+  isLoadingAuth: boolean;
 }
 
-// 3. Crear el contexto con un valor inicial de undefined
-//    TypeScript nos obligará a proveer un valor real más adelante.
+// Solo define y exporta el contexto (sin provider ni lógica de estado aquí)
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-export type UserRole = 'admin' | 'client'| 'trainer';
-// Esta es la función Type Guard
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function isUserRole(value: any): value is UserRole {
-  return value === 'admin' || value === 'client'|| value === 'trainer';
-}
-// 4. Crear un hook personalizado para consumir el contexto fácilmente
-//    Esto nos evita tener que importar useContext y AuthContext en cada componente.
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    // Este error se mostrará si intentamos usar el contexto fuera de su Provider.
-    // Es una buena práctica para detectar bugs temprano.
-    throw new Error('useAuth debe ser utilizado dentro de un AuthProvider');
-  }
-  return context;
-};

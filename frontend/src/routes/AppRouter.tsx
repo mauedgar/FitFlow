@@ -2,6 +2,8 @@ import { Routes, Route } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
 import { Spinner, Center } from '@chakra-ui/react';
 import React, { Suspense } from 'react';
+import { UserRole } from '../types'; // ⭐ Importamos UserRole de tus types/index.ts
+
 {/* Componentes lazy loading */}
 const HomePage = React.lazy(() => import('../pages/HomePage'));
 const AboutPage = React.lazy(() => import('../pages/AboutPage'));
@@ -46,7 +48,7 @@ export const AppRouter: React.FC = () => {
           <Route path="classes/:classId" element={<ClassDetailPage />} />
           <Route path="join-us" element={<JoinUsPage />} />
           <Route path="nutrition" element={<NutritionPage />} />
-          <Route element={<ProtectedRoute allowedRoles={['client', 'admin','trainer']} />}>
+          <Route element={<ProtectedRoute allowedRoles={[UserRole.CLIENT, UserRole.TRAINER]} />}>
             <Route path="home" element={<HomePage />} />
             {/* Si tuvieras más rutas para clientes, irían aquí */}
             {/* <Route path="my-profile" element={<ProfilePage />} /> */}
@@ -55,7 +57,7 @@ export const AppRouter: React.FC = () => {
           <Route path="*" element={<NotFoundPage/>}/>
           {/* Agrega aquí todas tus rutas futuras */}
         </Route>
-        <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+        <Route element={<ProtectedRoute allowedRoles={[UserRole.ADMIN]} />}>
           {/* Todas las rutas anidadas aquí usarán el AdminLayout */}
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboardPage />} />

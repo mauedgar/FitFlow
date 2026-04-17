@@ -1,5 +1,6 @@
-#!/bin/bash
-
+#!/bin/sh
+# Salir inmediatamente si un comando falla
+set -e
 # Aplicar las migraciones de la base de datos
 echo "Applying database migrations..."
 alembic upgrade head

@@ -2,9 +2,12 @@ import uuid
 import enum
 from sqlalchemy import Column, DateTime, ForeignKey, Enum as SQLAlchemyEnum, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
 
 from app.db.base_class import Base
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .client import Client
 
 # Usamos un Enum para los tipos de planes. Esto es muy escalable.
 class MembershipPlan(str, enum.Enum):
@@ -35,4 +38,4 @@ class Membership(Base):
     # --- Relación Inversa con Client ---
     # Una membresía pertenece a un único cliente.
     client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id"), unique=True, nullable=False)
-    client = relationship("Client", back_populates="membership")
+    client: Mapped["Client"] = relationship("Client", back_populates="membership")

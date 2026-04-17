@@ -10,7 +10,6 @@ const queryClient = new QueryClient();
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-
       <ChakraProvider>
           <AuthProvider> {/* Envolvemos la App */}
             <App />

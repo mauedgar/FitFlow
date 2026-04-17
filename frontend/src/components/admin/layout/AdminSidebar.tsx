@@ -1,12 +1,36 @@
-import { Box, VStack, Heading, Divider } from '@chakra-ui/react';
-// 1. Importamos NavLink con un alias para mayor claridad
+import { Box, VStack, Heading, Divider, Icon, HStack, Text } from '@chakra-ui/react';
 import { NavLink as RouterNavLink } from 'react-router-dom';
+import {
+  FiHome,
+  FiUsers,
+  FiBriefcase,
+  FiClipboard,
+  FiBookOpen,
+  FiBarChart2,
+  FiCalendar,
+  FiSettings,
+  FiDollarSign,
+} from 'react-icons/fi';
+
+
+// Estructura de navegación del sidebar
+const sidebarLinks = [
+  { label: 'Dashboard', to: '/admin', icon: FiHome, end: true },
+  { label: 'Clientes', to: '/admin/clients', icon: FiUsers },
+  { label: 'Profesores', to: '/admin/teachers', icon: FiBriefcase },
+  { label: 'Clases', to: '/admin/classes', icon: FiClipboard },
+  { label: 'Reservas', to: '/admin/bookings', icon: FiBookOpen },
+  { separator: true },
+  { label: 'Informes', to: '/admin/reports', icon: FiBarChart2 },
+  { label: 'Calendario', to: '/admin/calendar', icon: FiCalendar },
+  { separator: true },
+  { label: 'Herramientas', to: '/admin/tools', icon: FiSettings },
+  { label: 'Facturación', to: '/admin/billing', icon: FiDollarSign },
+];
 
 const AdminSideBar = () => {
-  // 2. Definimos los estilos para el estado activo.
-  //    Estos son estilos de CSS-in-JS estándar que React entiende.
   const activeLinkStyle = {
-    backgroundColor: '#38B2AC', // Usamos el valor hexadecimal de 'teal.500' para el objeto style
+    backgroundColor: '#319795', // teal.600
     color: 'white',
     fontWeight: 'bold',
   };
@@ -20,80 +44,40 @@ const AdminSideBar = () => {
       h="full"
       p={4}
     >
-      <Heading size="md" mb={6}>Admin Panel</Heading>
-      <VStack align="stretch" spacing={2}>
-        {/* 3. Usamos Box como decorador de estilos para RouterNavLink */}
-        <Box
-          as={RouterNavLink}
-          to="/admin"
-          end // 'end' asegura que solo coincida con /admin exacto
-          // 4. Pasamos la función a la prop 'style' de NavLink.
-          //    Tipamos 'isActive' como boolean para que TypeScript esté contento.
-          style={({ isActive }: { isActive: boolean }) =>
-            isActive ? activeLinkStyle : undefined
-          }
-          // 5. Aplicamos los estilos de Chakra UI directamente en el Box
-          p={2}
-          borderRadius="md"
-          _hover={{ bg: 'gray.700' }}
-        >
-          Dashboard
-        </Box>
+      <Heading size="md" mb={6} color="teal.300">
+        FitFlow Admin
+      </Heading>
 
-        {/* Repetimos el mismo patrón para los demás enlaces */}
-        <Box
-          as={RouterNavLink}
-          to="/admin/clients"
-          style={({ isActive }: { isActive: boolean }) =>
-            isActive ? activeLinkStyle : undefined
+      <VStack align="stretch" spacing={1}>
+        {sidebarLinks.map((link, index) => {
+          // Renderizar separador
+          if (link.separator) {
+            return <Divider key={`separator-${index}`} my={3} borderColor="gray.600" />;
           }
-          p={2}
-          borderRadius="md"
-          _hover={{ bg: 'gray.700' }}
-        >
-          Clientes
-        </Box>
 
-        <Box
-          as={RouterNavLink}
-          to="/admin/teachers"
-          style={({ isActive }: { isActive: boolean }) =>
-            isActive ? activeLinkStyle : undefined
-          }
-          p={2}
-          borderRadius="md"
-          _hover={{ bg: 'gray.700' }}
-        >
-          Profesores
-        </Box>
-
-        <Box
-          as={RouterNavLink}
-          to="/admin/classes"
-          style={({ isActive }: { isActive: boolean }) =>
-            isActive ? activeLinkStyle : undefined
-          }
-          p={2}
-          borderRadius="md"
-          _hover={{ bg: 'gray.700' }}
-        >
-          Clases
-        </Box>
-        
-        <Divider my={4} />
-
-        <Box
-          as={RouterNavLink}
-          to="/admin/billing"
-          style={({ isActive }: { isActive: boolean }) =>
-            isActive ? activeLinkStyle : undefined
-          }
-          p={2}
-          borderRadius="md"
-          _hover={{ bg: 'gray.700' }}
-        >
-          Facturación (Próximamente)
-        </Box>
+          return (
+            <Box
+              key={link.to!}
+              as={RouterNavLink}
+              to={link.to!}
+              end={link.end}
+              style={({ isActive }: { isActive: boolean }) =>
+                isActive ? activeLinkStyle : undefined
+              }
+              p={3}
+              borderRadius="md"
+              _hover={{ bg: 'gray.700' }}
+              transition="all 0.2s"
+            >
+              <HStack spacing={3}>
+                <Icon as={link.icon} />
+                <Text fontSize="sm" fontWeight="medium">
+                  {link.label}
+                </Text>
+              </HStack>
+            </Box>
+          );
+        })}
       </VStack>
     </Box>
   );

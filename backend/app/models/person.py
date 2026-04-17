@@ -1,10 +1,12 @@
 import uuid
 from sqlalchemy import Column, String, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base_class import Base
-
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .user import User
 class Person(Base):
     __tablename__ = "persons"
 
@@ -21,7 +23,7 @@ class Person(Base):
     # --- Relación Uno-a-Uno con User ---
     # Esto vincula el perfil de la persona con sus credenciales de login.
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
-    user = relationship("User", back_populates="person_profile")
+    user: Mapped["User"] = relationship("User", back_populates="person_profile")
 
     # --- Discriminador para la Herencia ---
     # Esta columna le dice a SQLAlchemy qué tipo de Persona es cada fila.
