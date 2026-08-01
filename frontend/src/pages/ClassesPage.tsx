@@ -28,8 +28,7 @@ const ClassesPage: React.FC = () => {
     if (isLoading) return <LoadingSpinner />;
     // isError es un booleano que nos dice si 'error' tiene un valor
     if (isError) {
-      const errorMessage = error instanceof Error ? error.message : 'Ocurrió un error inesperado';
-      return <ErrorDisplay message={errorMessage} />;
+      return <ErrorDisplay error={error} />;
     }
     if (!classes || classes.length === 0) {
       return <Heading as="h3" size="md">No hay clases disponibles.</Heading>;

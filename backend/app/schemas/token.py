@@ -7,5 +7,7 @@ class Token(BaseModel):
     token_type: str
 
 # Esquema para los datos que van DENTRO del token
-class TokenData(BaseModel):
-    email: Optional[str] = None
+class TokenPayload(BaseModel):
+    sub: Optional[str] = None   #email
+    role: Optional[str] = None # Para el control de roles
+    exp: Optional[int] = None  # Expiración del token

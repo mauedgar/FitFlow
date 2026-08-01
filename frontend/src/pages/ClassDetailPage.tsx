@@ -36,10 +36,7 @@ const ClassDetailPage: React.FC = () => {
     if (isLoading) return <LoadingSpinner />;
 
     if (isError) {
-      if (error instanceof AxiosError && error.response?.status === 404) {
-        return <ErrorDisplay message={`La clase con ID ${classId} no fue encontrada.`} />;
-      }
-      return <ErrorDisplay message={error.message || 'Ocurrió un error al cargar los detalles.'} />;
+      return <ErrorDisplay error={error} />;
     }
     
     // 4. Si hay datos, le pasa la información a la "carrocería" (ClassDetailView)

@@ -1,14 +1,14 @@
 import { BrowserRouter} from 'react-router-dom';
-import { ChakraProvider } from '@chakra-ui/react';
 import { AppRouter } from './routes/AppRouter.tsx';
 
 const App: React.FC = () => {
   return (
-    <ChakraProvider>
-      <BrowserRouter>
+      <BrowserRouter future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true 
+      }}>        
         <AppRouter/>
       </BrowserRouter>
-    </ChakraProvider>
   );
 }
 

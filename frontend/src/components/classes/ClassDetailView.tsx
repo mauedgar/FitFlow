@@ -1,22 +1,25 @@
 import React from 'react';
 import {
   Box, Heading, Text, Badge, VStack, HStack, Icon, Divider,
-  SimpleGrid, Avatar, Card, CardHeader
+  SimpleGrid
 } from '@chakra-ui/react';
 import { FaClock, FaTachometerAlt } from 'react-icons/fa';
 // 1. Asegúrate de importar el tipo de dato que vas a recibir.
-import { type GymClass } from '../../types';
+import { type GymClass, type ClassScheduleWithNextSession } from '../../types';
+import ClassScheduleSection from './ClassScheduleSection'; // Nuevo subcomponente
+
 
 // 2. DEFINE LA INTERFAZ DE PROPS: Este es el "manual de instrucciones".
 // Le dice a TypeScript que este componente DEBE recibir una prop llamada 'gymClass'
 // que sea del tipo 'GymClass'.
 interface ClassDetailViewProps {
   gymClass: GymClass;
+  onCloseModal?: () => void; // Para cerrar el modal después de reservar, si es necesario
 }
 
 // 3. APLICA LA INTERFAZ AL COMPONENTE: Usa React.FC<TuInterfazDeProps>
 // y desestructura la prop 'gymClass' de los argumentos.
-export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass }) => {
+export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass, onCloseModal }) => {  
   return (
     <VStack spacing={8} align="stretch">
       <Box>
@@ -30,7 +33,7 @@ export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass }) =>
           <Icon as={FaTachometerAlt} w={6} h={6} color="teal.500" />
           <Box>
             <Text fontSize="sm" color="gray.500">Dificultad</Text>
-            <Badge colorScheme="orange" variant="solid" fontSize="md">{gymClass.difficulty}</Badge>
+            <Badge colorScheme={gymClass.difficulty === "Principante" ? "green" : gymClass.difficulty === "Intermedio" ? "orange" : "red"} variant="solid" fontSize="md">{gymClass.difficulty}</Badge>
           </Box>
         </HStack>
         <HStack>
@@ -45,21 +48,21 @@ export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass }) =>
       <Divider />
 
       <Box>
-        <Heading as="h2" size="lg" mb={4}>Instructor(es)</Heading>
-        {gymClass.teachers.map(teacher => (
-          <Card key={teacher.id} variant="outline" mb={4}>
-            <CardHeader>
-              <HStack>
-                <Avatar name={`${teacher.name} ${teacher.surname}`} />
-                <Box>
-                  <Heading size='sm'>{`${teacher.name} ${teacher.surname}`}</Heading>
-                  {/* Asumiendo que teacher tiene una propiedad specialty */}
-                  <Text fontSize="sm" color="gray.500">Especialista en...</Text>
-                </Box>
-              </HStack>
-            </CardHeader>
-          </Card>
-        ))}
+        <Heading as="h2" size="lg" mb={4}>Horarios y Reservas</Heading>
+        {gymClass.class_schedules && gymClass.class_schedules.length > 0 ? (
+          <VStack spacing={6} align="stretch">
+            {gymClass.class_schedules.map((schedule) => (
+              <ClassScheduleSection
+                key={schedule.id}
+                classSchedule={schedule as ClassScheduleWithNextSession}
+                gymClassName={gymClass.name} // Pasa el nombre para toasts
+                onCloseModal={onCloseModal}
+              />
+            ))}
+          </VStack>
+        ) : (
+          <Text>No hay horarios programados para esta clase.</Text>
+        )}
       </Box>
     </VStack>
   );

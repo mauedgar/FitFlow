@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
 import React, { useState } from 'react';
 import {
   Box,
@@ -15,74 +13,90 @@ import {
   Container
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { useAuth, isUserRole } from '../context/AuthContext'; // Importamos el type guard
-import { loginUser } from '../services/api'; // ⭐ 1. Importamos nuestra nueva función
-import { jwtDecode } from 'jwt-decode'; // ⭐ 2. Importamos el decodificador de JWT
+import { useMutation } from '@tanstack/react-query'; // ⭐ Importamos useMutation
+import { useAuth } from '../context/useAuth'; // ⭐ Importamos el contexto de Auth
+import classService from '../services/classService'; // ⭐ Usaremos classService para el login
+import { UserRole, type FastAPIAuthErrorResponse, type TokenResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
+import { AxiosError } from 'axios'; // ⭐ Para un manejo de errores más específico
+import { type TokenPayload } from '../types';
+import {jwtDecode} from 'jwt-decode'
 
-// Creamos un tipo para la información que esperamos del token
-type DecodedToken = {
-  sub: string; // "subject", que en nuestro caso es el email
-  role: string; // el rol que añadimos en el backend
-  exp: number; // fecha de expiración
-};
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false); // Para feedback visual
-  const { login } = useAuth();
+  
+  const { login } = useAuth(); // ⭐ Obtenemos la función login, y el estado del usuario/rol
   const navigate = useNavigate();
   const toast = useToast();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
+  // ⭐ 1. Definimos la mutación de login
+  const loginMutation = useMutation<TokenResponse, AxiosError, { username: string; password: string }>({
+    // La función que ejecuta la llamada a la API
+    mutationFn: (credentials) => classService.login(credentials),
+    
+    // Callback que se ejecuta si la mutación es exitosa
+    onSuccess: (data) => {
+      // Llamamos a la función login del AuthContext, pasando solo el token
+      // El AuthContext ya se encarga de decodificar y establecer el rol
+      login(data.access_token);      
+      toast({
+        title: "Inicio de sesión exitoso",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
 
-    try {
-      // ⭐ 3. Reemplazamos la lógica falsa con la llamada real a la API
-      const data = await loginUser(email, password);
-      
-      const token = data.access_token;
-      
-      // Decodificamos el token para obtener el rol
-      const decodedToken = jwtDecode<DecodedToken>(token);
-      const rol = decodedToken.role;
-
-      if (token && isUserRole(rol)) {
-        // Dentro de este bloque, TypeScript entiende que 'rol' es 'admin' | 'client' | 'trainer'
-        login(token, rol);
-        console.log(rol)
-        toast({
-          title: "Inicio de sesión exitoso",
-          status: "success",
-          duration: 3000,
-          isClosable: true,
-        });
-
-        // Redirigimos basado en el rol obtenido del token
-        if (rol === 'admin') {
-          navigate('/admin');
-        } else {
-          navigate('/home');
-        }
+      // ⭐ 2. Redirección basada en el rol, que ahora se obtiene del AuthContext
+      // Esperamos que currentUser y userRole ya estén actualizados después de 'login(data.access_token)'
+      // Si necesitas una redirección inmediata basada en el token, podrías decodificar aquí
+      // pero el patrón ideal es que AuthContext lo maneje y tú reaccione a ello.
+      // Para una redirección más segura, esperemos al siguiente ciclo de render o a que AuthContext actualice.
+      // Por simplicidad, usaremos el userRole actualizado por el AuthContext
+      // Decodificas YA el role antes de depender del contexto
+      const payload = jwtDecode<TokenPayload>(data.access_token)      
+      if (payload.role === UserRole.ADMIN) {
+        navigate('/admin');
       } else {
-        // Si el rol no es 'admin' o 'cliente', o no hay token, lanzamos un error
+        navigate('/home'); // O '/home' según tu estructura
+      }
+    },
+    
+    // Callback que se ejecuta si la mutación falla
+    onError: (error) => {
+      let errorMessage = "Ocurrió un error inesperado al iniciar sesión.";
+      if (error.response?.data) {
+        // Intentamos castear a un tipo de error de autenticación específico
+        const errorData = error.response.data as FastAPIAuthErrorResponse; 
 
-        throw new Error('Datos de autenticación inválidos desde el servidor.');
+        if (errorData.detail) { // Ahora TypeScript sabe que 'detail' puede existir
+          errorMessage = errorData.detail;
+        } else {
+          // Si el detalle no es un string (ej. un objeto de errores de validación, aunque raro para login)
+          // Puedes intentar un casteo más general si tu API devuelve diferentes formatos
+          errorMessage = JSON.stringify(error.response.data);
+        }
+      } else if (error.message === "Network Error") {
+        errorMessage = "Error de red. Asegúrate de que el servidor está corriendo.";
+      } else if (error.message) {
+        errorMessage = error.message;
       }
 
-    } catch (error) {
       toast({
         title: "Error al iniciar sesión",
-        description: error instanceof Error ? error.message : "Ocurrió un error inesperado.",
+        description: errorMessage,
         status: "error",
         duration: 5000,
         isClosable: true,
       });
       console.error('Error de login:', error);
-    } finally {
-      setIsLoading(false); // Detenemos la carga, ya sea éxito o error
-    }
+    },
+  });
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    // ⭐ 3. Disparamos la mutación con las credenciales
+    loginMutation.mutate({ username: email, password });    
   };
   
   return (
@@ -90,6 +104,7 @@ const LoginPage = () => {
       <VStack spacing={8}>
         <Heading>Iniciar Sesión</Heading>
         
+        {/* ⭐ El estado de carga lo gestiona directamente la mutación */}
         <Box as="form" onSubmit={handleSubmit} w="100%">
           <VStack spacing={4}>
             <FormControl isRequired>
@@ -99,6 +114,8 @@ const LoginPage = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="tu@email.com"
+                autoComplete='email'
+                isDisabled={loginMutation.isPending} // Deshabilitar mientras carga
               />
             </FormControl>
 
@@ -109,10 +126,18 @@ const LoginPage = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="********"
+                autoComplete="current-password"
+                isDisabled={loginMutation.isPending} // Deshabilitar mientras carga
               />
             </FormControl>
 
-            <Button type="submit" colorScheme="teal" w="100%">
+            <Button
+              type="submit"
+              colorScheme="teal"
+              w="100%"
+              isLoading={loginMutation.isPending} // ⭐ Mostrar spinner mientras carga
+              isDisabled={loginMutation.isPending} // Deshabilitar para evitar múltiples envíos
+            >
               Ingresar
             </Button>
           </VStack>

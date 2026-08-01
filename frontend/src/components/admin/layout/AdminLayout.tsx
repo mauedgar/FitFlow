@@ -1,36 +1,42 @@
-// src/components/admin/layout/AdminLayout.tsx
-import { Box, Flex } from '@chakra-ui/react';
+import { Box, Flex, useBreakpointValue } from '@chakra-ui/react';
 import { Outlet } from 'react-router-dom';
-import AdminSideBar from './AdminSidebar'; 
+import AdminSideBar from './AdminSidebar';
 import AdminNavBar from './AdminNavBar';
 
 const AdminLayout = () => {
-  const sidebarWidth = '250px'; // Define el ancho del sidebar en una variable
+  const sidebarWidth = '250px';
+  const showSidebar = useBreakpointValue({ base: false, md: true });
 
   return (
-    // Flex principal que organiza el layout en horizontal
-    <Flex>
-      {/* 1. Sidebar */}
-      {/* Ocupa un ancho fijo y es visible en pantallas medianas y grandes */}
-      <Box 
-        as="aside"
-        w={sidebarWidth} 
-        minH="100vh" 
-        bg="gray.800" // Un color de fondo para distinguirlo
-        color="white"
-        display={{ base: 'none', md: 'block' }} // Oculto en móviles
-      >
-        <AdminSideBar />
-      </Box>
+    <Flex minH="100vh" bg="gray.50">
+      {/* SIDEBAR - Solo en pantallas medianas y grandes */}
+      {showSidebar && (
+        <Box
+          as="aside"
+          w={sidebarWidth}
+          minH="100vh"
+          bg="gray.800"
+          color="white"
+          position="fixed"
+          left="0"
+          top="0"
+          zIndex="1000"
+        >
+          <AdminSideBar />
+        </Box>
+      )}
 
-      {/* 2. Contenedor del contenido principal */}
-      {/* Ocupa el resto del espacio disponible */}
-      <Box flex="1">
-        {/* Navbar en la parte superior del contenido principal */}
+      {/* CONTENIDO PRINCIPAL */}
+      <Box
+        flex="1"
+        ml={showSidebar ? sidebarWidth : '0'}
+        transition="margin-left 0.2s"
+      >
+        {/* NAVBAR */}
         <AdminNavBar />
-        
-        {/* El contenido de la página actual, renderizado por el Outlet */}
-        <Box as="main" p={8}>
+
+        {/* ÁREA DE CONTENIDO */}
+        <Box as="main" p={{ base: 4, md: 8 }} minH="calc(100vh - 64px)">
           <Outlet />
         </Box>
       </Box>

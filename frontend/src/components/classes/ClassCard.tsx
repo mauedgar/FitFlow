@@ -14,7 +14,7 @@ import {
   StackDivider,
   Image, // Importamos Image para el fondo visual
 } from '@chakra-ui/react';
-import { FaUserGraduate, FaClock } from 'react-icons/fa';
+import { FaCalendarAlt, FaClock } from 'react-icons/fa';
 import { type GymClass } from '../../types'; // Asumo que esta es la ruta correcta
 
 interface ClassCardProps {
@@ -25,21 +25,6 @@ interface ClassCardProps {
 // --- Helpers de Presentación ---
 // Abstraemos la lógica de formato para mantener el JSX limpio.
 
-const getTeacherNames = (teachers: GymClass['teachers']): string => {
-  if (!teachers || teachers.length === 0) {
-    return 'Instructor por confirmar';
-  }
-  return teachers.map(t => `${t.name} ${t.surname}`).join(', ');
-};
-
-const formatClassTime = (schedule: string, duration: number): string => {
-  const startTime = new Date(schedule).toLocaleTimeString('es-AR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  return `${startTime} hs - ${duration} min`;
-};
-
 const difficultyColorScheme: Record<string, string> = {
   Principante: 'green',
   Intermedio: 'orange',
@@ -49,7 +34,7 @@ const difficultyColorScheme: Record<string, string> = {
 // --- Componente Principal ---
 
 const ClassCard: React.FC<ClassCardProps> = ({ gymClass, onClick }) => {
-  const { name, description, difficulty, teachers, schedule, duration_minutes } = gymClass;
+  const { name, description, difficulty, duration_minutes } = gymClass;
 
   return (
     // 1. Usamos el componente <Card> semántico. Viene con estilos base.
@@ -108,12 +93,12 @@ const ClassCard: React.FC<ClassCardProps> = ({ gymClass, onClick }) => {
           w="100%"
         >
           <HStack color="gray.700">
-            <Icon as={FaUserGraduate} w={4} h={4} />
-            <Text fontSize="sm" fontWeight="medium">{getTeacherNames(teachers)}</Text>
+            <Icon as={FaClock} w={4} h={4} />
+            <Text fontSize="sm" fontWeight="medium">Duración: {duration_minutes ?? 'N/A'} min</Text>
           </HStack>
           <HStack color="gray.700">
-            <Icon as={FaClock} w={4} h={4} />
-            <Text fontSize="sm" fontWeight="medium">{formatClassTime(schedule, duration_minutes)}</Text>
+            <Icon as={FaCalendarAlt} w={4} h={4} />
+            <Text fontSize="sm" fontWeight="medium">Multiples horarios disponibles</Text>
           </HStack>
         </VStack>
       </CardFooter>

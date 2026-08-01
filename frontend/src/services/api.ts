@@ -1,9 +1,10 @@
 // src/services/api.ts
 import axios from 'axios';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // 1. Creamos una instancia de Axios con configuración base
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8000/api/v1', // La URL base de tu backend FastAPI
+  baseURL: API_BASE_URL, // La URL base de tu backend FastAPI
   headers: {
     'Content-Type': 'application/json',
   },
