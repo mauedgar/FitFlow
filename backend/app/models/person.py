@@ -1,35 +1,72 @@
 import uuid
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Column, String, ForeignKey
 from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.base_class import Base
-from typing import TYPE_CHECKING
+from app.db.mixins import TimestampMixin, ActiveMixin, SoftDeleteMixin
+
 if TYPE_CHECKING:
     from .user import User
-class Person(Base):
+
+
+class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
+    """
+    Entidad base de identidad personal dentro del sistema.
+
+    Esta tabla concentra los datos personales comunes de cualquier
+    individuo registrado en la plataforma, independientemente de su rol
+    operativo posterior (cliente, profesor, etc.).
+
+    La autenticación se resuelve en User, mientras que la especialización
+    funcional se implementa mediante herencia con Client y Teacher.
+    """
     __tablename__ = "persons"
 
+    # Identificador único de la persona.
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name = Column(String, index=True, nullable=False)
-    surname = Column(String, index=True, nullable=False)
-    passport = Column(String, unique=True, index=True, nullable=True) # DNI, Cédula, etc.
+
+    # Nombre de pila de la persona.
+    first_name = Column(String, index=True, nullable=False)
+
+    # Apellido de la persona.
+    last_name = Column(String, index=True, nullable=False)
+
+    # Número de documento identificatorio personal (DNI, cédula, pasaporte, etc.).
+    document_number = Column(String, unique=True, index=True, nullable=True)
+
+    # Domicilio o dirección declarada.
     address = Column(String, nullable=True)
-    
-    # Rutas a los archivos. La lógica de subida de archivos es para otro sprint.
+
+    # Ruta o URL al apto físico o certificado médico, si aplica.
     medical_fit_url = Column(String, nullable=True)
-    profile_img_url = Column(String, nullable=True)
 
-    # --- Relación Uno-a-Uno con User ---
-    # Esto vincula el perfil de la persona con sus credenciales de login.
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
-    user: Mapped["User"] = relationship("User", back_populates="person_profile")
+    # Ruta o URL de la imagen de perfil.
+    profile_image_url = Column(String, nullable=True)
 
-    # --- Discriminador para la Herencia ---
-    # Esta columna le dice a SQLAlchemy qué tipo de Persona es cada fila.
-    type = Column(String(50))
+    # Relación uno a uno con la cuenta autenticable del sistema.
+    # Esta separación permite desacoplar credenciales de acceso
+    # respecto de la identidad personal.
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id"),
+        nullable=False,
+        unique=True
+    )
+
+    user: Mapped["User"] = relationship(
+        "User",
+        back_populates="person_profile"
+    )
+
+    # Discriminador polimórfico para la herencia ORM.
+    # Permite distinguir si la persona es una base genérica,
+    # un cliente o un profesor.
+    person_type = Column(String(50), nullable=True)
 
     __mapper_args__ = {
         "polymorphic_identity": "person",
-        "polymorphic_on": type,
+        "polymorphic_on": person_type,
     }

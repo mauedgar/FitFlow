@@ -20,7 +20,7 @@ const NotificationPanel: React.FC = () => {
     const currentYear = new Date().getFullYear();
     
     const classesThisMonth = userBookings.filter(booking => {
-      const bookingDate = new Date(booking.class_session.start_datetime);
+      const bookingDate = new Date(booking.class_session.starts_at);
       return (
         bookingDate.getMonth() === currentMonth &&
         bookingDate.getFullYear() === currentYear &&

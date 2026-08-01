@@ -21,24 +21,24 @@ from app.models.membership import MembershipPlan
 TEACHERS_DATA = [
     {
         "user": {"email": "ana.perez@fitflow.com", "password": "password123", "role": UserRole.TRAINER},
-        "profile": {"name": "Ana", "surname": "Pérez", "bio": "Instructora certificada de Yoga y Pilates con 5 años de experiencia.", "cuil": "27-12345678-5"}
+        "profile": {"name": "Ana", "last_name": "Pérez", "bio": "Instructora certificada de Yoga y Pilates con 5 años de experiencia.", "cuil": "27-12345678-5"}
     },
     {
         "user": {"email": "carlos.gomez@fitflow.com", "password": "password123", "role": UserRole.TRAINER},
-        "profile": {"name": "Carlos", "surname": "Gómez", "bio": "Especialista en entrenamiento funcional y CrossFit Nivel 2.", "cuil": "20-87654321-8"}
+        "profile": {"name": "Carlos", "last_name": "Gómez", "bio": "Especialista en entrenamiento funcional y CrossFit Nivel 2.", "cuil": "20-87654321-8"}
     },
     {
         "user": {"email": "lucia.fernandez@fitflow.com", "password": "password123", "role": UserRole.TRAINER},
-        "profile": {"name": "Lucía", "surname": "Fernández", "bio": "Apasionada por el baile y el fitness. Certificada en Zumba y ritmos latinos.", "cuil": "27-23456789-0"}
+        "profile": {"name": "Lucía", "last_name": "Fernández", "bio": "Apasionada por el baile y el fitness. Certificada en Zumba y ritmos latinos.", "cuil": "27-23456789-0"}
     }
 ]
 
 CLIENTS_DATA = [
-    {"user": {"email": "juan.rodriguez@email.com", "password": "password123"}, "profile": {"name": "Juan", "surname": "Rodríguez"}},
-    {"user": {"email": "maria.garcia@email.com", "password": "password123"}, "profile": {"name": "María", "surname": "García"}},
-    {"user": {"email": "pedro.martinez@email.com", "password": "password123"}, "profile": {"name": "Pedro", "surname": "Martínez"}},
-    {"user": {"email": "laura.sanchez@email.com", "password": "password123"}, "profile": {"name": "Laura", "surname": "Sánchez"}},
-    {"user": {"email": "sofia.lopez@email.com", "password": "password123"}, "profile": {"name": "Sofía", "surname": "López"}},
+    {"user": {"email": "juan.rodriguez@email.com", "password": "password123"}, "profile": {"name": "Juan", "last_name": "Rodríguez"}},
+    {"user": {"email": "maria.garcia@email.com", "password": "password123"}, "profile": {"name": "María", "last_name": "García"}},
+    {"user": {"email": "pedro.martinez@email.com", "password": "password123"}, "profile": {"name": "Pedro", "last_name": "Martínez"}},
+    {"user": {"email": "laura.sanchez@email.com", "password": "password123"}, "profile": {"name": "Laura", "last_name": "Sánchez"}},
+    {"user": {"email": "sofia.lopez@email.com", "password": "password123"}, "profile": {"name": "Sofía", "last_name": "López"}},
 ]
 
 # CLASES CON DEFAULT_CAPACITY ACTUALIZADO
@@ -162,8 +162,8 @@ async def seed_data(db: Session) -> None:
                 teacher_id=teacher.id,
                 days_of_week=schedule_template["days"],
                 start_time=time(hour, minute),
-                end_time=time(hour + 1, minute),  # Duración de 1 hora
-                max_capacity=gym_class.default_capacity,
+                duration_minutes=time(hour + 1, minute),  # Duración de 1 hora
+                capacity=gym_class.default_capacity,
                 start_date=date.today(),
                 end_date=date.today() + timedelta(days=90)  # 3 meses
             )
@@ -186,13 +186,13 @@ async def seed_data(db: Session) -> None:
             # Si este día coincide con el horario
             if weekday in schedule.days_of_week:
                 session_start = datetime.combine(check_date, schedule.start_time)
-                session_end = datetime.combine(check_date, schedule.end_time)
+                session_end = datetime.combine(check_date, schedule.duration_minutes)
                 
                 class_session = ClassSession(
                     class_schedule_id=schedule.id,
-                    start_datetime=session_start,
-                    end_datetime=session_end,
-                    is_cancelled=False
+                    starts_at=session_start,
+                    ends_at=session_end,
+                    status=False
                 )
                 db.add(class_session)
                 sessions_created += 1
@@ -217,16 +217,16 @@ async def seed_data(db: Session) -> None:
                 session_date = date.today() + timedelta(days=days_ahead)
                 
                 # Combinar fecha con hora
-                start_datetime = datetime.combine(session_date, schedule.start_time)
-                end_datetime = datetime.combine(session_date, schedule.end_time)
+                starts_at = datetime.combine(session_date, schedule.start_time)
+                ends_at = datetime.combine(session_date, schedule.duration_minutes)
                 
                 # Crear la sesión si está dentro del rango del schedule
                 if schedule.start_date <= session_date <= (schedule.end_date or session_date):
                     session = ClassSession(
                         class_schedule_id=schedule.id,
-                        start_datetime=start_datetime,
-                        end_datetime=end_datetime,
-                        is_cancelled=False
+                        starts_at=starts_at,
+                        ends_at=ends_at,
+                        status=False
                     )
                     db.add(session)
                     sessions_created += 1

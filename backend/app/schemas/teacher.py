@@ -50,5 +50,5 @@ class TeacherInClassScheduleResponse(PersonBase):
         from_attributes = True
 
 class TeacherInScheduleResponseMini(BaseModel):
-    name: str
-    surname: str
+    first_name: str
+    last_name: str

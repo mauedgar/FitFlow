@@ -66,23 +66,23 @@ def read_class_sessions(
     if from_date:
         # Compara el inicio del día
         start_of_day = datetime.combine(from_date, time.min)
-        query = query.filter(ClassSession.start_datetime >= start_of_day)
+        query = query.filter(ClassSession.starts_at >= start_of_day)
     if to_date:
         # Compara el final del día
         end_of_day = datetime.combine(to_date, time.max)
-        query = query.filter(ClassSession.start_datetime <= end_of_day)
+        query = query.filter(ClassSession.starts_at <= end_of_day)
         
     if not include_cancelled:
-        query = query.filter(ClassSession.is_cancelled == False) # Más explícito  # noqa: E712
+        query = query.filter(ClassSession.status == False) # Más explícito  # noqa: E712
 
-    query = query.order_by(ClassSession.start_datetime)    
+    query = query.order_by(ClassSession.starts_at)    
 
     sessions = query.offset(skip).limit(limit).all()
     
     # Calcular disponibilidad
     for session in sessions:
         session.current_bookings_count = len(session.bookings)
-        session.available_spots = session.class_schedule.max_capacity - session.current_bookings_count
+        session.available_spots = session.class_schedule.capacity - session.current_bookings_count
     
     print(f"✅ Query encontró {len(sessions)} sesiones.")
 
@@ -116,7 +116,7 @@ def read_class_session_by_id(
     
     # Calcular disponibilidad para la sesión individual
     session.current_bookings_count = len(session.bookings)
-    session.available_spots = session.class_schedule.max_capacity - session.current_bookings_count
+    session.available_spots = session.class_schedule.capacity - session.current_bookings_count
     
     return session
 

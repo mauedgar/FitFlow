@@ -13,9 +13,9 @@ if TYPE_CHECKING:
 
 # --- Esquema Base ---
 class ClassSessionBase(BaseModel):
-    start_datetime: datetime
-    end_datetime: datetime
-    is_cancelled: bool = False
+    starts_at: datetime
+    ends_at: datetime
+    status: bool = False
 
 # --- Esquema para CREACIÓN (principalmente para el generador interno) ---
 class ClassSessionCreate(ClassSessionBase):
@@ -23,9 +23,9 @@ class ClassSessionCreate(ClassSessionBase):
 
 # --- Esquema para ACTUALIZACIÓN ---
 class ClassSessionUpdate(BaseModel):
-    start_datetime: Optional[datetime] = None
-    end_datetime: Optional[datetime] = None
-    is_cancelled: Optional[bool] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    status: Optional[bool] = None
     # No permitir cambiar class_schedule_id directamente via update
 
 # --- Esquema de RESPUESTA de la API ---

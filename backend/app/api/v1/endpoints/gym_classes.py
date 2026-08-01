@@ -93,7 +93,7 @@ def read_gym_class_by_id(
                 # Buscar si ya existe una ClassSession para esa fecha y hora exactas
                 session = db.query(models.ClassSession).filter(
                     models.ClassSession.class_schedule_id == schedule.id,  # 👈 CORRECCIÓN
-                    models.ClassSession.start_datetime == start_dt          # 👈 CORRECCIÓN
+                    models.ClassSession.starts_at == start_dt          # 👈 CORRECCIÓN
                 ).options(selectinload(models.ClassSession.bookings)).first()
                 
                 if session:
@@ -102,14 +102,14 @@ def read_gym_class_by_id(
                         b for b in session.bookings 
                         if b.status == 'CONFIRMED'
                     ])
-                    available_spots = schedule.max_capacity - bookings_count
+                    available_spots = schedule.capacity - bookings_count
                 else:
                     # La sesión no existe: todos los cupos están disponibles
-                    available_spots = schedule.max_capacity
+                    available_spots = schedule.capacity
 
                 # Preparar la información que el frontend necesita
                 next_session_info = {
-                    "start_datetime": start_dt,
+                    "starts_at": start_dt,
                     "available_spots": available_spots
                 }
                 break  # Salimos del bucle: ya encontramos la primera fecha disponible

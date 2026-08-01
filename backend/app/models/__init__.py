@@ -7,3 +7,4 @@ from .membership import Membership  # noqa: F401
 from .booking import Booking        # noqa: F401
 from .class_schedule import ClassSchedule # noqa: F401
 from .class_session import ClassSession # noqa: F401
+from .person import Person # noqa: F401

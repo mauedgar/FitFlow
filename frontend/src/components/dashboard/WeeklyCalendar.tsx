@@ -22,11 +22,11 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ weekDays, bookings }) =
   const getBookingsForDay = (day: Date): Booking[] => {
     const dayStr = getFormattedDate(day);
     return bookings.filter(booking => {
-      const bookingDate = getFormattedDate(booking.class_session.start_datetime);
+      const bookingDate = getFormattedDate(booking.class_session.starts_at);
       return bookingDate === dayStr;
     }).sort((a, b) => 
-      new Date(a.class_session.start_datetime).getTime() - 
-      new Date(b.class_session.start_datetime).getTime()
+      new Date(a.class_session.starts_at).getTime() - 
+      new Date(b.class_session.starts_at).getTime()
     );
   };
 
