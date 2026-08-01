@@ -24,13 +24,13 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         # SQLAlchemy manejará la creación de la entrada en la tabla 'persons' automáticamente.
         db_obj = Client(
             # Datos de Person (que vienen de ClientCreate al heredar de PersonCreate)
-            name=obj_in.name,
-            surname=obj_in.surname,
+            first_name=obj_in.first_name,
+            last_name=obj_in.last_name,
             passport=obj_in.passport,
             address=obj_in.address,
-            # ... otros campos de Person si ClientCreate los incluye (ej. medical_fit_url, profile_img_url)
+            # ... otros campos de Person si ClientCreate los incluye (ej. medical_fit_url, profile_image_url)
             medical_fit_url=obj_in.medical_fit_url, # Si ClientCreate hereda de PersonCreate y tiene estos campos
-            profile_img_url=obj_in.profile_img_url,
+            profile_image_url=obj_in.profile_image_url,
 
             # Asociación con el User
             user=user # Asignamos el objeto User directamente a la relación 'user'

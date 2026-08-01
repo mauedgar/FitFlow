@@ -8,9 +8,9 @@ export enum UserRole {
 }
 
 export enum DifficultyLevel {
-  BEGINNER = "Principante",
-  INTERMEDIATE = "Intermedio",
-  ADVANCED = "Avanzado",
+  BEGINNER = "beginner",
+  INTERMEDIATE = "intermediate",
+  ADVANCED = "advanced",
 }
 
 export enum BookingStatus {
@@ -22,12 +22,12 @@ export enum BookingStatus {
 // --- Schemas Base --- (si se usan en el frontend para herencia de Pydantic)
 // Aunque en TypeScript no se "hereda" igual, puedes usar interfaces base.
 export interface PersonBase {
-  name: string;
-  surname: string;
+  first_name: string;
+  last_name: string;
   passport?: string;
   address?: string;
   medical_fit_url?: string;
-  profile_img_url?: string;
+  profile_image_url?: string;
 }
 
 // --- User ---
@@ -36,7 +36,7 @@ export interface User {
   id?: string; // Puede no estar en el token, se obtiene de otro endpoint
   email: string;
   role: UserRole;
-  is_active?: boolean;
+  active?: boolean;
   // Otros campos del User si los necesitas en el frontend y los obtienes
 }
 
@@ -58,7 +58,7 @@ export interface TeacherInResponse extends PersonBase {
   id: string;
   bio?: string;
   cuil?: string;
-  // Si en el backend, TeacherInClassScheduleResponse no incluye name, surname, etc.
+  // Si en el backend, TeacherInClassScheduleResponse no incluye first_name, last_name, etc.
   // entonces esta interfaz debería ser más minimalista.
 }
 
@@ -72,7 +72,7 @@ export interface Teacher extends TeacherInResponse {
 // Esquema ligero para cuando GymClass es anidado en otra respuesta (ej. ClassSchedule)
 export interface GymClassInResponse {
   id: string;
-  name: string;
+  first_name: string;
   description: string;
   duration_minutes: number;
   difficulty: DifficultyLevel;
@@ -82,7 +82,7 @@ export interface GymClassInResponse {
 // Esquema completo para una GymClass (ej. en un endpoint GET /gym_classes/{id})
 export interface GymClass {
   id: string;
-  name: string;
+  first_name: string;
   description: string;
   duration_minutes: number;
   difficulty: DifficultyLevel;
@@ -94,7 +94,7 @@ export interface GymClass {
 
 // Representa los datos necesarios para crear una nueva clase (sin profesores directamente)
 export interface GymClassCreatePayload {
-  name: string;
+  first_name: string;
   description: string;
   duration_minutes: number;
   difficulty: DifficultyLevel;
@@ -107,8 +107,8 @@ export interface GymClassCreatePayload {
 export interface ClassScheduleBase {
   days_of_week: number[]; // Array de números (0=Lunes, 6=Domingo)
   start_time: string;     // String "HH:MM:SS"
-  end_time: string;       // String "HH:MM:SS"
-  max_capacity: number;
+  duration_minutes: string;       // String "HH:MM:SS"
+  capacity: number;
   start_date: string;     // String "YYYY-MM-DD"
   end_date?: string;      // String "YYYY-MM-DD"
 }
@@ -124,7 +124,7 @@ export interface ClassScheduleInResponse extends ClassScheduleBase {
 }
 export interface ClassScheduleWithNextSession extends ClassScheduleInResponse {
   next_upcoming_session: {
-    start_datetime: string;
+    starts_at: string;
     available_spots: number;
   } | null;
 }
@@ -132,9 +132,9 @@ export interface ClassScheduleWithNextSession extends ClassScheduleInResponse {
 // --- ClassSession ---
 // Datos base de una sesión de clase específica
 export interface ClassSessionBase {
-  start_datetime: string; // ISO String de fecha y hora
-  end_datetime: string;   // ISO String de fecha y hora
-  is_cancelled: boolean;
+  starts_at: string; // ISO String de fecha y hora
+  ends_at: string;   // ISO String de fecha y hora
+  status: boolean;
 }
 
 // Esquema de respuesta completo para una ClassSession
@@ -154,8 +154,8 @@ export interface ClassSessionInBookingResponse extends ClassSessionBase {
   class_schedule_id: string; // Mantener el ID para referencia
   // Puedes incluir más campos si necesitas detalles de la sesión dentro de la reserva
   class_schedule: { // Aquí puedes poner una versión aún más ligera de ClassSchedule si solo necesitas nombre de clase/profesor
-    gym_class: { name: string; duration_minutes: number; };
-    teacher: { name: string; surname: string; };
+    gym_class: { first_name: string; duration_minutes: number; };
+    teacher: { first_name: string; last_name: string; };
   };
 }
 
@@ -170,7 +170,7 @@ export interface Booking extends BookingBase {
   id: string;
   client_id: string;
   class_session_id: string;
-  booking_date: string; // ISO String
+  created_at: string; // ISO String
   // Objetos anidados para mostrar detalles de la sesión y cliente
   client: ClientInBookingResponse;
   class_session: ClassSessionInBookingResponse; // Usar la versión ligera o completa según necesidad
@@ -180,7 +180,7 @@ export interface Booking extends BookingBase {
 export interface BookingInClassSessionResponse extends BookingBase {
   id: string;
   client_id: string;
-  booking_date: string;
+  created_at: string;
 }
 
 
@@ -201,6 +201,7 @@ export interface Client extends PersonBase {
 export interface BookingCreatePayload {
   class_session_id?: string;
   class_schedule_id?: string;
+  status: BookingStatus;
 }
 
 export interface FastAPIValidationError {

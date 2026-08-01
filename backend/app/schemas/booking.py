@@ -89,7 +89,7 @@ class Booking(BookingBase):
     id: uuid.UUID
     client_id: uuid.UUID
     class_session_id: uuid.UUID
-    booking_date: datetime
+    created_at: datetime
 
     # Relaciones anidadas: Se cargan los objetos completos para dar más contexto.
     # Usamos forward references (strings) para evitar importaciones circulares.
@@ -114,7 +114,7 @@ class BookingInClientResponse(BookingBase):
     """
     id: uuid.UUID
     class_session_id: uuid.UUID
-    booking_date: datetime
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -126,7 +126,7 @@ class BookingInClassSessionResponse(BookingBase):
     """
     id: uuid.UUID
     client_id: uuid.UUID
-    booking_date: datetime
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -142,5 +142,5 @@ class BookingCreateInternal(BaseModel):
     """
     client_id: uuid.UUID
     class_session_id: uuid.UUID
-    booking_date: datetime
+    created_at: datetime
     status: BookingStatus

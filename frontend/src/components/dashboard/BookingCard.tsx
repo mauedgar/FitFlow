@@ -21,11 +21,11 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, compact = false }) =
   const isMobile = useBreakpointValue({ base: true, md: false });
   
   // Extraer datos
-  const startDateTime = new Date(booking.class_session.start_datetime);
+  const startDateTime = new Date(booking.class_session.starts_at);
   const startTime = `${startDateTime.getHours().toString().padStart(2, '0')}:${startDateTime.getMinutes().toString().padStart(2, '0')}`;
   const duration = booking.class_session.class_schedule?.gym_class?.duration_minutes || 60;
-  const className = booking.class_session.class_schedule?.gym_class?.name || 'Clase';
-  const teacherName = `${booking.class_session.class_schedule?.teacher.name} ${booking.class_session.class_schedule?.teacher.surname}`.trim() || 'Instructor';
+  const className = booking.class_session.class_schedule?.gym_class?.first_name || 'Clase';
+  const teacherName = `${booking.class_session.class_schedule?.teacher.first_name} ${booking.class_session.class_schedule?.teacher.last_name}`.trim() || 'Instructor';
   const endDateTime = new Date(startDateTime); 
   endDateTime.setMinutes(startDateTime.getMinutes() + duration);
   const endTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
@@ -127,7 +127,7 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, compact = false }) =
             
             <HStack fontSize={{ base: "sm", md: "md" }} color="gray.600">
               <Icon as={FiClock} boxSize={{ base: 3, md: 4 }} />
-              <Text>{getFormattedDateTime(booking.class_session.start_datetime)}</Text>
+              <Text>{getFormattedDateTime(booking.class_session.starts_at)}</Text>
             </HStack>
             
             <HStack fontSize={{ base: "sm", md: "md" }} color="gray.600">

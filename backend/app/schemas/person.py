@@ -2,12 +2,12 @@ from pydantic import BaseModel
 from typing import Optional
 
 class PersonBase(BaseModel):
-    name: str
-    surname: str
+    first_name: str
+    last_name: str
     passport: Optional[str] = None
     address: Optional[str] = None
     medical_fit_url: Optional[str] = None
-    profile_img_url: Optional[str] = None
+    profile_image_url: Optional[str] = None
 
     # Todos los esquemas que lean de un modelo ORM necesitan esto
     class Config:

@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import type { AxiosError } from 'axios';
 
 import {    
+  BookingStatus,
   type BookingCreatePayload, 
   type ClassScheduleWithNextSession 
 } from '../../types';
@@ -75,7 +76,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
       return { text: 'Próxima fecha sin cupos', colorScheme: 'red' };
     }
     
-    const nextDate = getFormattedDate(new Date(nextSession.start_datetime));
+    const nextDate = getFormattedDate(new Date(nextSession.starts_at));
     const text = `Próximo inicio: ${nextDate}`;
     
     if (nextSession.available_spots <= 3) {
@@ -97,7 +98,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
       toast({ title: 'Acción no permitida', description: 'Solo los clientes pueden reservar.', status: 'warning', duration: 3000, isClosable: true });
       return;
     }
-    bookScheduleMutation.mutate({ class_schedule_id: classSchedule.id });
+    bookScheduleMutation.mutate({ class_schedule_id: classSchedule.id, status: BookingStatus.CONFIRMED });
   };
 
   /* ------------------------------------------------------------------
@@ -107,7 +108,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   const getDaysOfWeekString = (days: number[] = []) => days.map((d) => dayNames[d] ?? '¿?').join(', ');
   const teacher = classSchedule.teacher;
   const startTime = classSchedule.start_time?.substring(0, 5) ?? '??:??';
-  const endTime = classSchedule.end_time?.substring(0, 5) ?? '??:??';
+  const endTime = classSchedule.duration_minutes?.substring(0, 5) ?? '??:??';
   const days = getDaysOfWeekString(classSchedule.days_of_week);
 
   if (!teacher) {
@@ -125,7 +126,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
           <Heading as="h4" size="sm">{gymClassName} – Horario Recurrente</Heading>
           <HStack><Icon as={FaCalendarWeek} color="blue.500" /><Text fontWeight="medium">Días: {days}</Text></HStack>
           <HStack><Icon as={FaHourglassHalf} color="blue.500" /><Text>Horario: {startTime} – {endTime} hs</Text></HStack>
-          <HStack><Icon as={FaUserGraduate} color="blue.500" /><Text>Instructor: {teacher.name ?? ''} {teacher.surname ?? ''}</Text></HStack>
+          <HStack><Icon as={FaUserGraduate} color="blue.500" /><Text>Instructor: {teacher.first_name ?? ''} {teacher.last_name ?? ''}</Text></HStack>
         </VStack>
 
         {/* --- LADO DERECHO: Acciones de Reserva --- */}

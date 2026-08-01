@@ -1,0 +1,186 @@
+FitFlow
+├── backend
+│   ├── alembic
+│   │   ├── versions
+│   │   │   ├── 582ac5ff4673_update_client_membership.py
+│   │   │   ├── 6beb1fc321fd_fix_gym_class_default_capacity.py
+│   │   │   ├── a2b62b427037_check_enum_bookingstatus.py
+│   │   │   ├── d5f64f472402_add_classschedule_classsession_booking_.py
+│   │   │   ├── de9d327bfe41_initial_database_schema.py
+│   │   │   └── f287ebba9f43_check_enum_bookingstatus.py
+│   │   ├── env.py
+│   │   ├── README
+│   │   └── script.py.mako
+│   ├── app
+│   │   ├── api
+│   │   │   ├── v1
+│   │   │   │   ├── endpoints
+│   │   │   │   │   ├── admin
+│   │   │   │   │   │   └── teachers.py
+│   │   │   │   │   ├── __init__.py
+│   │   │   │   │   ├── bookings.py
+│   │   │   │   │   ├── class_schedules.py
+│   │   │   │   │   ├── class_sessions.py
+│   │   │   │   │   ├── clients.py
+│   │   │   │   │   ├── gym_classes.py
+│   │   │   │   │   ├── login.py
+│   │   │   │   │   ├── teachers.py
+│   │   │   │   │   └── users.py
+│   │   │   │   └── api.py
+│   │   │   ├── __init__.py
+│   │   │   └── deps.py
+│   │   ├── core
+│   │   │   ├── __init__.py
+│   │   │   ├── config.py
+│   │   │   └── security.py
+│   │   ├── crud
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py
+│   │   │   ├── crud_booking.py
+│   │   │   ├── crud_class_schedule.py
+│   │   │   ├── crud_class_session.py
+│   │   │   ├── crud_client.py
+│   │   │   ├── crud_gym_class.py
+│   │   │   ├── crud_teacher.py
+│   │   │   └── crud_user.py
+│   │   ├── db
+│   │   │   ├── __init__.py
+│   │   │   ├── base.py
+│   │   │   ├── base_class.py
+│   │   │   ├── seed_data_v2.py
+│   │   │   ├── seeder.py
+│   │   │   └── session.py
+│   │   ├── models
+│   │   │   ├── __init__.py
+│   │   │   ├── booking.py
+│   │   │   ├── class_schedule.py
+│   │   │   ├── class_session.py
+│   │   │   ├── client.py
+│   │   │   ├── gym_class.py
+│   │   │   ├── membership.py
+│   │   │   ├── person.py
+│   │   │   ├── teacher.py
+│   │   │   └── user.py
+│   │   ├── routers
+│   │   │   ├── __init__.py
+│   │   │   ├── auth.py
+│   │   │   └── users.py
+│   │   ├── schemas
+│   │   │   ├── __init__.py
+│   │   │   ├── booking.py
+│   │   │   ├── class_schedule.py
+│   │   │   ├── class_session.py
+│   │   │   ├── client.py
+│   │   │   ├── gym_class.py
+│   │   │   ├── membership.py
+│   │   │   ├── person.py
+│   │   │   ├── teacher.py
+│   │   │   ├── token.py
+│   │   │   └── user.py
+│   │   ├── __init__.py
+│   │   └── main.py
+│   ├── .env
+│   ├── alembic.ini
+│   ├── requirements.txt
+│   └── start.sh
+├── docs
+│   └── adr
+│       ├── 001-eleccion-libreria-componentes-ui.md
+│       └── GIT_WORKFLOW.md
+├── frontend
+│   ├── public
+│   │   └── vite.svg
+│   ├── src
+│   │   ├── assets
+│   │   │   └── react.svg
+│   │   ├── components
+│   │   │   ├── admin
+│   │   │   │   └── layout
+│   │   │   │       ├── AdminLayout.tsx
+│   │   │   │       ├── AdminNavBar.tsx
+│   │   │   │       └── AdminSidebar.tsx
+│   │   │   ├── auth
+│   │   │   │   ├── ProtectedRoute.tsx
+│   │   │   │   ├── RedirectIfAdmin.tsx
+│   │   │   │   └── RootAuthGuard.tsx
+│   │   │   ├── classes
+│   │   │   │   ├── ClassCard.tsx
+│   │   │   │   ├── ClassDetailModal.tsx
+│   │   │   │   ├── ClassDetailView.tsx
+│   │   │   │   ├── ClassList.tsx
+│   │   │   │   ├── ClassScheduleSection.tsx
+│   │   │   │   └── ClassSessionCard.tsx
+│   │   │   ├── common
+│   │   │   │   ├── ErrorDisplay.tsx
+│   │   │   │   └── LoadingSpinner.tsx
+│   │   │   ├── dashboard
+│   │   │   │   ├── BookingCard.tsx
+│   │   │   │   ├── DocumentReminder.tsx
+│   │   │   │   ├── NotificationPanel.tsx
+│   │   │   │   ├── PaymentReminder.tsx
+│   │   │   │   ├── UpcomingEvents.tsx
+│   │   │   │   └── WeeklyCalendar.tsx
+│   │   │   ├── Footer
+│   │   │   │   └── Footer.tsx
+│   │   │   ├── landing
+│   │   │   │   ├── ActivitiesSection.tsx
+│   │   │   │   └── InfiniteCarousel.tsx
+│   │   │   └── layout
+│   │   │       ├── Layout.tsx
+│   │   │       └── Navbar.tsx
+│   │   ├── context
+│   │   │   ├── AuthContext.tsx
+│   │   │   ├── AuthProvider.tsx
+│   │   │   └── useAuth.tsx
+│   │   ├── pages
+│   │   │   ├── admin
+│   │   │   │   ├── AdminDashboardPage.tsx
+│   │   │   │   ├── ClientsPage.tsx
+│   │   │   │   ├── CrudClassesPage.tsx
+│   │   │   │   └── TeachersPage.tsx
+│   │   │   ├── AboutPage.tsx
+│   │   │   ├── AdminPage.tsx
+│   │   │   ├── ClassDetailPage.tsx
+│   │   │   ├── ClassesPage.tsx
+│   │   │   ├── HomePage.tsx
+│   │   │   ├── JoinUsPage.tsx
+│   │   │   ├── LandingPage.tsx
+│   │   │   ├── LoginPage.tsx
+│   │   │   ├── NotFoundPage.tsx
+│   │   │   ├── NutritionPage.tsx
+│   │   │   ├── PlansPage.tsx
+│   │   │   └── RegisterPage.tsx
+│   │   ├── routes
+│   │   │   └── AppRouter.tsx
+│   │   ├── services
+│   │   │   ├── api.ts
+│   │   │   ├── classService.ts
+│   │   │   └── teacherService.ts
+│   │   ├── types
+│   │   │   └── index.ts
+│   │   ├── utils
+│   │   │   └── formatters.ts
+│   │   ├── App.css
+│   │   ├── App.tsx
+│   │   ├── index.css
+│   │   ├── main.tsx
+│   │   └── vite-env.d.ts
+│   ├── .gitignore
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── README.md
+│   ├── requirements.txt
+│   ├── tsconfig.app.json
+│   ├── tsconfig.json
+│   ├── tsconfig.node.json
+│   └── vite.config.ts
+├── init.sql
+├── .gitignore
+├── docker-compose.yml
+├── Dockerfile
+├── FitFlow_tree.py
+├── LICENSE
+├── README.md
+└── schema.sql

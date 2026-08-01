@@ -15,8 +15,8 @@ class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
         # SQLAlchemy sabe que también debe crear una entrada en la tabla 'persons'.
         db_obj = Teacher(
             # Datos de Person
-            name=obj_in.name,
-            surname=obj_in.surname,
+            first_name=obj_in.first_name,
+            last_name=obj_in.last_name,
             passport=obj_in.passport,
             address=obj_in.address,
             # ... otros campos de Person ...

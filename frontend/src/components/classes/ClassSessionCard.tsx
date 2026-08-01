@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import {
   Box, Text, Button, Badge, useToast, Flex, Spacer,
@@ -40,7 +41,7 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
     onSuccess: () => {
       toast({
         title: '¡Reserva confirmada!',
-        description: `Has reservado un cupo para ${classSession.class_schedule?.gym_class?.name ??'la clase'} el ${getFormattedDateTime(classSession.start_datetime)}.`,
+        description: `Has reservado un cupo para ${classSession.class_schedule?.gym_class?.first_name ??'la clase'} el ${getFormattedDateTime(classSession.starts_at)}.`,
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -50,17 +51,18 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
       queryClient.invalidateQueries({ queryKey: ['myBookings'] });
       onCloseModal?.();
     },
-    onError: (err: unknown) => {
+    onError: (err: any) => {
       /*  evitamos any → casteamos solo si es AxiosError  */
-      const axiosErr = err as AxiosError<{ detail?: string }>;
+      const axiosErr = err as AxiosError<any>;
       const status   = axiosErr.response?.status;
-      const msg      = axiosErr.response?.data?.detail || 'Error al procesar la reserva.';
-
+      const data      = axiosErr.response?.data;
+      const rawErrorMessage = JSON.stringify(data);
+      
       toast({
         title: 'Error de reserva',
-        description: msg,
+        description: rawErrorMessage,
         status: 'error',
-        duration: 5000,
+        duration: 10000,
         isClosable: true,
       });
 
@@ -92,14 +94,14 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
     }
 
     /*  👈  enviamos el objeto esperado por la API  */
-    bookSessionMutation.mutate({ class_session_id: classSession.id });
+    bookSessionMutation.mutate({ class_session_id: classSession.id,status: BookingStatus.CONFIRMED  });
   };
 
   /* ---------------------------------------------------- */
   /* 3.  Estado del botón                                 */
   /* ---------------------------------------------------- */
   const isFull        = classSession.available_spots <= 0;
-  const isPast        = new Date(classSession.start_datetime) < new Date();
+  const isPast        = new Date(classSession.starts_at) < new Date();
   const pendingReq    = bookSessionMutation.isPending || isLoadingBookings;
 
   const buttonDisabled = isPast || isFull || userAlreadyBooked || pendingReq || !isAuthenticated || !isClient;
@@ -119,7 +121,7 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
     <Box p={4} borderWidth="1px" borderRadius="md" bg="white" shadow="sm">
       <Flex align="center" mb={2}>
         <Text fontSize="md" fontWeight="bold">
-          {getFormattedDateTime(classSession.start_datetime)}
+          {getFormattedDateTime(classSession.starts_at)}
         </Text>
         <Spacer />
         {!isPast && (

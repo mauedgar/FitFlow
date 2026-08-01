@@ -16,8 +16,8 @@ if TYPE_CHECKING:
 class ClassScheduleBase(BaseModel):
     days_of_week: List[int] = Field(..., description="Días de la semana (0=Lunes, 6=Domingo)", min_length=1, max_length=7)
     start_time: time
-    end_time: time
-    max_capacity: int = Field(..., ge=1, description="Capacidad máxima para cada sesión de esta oferta")
+    duration_minutes: time
+    capacity: int = Field(..., ge=1, description="Capacidad máxima para cada sesión de esta oferta")
     start_date: date
     end_date: Optional[date] = None # Si es None, la oferta es indefinida
 
@@ -30,8 +30,8 @@ class ClassScheduleCreate(ClassScheduleBase):
 class ClassScheduleUpdate(BaseModel):
     days_of_week: Optional[List[int]] = None
     start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    max_capacity: Optional[int] = None
+    duration_minutes: Optional[time] = None
+    capacity: Optional[int] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     gym_class_id: Optional[uuid.UUID] = None # Podría ser posible reasignar la clase
@@ -73,7 +73,7 @@ class ClassScheduleInClassSessionResponse(BaseModel): # Usado cuando ClassSchedu
 
 # NUEVO ESQUEMA: para la información calculada
 class NextSessionInfo(BaseModel):
-    start_datetime: datetime
+    starts_at: datetime
     available_spots: int
 
 # NUEVO ESQUEMA: extiende el ClassSchedule normal para incluir la nueva info

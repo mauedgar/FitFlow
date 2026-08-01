@@ -17,25 +17,25 @@ from app.models.membership import MembershipPlan
 TEACHERS_DATA = [
     {
         "user": {"email": "ana.perez@fitflow.com", "password": "password123", "role": UserRole.TRAINER},
-        "profile": {"name": "Ana", "surname": "Pérez", "bio": "Instructora certificada de Yoga y Pilates con 5 años de experiencia.", "cuil": "27-12345678-5"}
+        "profile": {"name": "Ana", "last_name": "Pérez", "bio": "Instructora certificada de Yoga y Pilates con 5 años de experiencia.", "cuil": "27-12345678-5"}
     },
     {
         "user": {"email": "carlos.gomez@fitflow.com", "password": "password123", "role": UserRole.TRAINER},
-        "profile": {"name": "Carlos", "surname": "Gómez", "bio": "Especialista en entrenamiento funcional y CrossFit Nivel 2.", "cuil": "20-87654321-8"}
+        "profile": {"name": "Carlos", "last_name": "Gómez", "bio": "Especialista en entrenamiento funcional y CrossFit Nivel 2.", "cuil": "20-87654321-8"}
     },
     {
         "user": {"email": "lucia.fernandez@fitflow.com", "password": "password123", "role": UserRole.TRAINER},
-        "profile": {"name": "Lucía", "surname": "Fernández", "bio": "Apasionada por el baile y el fitness. Certificada en Zumba y ritmos latinos.", "cuil": "27-23456789-0"}
+        "profile": {"name": "Lucía", "last_name": "Fernández", "bio": "Apasionada por el baile y el fitness. Certificada en Zumba y ritmos latinos.", "cuil": "27-23456789-0"}
     }
 ]
 
 # 5 CLIENTES
 CLIENTS_DATA = [
-    {"user": {"email": "juan.rodriguez@email.com", "password": "password123"}, "profile": {"name": "Juan", "surname": "Rodríguez"}},
-    {"user": {"email": "maria.garcia@email.com", "password": "password123"}, "profile": {"name": "María", "surname": "García"}},
-    {"user": {"email": "pedro.martinez@email.com", "password": "password123"}, "profile": {"name": "Pedro", "surname": "Martínez"}},
-    {"user": {"email": "laura.sanchez@email.com", "password": "password123"}, "profile": {"name": "Laura", "surname": "Sánchez"}},
-    {"user": {"email": "sofia.lopez@email.com", "password": "password123"}, "profile": {"name": "Sofía", "surname": "López"}},
+    {"user": {"email": "juan.rodriguez@email.com", "password": "password123"}, "profile": {"name": "Juan", "last_name": "Rodríguez"}},
+    {"user": {"email": "maria.garcia@email.com", "password": "password123"}, "profile": {"name": "María", "last_name": "García"}},
+    {"user": {"email": "pedro.martinez@email.com", "password": "password123"}, "profile": {"name": "Pedro", "last_name": "Martínez"}},
+    {"user": {"email": "laura.sanchez@email.com", "password": "password123"}, "profile": {"name": "Laura", "last_name": "Sánchez"}},
+    {"user": {"email": "sofia.lopez@email.com", "password": "password123"}, "profile": {"name": "Sofía", "last_name": "López"}},
 ]
 
 # 10 CLASES POPULARES

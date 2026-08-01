@@ -16,14 +16,14 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None    
     password: Optional[str] = None
-    is_active: Optional[bool] = None
+    active: Optional[bool] = None
     role: Optional[UserRole] = None
 # Esquema para la respuesta de la API (lo que enviamos al frontend)
 # NUNCA debe incluir la contraseña.
 class UserResponse(UserBase):
     id: uuid.UUID
     role: UserRole
-    is_active: bool
+    active: bool
     created_at: datetime
     updated_at: datetime
 

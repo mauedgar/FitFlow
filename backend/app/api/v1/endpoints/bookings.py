@@ -51,7 +51,7 @@ def create_booking(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
                                 detail="Sesión de clase no encontrada.")
             
-        if class_session.is_cancelled:
+        if class_session.status:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Esta sesión de clase ha sido cancelada y no se pueden realizar reservas.",
@@ -65,7 +65,7 @@ def create_booking(
             Booking.status == BookingStatus.CONFIRMED # Solo contamos confirmadas
         ).count()    
     
-        if current_bookings_count >= class_session.class_schedule.max_capacity:
+        if current_bookings_count >= class_session.class_schedule.capacity:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Esta sesión de clase ya está llena. No hay cupos disponibles.",
@@ -87,7 +87,7 @@ def create_booking(
         booking_data = {
             "client_id": client.id,
             "class_session_id": booking_in.class_session_id,
-            "booking_date": datetime.now(),
+            "created_at": datetime.now(),
             "status": BookingStatus.PENDING, # Puedes cambiar a PENDING si hay un flujo de pago
         }
         new_booking = crud.booking.create(db=db, obj_in=schemas.BookingCreateInternal(**booking_data)) # Asegúrate que crud.booking.create maneja dict
@@ -146,20 +146,20 @@ def create_booking(
         try:
             for class_date in target_dates:
                 # 3. Para cada fecha, encontrar o crear la ClassSession
-                start_datetime = datetime.combine(class_date, schedule.start_time)
-                end_datetime = datetime.combine(class_date, schedule.end_time)
+                starts_at = datetime.combine(class_date, schedule.start_time)
+                ends_at = datetime.combine(class_date, schedule.duration_minutes)
 
                 # Usamos un helper get_or_create para evitar duplicados
                 session, _ = crud.class_session.get_or_create(
                     db,
                     class_schedule_id=schedule.id,
-                    start_datetime=start_datetime,
-                    defaults={'end_datetime': end_datetime}
+                    starts_at=starts_at,
+                    defaults={'ends_at': ends_at}
                 )
 
                 # 4. Validar capacidad y si ya existe reserva para esta sesión específica
                 current_bookings_count = len([b for b in session.bookings if b.status == BookingStatus.CONFIRMED])
-                if current_bookings_count >= schedule.max_capacity:
+                if current_bookings_count >= schedule.capacity:
                     continue # Hay cupo lleno, saltamos a la siguiente fecha
 
                 already_booked = any(b.client_id == client.id and b.status != BookingStatus.CANCELLED for b in session.bookings)
@@ -216,7 +216,7 @@ def read_my_bookings(
             .selectinload(ClassSchedule.teacher)
         )
         .filter(Booking.client_id == client.id)
-        .order_by(Booking.booking_date.desc())
+        .order_by(Booking.created_at.desc())
         .all()
     )
     return bookings
