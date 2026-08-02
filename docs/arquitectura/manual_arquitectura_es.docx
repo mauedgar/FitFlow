@@ -1,0 +1,214 @@
+📘 MANUAL DE ARQUITECTURA (ES)
+TECHNOTON — FitFlow
+Tecnología que trabaja para vos
+Build. Scale. Automate.
+1. Portada Corporativa
+FitFlow – Sistema de Gestión de Gimnasio  
+Manual de Arquitectura (ES)  
+Versión: 1.0
+Autor: Technoton
+
+Espacio reservado para logo (PNG/SVG)
+
+2. Propósito del Documento
+El Manual de Arquitectura describe cómo está construido FitFlow, por qué se tomaron ciertas decisiones técnicas y cómo deben evolucionar los módulos principales.
+
+Este documento sirve para:
+
+Onboarding de desarrolladores
+
+Auditorías internas
+
+Refactor y mantenimiento
+
+Planificación técnica
+
+Asegurar consistencia en el crecimiento del proyecto
+
+3. Visión General de la Arquitectura
+FitFlow está diseñado como una plataforma modular, asíncrona, escalable y orientada a servicios.
+
+Componentes principales:
+Frontend: React + TypeScript + Vite
+
+Backend: FastAPI + SQLAlchemy Async
+
+Base de datos: PostgreSQL
+
+Infraestructura: Docker
+
+Autenticación: JWT + Roles
+
+ORM: SQLAlchemy 2.0
+
+Migraciones: Alembic
+
+4. Arquitectura Backend
+4.1 Principios
+Separación estricta entre controladores, servicios y modelos
+
+Uso de async para escalabilidad
+
+Validación con Pydantic v2
+
+Servicios como capa de negocio
+
+Routers como capa de transporte
+
+Modelos ORM como capa de persistencia
+
+4.2 Estructura
+Código
+backend/
+│
+├── app/
+│   ├── api/        → Routers (endpoints)
+│   ├── core/       → Configuración, seguridad, JWT
+│   ├── db/         → Sesiones, base, migraciones
+│   ├── models/     → Modelos ORM
+│   ├── schemas/    → Pydantic
+│   ├── services/   → Lógica de negocio
+│   └── utils/      → Utilidades
+│
+├── alembic/        → Migraciones
+└── main.py         → Punto de entrada
+4.3 Flujo de una petición
+Router recibe request
+
+Dependencias validan seguridad
+
+Servicio ejecuta lógica
+
+ORM interactúa con DB
+
+Pydantic serializa respuesta
+
+Se devuelve al frontend
+
+5. Arquitectura Frontend
+5.1 Principios
+Componentes reutilizables
+
+Hooks para lógica de datos
+
+TanStack Query para sincronización con backend
+
+Axios con interceptores JWT
+
+Chakra UI para consistencia visual
+
+5.2 Estructura
+Código
+frontend/
+│
+├── src/
+│   ├── components/ → UI reutilizable
+│   ├── pages/      → Pantallas
+│   ├── hooks/      → Lógica de datos
+│   ├── api/        → Axios + endpoints
+│   ├── context/    → Auth, Theme
+│   ├── theme/      → Estilo corporativo
+│   └── utils/      → Helpers
+6. Arquitectura de Base de Datos
+6.1 Modelos principales
+Client
+
+Teacher
+
+GymClass
+
+ClassSchedule
+
+ClassSession
+
+Booking
+
+Membership
+
+6.2 Relaciones
+Teacher → GymClass
+
+GymClass → ClassSchedule
+
+ClassSchedule → ClassSession
+
+Client → Booking
+
+Booking → ClassSession
+
+7. Seguridad
+7.1 Autenticación
+JWT
+
+Tokens de acceso
+
+Validación en cada endpoint
+
+7.2 Roles
+admin
+
+teacher
+
+client
+
+front_desk
+
+8. Infraestructura
+8.1 Docker
+Backend
+
+Frontend
+
+PostgreSQL
+
+Adminer
+
+8.2 Variables de entorno
+SECRET_KEY
+
+DATABASE_URL
+
+JWT_EXPIRE
+
+9. Estándares de Código
+PEP8
+
+Tipado estricto
+
+Commits convencionales
+
+Ramas: main / develop / feature/*
+
+Linter: flake8
+
+Formateo: black
+
+10. Evolución de la Arquitectura
+Fase 1 — MVP
+Flujos operativos
+
+Roles
+
+CRUD principales
+
+Testing mínimo viable
+
+Fase 2 — Beta
+Optimización
+
+UX refinada
+
+Integraciones opcionales
+
+Fase 3 — Producción
+Hardening
+
+Logging avanzado
+
+Monitoreo
+
+Testing completo
+
+11. Conclusión
+El Manual de Arquitectura define cómo está construido FitFlow y cómo debe evolucionar.
+Es el documento técnico más importante del proyecto junto con la Documentación Interna.

@@ -1,74 +1,138 @@
-import uuid
+# app/schemas/gym_class.py
+"""
+Pydantic Schemas para el recurso GymClass
+=========================================
+Se definen los cuatro esquemas clásicos:
+
+• GymClassBase   – Campos comunes y obligatorios.
+• GymClassCreate – Para peticiones POST  (hereda todo de Base).
+• GymClassUpdate – Para peticiones PATCH (todos los campos opcionales).
+• GymClassRead   – Para respuestas, incluye id + timestamps + flags.
+
+Además se incluyen dos esquemas simplificados para anidamiento:
+• GymClassInClassScheduleResponse
+• GymClassInTeacherResponse  (por si sigue siendo útil en el FE)
+
+Author: FitFlow – Sprint 5
+"""
+
+from __future__ import annotations
+
+from uuid import UUID
+from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
 
-# Importamos el Enum del modelo para mantener la consistencia
-from app.models.gym_class import DifficultyLevel
+from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 
-# --- MANEJO DE REFERENCIAS CIRCULARES ---
-# Para evitar errores de importación (gym_class importa teacher y teacher importa gym_class),
-# importaremos el schema de Teacher de una manera especial.
-from typing import TYPE_CHECKING
+from .base import IDSchema, TimestampSchema, SoftDeleteSchema
+from .enums import ActivityType, DifficultyLevel
 
-from .class_schedule import ClassScheduleWithNextSession
-if TYPE_CHECKING:
-    #from .teacher import TeacherInClassResponse
-    from .class_schedule import ClassScheduleInResponse
 
-# --- ESQUEMAS BASE ---
+# --------------------------------------------------------------------------- #
+#  BASE
+# --------------------------------------------------------------------------- #
 class GymClassBase(BaseModel):
-    name: str
-    description: str
-    duration_minutes: int
+    """
+    Campos comunes a cualquier operación con GymClass.
+    """
+    name: str = Field(..., max_length=100)
+    description: Optional[str] = Field(
+        default=None,
+        max_length=1_000,
+        description="Descripción larga de la clase (markdown permitido)."
+    )
+    duration_minutes: int = Field(
+        ...,
+        ge=15,
+        le=240,
+        description="Duración estándar de la clase en minutos."
+    )
     difficulty: DifficultyLevel
-    default_capacity: int = Field(..., ge=1, description="Capacidad por defecto para las sesiones de esta clase")
-    class Config:
-        from_attributes = True
+    default_capacity: int = Field(
+        ...,
+        ge=1,
+        description="Capacidad por defecto para las sesiones (puede sobreescribirse en el schedule)."
+    )
+    activity_type: ActivityType
+    image_url: Optional[HttpUrl] = Field(
+        default=None,
+        description="URL pública de la imagen asociada a la clase."
+    )
 
-# --- ESQUEMA PARA CREACIÓN ---
-# Ahora espera una LISTA de UUIDs de profesores.
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+#  CREATE
+# --------------------------------------------------------------------------- #
 class GymClassCreate(GymClassBase):
-    # teacher_ids: List[uuid.UUID] = Field(..., min_length=1, description="Lista de IDs de los profesores que imparten la clase. Debe tener al menos uno.")
+    """
+    Esquema para la creación de una nueva GymClass.
+    No se permiten campos adicionales; hereda todo de GymClassBase.
+    """
     pass
 
-# --- ESQUEMA PARA ACTUALIZACIÓN ---
+
+# --------------------------------------------------------------------------- #
+#  UPDATE
+# --------------------------------------------------------------------------- #
 class GymClassUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    duration_minutes: Optional[int] = None
+    """
+    Esquema para la actualización parcial de una GymClass.
+    Todos los campos son opcionales.
+    """
+    name: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = Field(None, max_length=1_000)
+    duration_minutes: Optional[int] = Field(None, ge=15, le=240)
     difficulty: Optional[DifficultyLevel] = None
-    # teacher_ids: Optional[List[uuid.UUID]] = None
-    default_capacity: Optional[int] = None
+    default_capacity: Optional[int] = Field(None, ge=1)
+    activity_type: Optional[ActivityType] = None
+    image_url: Optional[HttpUrl] = None
 
-    class Config:
-        from_attributes = True
-
-# --- ESQUEMA DE RESPUESTA PRINCIPAL ---
-# Este es el objeto completo de la clase que se devuelve en la API.
-class GymClass(GymClassBase):
-    id: uuid.UUID
-    # Devuelve una LISTA de objetos Teacher completos.
-    # Usamos "Teacher" como string (referencia a futuro) para evitar la importación circular.
-    # Si aún necesitas mostrar los profesores que *pueden* dar esta clase (independientemente del horario)
-    # teachers: List["TeacherInClassResponse"] = [] # Esto depende si mantienes teacher_class_association
-    #teachers: List["TeacherInClassResponse"] = []
-    class_schedules: List["ClassScheduleInResponse"] = []
+    model_config = ConfigDict(from_attributes=True)
 
 
-   
+# --------------------------------------------------------------------------- #
+#  READ / RESPONSE
+# --------------------------------------------------------------------------- #
+class GymClassRead(IDSchema, GymClassBase, TimestampSchema, SoftDeleteSchema):
+    """
+    Esquema usado en las respuestas de la API para GymClass completo.
+    Incluye:
+      • id (UUID)
+      • Campos de GymClassBase
+      • Campos de tracking (created_at, updated_at)
+      • Campos de soft-delete (deleted_at, active)
+      • Schedules asociados (opcional, lazy load)
+    """
+    # Relación 1-N con ClassSchedule (lazy). Se puede completar vía `joinedload`
+    class_schedules: list["ClassScheduleInResponse"] | None = None
 
-# --- ESQUEMA PARA RESPUESTAS ANIDADAS ---
-# Usado cuando GymClass se lista dentro de ClassSchedule o Booking
-class GymClassInClassScheduleResponse(GymClassBase):
-    id: uuid.UUID
-   
-# Este es el que ya habías creado. Es perfecto para usar dentro de la respuesta de Teacher.
-class GymClassInTeacherResponse(GymClassBase):
-    id: uuid.UUID
+    model_config = ConfigDict(from_attributes=True)
 
-class GymClassInClassScheduleResponseMini(BaseModel):
-    name: str
-    duration_minutes: int
-class GymClassWithSchedules(GymClass):
-    class_schedules: List[ClassScheduleWithNextSession] = []
 
+# --------------------------------------------------------------------------- #
+#  ESQUEMAS REDUCIDOS PARA RESPUESTAS ANIDADAS
+# --------------------------------------------------------------------------- #
+class GymClassInClassScheduleResponse(GymClassBase, IDSchema):
+    """
+    Versión compacta para anidar dentro de ClassSchedule.
+    No incluye timestamps ni flags.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+
+class GymClassInTeacherResponse(GymClassBase, IDSchema):
+    """
+    Versión utilizada al listar las clases que un Teacher imparte
+    (obtenidas a través de los ClassSchedule).
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+#  IMPORTS DIFERIDOS PARA EVITAR CIRCULARIDAD
+# --------------------------------------------------------------------------- #
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .class_schedule import ClassScheduleInResponse  # noqa: E402

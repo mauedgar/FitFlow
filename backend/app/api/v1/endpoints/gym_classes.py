@@ -1,162 +1,146 @@
-from datetime import date, datetime, timedelta
-from typing import List
-import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, selectinload
+from __future__ import annotations
 
-# =============================================================================
-# IMPORTS: Separamos claramente los Modelos (BD) de los Esquemas (API)
-# =============================================================================
-from app import crud, schemas, models
-from app.db.session import get_db
+from datetime import date
+from typing import List, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app import crud, schemas
+from app.db.session import get_async_session
 from app.models.class_schedule import ClassSchedule
 
+router = APIRouter(prefix="/gym-classes", tags=["gym-classes"])
 
-router = APIRouter()
-
-@router.post("/", response_model=schemas.GymClass, status_code=status.HTTP_201_CREATED)
-def create_gym_class(
+# --------------------------------------------------------------------------- #
+# CREATE
+# --------------------------------------------------------------------------- #
+@router.post(
+    "/",
+    response_model=schemas.GymClassRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_gym_class(
     *,
-    db: Session = Depends(get_db),
-    class_in: schemas.GymClassCreate
+    db: AsyncSession = Depends(get_async_session),
+    class_in: schemas.GymClassCreate,
 ):
     """
-    Crea una nueva clase de gimnasio.
-    Los profesores y horarios se asociarán a través de ClassSchedule.
+    Crea una nueva GymClass (catálogo de actividades).
     """
-    new_class = crud.gym_class.create(db=db, obj_in=class_in)
-    return new_class
+    gym_class = await crud.gym_class.create(db=db, obj_in=class_in)
+    return gym_class
 
 
-@router.get("/", response_model=List[schemas.GymClass])
-def read_gym_classes(
-    db: Session = Depends(get_db),
-    skip: int = 0,
-    limit: int = 100,
-):
-    """
-    Obtiene una lista de clases de gimnasio, incluyendo sus ofertas de horarios.
-    """
-    gym_classes = (
-        db.query(crud.gym_class.model)
-        .options(
-            selectinload(crud.gym_class.model.class_schedules).selectinload(ClassSchedule.teacher)
-        )
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )    
-    return gym_classes
-
-@router.get("/{class_id}", response_model=schemas.GymClassWithSchedules)
-def read_gym_class_by_id(
+# --------------------------------------------------------------------------- #
+# LIST + FILTROS
+# --------------------------------------------------------------------------- #
+@router.get("/", response_model=List[schemas.GymClassRead])
+async def list_gym_classes(
     *,
-    db: Session = Depends(get_db),
-    class_id: uuid.UUID
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    difficulty: Optional[str] = Query(None, description="beginner|intermediate|advanced"),
+    activity_type: Optional[str] = Query(None),
+    active: Optional[bool] = Query(True),
+    search: Optional[str] = Query(None, description="Búsqueda por nombre / descripción"),
+    teacher_id: Optional[UUID] = Query(None),
+    day_of_week: Optional[int] = Query(None, ge=0, le=6),
+    date_from: Optional[date] = Query(None),
+    date_to: Optional[date] = Query(None),
+    include_schedules: bool = Query(False, description="Incluir schedules en la respuesta"),
+    db: AsyncSession = Depends(get_async_session),
 ):
     """
-    ENDPOINT PRINCIPAL: Obtiene los detalles de una clase y calcula información
-    de disponibilidad en tiempo real para cada horario.
-    
-    Este endpoint implementa la lógica de "next_upcoming_session" que el frontend
-    necesita para mostrar botones inteligentes y badges de disponibilidad.
+    Devuelve el catálogo de GymClasses con filtros opcionales.
     """
-    # -------------------------------------------------------------------------
-    # 1. CONSULTA PRINCIPAL: Obtener la clase con sus horarios y profesores
-    # -------------------------------------------------------------------------
-    gym_class = db.query(crud.gym_class.model).options(
-        selectinload(crud.gym_class.model.class_schedules)
-        .selectinload(ClassSchedule.teacher)
-    ).filter(models.GymClass.id == class_id).first()
+    classes = await crud.gym_class.get_multi_filtered(
+        db=db,
+        skip=skip,
+        limit=limit,
+        difficulty=difficulty,
+        activity_type=activity_type,
+        active=active,
+        search=search,
+        teacher_id=teacher_id,
+        day_of_week=day_of_week,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
+    # Si no se piden schedules, devolvemos tal cual
+    if not include_schedules:
+        return classes
+
+    # Cargar schedules con selectinload para evitar N+1
+    ids = [c.id for c in classes]
+    classes_with_sched = await crud.gym_class.get_multi(
+        db=db,
+        filters={"id": ids},
+        options=[selectinload(crud.gym_class.model.class_schedules).selectinload(ClassSchedule.teacher)],
+    )
+    # Mantener el orden original
+    classes_map = {c.id: c for c in classes_with_sched}
+    return [classes_map[i] for i in ids]
+
+
+# --------------------------------------------------------------------------- #
+# RETRIEVE
+# --------------------------------------------------------------------------- #
+@router.get(
+    "/{class_id}",
+    response_model=schemas.GymClassRead,
+)
+async def read_gym_class(
+    *,
+    class_id: UUID,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """
+    Obtiene una GymClass por ID con sus ClassSchedules (profesor incluido).
+    """
+    gym_class = await crud.gym_class.get(
+        db,
+        id=class_id,
+        include_schedules=True,
+    )
+    if not gym_class:
+        raise HTTPException(status_code=404, detail="Clase no encontrada")
+    return gym_class
+
+
+# --------------------------------------------------------------------------- #
+# UPDATE
+# --------------------------------------------------------------------------- #
+@router.put("/{class_id}", response_model=schemas.GymClassRead)
+async def update_gym_class(
+    *,
+    class_id: UUID,
+    class_in: schemas.GymClassUpdate,
+    db: AsyncSession = Depends(get_async_session),
+):
+    gym_class = await crud.gym_class.get(db, id=class_id)
     if not gym_class:
         raise HTTPException(status_code=404, detail="Clase no encontrada")
 
-    # -------------------------------------------------------------------------
-    # 2. LÓGICA DE ENRIQUECIMIENTO: Para cada horario, calcular próxima sesión
-    # -------------------------------------------------------------------------
-    for schedule in gym_class.class_schedules:
-        today = date.today()
-        next_session_info = None
-        
-        # Buscar la próxima fecha de clase en los siguientes 60 días
-        for i in range(60):
-            current_date = today + timedelta(days=i)
-            
-            # Verificar si este día coincide con los días de la semana del horario
-            # weekday(): Lunes=0, Martes=1, ..., Domingo=6
-            if current_date.weekday() in schedule.days_of_week:
-                # ¡Encontramos una fecha válida! Ahora verificamos disponibilidad
-                start_dt = datetime.combine(current_date, schedule.start_time)
-                
-                # CORRECCIÓN CLAVE: Usar models.ClassSession en TODA la consulta
-                # Buscar si ya existe una ClassSession para esa fecha y hora exactas
-                session = db.query(models.ClassSession).filter(
-                    models.ClassSession.class_schedule_id == schedule.id,  # 👈 CORRECCIÓN
-                    models.ClassSession.starts_at == start_dt          # 👈 CORRECCIÓN
-                ).options(selectinload(models.ClassSession.bookings)).first()
-                
-                if session:
-                    # La sesión ya existe: contar reservas confirmadas
-                    bookings_count = len([
-                        b for b in session.bookings 
-                        if b.status == 'CONFIRMED'
-                    ])
-                    available_spots = schedule.capacity - bookings_count
-                else:
-                    # La sesión no existe: todos los cupos están disponibles
-                    available_spots = schedule.capacity
+    updated = await crud.gym_class.update(db, db_obj=gym_class, obj_in=class_in)
+    return updated
 
-                # Preparar la información que el frontend necesita
-                next_session_info = {
-                    "starts_at": start_dt,
-                    "available_spots": available_spots
-                }
-                break  # Salimos del bucle: ya encontramos la primera fecha disponible
 
-        # -------------------------------------------------------------------------
-        # 3. INYECCIÓN DE DATOS: Añadir la info calculada al objeto del horario
-        # -------------------------------------------------------------------------
-        # Esta es la "magia": FastAPI/Pydantic detectará automáticamente este
-        # atributo y lo incluirá en la respuesta JSON, aunque no esté definido
-        # en el modelo de SQLAlchemy original.
-        schedule.next_upcoming_session = next_session_info
-
-    return gym_class
-
-@router.put("/{class_id}", response_model=schemas.GymClass)
-def update_gym_class(
-    *,
-    db: Session = Depends(get_db),
-    class_id: uuid.UUID,
-    class_in: schemas.GymClassUpdate
-):
-    """
-    Actualiza una clase de gimnasio existente.
-    """
-    gym_class = crud.gym_class.get(db, id=class_id)
-    if not gym_class:
-        raise HTTPException(
-            status_code=404,
-            detail=f"La clase con id {class_id} no fue encontrada."
-        )
-    gym_class = crud.gym_class.update(db, db_obj=gym_class, obj_in=class_in)
-    return gym_class
-
+# --------------------------------------------------------------------------- #
+# DELETE (soft)
+# --------------------------------------------------------------------------- #
 @router.delete("/{class_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_gym_class(
+async def delete_gym_class(
     *,
-    db: Session = Depends(get_db),
-    class_id: uuid.UUID
+    class_id: UUID,
+    db: AsyncSession = Depends(get_async_session),
 ):
-    """
-    Elimina una clase de gimnasio y todos sus horarios asociados.
-    """
-    gym_class = crud.gym_class.get(db, id=class_id)
+    gym_class = await crud.gym_class.get(db, id=class_id)
     if not gym_class:
-        raise HTTPException(
-            status_code=404,
-            detail=f"La clase con id {class_id} no fue encontrada."
-        )
-    crud.gym_class.remove(db, id=class_id)
-    return {"message": "Clase eliminada exitosamente."}
+        raise HTTPException(status_code=404, detail="Clase no encontrada")
+
+    await crud.gym_class.remove(db, db_obj=gym_class)  # soft-delete
+    return {"detail": "GymClass eliminada"}

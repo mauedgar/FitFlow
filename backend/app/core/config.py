@@ -1,6 +1,7 @@
 # backend/app/core/config.py
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine.url import make_url, URL   # ← esta línea
 
 # Construimos una ruta absoluta al archivo .env. Esto es mucho más robusto.
 # __file__ -> .../backend/app/core/config.py
@@ -24,6 +25,13 @@ class Settings(BaseSettings):
 
     # Base de Datos: CRÍTICO. Si no lo encuentra en el .env, la app fallará (¡bien!)
     DATABASE_URL: str
+    @property
+    def DATABASE_URL_ASYNC(self) -> str:
+        url: URL = make_url(self.DATABASE_URL)
+        url = url.set(drivername="postgresql+asyncpg")
+        return str(url)
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # JWT: Con valores por defecto por si no están en el .env
     SECRET_KEY: str = "un-secreto-muy-seguro-por-defecto-cambiame"

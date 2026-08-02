@@ -2,9 +2,16 @@
 from fastapi import FastAPI
 from app.api.v1.api import api_router
 from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import settings
 
 
-app = FastAPI(title="FitFlow API")
+
+app = FastAPI(
+    title="FitFlow API",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    docs_url=f"{settings.API_V1_STR}/docs",
+    redoc_url=f"{settings.API_V1_STR}/redoc",
+)
 # ⭐ 2. Define de dónde permites peticiones
 # Para desarrollo, puedes permitir tu servidor de Vite.
 # En producción, aquí iría la URL de tu dominio.
@@ -21,7 +28,7 @@ app.add_middleware(
     allow_headers=["*"], # Permite todos los encabezados
 )
 # Incluimos el enrutador de la v1 con un prefijo
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def read_root():
