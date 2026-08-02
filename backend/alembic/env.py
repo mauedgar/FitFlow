@@ -6,7 +6,7 @@ from app.db.base import Base
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-
+from app.core.config import settings
 from alembic import context
 
 load_dotenv()
@@ -31,9 +31,9 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-db_url = os.getenv("DATABASE_URL")
+db_url = settings.DATABASE_URL
 if not db_url:
-    raise ValueError("DATABASE_URL no está configurada en el archivo .env")
+    raise ValueError("DATABASE_URL no está configurada")
 
 config.set_main_option("sqlalchemy.url", db_url)
 # other values from the config, defined by the needs of env.py,

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 # Para evitar referencias circulares
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .gym_class import GymClassInClassScheduleResponse, GymClassInClassScheduleResponseMini
+    from .gym_class import GymClassInClassScheduleResponse, GymClassRead
     from .teacher import TeacherInClassScheduleResponse, TeacherInScheduleResponseMini
     from .class_session import ClassSessionInResponse # Las sesiones que derivan de este horario
 
@@ -65,7 +65,7 @@ class ClassScheduleInResponse(ClassScheduleBase):
         from_attributes = True
 
 class ClassScheduleInClassSessionResponse(BaseModel): # Usado cuando ClassSchedule se lista dentro de ClassSession
-    gym_class: "GymClassInClassScheduleResponseMini"
+    gym_class: "GymClassRead"
     teacher: "TeacherInScheduleResponseMini"
     # No incluir otras relaciones aquí para mantenerlo ligero
     class Config:

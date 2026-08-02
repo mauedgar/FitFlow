@@ -1,12 +1,31 @@
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
+"""
+CRUDBase genérico (asíncrono)
+=============================
 
-from fastapi.encoders import jsonable_encoder
+• Funciones:
+    – get            (por id, ignora soft-deleted)
+    – get_multi      (paginación + filtros dinámicos)
+    – create
+    – update
+    – remove         (soft-delete por defecto; hard=True para borrado físico)
+
+• Requisitos:
+    – SQLAlchemy 2.x
+    – AsyncSession (sqlalchemy.ext.asyncio.AsyncSession)
+    – Modelos con columnas: id, deleted_at, active
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.base_class import Base
 
-# Definimos "Tipos Genéricos" para que esta clase funcione con cualquier modelo/esquema
 ModelType = TypeVar("ModelType", bound=Base)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
@@ -14,54 +33,107 @@ UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
 class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def __init__(self, model: Type[ModelType]):
-        """
-        Clase CRUD base con operaciones por defecto:
-        Create, Read, Update, Delete.
-
-        **Parámetros**
-        * `model`: Una clase de modelo SQLAlchemy
-        """
         self.model = model
 
-    def get(self, db: Session, id: Any) -> Optional[ModelType]:
-        return db.query(self.model).filter(self.model.id == id).first()
+    # ------------------------------------------------------------------ #
+    # READ
+    # ------------------------------------------------------------------ #
+    async def get(
+        self,
+        db: AsyncSession,
+        *,
+        id: Any,
+        options: Optional[List[Any]] = None,
+    ) -> Optional[ModelType]:
+        stmt = select(self.model).where(
+            self.model.id == id,
+            self.model.deleted_at.is_(None),  # solo registros activos
+        )
+        if options:
+            for opt in options:
+                stmt = stmt.options(opt)
 
-    def get_multi(
-        self, db: Session, *, skip: int = 0, limit: int = 100
+        res = await db.execute(stmt)
+        return res.scalar_one_or_none()
+
+    async def get_multi(
+        self,
+        db: AsyncSession,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        filters: Optional[Dict[str, Any]] = None,
+        options: Optional[List[Any]] = None,
     ) -> List[ModelType]:
-        return db.query(self.model).offset(skip).limit(limit).all()
+        stmt = select(self.model).where(self.model.deleted_at.is_(None))
 
-    def create(self, db: Session, *, obj_in: CreateSchemaType) -> ModelType:
-        obj_in_data = jsonable_encoder(obj_in)
-        db_obj = self.model(**obj_in_data)
+        # filtros simples de igualdad / IN
+        if filters:
+            for attr, value in filters.items():
+                if value is None:
+                    continue
+                column = getattr(self.model, attr)
+                if isinstance(value, list):
+                    stmt = stmt.where(column.in_(value))
+                else:
+                    stmt = stmt.where(column == value)
+
+        if options:
+            for opt in options:
+                stmt = stmt.options(opt)
+
+        stmt = stmt.offset(skip).limit(limit)
+
+        res = await db.execute(stmt)
+        return res.scalars().unique().all()
+
+    # ------------------------------------------------------------------ #
+    # CREATE
+    # ------------------------------------------------------------------ #
+    async def create(
+        self,
+        db: AsyncSession,
+        *,
+        obj_in: CreateSchemaType,
+    ) -> ModelType:
+        db_obj = self.model(**obj_in.model_dump())
         db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
         return db_obj
 
-    def update(
+    # ------------------------------------------------------------------ #
+    # UPDATE
+    # ------------------------------------------------------------------ #
+    async def update(
         self,
-        db: Session,
+        db: AsyncSession,
         *,
         db_obj: ModelType,
-        obj_in: Union[UpdateSchemaType, Dict[str, Any]]
+        obj_in: UpdateSchemaType | Dict[str, Any],
     ) -> ModelType:
-        obj_data = jsonable_encoder(db_obj)
-        if isinstance(obj_in, dict):
-            update_data = obj_in
-        else:
-            # exclude_unset=True solo actualiza los campos que se envían
-            update_data = obj_in.dict(exclude_unset=True)
-        for field in obj_data:
-            if field in update_data:
-                setattr(db_obj, field, update_data[field])
+        data = obj_in if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
+        for field, value in data.items():
+            setattr(db_obj, field, value)
         db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
         return db_obj
 
-    def remove(self, db: Session, *, id: Any) -> ModelType:
-        obj = db.query(self.model).get(id)
-        db.delete(obj)
-        db.commit()
-        return obj
+    # ------------------------------------------------------------------ #
+    # DELETE  (soft por defecto)
+    # ------------------------------------------------------------------ #
+    async def remove(
+        self,
+        db: AsyncSession,
+        *,
+        db_obj: ModelType,
+        hard: bool = False,
+    ) -> None:
+        if hard:
+            await db.delete(db_obj)
+        else:
+            db_obj.active = False
+            db_obj.deleted_at = datetime.utcnow()
+            db.add(db_obj)
+        await db.commit()

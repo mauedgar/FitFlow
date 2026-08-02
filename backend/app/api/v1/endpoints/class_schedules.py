@@ -1,132 +1,155 @@
-# app/api/endpoints/class_schedules.py
+"""
+Endpoints para ClassSchedule (asíncrono, Sprint 5)
+--------------------------------------------------
+• CRUD completo para horarios recurrentes.
+• Validación de gym_class y teacher antes de crear.
+• Filtros avanzados: gym_class_id, teacher_id, day_of_week.
+• Carga selectiva de relaciones (gym_class, teacher, sessions).
+"""
+
+from __future__ import annotations
 from typing import List, Optional
-import uuid
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.db.session import get_async_session
 from app import crud, schemas
-from app.db.session import get_db
-from app.models.class_schedule import ClassSchedule
-#from app.models.class_session import ClassSession # Para futuras sesiones
+from app.models import ClassSchedule, ClassSession, User, UserRole
 
-router = APIRouter()
+router = APIRouter(prefix="/class-schedules", tags=["class-schedules"])
 
+
+# ------------------------------------------------------------------ #
+# Crear ClassSchedule
+# ------------------------------------------------------------------ #
 @router.post("/", response_model=schemas.ClassSchedule, status_code=status.HTTP_201_CREATED)
-def create_class_schedule(
+async def create_class_schedule(
     *,
-    db: Session = Depends(get_db),
-    schedule_in: schemas.ClassScheduleCreate
+    db: AsyncSession = Depends(get_async_session),
+    schedule_in: schemas.ClassScheduleCreate,
+    current_user: User = Depends(crud.user.get_current_admin),
 ):
     """
-    Crea una nueva oferta de horario recurrente para una clase con un profesor.
+    Crea un horario recurrente para una clase.
+    Requiere permisos de administrador.
     """
-    # 1. Validar que gym_class_id y teacher_id existen
-    gym_class = crud.gym_class.get(db, id=schedule_in.gym_class_id)
+    gym_class = await crud.gym_class.get(db, id=schedule_in.gym_class_id)
     if not gym_class:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"La clase con id {schedule_in.gym_class_id} no fue encontrada.",
-        )
-    
-    teacher = crud.teacher.get(db, id=schedule_in.teacher_id)
-    if not teacher:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"El profesor con id {schedule_in.teacher_id} no fue encontrado.",
-        )
-    
-    # 2. Crear el ClassSchedule
-    new_schedule = crud.class_schedule.create(db=db, obj_in=schedule_in)
-    
-    return new_schedule
+        raise HTTPException(404, f"GymClass {schedule_in.gym_class_id} no existe.")
 
+    teacher = await crud.teacher.get(db, id=schedule_in.teacher_id)
+    if not teacher:
+        raise HTTPException(404, f"Teacher {schedule_in.teacher_id} no existe.")
+
+    schedule = await crud.class_schedule.create(db=db, obj_in=schedule_in)
+    return schedule
+
+
+# ------------------------------------------------------------------ #
+# Listar ClassSchedules con filtros
+# ------------------------------------------------------------------ #
 @router.get("/", response_model=List[schemas.ClassSchedule])
-def read_class_schedules(
-    db: Session = Depends(get_db),
+async def read_class_schedules(
+    *,
+    db: AsyncSession = Depends(get_async_session),
     skip: int = 0,
     limit: int = 100,
-    gym_class_id: Optional[uuid.UUID] = None, # Filtro opcional por clase
-    teacher_id: Optional[uuid.UUID] = None,  # Filtro opcional por profesor
+    gym_class_id: Optional[UUID] = None,
+    teacher_id: Optional[UUID] = None,
+    day_of_week: Optional[int] = None,
 ):
     """
-    Obtiene una lista de ofertas de horarios de clases, con su clase y profesor asociados.
-    Permite filtrar por gym_class_id o teacher_id.
+    Lista horarios recurrentes con filtros opcionales.
     """
-    query = db.query(ClassSchedule).options(
-        selectinload(ClassSchedule.gym_class),
-        selectinload(ClassSchedule.teacher)
-    )
-
-    if gym_class_id:
-        query = query.filter(ClassSchedule.gym_class_id == gym_class_id)
-    if teacher_id:
-        query = query.filter(ClassSchedule.teacher_id == teacher_id)
-
-    class_schedules = query.offset(skip).limit(limit).all()
-    return class_schedules
-
-@router.get("/{schedule_id}", response_model=schemas.ClassSchedule)
-def read_class_schedule_by_id(
-    *,
-    db: Session = Depends(get_db),
-    schedule_id: uuid.UUID
-):
-    """
-    Obtiene los detalles de una oferta de horario de clase específica por su ID.
-    Incluye la clase, el profesor y las sesiones futuras asociadas.
-    """
-    # Cargamos gym_class, teacher y las sesiones futuras (ej. las próximas 30 sesiones o hasta fin de mes)
-    # Aquí puedes añadir lógica para generar sesiones si aún no existen
-    schedule = (
-        db.query(ClassSchedule)
+    stmt = (
+        select(ClassSchedule)
         .options(
             selectinload(ClassSchedule.gym_class),
             selectinload(ClassSchedule.teacher),
-            # Podrías cargar las sesiones existentes o generarlas/filtrarlas en el servicio
-            selectinload(ClassSchedule.sessions) 
+            selectinload(ClassSchedule.sessions),
         )
-        .filter(ClassSchedule.id == schedule_id)
-        .first()
+        .order_by(ClassSchedule.start_time)
+        .offset(skip)
+        .limit(limit)
     )
-    if not schedule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"La oferta de horario con id {schedule_id} no fue encontrada.",
+
+    if gym_class_id:
+        stmt = stmt.where(ClassSchedule.gym_class_id == gym_class_id)
+
+    if teacher_id:
+        stmt = stmt.where(ClassSchedule.teacher_id == teacher_id)
+
+    if day_of_week is not None:
+        stmt = stmt.where(ClassSchedule.days_of_week.contains([day_of_week]))
+
+    res = await db.execute(stmt)
+    return res.scalars().unique().all()
+
+
+# ------------------------------------------------------------------ #
+# Obtener ClassSchedule por ID
+# ------------------------------------------------------------------ #
+@router.get("/{schedule_id}", response_model=schemas.ClassSchedule)
+async def read_class_schedule_by_id(
+    *,
+    db: AsyncSession = Depends(get_async_session),
+    schedule_id: UUID,
+):
+    stmt = (
+        select(ClassSchedule)
+        .where(ClassSchedule.id == schedule_id)
+        .options(
+            selectinload(ClassSchedule.gym_class),
+            selectinload(ClassSchedule.teacher),
+            selectinload(ClassSchedule.sessions),
         )
-    
-    # TODO: Lógica para filtrar 'future_sessions' si es necesario, o generarlas
-    # Por ahora, el schema las mapeará si están cargadas o como lista vacía.
+    )
+
+    res = await db.execute(stmt)
+    schedule = res.scalars().first()
+
+    if not schedule:
+        raise HTTPException(404, f"ClassSchedule {schedule_id} no encontrado.")
 
     return schedule
 
-# Endpoints para actualizar y eliminar ClassSchedule
-@router.put("/{schedule_id}", response_model=schemas.ClassSchedule)
-def update_class_schedule(
-    *,
-    db: Session = Depends(get_db),
-    schedule_id: uuid.UUID,
-    schedule_in: schemas.ClassScheduleUpdate
-):
-    class_schedule = crud.class_schedule.get(db, id=schedule_id)
-    if not class_schedule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"La oferta de horario con id {schedule_id} no fue encontrada.",
-        )
-    # Aquí puedes añadir validación adicional si se cambian gym_class_id o teacher_id
-    class_schedule = crud.class_schedule.update(db, db_obj=class_schedule, obj_in=schedule_in)
-    return class_schedule
 
-@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_class_schedule(
+# ------------------------------------------------------------------ #
+# Actualizar ClassSchedule
+# ------------------------------------------------------------------ #
+@router.put("/{schedule_id}", response_model=schemas.ClassSchedule)
+async def update_class_schedule(
     *,
-    db: Session = Depends(get_db),
-    schedule_id: uuid.UUID
+    db: AsyncSession = Depends(get_async_session),
+    schedule_id: UUID,
+    schedule_in: schemas.ClassScheduleUpdate,
+    current_user: User = Depends(crud.user.get_current_admin),
 ):
-    class_schedule = crud.class_schedule.get(db, id=schedule_id)
-    if not class_schedule:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"La oferta de horario con id {schedule_id} no fue encontrada.",
-        )
-    crud.class_schedule.remove(db, id=schedule_id)
-    return {"message": "Oferta de horario eliminada exitosamente."}
+    schedule = await crud.class_schedule.get(db, id=schedule_id)
+    if not schedule:
+        raise HTTPException(404, "Horario no encontrado.")
+
+    updated = await crud.class_schedule.update(db, db_obj=schedule, obj_in=schedule_in)
+    return updated
+
+
+# ------------------------------------------------------------------ #
+# Eliminar ClassSchedule
+# ------------------------------------------------------------------ #
+@router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_class_schedule(
+    *,
+    db: AsyncSession = Depends(get_async_session),
+    schedule_id: UUID,
+    current_user: User = Depends(crud.user.get_current_admin),
+):
+    schedule = await crud.class_schedule.get(db, id=schedule_id)
+    if not schedule:
+        raise HTTPException(404, "Horario no encontrado.")
+
+    await crud.class_schedule.remove(db, id=schedule_id)
+    return {"message": "Horario eliminado exitosamente."}

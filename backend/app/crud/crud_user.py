@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import Depends
 from sqlalchemy.orm import Session
-from app.db.session import get_db
+from app.db.session import get_async_session
 from app.crud.base import CRUDBase
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
@@ -15,7 +15,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         """
         return db.query(User).filter(User.email == email).first()
 
-    def create(self, db: Session = Depends(get_db), *, obj_in: UserCreate) -> User:
+    def create(self, db: Session = Depends(get_async_session), *, obj_in: UserCreate) -> User:
 
         """
         Crea un nuevo usuario en la BD, hasheando la contraseña.

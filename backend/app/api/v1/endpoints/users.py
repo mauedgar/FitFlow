@@ -2,14 +2,14 @@
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.db.session import get_db
+from app.db.session import get_async_session
 from app import crud, schemas
 
 
-router = APIRouter()
+router = APIRouter(prefix="/users", tags=["users"])
 
 @router.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_async_session)):
     """
     Crea un nuevo usuario en el sistema.
     """

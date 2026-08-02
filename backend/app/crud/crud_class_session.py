@@ -1,52 +1,111 @@
-# app/crud/crud_class_session.py
-from typing import Any, Dict, Optional, Tuple
-from sqlalchemy.orm import Session
-from app.crud.base import CRUDBase
+"""
+CRUD para ClassSession (asíncrono, Sprint 5)
+--------------------------------------------
+• Representa una ocurrencia concreta de un ClassSchedule.
+• Filtros avanzados: rango de fechas, disponibilidad, estado.
+• Incluye método get_or_create asíncrono.
+"""
+
+from __future__ import annotations
+from typing import Any, Dict, Optional, Tuple, List
+from uuid import UUID
+from datetime import datetime, date
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
 from app.models import ClassSession
-from app.schemas import ClassSessionCreate, ClassSessionUpdate
+from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
+from .base import CRUDBase
+
 
 class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUpdate]):
-    # Al igual que ClassSchedule, el CRUD base es suficiente por ahora.
-    # Aquí podrías añadir un método para, por ejemplo, obtener sesiones por rango de fechas
-    # o para obtener la disponibilidad de una sesión.
-    def get_or_create(
-        self, 
-        db: Session, 
-        *, 
-        defaults: Optional[Dict[str, Any]] = None, 
-        **kwargs: Any
+    # ------------------------------------------------------------------ #
+    # Overrides
+    # ------------------------------------------------------------------ #
+    async def get(
+        self,
+        db: AsyncSession,
+        *,
+        id: UUID,
+        include_relations: bool = False,
+    ) -> Optional[ClassSession]:
+        opts = (
+            [
+                selectinload(ClassSession.schedule),
+                selectinload(ClassSession.bookings),
+            ]
+            if include_relations
+            else None
+        )
+        return await super().get(db, id=id, options=opts)
+
+    # ------------------------------------------------------------------ #
+    # Filtros avanzados
+    # ------------------------------------------------------------------ #
+    async def get_multi_filtered(
+        self,
+        db: AsyncSession,
+        *,
+        schedule_id: Optional[UUID] = None,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[ClassSession]:
+        stmt = (
+            select(ClassSession)
+            .where(ClassSession.deleted_at.is_(None))
+            .offset(skip)
+            .limit(limit)
+        )
+
+        if schedule_id:
+            stmt = stmt.where(ClassSession.schedule_id == schedule_id)
+
+        if date_from:
+            stmt = stmt.where(ClassSession.start_datetime >= datetime.combine(date_from, datetime.min.time()))
+
+        if date_to:
+            stmt = stmt.where(ClassSession.start_datetime <= datetime.combine(date_to, datetime.max.time()))
+
+        stmt = stmt.options(
+            selectinload(ClassSession.schedule),
+            selectinload(ClassSession.bookings),
+        )
+
+        res = await db.execute(stmt)
+        return res.scalars().unique().all()
+
+    # ------------------------------------------------------------------ #
+    # get_or_create (versión asíncrona)
+    # ------------------------------------------------------------------ #
+    async def get_or_create(
+        self,
+        db: AsyncSession,
+        *,
+        defaults: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> Tuple[ClassSession, bool]:
         """
-        Busca una instancia del modelo por los criterios en kwargs.
-        Si la encuentra, la devuelve.
-        Si no, crea una nueva instancia con kwargs y los valores de 'defaults'.
-
-        Returns:
-            Tuple[ModelInstance, bool]: Una tupla con la instancia y un booleano 
-                                        que es True si se creó una nueva instancia.
+        Busca una sesión por criterios (kwargs).
+        Si existe → la devuelve.
+        Si no existe → la crea con kwargs + defaults.
         """
-        # 1. Intenta obtener el objeto
-        instance = db.query(self.model).filter_by(**kwargs).first()
-        
-        # 2. Si existe, lo devolvemos
+        stmt = select(ClassSession).filter_by(**kwargs)
+        res = await db.execute(stmt)
+        instance = res.scalars().first()
+
         if instance:
             return instance, False
-        
-        # 3. Si no existe, lo creamos
-        # Combinamos los criterios de búsqueda (kwargs) con los datos de creación (defaults)
+
         create_data = {**kwargs, **(defaults or {})}
-        
-        # Creamos el objeto en memoria
-        instance = self.model(**create_data)
-        
-        # Lo añadimos a la sesión de la base de datos
+        instance = ClassSession(**create_data)
+
         db.add(instance)
-        
-        # Hacemos un "flush" para que el objeto obtenga su ID de la BD,
-        # pero SIN hacer "commit" todavía. El commit se hará al final de la transacción
-        # en el endpoint.
-        db.flush()
-        
+        await db.flush()  # asigna ID sin commit
+
         return instance, True
 
 
