@@ -1,8 +1,8 @@
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Column, ForeignKey, String
-from sqlalchemy.orm import relationship, Mapped
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, relationship
 
 from .person import Person
 
@@ -29,11 +29,11 @@ class Teacher(Person):
     bio = Column(String, nullable=True)
 
     # Horarios recurrentes asignados al profesor.
-    class_schedules: Mapped[List["ClassSchedule"]] = relationship(
+    class_schedules: Mapped[list["ClassSchedule"]] = relationship(
         "ClassSchedule",
         back_populates="teacher"
     )
 
-    __mapper_args__ = {
+    __mapper_args__ = {  # noqa: RUF012
         "polymorphic_identity": "teacher",
     }

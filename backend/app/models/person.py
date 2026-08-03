@@ -1,12 +1,12 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, String, ForeignKey
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy import Column, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
-from app.db.mixins import TimestampMixin, ActiveMixin, SoftDeleteMixin
+from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from .user import User
@@ -66,7 +66,7 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     # un cliente o un profesor.
     person_type = Column(String(50), nullable=True)
 
-    __mapper_args__ = {
+    __mapper_args__ = {  # noqa: RUF012
         "polymorphic_identity": "person",
         "polymorphic_on": person_type,
     }

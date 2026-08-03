@@ -1,133 +1,204 @@
 """
-Endpoints para Client (asíncrono, Sprint 5)
--------------------------------------------
-• CRUD completo para perfiles de clientes.
-• Validación estricta de roles (admin / self).
-• Uso de AsyncSession + select() + selectinload().
+Router Client (Sprint 6–7)
+--------------------------
+• CRUD de perfiles de clientes.
+• Endpoints públicos y privados.
+• Lógica centralizada en services.
+• Respuestas optimizadas para frontend.
 """
+# ruff: noqa: B008
 
 from __future__ import annotations
-from typing import List
+
 from uuid import UUID
 
+from app import crud, schemas
+from app.api.deps import (
+    require_admin,
+    require_admin_client_or_self,
+    require_admin_or_self_guard,
+)
+from app.db.session import get_async_session
+from app.models.user import User, UserRole
+from app.services.client_service import (
+    to_client_public,
+    to_client_with_bookings,
+    to_client_with_membership,
+    to_client_with_stats,
+)
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.db.session import get_async_session
-from app import crud, schemas
-from app.models import Client, User, UserRole
-from app.api.deps import (
-    get_current_active_user,
-    get_current_admin,
-    get_admin_or_self,
-)
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- #
 # Crear Client para un User existente
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- #
 @router.post("/{user_id}", response_model=schemas.Client, status_code=status.HTTP_201_CREATED)
 async def create_client_for_user(
     *,
     db: AsyncSession = Depends(get_async_session),
     user_id: UUID,
     client_in: schemas.ClientCreate,
-    current_user: User = Depends(get_current_admin),
+    current_user: User = Depends(require_admin),
 ):
+    """Crea un perfil de cliente para un usuario existente."""
     user = await crud.user.get(db, id=user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+        raise HTTPException(404, "Usuario no encontrado.")
 
     if user.person_profile:
-        raise HTTPException(status_code=400, detail="El usuario ya tiene un perfil asociado.")
+        raise HTTPException(400, "El usuario ya tiene un perfil asociado.")
 
-    if user.role != UserRole.CLIENT:
-        raise HTTPException(
-            status_code=400,
-            detail=f"El usuario no tiene rol '{UserRole.CLIENT}'. Actualiza el rol primero.",
-        )
+    if user.role != UserRole.client:
+        raise HTTPException(400, "El usuario no tiene rol CLIENT.")
 
     client = await crud.client.create_with_user(db=db, obj_in=client_in, user=user)
     return client
 
 
-# ------------------------------------------------------------------ #
-# Listar Clients
-# ------------------------------------------------------------------ #
-@router.get("/", response_model=List[schemas.Client])
+# --------------------------------------------------------------------------- #
+# Listar Clients (admin)
+# --------------------------------------------------------------------------- #
+@router.get("/", response_model=list[schemas.ClientPublic])
 async def read_clients(
     *,
     db: AsyncSession = Depends(get_async_session),
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(get_current_admin),
+    current_user: User = Depends(require_admin),
 ):
-    stmt = (
-        await crud.client.get_multi(db, skip=skip, limit=limit)
-    )
-    return stmt
+    """Lista clientes en versión pública."""
+    clients = await crud.client.get_multi(db, skip=skip, limit=limit)
+    return [to_client_public(c) for c in clients]
 
 
-# ------------------------------------------------------------------ #
-# Obtener Client por ID
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- #
+# Obtener Client por ID (privado)
+# --------------------------------------------------------------------------- #
 @router.get("/{client_id}", response_model=schemas.Client)
 async def read_client_by_id(
     *,
     db: AsyncSession = Depends(get_async_session),
     client_id: UUID,
-    current_user: User = Depends(get_admin_or_self),
+    current_user: User = Depends(require_admin_or_self_guard),
 ):
+    """Obtiene detalles privados de un cliente."""
     client = await crud.client.get(db, id=client_id)
     if not client:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+        raise HTTPException(404, "Cliente no encontrado.")
 
     return client
 
 
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- #
+# Perfil del cliente actual (público)
+# --------------------------------------------------------------------------- #
+@router.get("/me", response_model=schemas.ClientPublic)
+async def read_my_profile(
+    *,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_admin_client_or_self),
+):
+    """Devuelve el perfil público del cliente actual."""
+    client = current_user.person_profile.client
+    return to_client_public(client)
+
+
+# --------------------------------------------------------------------------- #
+# Reservas del cliente actual (público)
+# --------------------------------------------------------------------------- #
+@router.get("/me/bookings", response_model=schemas.ClientWithBookings)
+async def read_my_bookings(
+    *,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_admin_client_or_self),
+):
+    """Devuelve el perfil del cliente con sus reservas públicas."""
+    client = await crud.client.get(
+        db,
+        id=current_user.person_profile.client.id,
+        include_relations=True,
+    )
+    return to_client_with_bookings(client)
+
+
+# --------------------------------------------------------------------------- #
+# Membresía del cliente actual (público)
+# --------------------------------------------------------------------------- #
+@router.get("/me/membership", response_model=schemas.ClientWithMembership)
+async def read_my_membership(
+    *,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_admin_client_or_self),
+):
+    """Devuelve el perfil del cliente con su membresía activa."""
+    client = await crud.client.get(
+        db,
+        id=current_user.person_profile.client.id,
+        include_relations=True,
+    )
+    return to_client_with_membership(client)
+
+
+# --------------------------------------------------------------------------- #
+# Estadísticas del cliente actual (público)
+# --------------------------------------------------------------------------- #
+@router.get("/me/stats", response_model=schemas.ClientWithStats)
+async def read_my_stats(
+    *,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_admin_client_or_self),
+):
+    """Devuelve estadísticas básicas del cliente."""
+    client = await crud.client.get(
+        db,
+        id=current_user.person_profile.client.id,
+        include_relations=True,
+    )
+    return to_client_with_stats(client)
+
+
+# --------------------------------------------------------------------------- #
 # Actualizar Client
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- #
 @router.put("/{client_id}", response_model=schemas.Client)
 async def update_client(
     *,
     db: AsyncSession = Depends(get_async_session),
     client_id: UUID,
     client_in: schemas.ClientUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_admin_client_or_self),
 ):
+    """Actualiza el perfil privado del cliente."""
     client = await crud.client.get(db, id=client_id)
     if not client:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado.")
-
-    # Autorización: admin o el propio cliente
-    if current_user.role != UserRole.ADMIN:
-        if not current_user.person_profile or current_user.person_profile.id != client_id:
-            raise HTTPException(status_code=403, detail="No tienes permiso para actualizar este perfil.")
+        raise HTTPException(404, "Cliente no encontrado.")
 
     updated = await crud.client.update(db, db_obj=client, obj_in=client_in)
     return updated
 
 
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- #
 # Eliminar Client
-# ------------------------------------------------------------------ #
+# --------------------------------------------------------------------------- #
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_client(
     *,
     db: AsyncSession = Depends(get_async_session),
     client_id: UUID,
-    current_user: User = Depends(get_current_admin),
+    current_user: User = Depends(require_admin),
 ):
+    """Elimina un perfil de cliente."""
     client = await crud.client.get(db, id=client_id)
     if not client:
-        raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+        raise HTTPException(404, "Cliente no encontrado.")
 
+    # Desasociar Person → User
     user = await crud.user.get(db, id=client.user.id)
     if user:
-        user.person_profile_id = None
+        user.person_profile = None
         db.add(user)
         await db.commit()
 

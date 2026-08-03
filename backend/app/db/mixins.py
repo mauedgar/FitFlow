@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, DateTime
+from sqlalchemy import Boolean, Column, DateTime
 from sqlalchemy.sql import func
 
 

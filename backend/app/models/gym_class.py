@@ -1,42 +1,18 @@
 import uuid
-import enum
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, String, Integer, Enum as SQLAlchemyEnum
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy import Column, Integer, String
+from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
-from app.db.mixins import TimestampMixin, ActiveMixin, SoftDeleteMixin
+from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
+
+from ..core.enums import ActivityType, DifficultyLevel
 
 if TYPE_CHECKING:
     from .class_schedule import ClassSchedule
-
-
-class DifficultyLevel(str, enum.Enum):
-    """
-    Niveles de dificultad disponibles para una actividad del catálogo.
-
-    Se utilizan valores estables en lowercase para mantener consistencia
-    entre el backend, la base de datos y la API. La traducción a etiquetas
-    amigables puede resolverse en el frontend.
-    """
-    BEGINNER = "beginner"
-    INTERMEDIATE = "intermediate"
-    ADVANCED = "advanced"
-
-
-class ActivityType(str, enum.Enum):
-    """
-    Tipos de actividad que el gimnasio puede ofrecer dentro del catálogo.
-
-    - group_class: clases grupales tradicionales.
-    - open_gym: franjas de musculación o uso libre del gimnasio.
-    - personal_training: sesiones individuales o personalizadas.
-    """
-    GROUP_CLASS = "group_class"
-    OPEN_GYM = "open_gym"
-    PERSONAL_TRAINING = "personal_training"
 
 
 class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
@@ -89,7 +65,7 @@ class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     image_url = Column(String, nullable=True)
 
     # Relación con los horarios recurrentes en los que esta actividad se ofrece.
-    class_schedules: Mapped[List["ClassSchedule"]] = relationship(
+    class_schedules: Mapped[list["ClassSchedule"]] = relationship(
         "ClassSchedule",
         back_populates="gym_class",
         cascade="all, delete-orphan",

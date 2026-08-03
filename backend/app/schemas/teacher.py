@@ -1,54 +1,136 @@
-import uuid
-from typing import List, Optional
+"""
+Schemas para Teacher (Sprint 6–7)
+---------------------------------
+Incluye:
+• Esquemas base heredados de Person
+• Esquema privado (Teacher)
+• Esquema público (TeacherPublic)
+• Esquemas compactos para anidamiento
+• Esquema mini para vistas operativas
+"""
 
-from pydantic import BaseModel
+from __future__ import annotations
+
+import uuid
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from .person import PersonBase, PersonCreate, PersonUpdate
-#from .gym_class import GymClassInTeacherResponse # Para la relación many-to-many
-# GymClass.model_rebuild() /cambios en init
-# Importamos el nuevo esquema para ClassSchedule para la relación
-from typing import TYPE_CHECKING
+
+# Evitar circularidad
 if TYPE_CHECKING:
-    from .class_schedule import ClassScheduleInResponse
-# --- Esquema para CREAR el perfil de un Profesor ---
-# Hereda todos los campos de persona que se necesitan al crear.
+    from .class_schedule import (
+        ClassSchedulePublic,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 1. Base (hereda de Person)
+# --------------------------------------------------------------------------- #
+
+class TeacherBase(PersonBase):
+    """Campos comunes del profesor."""
+    bio: str | None = None
+    cuil: str | None = None
+
+
 class TeacherCreate(PersonCreate):
-    # Añadimos solo los campos específicos de Teacher.
-    bio: Optional[str] = None
-    cuil: Optional[str] = None
+    """Esquema para crear un profesor."""
+    bio: str | None = None
+    cuil: str | None = None
 
-# --- Esquema para ACTUALIZAR el perfil de un Profesor ---
-# Hereda de PersonUpdate, que ya tiene los campos de persona como opcionales.
+
 class TeacherUpdate(PersonUpdate):
-    bio: Optional[str] = None
-    cuil: Optional[str] = None
-    # Aquí podríamos añadir más campos si fuera necesario, como teacher_ids para las clases.
+    """Esquema para actualizar un profesor."""
+    bio: str | None = None
+    cuil: str | None = None
 
-# --- Esquema de RESPUESTA de la API ---
-# Este es el objeto completo que se devuelve. Hereda los datos base de Person.
-class Teacher(PersonBase):
+
+# --------------------------------------------------------------------------- #
+# 2. Esquema privado (solo admin/self)
+# --------------------------------------------------------------------------- #
+
+class Teacher(TeacherBase):
+    """
+    Perfil completo del profesor.
+    Incluye:
+        • datos sensibles (cuil)
+        • horarios completos
+    """
     id: uuid.UUID
-    bio: Optional[str] = None
-    cuil: Optional[str] = None
-    class_schedules: List["ClassScheduleInResponse"] = []
+    class_schedules: list[ClassSchedulePublic] = Field(default_factory=list)  
 
-    #classes: List[GymClassInTeacherResponse] = [] # La relación con las clases
+    model_config = ConfigDict(from_attributes=True)
 
-    # La configuración 'from_attributes' se hereda de PersonBase,
-    # por lo que no es necesario repetirla aquí.
 
-# Muestra la información del profesor SIN su lista de clases para evitar la repetición.
-class TeacherInClassResponse(PersonBase):
-    id: uuid.UUID    
-    bio: Optional[str] = None
-    cuil: Optional[str] = None
+# --------------------------------------------------------------------------- #
+# 3. Esquema público / operativo
+# --------------------------------------------------------------------------- #
 
-# Esquema para usar cuando Teacher se lista dentro de ClassSchedule
-class TeacherInClassScheduleResponse(PersonBase):
+class TeacherPublic(BaseModel):
+    """
+    Versión pública del profesor.
+    NO incluye datos sensibles.
+    Usada en:
+        • listados públicos
+        • vistas operativas
+        • frontend
+    """
     id: uuid.UUID
-    class Config:
-        from_attributes = True
-
-class TeacherInScheduleResponseMini(BaseModel):
     first_name: str
     last_name: str
+    bio: str | None = None
+
+    # Consistencia con GymClassWithSchedules
+    schedules: list[ClassSchedulePublic] | None = None  
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 4. Esquemas compactos (evitan circularidad)
+# --------------------------------------------------------------------------- #
+
+class TeacherInClassResponse(BaseModel):
+    """
+    Profesor dentro de una GymClass.
+    Versión compacta y pública.
+    NO incluye datos sensibles.
+    """
+    id: uuid.UUID
+    first_name: str
+    last_name: str
+    bio: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TeacherInClassScheduleResponse(BaseModel):
+    """
+    Profesor dentro de un ClassSchedule.
+    Versión compacta para evitar cargar relaciones completas.
+    """
+    id: uuid.UUID
+    first_name: str
+    last_name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 5. Esquema mini (ultra ligero)
+# --------------------------------------------------------------------------- #
+
+class TeacherInScheduleResponseMini(BaseModel):
+    """
+    Versión mínima del profesor.
+    Usado en:
+        • sesiones
+        • front desk
+        • dashboards
+    """
+    first_name: str
+    last_name: str
+
+    model_config = ConfigDict(from_attributes=True)

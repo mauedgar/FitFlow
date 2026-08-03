@@ -1,32 +1,20 @@
 import uuid
-import enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, Enum as SQLAlchemyEnum, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy import Column, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
-from app.db.mixins import TimestampMixin, ActiveMixin
+from app.db.mixins import ActiveMixin, TimestampMixin
+
+from ..core.enums import BookingStatus
 
 if TYPE_CHECKING:
-    from .client import Client
     from .class_session import ClassSession
+    from .client import Client
 
-
-class BookingStatus(str, enum.Enum):
-    """
-    Estados posibles de una reserva.
-
-    - confirmed: la reserva fue creada correctamente y el cupo quedó tomado.
-    - cancelled: la reserva fue cancelada por el cliente o por el staff.
-    - attended: el cliente realizó check-in y asistió efectivamente.
-    - no_show: el cliente tenía reserva, pero no asistió.
-    """
-    CONFIRMED = "confirmed"
-    CANCELLED = "cancelled"
-    ATTENDED = "attended"
-    NO_SHOW = "no_show"
 
 
 class Booking(Base, TimestampMixin, ActiveMixin):
@@ -63,7 +51,7 @@ class Booking(Base, TimestampMixin, ActiveMixin):
     status = Column(
         SQLAlchemyEnum(BookingStatus, name="bookingstatus"),
         nullable=False,
-        default=BookingStatus.CONFIRMED
+        default=BookingStatus.confirmed
     )
 
     # Momento en que el cliente realizó efectivamente el check-in.

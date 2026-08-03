@@ -1,30 +1,23 @@
 import uuid
-import enum
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, Date, Time, Integer, ForeignKey, Enum as SQLAlchemyEnum
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy import Column, Date, ForeignKey, Integer, Time
+from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
-from app.db.mixins import TimestampMixin, ActiveMixin, SoftDeleteMixin
+from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
+
+from ..core.enums import AllowedPlan
 
 if TYPE_CHECKING:
-    from .gym_class import GymClass
     from .class_session import ClassSession
+    from .gym_class import GymClass
     from .teacher import Teacher
 
 
-class AllowedPlan(str, enum.Enum):
-    """
-    Planes de membresía habilitados para una oferta recurrente.
 
-    Este enum permite restringir qué tipo de cliente puede reservar
-    las sesiones generadas a partir de este horario.
-    """
-    BASIC = "basic"
-    PREMIUM = "premium"
-    PERSONALIZED = "personalized"
 
 
 class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
@@ -103,7 +96,7 @@ class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     )
 
     # Relación con las sesiones concretas generadas a partir de este horario.
-    class_sessions: Mapped[List["ClassSession"]] = relationship(
+    class_sessions: Mapped[list["ClassSession"]] = relationship(
         "ClassSession",
         back_populates="class_schedule",
         cascade="all, delete-orphan"

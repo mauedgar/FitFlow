@@ -1,46 +1,18 @@
 import uuid
-import enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, String, Enum as SQLAlchemyEnum, ForeignKey
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy import Column, DateTime, ForeignKey, String
+from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
-from app.db.mixins import TimestampMixin, ActiveMixin, SoftDeleteMixin
+from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
+
+from ..core.enums import MembershipPlan, MembershipStatus
 
 if TYPE_CHECKING:
     from .client import Client
-
-
-class MembershipPlan(str, enum.Enum):
-    """
-    Tipos de membresía que ofrece el gimnasio.
-
-    - gym_only: acceso a musculación o gimnasio libre.
-    - classes: acceso a clases grupales.
-    - premium: acceso combinado a musculación y clases.
-    - personalized: acceso premium más atención o entrenamiento personalizado.
-    """
-    GYM_ONLY = "gym_only"
-    CLASSES = "classes"
-    PREMIUM = "premium"
-    PERSONALIZED = "personalized"
-
-
-class MembershipStatus(str, enum.Enum):
-    """
-    Estados operativos posibles de una membresía.
-
-    - active: la membresía está vigente y habilitada.
-    - expired: la vigencia terminó.
-    - paused: la membresía está temporalmente suspendida.
-    - cancelled: la membresía fue dada de baja.
-    """
-    ACTIVE = "active"
-    EXPIRED = "expired"
-    PAUSED = "paused"
-    CANCELLED = "cancelled"
 
 
 class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
@@ -60,14 +32,14 @@ class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     plan = Column(
         SQLAlchemyEnum(MembershipPlan, name="membershipplan"),
         nullable=False,
-        default=MembershipPlan.GYM_ONLY
+        default=MembershipPlan.gym_only
     )
 
     # Estado operativo de la membresía.
     status = Column(
         SQLAlchemyEnum(MembershipStatus, name="membershipstatus"),
         nullable=False,
-        default=MembershipStatus.ACTIVE
+        default=MembershipStatus.active
     )
 
     # Fecha de inicio de vigencia.
@@ -91,7 +63,7 @@ class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     )
 
     # Relación inversa con el cliente.
-    client: Mapped["Client"] = relationship(
+    client: Mapped["Client"] = relationship( # type: ignore
         "Client",
         back_populates="membership"
     )

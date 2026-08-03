@@ -1,81 +1,159 @@
-# app/schemas/class_schedule.py
+"""
+Schemas para ClassSchedule (Sprint 6–7)
+---------------------------------------
+Incluye:
+• Esquemas base (crear/actualizar)
+• Esquema privado (ClassSchedule)
+• Esquema público (ClassSchedulePublic)
+• Extensiones con próxima sesión
+• Esquemas compactos para anidamiento
+"""
+
+from __future__ import annotations
+
 import uuid
-from datetime import time, date, datetime
-from typing import List, Optional
-
-from pydantic import BaseModel, Field
-
-# Para evitar referencias circulares
+from datetime import date, datetime, time
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, ConfigDict, Field
+
+# Evitar circularidad
 if TYPE_CHECKING:
-    from .gym_class import GymClassInClassScheduleResponse, GymClassRead
-    from .teacher import TeacherInClassScheduleResponse, TeacherInScheduleResponseMini
-    from .class_session import ClassSessionInResponse # Las sesiones que derivan de este horario
+    from .class_session import ClassSessionInResponse, NextSessionInfo
+    from .gym_class import GymClassInClassScheduleResponse, GymClassPublic
+    from .teacher import (
+        TeacherInClassScheduleResponse,
+        TeacherInScheduleResponseMini,
+    )
 
-# --- Esquema Base ---
+
+# --------------------------------------------------------------------------- #
+# 1. Base
+# --------------------------------------------------------------------------- #
+
 class ClassScheduleBase(BaseModel):
-    days_of_week: List[int] = Field(..., description="Días de la semana (0=Lunes, 6=Domingo)", min_length=1, max_length=7)
+    """Campos comunes del horario recurrente."""
+    days_of_week: list[int] = Field(..., min_length=1, max_length=7)
     start_time: time
-    duration_minutes: time
-    capacity: int = Field(..., ge=1, description="Capacidad máxima para cada sesión de esta oferta")
+    duration_minutes: int = Field(..., ge=1)
+    capacity: int = Field(..., ge=1)
     start_date: date
-    end_date: Optional[date] = None # Si es None, la oferta es indefinida
+    end_date: date | None = None
 
-# --- Esquema para CREACIÓN ---
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 2. Creación
+# --------------------------------------------------------------------------- #
+
 class ClassScheduleCreate(ClassScheduleBase):
+    """Esquema para crear un horario recurrente."""
     gym_class_id: uuid.UUID
     teacher_id: uuid.UUID
 
-# --- Esquema para ACTUALIZACIÓN ---
+
+# --------------------------------------------------------------------------- #
+# 3. Actualización
+# --------------------------------------------------------------------------- #
+
 class ClassScheduleUpdate(BaseModel):
-    days_of_week: Optional[List[int]] = None
-    start_time: Optional[time] = None
-    duration_minutes: Optional[time] = None
-    capacity: Optional[int] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    gym_class_id: Optional[uuid.UUID] = None # Podría ser posible reasignar la clase
-    teacher_id: Optional[uuid.UUID] = None # Podría ser posible reasignar el profesor
+    """Esquema para actualizar parcialmente un horario recurrente."""
+    days_of_week: list[int] | None = None
+    start_time: time | None = None
+    duration_minutes: int | None = None
+    capacity: int | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    gym_class_id: uuid.UUID | None = None
+    teacher_id: uuid.UUID | None = None
 
-# --- Esquema de RESPUESTA de la API ---
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 4. Esquema privado (operativo)
+# --------------------------------------------------------------------------- #
+
 class ClassSchedule(ClassScheduleBase):
+    """
+    Esquema completo del horario recurrente (privado).
+    Incluye:
+        • gym_class
+        • teacher
+        • sesiones futuras
+    """
     id: uuid.UUID
     gym_class_id: uuid.UUID
     teacher_id: uuid.UUID
 
-    # Incluimos los objetos completos de GymClass, Teacher y las sesiones futuras
-    gym_class: "GymClassInClassScheduleResponse"
-    teacher: "TeacherInClassScheduleResponse"
-    
-    # Solo las sesiones futuras (o un subconjunto) para evitar cargar todas las sesiones históricas
-    # La lógica para filtrar esto se haría en el endpoint
-    future_sessions: List["ClassSessionInResponse"] = [] 
+    gym_class: GymClassInClassScheduleResponse
+    teacher: TeacherInClassScheduleResponse
 
-    class Config:
-        from_attributes = True
+    future_sessions: list[ClassSessionInResponse] = Field(default_factory=list)
 
-# --- Esquema para Respuestas Anidadas (ej. dentro de GymClass o Teacher) ---
-class ClassScheduleInResponse(ClassScheduleBase):
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 5. Esquema público
+# --------------------------------------------------------------------------- #
+
+class ClassSchedulePublic(BaseModel):
+    """
+    Versión pública del horario.
+    Usada en:
+        • TeacherPublic
+        • GymClassWithSchedules
+        • listados públicos
+    """
     id: uuid.UUID
-    gym_class_id: uuid.UUID
-    teacher_id: uuid.UUID
-    teacher: "TeacherInClassScheduleResponse"
-    # No incluir las relaciones completas para evitar bucles o sobrecarga
-    class Config:
-        from_attributes = True
+    days_of_week: list[int]
+    start_time: time
+    duration_minutes: int
+    capacity: int
 
-class ClassScheduleInClassSessionResponse(BaseModel): # Usado cuando ClassSchedule se lista dentro de ClassSession
-    gym_class: "GymClassRead"
-    teacher: "TeacherInScheduleResponseMini"
-    # No incluir otras relaciones aquí para mantenerlo ligero
-    class Config:
-        from_attributes = True
+    gym_class: GymClassPublic
 
-# NUEVO ESQUEMA: para la información calculada
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 6. Esquema compacto dentro de ClassSession
+# --------------------------------------------------------------------------- #
+
+class ClassScheduleInClassSessionResponse(BaseModel):
+    """
+    Versión compacta del horario dentro de una sesión.
+    """
+    gym_class: GymClassPublic
+    teacher: TeacherInScheduleResponseMini
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 7. Información calculada
+# --------------------------------------------------------------------------- #
+
 class NextSessionInfo(BaseModel):
+    """Información calculada sobre la próxima sesión futura."""
     starts_at: datetime
     available_spots: int
 
-# NUEVO ESQUEMA: extiende el ClassSchedule normal para incluir la nueva info
-class ClassScheduleWithNextSession(ClassSchedule): # Asume que tienes un schema ClassSchedule
-    next_upcoming_session: Optional[NextSessionInfo] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 8. Extensión con próxima sesión
+# --------------------------------------------------------------------------- #
+
+class ClassScheduleWithNextSession(ClassSchedulePublic):
+    """
+    Extiende ClassSchedulePublic con la próxima sesión futura.
+    Usado en:
+        • frontend cliente
+        • dashboards
+        • front_desk
+    """
+    next_session: NextSessionInfo | None = None

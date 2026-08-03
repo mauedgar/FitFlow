@@ -1,30 +1,19 @@
 import uuid
-import enum
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, Enum as SQLAlchemyEnum, UniqueConstraint
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
-from app.db.mixins import TimestampMixin, ActiveMixin
+from app.db.mixins import ActiveMixin, TimestampMixin
+
+from ..core.enums import ClassSessionStatus
 
 if TYPE_CHECKING:
     from .booking import Booking
     from .class_schedule import ClassSchedule
-
-
-class ClassSessionStatus(str, enum.Enum):
-    """
-    Estados posibles de una sesión concreta.
-
-    - scheduled: la sesión está programada y disponible para operar.
-    - cancelled: la sesión fue cancelada y no debe aceptar reservas nuevas.
-    - completed: la sesión ya finalizó su ejecución operativa.
-    """
-    SCHEDULED = "scheduled"
-    CANCELLED = "cancelled"
-    COMPLETED = "completed"
 
 
 class ClassSession(Base, TimestampMixin, ActiveMixin):
@@ -61,7 +50,7 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
     status = Column(
         SQLAlchemyEnum(ClassSessionStatus, name="classsessionstatus"),
         nullable=False,
-        default=ClassSessionStatus.SCHEDULED
+        default=ClassSessionStatus.scheduled
     )
 
     # Relación con el horario recurrente de origen.
@@ -71,7 +60,7 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
     )
 
     # Reservas asociadas a esta sesión concreta.
-    bookings: Mapped[List["Booking"]] = relationship(
+    bookings: Mapped[list["Booking"]] = relationship(
         "Booking",
         back_populates="class_session"
     )

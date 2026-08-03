@@ -1,5 +1,6 @@
 from sqlalchemy.ext.declarative import as_declarative, declared_attr
 
+
 # Usamos @as_declarative para poder tener un __tablename__ autogenerado si quisiéramos
 # pero lo principal es que esto nos da una 'Base' centralizada.
 @as_declarative()

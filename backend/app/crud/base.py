@@ -17,8 +17,8 @@ CRUDBase genérico (asíncrono)
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+from datetime import datetime, timezone
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -32,7 +32,7 @@ UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 
 
 class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
-    def __init__(self, model: Type[ModelType]):
+    def __init__(self, model: type[ModelType]):
         self.model = model
 
     # ------------------------------------------------------------------ #
@@ -43,8 +43,8 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db: AsyncSession,
         *,
         id: Any,
-        options: Optional[List[Any]] = None,
-    ) -> Optional[ModelType]:
+        options: None | list[Any] = None,
+    ) -> None | ModelType:
         stmt = select(self.model).where(
             self.model.id == id,
             self.model.deleted_at.is_(None),  # solo registros activos
@@ -62,9 +62,9 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         *,
         skip: int = 0,
         limit: int = 100,
-        filters: Optional[Dict[str, Any]] = None,
-        options: Optional[List[Any]] = None,
-    ) -> List[ModelType]:
+        filters: None | dict[str, Any] = None,
+        options: None | list[Any] = None,
+    ) -> list[ModelType]:
         stmt = select(self.model).where(self.model.deleted_at.is_(None))
 
         # filtros simples de igualdad / IN
@@ -110,7 +110,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db: AsyncSession,
         *,
         db_obj: ModelType,
-        obj_in: UpdateSchemaType | Dict[str, Any],
+        obj_in: UpdateSchemaType | dict[str, Any],
     ) -> ModelType:
         data = obj_in if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
         for field, value in data.items():
@@ -134,6 +134,6 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             await db.delete(db_obj)
         else:
             db_obj.active = False
-            db_obj.deleted_at = datetime.utcnow()
+            db_obj.deleted_at = datetime.now(timezone.utc)
             db.add(db_obj)
         await db.commit()

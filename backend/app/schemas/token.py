@@ -1,5 +1,6 @@
+
 from pydantic import BaseModel
-from typing import Optional
+
 
 # Esquema para el token JWT que devolvemos al hacer login
 class Token(BaseModel):
@@ -8,6 +9,6 @@ class Token(BaseModel):
 
 # Esquema para los datos que van DENTRO del token
 class TokenPayload(BaseModel):
-    sub: Optional[str] = None   #email
-    role: Optional[str] = None # Para el control de roles
-    exp: Optional[int] = None  # Expiración del token
+    sub: None | str = None   #email
+    role: None | str = None # Para el control de roles
+    exp: None | int = None  # Expiración del token

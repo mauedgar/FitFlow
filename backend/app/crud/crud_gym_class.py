@@ -8,7 +8,6 @@ CRUD para GymClass (asíncrono, Sprint 5)
 from __future__ import annotations
 
 from datetime import date
-from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -17,6 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models import ClassSchedule, GymClass
 from app.schemas.gym_class import GymClassCreate, GymClassUpdate
+
 from .base import CRUDBase
 
 
@@ -30,7 +30,7 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
         *,
         id: UUID,
         include_schedules: bool = False,
-    ) -> Optional[GymClass]:
+    ) -> None | GymClass:
         opts = [selectinload(GymClass.class_schedules)] if include_schedules else None
         return await super().get(db, id=id, options=opts)
 
@@ -43,15 +43,15 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
         *,
         skip: int = 0,
         limit: int = 100,
-        difficulty: Optional[str] = None,
-        activity_type: Optional[str] = None,
-        active: Optional[bool] = True,
-        search: Optional[str] = None,
-        teacher_id: Optional[UUID] = None,
-        day_of_week: Optional[int] = None,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-    ) -> List[GymClass]:
+        difficulty: None | str = None,
+        activity_type: None | str = None,
+        active: None | bool = True,
+        search: None | str = None,
+        teacher_id: None | UUID = None,
+        day_of_week: None | int = None,
+        date_from: None | date = None,
+        date_to: None | date = None,
+    ) -> list[GymClass]:
         stmt = select(GymClass).where(GymClass.deleted_at.is_(None))
 
         if active is not None:

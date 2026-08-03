@@ -1,21 +1,23 @@
 """
-CRUD para Membership (asíncrono, Sprint 5)
-------------------------------------------
+CRUD para Membership (asíncrono, Sprint 6–7)
+--------------------------------------------
 • CRUD completo para membresías de clientes.
 • Filtros avanzados: por cliente, por estado, por plan.
 • Compatible con SQLAlchemy 2.0 async.
 """
 
 from __future__ import annotations
-from typing import Optional, List
+
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.enums import MembershipPlan, MembershipStatus
 from app.models import Membership
 from app.schemas.membership import MembershipCreate, MembershipUpdate
+
 from .base import CRUDBase
 
 
@@ -29,7 +31,10 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
         *,
         id: UUID,
         include_relations: bool = False,
-    ) -> Optional[Membership]:
+    ) -> Membership | None:
+        """
+        Obtiene una membresía por su ID, con opción de incluir relaciones.
+        """
         opts = (
             [selectinload(Membership.client)]
             if include_relations
@@ -44,12 +49,16 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
         self,
         db: AsyncSession,
         *,
-        client_id: Optional[UUID] = None,
-        status: Optional[str] = None,
-        plan: Optional[str] = None,
+        client_id: UUID | None = None,
+        status: MembershipStatus | None = None,
+        plan: MembershipPlan | None = None,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[Membership]:
+    ) -> list[Membership]:
+        """
+        Obtiene una lista filtrada de membresías.
+        Permite filtrar por cliente, estado y plan.
+        """
         stmt = (
             select(Membership)
             .where(Membership.deleted_at.is_(None))

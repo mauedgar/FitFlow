@@ -10,24 +10,24 @@ Requisitos:
 • security.verify_password   – comprueba contraseña en texto plano vs hash
 • security.create_access_token – genera el JWT
 """
-
+# ruff: noqa: B008
 from __future__ import annotations
 
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import security
 from app.core.config import settings
 from app.db.session import get_async_session
 from app.models.user import User
 from app.schemas.token import Token
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/login", tags=["login"])
+router = APIRouter(prefix="/login", tags=["auth"])
 
-@router.post("/token", response_model=Token, tags=["auth"])
+@router.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_async_session),

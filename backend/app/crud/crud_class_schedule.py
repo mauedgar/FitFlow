@@ -1,22 +1,23 @@
 """
-CRUD para ClassSchedule (asíncrono, Sprint 5)
----------------------------------------------
-• Representa la configuración recurrente de una clase dentro de la agenda del gimnasio.
-• Filtros avanzados: gym_class_id, teacher_id, allowed_plan, día de la semana, rango de fechas, activo.
-• Incluye carga selectiva de relaciones (gym_class, teacher, sessions).
+CRUD para ClassSchedule (asíncrono, Sprint 6–7)
+-----------------------------------------------
+• Representa la configuración recurrente de una clase dentro de la agenda.
+• Filtros avanzados: clase, profesor, allowed_plan, día, rango de fechas, activo.
+• Carga selectiva de relaciones (gym_class, teacher, class_sessions).
 """
 
 from __future__ import annotations
+
 from datetime import date
-from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import ClassSchedule
+from app.models import ClassSchedule, GymClass
 from app.schemas.class_schedule import ClassScheduleCreate, ClassScheduleUpdate
+
 from .base import CRUDBase
 
 
@@ -30,7 +31,7 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         *,
         id: UUID,
         include_relations: bool = False,
-    ) -> Optional[ClassSchedule]:
+    ) -> ClassSchedule | None:
         """
         Obtiene un horario recurrente por su ID, con opción de incluir relaciones.
         """
@@ -38,7 +39,7 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
             [
                 selectinload(ClassSchedule.gym_class),
                 selectinload(ClassSchedule.teacher),
-                selectinload(ClassSchedule.sessions),
+                selectinload(ClassSchedule.class_sessions),
             ]
             if include_relations
             else None
@@ -54,18 +55,17 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         *,
         skip: int = 0,
         limit: int = 100,
-        gym_class_id: Optional[UUID] = None,
-        teacher_id: Optional[UUID] = None,
-        allowed_plan: Optional[str] = None,
-        day_of_week: Optional[int] = None,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-        active: Optional[bool] = True,
-        search: Optional[str] = None,
-    ) -> List[ClassSchedule]:
+        gym_class_id: UUID | None = None,
+        teacher_id: UUID | None = None,
+        allowed_plan: str | None = None,
+        day_of_week: int | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        active: bool | None = True,
+        search: str | None = None,
+    ) -> list[ClassSchedule]:
         """
         Obtiene una lista filtrada de horarios recurrentes de clases.
-        Permite filtrar por clase, profesor, plan permitido, día, rango de fechas y estado.
         """
         stmt = select(ClassSchedule).where(ClassSchedule.deleted_at.is_(None))
 
@@ -94,15 +94,15 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
 
         if search:
             like = f"%{search.lower()}%"
-            stmt = stmt.where(
-                func.lower(ClassSchedule.gym_class.has(func.lower(ClassSchedule.gym_class.name).ilike(like)))
+            stmt = stmt.join(ClassSchedule.gym_class).where(
+                func.lower(GymClass.name).ilike(like)
             )
 
         stmt = (
             stmt.options(
                 selectinload(ClassSchedule.gym_class),
                 selectinload(ClassSchedule.teacher),
-                selectinload(ClassSchedule.sessions),
+                selectinload(ClassSchedule.class_sessions),
             )
             .order_by(ClassSchedule.start_time)
             .offset(skip)

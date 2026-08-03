@@ -1,30 +1,18 @@
 import uuid
-import enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, String, Enum as SQLAlchemyEnum
-from sqlalchemy.orm import relationship, Mapped
+from sqlalchemy import Column, String
+from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
-from app.db.mixins import TimestampMixin, ActiveMixin, SoftDeleteMixin
+from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
+
+from ..core.enums import UserRole
 
 if TYPE_CHECKING:
     from .person import Person
-
-
-class UserRole(str, enum.Enum):
-    """
-    Roles de acceso disponibles dentro del sistema.
-
-    - admin: acceso completo al panel operativo y de administración.
-    - teacher: acceso a sesiones asignadas y gestión de asistencia.
-    - client: acceso al dashboard personal, agenda y reservas.
-    """
-    ADMIN = "admin"
-    TEACHER = "teacher"
-    CLIENT = "client"
-
 
 class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     """
@@ -49,7 +37,7 @@ class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     role = Column(
         SQLAlchemyEnum(UserRole, name="userrole"),
         nullable=False,
-        default=UserRole.CLIENT
+        default=UserRole.client
     )
 
     # Relación uno a uno con el perfil personal del usuario.

@@ -1,28 +1,100 @@
-# backend/app/api/v1/endpoints/users.py
+"""
+Router User (Sprint 6–7)
+------------------------
+• Registro y gestión de usuarios.
+• Endpoints públicos y privados.
+• Lógica centralizada en services.
+• Respuestas optimizadas para frontend.
+"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from app.db.session import get_async_session
+from __future__ import annotations
+
+from uuid import UUID
+
 from app import crud, schemas
-
+from app.api.deps import require_admin_or_self_guard
+from app.db.session import get_async_session
+from app.models.user import User
+from app.services.user_service import (
+    to_user_public,
+    to_user_with_profile,
+    to_user_with_stats,
+)
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-@router.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user_in: schemas.UserCreate, db: Session = Depends(get_async_session)):
-    """
-    Crea un nuevo usuario en el sistema.
-    """
-    # 1. Verificar si el usuario ya existe
-    db_user = crud.user.get_by_email(db, email=user_in.email)
+# ruff: noqa: B008
+# --------------------------------------------------------------------------- #
+# Registrar usuario
+# --------------------------------------------------------------------------- #
+@router.post("/register", response_model=schemas.UserPublic, status_code=status.HTTP_201_CREATED)
+async def register_user(
+    *,
+    user_in: schemas.UserCreate,
+    db: AsyncSession = Depends(get_async_session),  
+):
+    """Registra un nuevo usuario en el sistema."""
+    db_user = await crud.user.get_by_email(db, email=user_in.email)
     if db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El email ya está registrado.",
-        )
-    
-    db_user = crud.user.create( obj_in=user_in, db=db)
-    return db_user
+        raise HTTPException(400, "El email ya está registrado.")
+
+    user = await crud.user.create(obj_in=user_in, db=db)
+    return to_user_public(user)
 
 
+# --------------------------------------------------------------------------- #
+# Listado público de usuarios
+# --------------------------------------------------------------------------- #
+@router.get("/public", response_model=list[schemas.UserPublic])
+async def list_public_users(
+    *,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Lista usuarios en versión pública."""
+    users = await crud.user.get_multi(db)
+    return [to_user_public(u) for u in users]
 
+
+# --------------------------------------------------------------------------- #
+# Usuario público por ID
+# --------------------------------------------------------------------------- #
+@router.get("/{user_id}/public", response_model=schemas.UserPublic)
+async def read_public_user(
+    *,
+    user_id: UUID,
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Obtiene un usuario en versión pública."""
+    user = await crud.user.get(db, id=user_id)
+    if not user:
+        raise HTTPException(404, "Usuario no encontrado.")
+
+    return to_user_public(user)
+
+
+# --------------------------------------------------------------------------- #
+# Perfil del usuario actual
+# --------------------------------------------------------------------------- #
+@router.get("/me", response_model=schemas.UserWithProfile)
+async def read_my_profile(
+    *,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_admin_or_self_guard),
+):
+    """Devuelve el perfil del usuario actual."""
+    return to_user_with_profile(current_user)
+
+
+# --------------------------------------------------------------------------- #
+# Estadísticas del usuario actual
+# --------------------------------------------------------------------------- #
+@router.get("/me/stats", response_model=schemas.UserWithStats)
+async def read_my_stats(
+    *,
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(require_admin_or_self_guard),
+):
+    """Devuelve estadísticas básicas del usuario actual."""
+    return to_user_with_stats(current_user)

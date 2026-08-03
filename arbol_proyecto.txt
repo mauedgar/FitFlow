@@ -2,12 +2,15 @@ FitFlow
 ├── backend
 │   ├── alembic
 │   │   ├── versions
+│   │   │   ├── 38d9796100f0_update_enums.py
+│   │   │   ├── 3a6ad3ed45ab_rename_enum_types.py
 │   │   │   ├── 582ac5ff4673_update_client_membership.py
 │   │   │   ├── 6beb1fc321fd_fix_gym_class_default_capacity.py
 │   │   │   ├── a2b62b427037_check_enum_bookingstatus.py
 │   │   │   ├── d5f64f472402_add_classschedule_classsession_booking_.py
 │   │   │   ├── de9d327bfe41_initial_database_schema.py
-│   │   │   └── f287ebba9f43_check_enum_bookingstatus.py
+│   │   │   ├── f287ebba9f43_check_enum_bookingstatus.py
+│   │   │   └── f5453ed20cdc_core_domain_refactor.py
 │   │   ├── env.py
 │   │   ├── README
 │   │   └── script.py.mako
@@ -22,16 +25,20 @@ FitFlow
 │   │   │   │   │   ├── class_schedules.py
 │   │   │   │   │   ├── class_sessions.py
 │   │   │   │   │   ├── clients.py
+│   │   │   │   │   ├── front_desk.py
 │   │   │   │   │   ├── gym_classes.py
 │   │   │   │   │   ├── login.py
+│   │   │   │   │   ├── memberships.py
 │   │   │   │   │   ├── teachers.py
 │   │   │   │   │   └── users.py
 │   │   │   │   └── api.py
 │   │   │   ├── __init__.py
+│   │   │   ├── convertir.py
 │   │   │   └── deps.py
 │   │   ├── core
 │   │   │   ├── __init__.py
 │   │   │   ├── config.py
+│   │   │   ├── enums.py
 │   │   │   └── security.py
 │   │   ├── crud
 │   │   │   ├── __init__.py
@@ -41,14 +48,17 @@ FitFlow
 │   │   │   ├── crud_class_session.py
 │   │   │   ├── crud_client.py
 │   │   │   ├── crud_gym_class.py
+│   │   │   ├── crud_membership.py
 │   │   │   ├── crud_teacher.py
 │   │   │   └── crud_user.py
 │   │   ├── db
 │   │   │   ├── __init__.py
 │   │   │   ├── base.py
 │   │   │   ├── base_class.py
+│   │   │   ├── mixins.py
 │   │   │   ├── seed_data_v2.py
 │   │   │   ├── seeder.py
+│   │   │   ├── Session backup
 │   │   │   └── session.py
 │   │   ├── models
 │   │   │   ├── __init__.py
@@ -56,6 +66,7 @@ FitFlow
 │   │   │   ├── class_schedule.py
 │   │   │   ├── class_session.py
 │   │   │   ├── client.py
+│   │   │   ├── convertirCarpeta.py
 │   │   │   ├── gym_class.py
 │   │   │   ├── membership.py
 │   │   │   ├── person.py
@@ -67,26 +78,72 @@ FitFlow
 │   │   │   └── users.py
 │   │   ├── schemas
 │   │   │   ├── __init__.py
+│   │   │   ├── base.py
 │   │   │   ├── booking.py
 │   │   │   ├── class_schedule.py
 │   │   │   ├── class_session.py
 │   │   │   ├── client.py
+│   │   │   ├── front_desk.py
 │   │   │   ├── gym_class.py
 │   │   │   ├── membership.py
 │   │   │   ├── person.py
 │   │   │   ├── teacher.py
 │   │   │   ├── token.py
 │   │   │   └── user.py
+│   │   ├── services
+│   │   │   ├── __init__.py
+│   │   │   ├── booking_service.py
+│   │   │   ├── class_schedule_service.py
+│   │   │   ├── class_session_service.py
+│   │   │   ├── client_service.py
+│   │   │   ├── front_desk_service.py
+│   │   │   ├── gym_class_service.py
+│   │   │   ├── membership_service.py
+│   │   │   ├── teacher_service.py
+│   │   │   └── user_service.py
 │   │   ├── __init__.py
-│   │   └── main.py
+│   │   ├── main.py
+│   │   └── start.sh
 │   ├── .env
 │   ├── alembic.ini
 │   ├── requirements.txt
 │   └── start.sh
 ├── docs
-│   └── adr
-│       ├── 001-eleccion-libreria-componentes-ui.md
-│       └── GIT_WORKFLOW.md
+│   ├── adr
+│   │   ├── 001-eleccion-libreria-componentes-ui.md
+│   │   └── GIT_WORKFLOW.md
+│   ├── arquitectura
+│   │   ├── manual_arquitectura_en.docx
+│   │   └── manual_arquitectura_es.docx
+│   ├── bitacora
+│   │   └── Bitacora_completa ES.docx
+│   ├── ejecutivos
+│   │   ├── 00 - Informe Ejecutivo MVP EN.docx
+│   │   ├── 00 - Informe Ejecutivo MVP ES.docx
+│   │   ├── 01 - Informe Arquitectura Ejecutivo EN.docx
+│   │   ├── 01 - Informe Arquitectura Ejecutivo ES.docx
+│   │   ├── 02 - Documentacion Executive Report Sprints 1-5 EN.docx
+│   │   ├── 02 - Documentacion Version Ejecutiva Sprints 1-5 ES.docx
+│   │   ├── 03 - Informe Ejecutivo de Seguridad EN.docx
+│   │   ├── 03 - Informe Ejecutivo de Seguridad ES.docx
+│   │   ├── 04 - Informe Ejecutivo de Gestion del proyecto EN.docx
+│   │   ├── 04 - Informe Ejecutivo de Gestion del proyecto ES.docx
+│   │   └── 05 - Informe General de Avance ES.docx
+│   ├── Internos
+│   │   ├── Documentacion Interna Unificada EN.docx
+│   │   └── Documentacion Interna Unificada ES.docx
+│   ├── Operaciones
+│   │   ├── 05 - Manual de Operaciones ES.docx
+│   │   └── 05 - Manuel de Operaciones EN.docx
+│   ├── Sprints
+│   │   ├── 00 - ROADMAP Tecnico Sprint 6-12 EN.docx
+│   │   ├── 00 - ROADMAP Tecnico Sprint 6-12 ES.docx
+│   │   ├── 01 - Sprint 5 ES.docx
+│   │   ├── 02 - Sprint 6 ES.docx
+│   │   └── ~$ - ROADMAP Tecnico Sprint 6-12 ES.docx
+│   └── tecnicos
+│       ├── README.md
+│       └── README_EN.md
 ├── frontend
 │   ├── public
 │   │   └── vite.svg
@@ -176,11 +233,16 @@ FitFlow
 │   ├── tsconfig.json
 │   ├── tsconfig.node.json
 │   └── vite.config.ts
+├── github
+│   └── workflows
+│       └── update-schema.yml
 ├── init.sql
 ├── .gitignore
+├── arbol_proyecto.txt
 ├── docker-compose.yml
 ├── Dockerfile
 ├── FitFlow_tree.py
+├── FitFlow_treetopng.py
 ├── LICENSE
 ├── README.md
 └── schema.sql

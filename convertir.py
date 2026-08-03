@@ -1,7 +1,7 @@
 from pathlib import Path
 
 # 1. Configura el archivo .py de origen (debe estar en la misma carpeta que este script)
-NOMBRE_ARCHIVO_PY = "crud_gym_class.py"
+NOMBRE_ARCHIVO_PY = "README.md"
 
 # 2. CONFIGURA AQUÍ TU CARPETA DE DESTINO
 # Opción B (Alternativa): Una ruta exacta de tu PC (ejemplo para Windows)

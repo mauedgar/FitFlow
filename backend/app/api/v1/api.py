@@ -3,15 +3,16 @@
 from fastapi import APIRouter
 
 from .endpoints import (
-    login,
-    users,
-    teachers,
-    clients,
-    gym_classes,
+    bookings,
     class_schedules,
     class_sessions,
-    bookings,
+    clients,
+    front_desk,
+    gym_classes,
+    login,
     memberships,
+    teachers,
+    users,
 )
 
 api_router = APIRouter()
@@ -23,11 +24,11 @@ api_router.include_router(login.router)
 api_router.include_router(users.router)
 
 # -----------------------------
-# Perfiles (Person → Teacher / Client)
+# Perfiles (Person → Teacher / Client / front_desk)
 # -----------------------------
 api_router.include_router(teachers.router)
 api_router.include_router(clients.router)
-
+api_router.include_router(front_desk.router)
 # -----------------------------
 # Dominio Principal del Gimnasio
 # -----------------------------

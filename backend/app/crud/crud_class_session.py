@@ -1,22 +1,25 @@
 """
-CRUD para ClassSession (asíncrono, Sprint 5)
---------------------------------------------
+CRUD para ClassSession (asíncrono, Sprint 6–7)
+----------------------------------------------
 • Representa una ocurrencia concreta de un ClassSchedule.
-• Filtros avanzados: rango de fechas, disponibilidad, estado.
+• Filtros avanzados: rango de fechas, estado, disponibilidad.
 • Incluye método get_or_create asíncrono.
 """
 
 from __future__ import annotations
-from typing import Any, Dict, Optional, Tuple, List
+
+from datetime import date, datetime
+from typing import Any
 from uuid import UUID
-from datetime import datetime, date
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import ClassSession
+from app.models import ClassSchedule, ClassSession
 from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
+
+from ..core.enums import ClassSessionStatus
 from .base import CRUDBase
 
 
@@ -30,10 +33,13 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         *,
         id: UUID,
         include_relations: bool = False,
-    ) -> Optional[ClassSession]:
+    ) -> ClassSession | None:
+        """
+        Obtiene una sesión concreta por su ID, con opción de incluir relaciones.
+        """
         opts = (
             [
-                selectinload(ClassSession.schedule),
+                selectinload(ClassSession.class_schedule),
                 selectinload(ClassSession.bookings),
             ]
             if include_relations
@@ -48,12 +54,18 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         self,
         db: AsyncSession,
         *,
-        schedule_id: Optional[UUID] = None,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
+        schedule_id: UUID | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        status: ClassSessionStatus | None = None,
+        available_only: bool = False,
         skip: int = 0,
         limit: int = 100,
-    ) -> List[ClassSession]:
+    ) -> list[ClassSession]:
+        """
+        Obtiene una lista filtrada de sesiones.
+        Permite filtrar por horario, rango de fechas, estado y disponibilidad.
+        """
         stmt = (
             select(ClassSession)
             .where(ClassSession.deleted_at.is_(None))
@@ -62,16 +74,28 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         )
 
         if schedule_id:
-            stmt = stmt.where(ClassSession.schedule_id == schedule_id)
+            stmt = stmt.where(ClassSession.class_schedule_id == schedule_id)
 
         if date_from:
-            stmt = stmt.where(ClassSession.start_datetime >= datetime.combine(date_from, datetime.min.time()))
+            stmt = stmt.where(
+                ClassSession.starts_at >= datetime.combine(date_from, datetime.min.time())
+            )
 
         if date_to:
-            stmt = stmt.where(ClassSession.start_datetime <= datetime.combine(date_to, datetime.max.time()))
+            stmt = stmt.where(
+                ClassSession.starts_at <= datetime.combine(date_to, datetime.max.time())
+            )
+
+        if status:
+            stmt = stmt.where(ClassSession.status == status)
+
+        if available_only:
+            stmt = stmt.join(ClassSession.class_schedule).where(
+                ClassSession.capacity_snapshot < ClassSchedule.capacity
+            )
 
         stmt = stmt.options(
-            selectinload(ClassSession.schedule),
+            selectinload(ClassSession.class_schedule),
             selectinload(ClassSession.bookings),
         )
 
@@ -85,9 +109,9 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         self,
         db: AsyncSession,
         *,
-        defaults: Optional[Dict[str, Any]] = None,
+        defaults: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> Tuple[ClassSession, bool]:
+    ) -> tuple[ClassSession, bool]:
         """
         Busca una sesión por criterios (kwargs).
         Si existe → la devuelve.
@@ -109,4 +133,5 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         return instance, True
 
 
+# Instancia reusable
 class_session = CRUDClassSession(ClassSession)

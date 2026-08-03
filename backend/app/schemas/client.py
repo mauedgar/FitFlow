@@ -1,44 +1,135 @@
-# app/schemas/client.py
+"""
+Schemas para Client (Sprint 6–7)
+--------------------------------
+Incluye:
+• Esquemas base (crear/actualizar)
+• Esquema privado (Client)
+• Esquemas públicos
+• Extensiones con bookings, membresía y estadísticas
+"""
+# ruff: noqa: PIE790
+from __future__ import annotations
+
 import uuid
-from typing import List, Optional
-# Importamos esquemas de Booking para la relación.
-# Usamos TYPE_CHECKING para evitar circularidad si Booking también importa Client.
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, ConfigDict, Field
+
+# Evitamos circularidad
 if TYPE_CHECKING:
-    from .booking import BookingInClientResponse
-from .membership import Membership
-# Asumo que tienes un esquema base para Person de donde hereda Client
+    from .booking import BookingPublic
+    from .membership import MembershipPublic
+
 from .person import PersonBase, PersonCreate, PersonUpdate
 
-# --- Esquema Base ---
-# Hereda de PersonBase
+# --------------------------------------------------------------------------- #
+# Base
+# --------------------------------------------------------------------------- #
+
 class ClientBase(PersonBase):
-    pass # No hay campos adicionales específicos de Client en la base, más allá de PersonBase
+    """Campos base heredados de PersonBase."""
+    pass  
 
-# --- Esquema para CREAR ---
-# Hereda de PersonCreate
+
 class ClientCreate(PersonCreate):
-    pass # No hay campos adicionales específicos de Client al crear
+    """Datos necesarios para crear un cliente."""
+    pass
 
-# --- Esquema para ACTUALIZAR ---
-# Hereda de PersonUpdate
+
 class ClientUpdate(PersonUpdate):
-    pass # No hay campos adicionales específicos de Client al actualizar
+    """Datos necesarios para actualizar un cliente."""
+    pass
 
-# --- Esquema de RESPUESTA de la API ---
+
+# --------------------------------------------------------------------------- #
+# Esquema privado (API interna)
+# --------------------------------------------------------------------------- #
+
 class Client(ClientBase):
+    """
+    Esquema privado del cliente.
+    Incluye relaciones completas para uso interno.
+    """
     id: uuid.UUID
-    # Añadimos la relación con Bookings
-    bookings: List["BookingInClientResponse"] = []
-    # Añadimos la relación con Membership (si tienes un esquema Membership)
-    membership: Optional["Membership"] = None # Usar esto si quieres mostrar el objeto completo
+    bookings: list[BookingPublic] = Field(default_factory=list)
+    membership: MembershipPublic | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
-# --- Esquema para Respuestas Anidadas (ej. dentro de Booking) ---
+
+# --------------------------------------------------------------------------- #
+# Esquema público (frontend)
+# --------------------------------------------------------------------------- #
+
+class ClientPublic(BaseModel):
+    """
+    Versión pública del cliente.
+    Usada en:
+        • frontend cliente
+        • listados públicos
+        • front_desk
+    """
+    id: uuid.UUID
+    full_name: str
+    email: str
+    phone: str | None = None
+    avatar_url: str | None = None
+    created_at: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# Cliente con reservas públicas
+# --------------------------------------------------------------------------- #
+
+class ClientWithBookings(ClientPublic):
+    """
+    Extiende ClientPublic con reservas públicas.
+    Usado en:
+        • /clients/me/bookings
+        • front_desk
+    """
+    bookings: list[BookingPublic] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
+# Cliente con membresía activa
+# --------------------------------------------------------------------------- #
+
+class ClientWithMembership(ClientPublic):
+    """
+    Extiende ClientPublic con la membresía activa.
+    Usado en:
+        • /clients/me/membership
+        • dashboards operativos
+    """
+    membership: MembershipPublic | None = None
+
+
+# --------------------------------------------------------------------------- #
+# Cliente con estadísticas
+# --------------------------------------------------------------------------- #
+
+class ClientWithStats(ClientPublic):
+    """
+    Extiende ClientPublic con estadísticas básicas.
+    Usado en:
+        • /clients/me/stats
+        • dashboards
+    """
+    total_bookings: int
+    upcoming_bookings: list[BookingPublic] = Field(default_factory=list)  
+
+# --------------------------------------------------------------------------- #
+# Esquema para respuestas anidadas (ligero)
+# --------------------------------------------------------------------------- #
+
 class ClientInBookingResponse(ClientBase):
+    """
+    Versión ligera del cliente dentro de Booking.
+    No incluye relaciones para evitar recursión.
+    """
     id: uuid.UUID
-    # No incluir otras relaciones aquí para mantenerlo ligero
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)

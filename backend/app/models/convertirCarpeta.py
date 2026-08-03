@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path  # noqa: N999
 
 # --------------------------------------------------------------------
 # CONFIGURACIÓN
@@ -52,6 +52,6 @@ for archivo_py in carpeta_actual.glob("*.py"):
 # RESUMEN
 # --------------------------------------------------------------------
 
-print(f"\nProceso terminado.")
+print(f"\nProceso terminado.")  # noqa: F541
 print(f"Se procesaron {contador} archivo(s).")
 print(f"Los .txt se guardaron en:\n{CARPETA_DESTINO}")

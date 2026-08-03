@@ -1,66 +1,168 @@
-# app/schemas/class_session.py
+"""
+Schemas para ClassSession (Sprint 6–7)
+--------------------------------------
+Incluye:
+• Esquemas base (crear/actualizar)
+• Esquema privado (ClassSession)
+• Esquema público (ClassSessionPublic)
+• Extensiones con disponibilidad
+• Esquemas compactos para anidamiento
+"""
+
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
-from typing import Optional, List
-
-from pydantic import BaseModel
-
-# Para evitar referencias circulares
 from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from .class_schedule import ClassSchedule, ClassScheduleInClassSessionResponse
-    from .booking import BookingInClassSessionResponse
 
-# --- Esquema Base ---
+from pydantic import BaseModel, ConfigDict, Field
+
+# Evitar circularidad
+if TYPE_CHECKING:
+    from .booking import BookingPublic
+    from .class_schedule import (
+        ClassScheduleInClassSessionResponse,
+        ClassSchedulePublic,
+        NextSessionInfo,
+    )
+
+# --------------------------------------------------------------------------- #
+# 1. Base
+# --------------------------------------------------------------------------- #
+
 class ClassSessionBase(BaseModel):
+    """Campos comunes de una sesión individual."""
     starts_at: datetime
     ends_at: datetime
     status: bool = False
 
-# --- Esquema para CREACIÓN (principalmente para el generador interno) ---
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 2. Creación
+# --------------------------------------------------------------------------- #
+
 class ClassSessionCreate(ClassSessionBase):
+    """Esquema para crear una sesión individual."""
     class_schedule_id: uuid.UUID
 
-# --- Esquema para ACTUALIZACIÓN ---
+
+# --------------------------------------------------------------------------- #
+# 3. Actualización
+# --------------------------------------------------------------------------- #
+
 class ClassSessionUpdate(BaseModel):
-    starts_at: Optional[datetime] = None
-    ends_at: Optional[datetime] = None
-    status: Optional[bool] = None
-    # No permitir cambiar class_schedule_id directamente via update
+    """Esquema para actualizar parcialmente una sesión."""
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    status: bool | None = None
 
-# --- Esquema de RESPUESTA de la API ---
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 4. Esquema privado (operativo interno)
+# --------------------------------------------------------------------------- #
+
 class ClassSession(ClassSessionBase):
+    """
+    Esquema completo de una sesión (privado).
+    Incluye:
+        • relación con ClassSchedule
+        • relación con Bookings
+        • campos calculados de disponibilidad
+    """
     id: uuid.UUID
     class_schedule_id: uuid.UUID
-    
-    # Incluimos la relación con ClassSchedule y Bookings
-    class_schedule: "ClassSchedule"
-    bookings: List["BookingInClassSessionResponse"] = []
-    
-    # Campo calculado para la disponibilidad
-    current_bookings_count: int = 0
-    available_spots: int = 0 # Se calculará en el endpoint/servicio
 
-    class Config:
-        from_attributes = True
+    class_schedule: ClassSchedulePublic
+    bookings: list[BookingPublic] = Field(default_factory=list)
 
-# --- Esquema para Respuestas Anidadas (ej. dentro de ClassSchedule o GymClass) ---
-class ClassSessionInResponse(ClassSessionBase):
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
-    
-    # Campos calculados para la disponibilidad (solo lectura)
     current_bookings_count: int = 0
     available_spots: int = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
-class ClassSessionInBookingResponse(ClassSessionBase): # Usado cuando ClassSession se lista dentro de Booking
+
+# --------------------------------------------------------------------------- #
+# 5. Esquema público (frontend)
+# --------------------------------------------------------------------------- #
+
+class ClassSessionPublic(ClassSessionBase):
+    """
+    Versión pública de una sesión.
+    Usada en:
+        • frontend cliente
+        • catálogo público
+        • listados públicos de sesiones
+    """
     id: uuid.UUID
     class_schedule_id: uuid.UUID
-    class_schedule: "ClassScheduleInClassSessionResponse"
 
-    # No incluir otras relaciones aquí para mantenerlo ligero
-    class Config:
-        from_attributes = True
+    current_bookings_count: int = 0
+    available_spots: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 6. Sesión con datos extendidos (público)
+# --------------------------------------------------------------------------- #
+
+class ClassSessionWithSchedule(ClassSessionPublic):
+    """
+    Extiende ClassSessionPublic con datos públicos del horario.
+    Usado en:
+        • detalle de sesión
+        • front_desk
+    """
+    class_schedule: ClassSchedulePublic
+
+
+# --------------------------------------------------------------------------- #
+# 7. Sesión con próxima sesión (si se usa en dashboards)
+# --------------------------------------------------------------------------- #
+
+class ClassSessionWithNext(ClassSessionPublic):
+    """
+    Extiende ClassSessionPublic con información de la próxima sesión.
+    Usado en:
+        • dashboards
+        • front_desk
+    """
+    next_session: NextSessionInfo | None = None
+
+
+# --------------------------------------------------------------------------- #
+# 8. Esquema compacto para anidamiento en ClassSchedule o GymClass
+# --------------------------------------------------------------------------- #
+
+class ClassSessionInResponse(ClassSessionBase):
+    """
+    Versión compacta de la sesión para anidarla dentro de ClassSchedule o GymClass.
+    Incluye campos calculados pero no relaciones completas.
+    """
+    id: uuid.UUID
+    class_schedule_id: uuid.UUID
+
+    current_bookings_count: int = 0
+    available_spots: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 9. Esquema compacto dentro de Booking
+# --------------------------------------------------------------------------- #
+
+class ClassSessionInBookingResponse(ClassSessionBase):
+    """
+    Versión compacta de la sesión dentro de Booking.
+    Incluye solo la relación mínima necesaria.
+    """
+    id: uuid.UUID
+    class_schedule_id: uuid.UUID
+    class_schedule: ClassScheduleInClassSessionResponse
+
+    model_config = ConfigDict(from_attributes=True)
