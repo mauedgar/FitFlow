@@ -66,6 +66,8 @@ class GymClassUpdate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    class Config:
+        from_attributes = True
 
 # --------------------------------------------------------------------------- #
 # 4. Respuesta completa (privada/operativa)
