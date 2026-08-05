@@ -13,8 +13,7 @@ if TYPE_CHECKING:
 
 
 class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
-    """
-    Entidad base de identidad personal dentro del sistema.
+    """Entidad base de identidad personal dentro del sistema.
 
     Esta tabla concentra los datos personales comunes de cualquier
     individuo registrado en la plataforma, independientemente de su rol
@@ -23,7 +22,8 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     La autenticación se resuelve en User, mientras que la especialización
     funcional se implementa mediante herencia con Client y Teacher.
     """
-    __tablename__ = "persons"
+
+    __tablename__ = "persons" # pyright: ignore[reportAssignmentType]
 
     # Identificador único de la persona.
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -53,12 +53,12 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
         UUID(as_uuid=True),
         ForeignKey("users.id"),
         nullable=False,
-        unique=True
+        unique=True,
     )
 
     user: Mapped["User"] = relationship(
         "User",
-        back_populates="person_profile"
+        back_populates="person_profile",
     )
 
     # Discriminador polimórfico para la herencia ORM.

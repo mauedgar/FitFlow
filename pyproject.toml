@@ -1,0 +1,35 @@
+# ============================================================
+# FitFlow - Configuración de herramientas Python
+# ============================================================
+
+[tool.black]
+# Black formatea el código automáticamente con estilo consistente.
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+# Ruff combina linting + orden de imports + reglas de estilo.
+line-length = 88
+select = ["ALL"]          # activa todas las reglas útiles
+ignore = ["B008", "D100", "CPY001", "S105", "E501"]
+exclude = [
+    "alembic",            # evita warnings en migraciones
+    "__pycache__"
+]
+
+[tool.ruff.isort]
+# Orden profesional de imports: primero estándar, luego terceros, luego internos.
+known-first-party = ["app"]
+combine-as-imports = true
+force-single-line = false
+
+[tool.ruff.format]
+# Estilo de formato consistente con Black.
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[build-system]
+# Define cómo se construye el proyecto si algún día lo empaquetás.
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

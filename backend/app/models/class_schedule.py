@@ -1,15 +1,13 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, Date, ForeignKey, Integer, Time
-from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import Column, Date, Enum as SQLAlchemyEnum, ForeignKey, Integer, Time
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
-
-from ..core.enums import AllowedPlan
+from backend.app.core.enums import AllowedPlan
 
 if TYPE_CHECKING:
     from .class_session import ClassSession
@@ -21,8 +19,7 @@ if TYPE_CHECKING:
 
 
 class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
-    """
-    Configuración recurrente de una clase dentro de la agenda del gimnasio.
+    """Configuración recurrente de una clase dentro de la agenda del gimnasio.
 
     Esta entidad representa una oferta operativa concreta:
     - qué clase se ofrece
@@ -37,7 +34,8 @@ class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     A partir de este modelo se generan las ClassSession concretas
     que luego podrán visualizarse y reservarse en la agenda.
     """
-    __tablename__ = "class_schedules"
+
+    __tablename__ = "class_schedules" # pyright: ignore[reportAssignmentType]
 
     # Identificador único de la configuración recurrente.
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -46,14 +44,14 @@ class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     gym_class_id = Column(
         UUID(as_uuid=True),
         ForeignKey("gym_classes.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
     )
 
     # Profesor responsable de dictar esta oferta.
     teacher_id = Column(
         UUID(as_uuid=True),
         ForeignKey("teachers.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
     )
 
     # Días de la semana en los que se repite la clase.
@@ -80,24 +78,24 @@ class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     # Si es null, la oferta no tiene restricción de plan.
     allowed_plan = Column(
         SQLAlchemyEnum(AllowedPlan, name="allowedplan"),
-        nullable=True
+        nullable=True,
     )
 
     # Relación con la clase del catálogo.
     gym_class: Mapped["GymClass"] = relationship(
         "GymClass",
-        back_populates="class_schedules"
+        back_populates="class_schedules",
     )
 
     # Relación con el profesor asignado.
     teacher: Mapped["Teacher"] = relationship(
         "Teacher",
-        back_populates="class_schedules"
+        back_populates="class_schedules",
     )
 
     # Relación con las sesiones concretas generadas a partir de este horario.
     class_sessions: Mapped[list["ClassSession"]] = relationship(
         "ClassSession",
         back_populates="class_schedule",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
     )

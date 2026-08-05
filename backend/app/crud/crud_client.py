@@ -1,5 +1,5 @@
-"""
-CRUD para Client (asíncrono, Sprint 6–7)
+"""CRUD para Client (asíncrono, Sprint 6-7).
+
 ----------------------------------------
 • Perfil de cliente asociado a Person.
 • Métodos auxiliares: búsqueda por user_id, creación ligada a User.
@@ -8,10 +8,9 @@ CRUD para Client (asíncrono, Sprint 6–7)
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Client, Membership, User
@@ -19,8 +18,14 @@ from app.schemas.client import ClientCreate, ClientUpdate
 
 from .base import CRUDBase
 
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
+    """CRUD especializado para perfiles de cliente."""
+
     # ------------------------------------------------------------------ #
     # Búsquedas específicas
     # ------------------------------------------------------------------ #
@@ -31,14 +36,8 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         user_id: UUID,
         include_relations: bool = False,
     ) -> Client | None:
-        """
-        Obtiene un perfil de Cliente a partir del ID de un User.
-        """
-        stmt = (
-            select(Client)
-            .join(Client.user)
-            .where(User.id == user_id)
-        )
+        """Obtiene un perfil de cliente a partir del ID de un usuario."""
+        stmt = select(Client).join(Client.user).where(User.id == user_id)
 
         if include_relations:
             stmt = stmt.options(
@@ -56,16 +55,10 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         *,
         client_id: UUID,
     ) -> Client | None:
-        """
-        Obtiene un cliente con todas sus relaciones cargadas.
-        Ideal para:
-            • /clients/{id}
-            • /clients/me
-            • dashboards
-        """
+        """Obtiene un cliente con todas sus relaciones cargadas."""
         stmt = (
             select(Client)
-            .where(Client.id == client_id, Client.deleted_at.is_(None))
+            .where(Client.id == client_id, Client.deleted_at.is_(None))  # type: ignore[attr-defined]
             .options(
                 selectinload(Client.bookings),
                 selectinload(Client.membership),
@@ -82,10 +75,7 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         *,
         membership_id: UUID,
     ) -> Client | None:
-        """
-        Obtiene un cliente a partir del ID de su membresía.
-        Útil para auditoría y vistas operativas.
-        """
+        """Obtiene un cliente a partir del ID de su membresía (útil para auditoría)."""
         stmt = (
             select(Client)
             .join(Client.membership)
@@ -105,19 +95,17 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         obj_in: ClientCreate,
         user: User,
     ) -> Client:
-        """
-        Crea un perfil de Cliente y lo asocia a un User existente.
-        """
+        """Crea un perfil de cliente y lo asocia a un usuario existente."""
         data = obj_in.model_dump()
 
         db_obj = Client(
-            first_name=data["first_name"],
-            last_name=data["last_name"],
-            document_number=data.get("document_number"),
-            address=data.get("address"),
-            medical_fit_url=data.get("medical_fit_url"),
-            profile_image_url=data.get("profile_image_url"),
-            user=user,
+            first_name=data["first_name"], # pyright: ignore[reportCallIssue]
+            last_name=data["last_name"], # pyright: ignore[reportCallIssue]
+            document_number=data.get("document_number"), # pyright: ignore[reportCallIssue]
+            address=data.get("address"), # pyright: ignore[reportCallIssue]
+            medical_fit_url=data.get("medical_fit_url"), # pyright: ignore[reportCallIssue]
+            profile_image_url=data.get("profile_image_url"), # pyright: ignore[reportCallIssue]
+            user=user, # pyright: ignore[reportCallIssue]
         )
 
         db.add(db_obj)
@@ -126,4 +114,5 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         return db_obj
 
 
+# Instancia reusable
 client = CRUDClient(Client)

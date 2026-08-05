@@ -1,15 +1,13 @@
 from sqlalchemy.ext.declarative import as_declarative, declared_attr
 
 
-# Usamos @as_declarative para poder tener un __tablename__ autogenerado si quisiéramos
-# pero lo principal es que esto nos da una 'Base' centralizada.
 @as_declarative()
 class Base:
-    id: any
+    """Clase base declarativa para todos los modelos SQLAlchemy."""
+
     __name__: str
 
-    # Genera el __tablename__ automáticamente a partir del nombre de la clase
-    # ej: User -> users, GymClass -> gym_classes
-    @declared_attr
-    def __tablename__(cls) -> str:
+    @declared_attr  # type: ignore[misc]
+    def __tablename__(cls) -> str:  # noqa: N805
+        """Genera automáticamente el nombre de la tabla a partir del nombre de la clase."""
         return cls.__name__.lower() + "s"

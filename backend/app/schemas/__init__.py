@@ -1,10 +1,11 @@
 # ruff: noqa: F401
+"""Model package for FitFlow backend."""
 
 # --------------------------------------------------------------------------- #
 # Enums
 # --------------------------------------------------------------------------- #
 
-from ..core.enums import (
+from backend.app.core.enums import (
     ActivityType,
     AllowedPlan,
     BookingStatus,
@@ -82,6 +83,7 @@ from .client import (
     ClientInBookingResponse,
     ClientPublic,
     ClientUpdate,
+    ClientWithActivity,
     ClientWithBookings,
     ClientWithMembership,
     ClientWithStats,
@@ -108,7 +110,6 @@ from .gym_class import (
     GymClassPublic,
     GymClassRead,
     GymClassUpdate,
-    GymClassWithNextSession,
     GymClassWithSchedules,
 )
 
@@ -141,6 +142,9 @@ from .teacher import (
     TeacherInScheduleResponseMini,
     TeacherPublic,
     TeacherUpdate,
+    TeacherWithMetrics,
+    TeacherWithNextSession,
+    TeacherWithSchedules,
 )
 
 # --------------------------------------------------------------------------- #
@@ -167,10 +171,9 @@ from .user import (
 
 GymClassRead.model_rebuild()
 GymClassWithSchedules.model_rebuild()
-GymClassWithNextSession.model_rebuild()
 
 ClassSchedule.model_rebuild()
-ClassSchedulePublic.model_rebuild()  
+ClassSchedulePublic.model_rebuild()
 ClassScheduleWithNextSession.model_rebuild()
 
 ClassSession.model_rebuild()

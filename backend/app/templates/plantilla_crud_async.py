@@ -1,0 +1,79 @@
+"""
+CRUD para <ModelName> (asíncrono)
+---------------------------------
+• Descripción breve del recurso.
+• Filtros avanzados si aplica.
+• Carga selectiva de relaciones si aplica.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.interfaces import ORMOption
+
+from app.models import <ModelName>
+from app.schemas.<model_name> import <ModelName>Create, <ModelName>Update
+
+from .base import CRUDBase
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+
+class CRUD<ModelName>(CRUDBase[<ModelName>, <ModelName>Create, <ModelName>Update]):
+    """CRUD especializado para <ModelName>."""
+
+    # ------------------------------------------------------------------ #
+    # Overrides
+    # ------------------------------------------------------------------ #
+    async def get(
+        self,
+        db: AsyncSession,
+        *,
+        obj_id: UUID,
+        include_relations: bool = False,
+    ) -> <ModelName> | None:
+        """Obtiene un registro por ID, con opción de incluir relaciones."""
+        opts: list[ORMOption] | None = (
+            [
+                # selectinload(<ModelName>.relation),
+            ]
+            if include_relations
+            else None
+        )
+        return await super().get(db, obj_id=obj_id, options=opts)
+
+    # ------------------------------------------------------------------ #
+    # Filtros avanzados
+    # ------------------------------------------------------------------ #
+    async def get_multi_filtered(  # noqa: PLR0913
+        self,
+        db: AsyncSession,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        # filtros...
+    ) -> list[<ModelName>]:
+        """Obtiene una lista filtrada de registros."""
+        stmt = (
+            select(<ModelName>)
+            .where(<ModelName>.deleted_at.is_(None))  # type: ignore[attr-defined]
+            .offset(skip)
+            .limit(limit)
+        )
+
+        # filtros dinámicos...
+
+        stmt = stmt.options(
+            # selectinload(<ModelName>.relation),
+        )
+
+        res = await db.execute(stmt)
+        return list(res.scalars().unique().all())
+
+
+# Instancia reusable
+<model_name> = CRUD<ModelName>(<ModelName>)

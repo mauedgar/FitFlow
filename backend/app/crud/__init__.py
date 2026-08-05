@@ -1,3 +1,5 @@
+"""Model package for FitFlow backend."""
+
 from .crud_booking import booking  #noqa: F401
 from .crud_class_schedule import class_schedule  # noqa: F401
 from .crud_class_session import class_session  #noqa: F401

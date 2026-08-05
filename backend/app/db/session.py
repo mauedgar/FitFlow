@@ -2,8 +2,7 @@
 # app/db/session.py
 from __future__ import annotations
 
-import os
-from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -13,6 +12,9 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import settings
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 # --------------------------------------------------------------------------- #
 # Engine asíncrono (postgresql+asyncpg)
@@ -38,8 +40,8 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
 # Dependency para FastAPI
 # --------------------------------------------------------------------------- #
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Dependency para FastAPI que provee una AsyncSession.
+    """Dependency para FastAPI que provee una AsyncSession.
+
     Se asegura de cerrar la sesión cuando termina la request.
     """
     async with AsyncSessionLocal() as session:

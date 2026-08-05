@@ -1,5 +1,5 @@
-"""
-CRUD para Membership (asíncrono, Sprint 6–7)
+"""CRUD para Membership (asíncrono, Sprint 6-7).
+
 --------------------------------------------
 • CRUD completo para membresías de clientes.
 • Filtros avanzados: por cliente, por estado, por plan.
@@ -8,20 +8,28 @@ CRUD para Membership (asíncrono, Sprint 6–7)
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import MembershipPlan, MembershipStatus
 from app.models import Membership
 from app.schemas.membership import MembershipCreate, MembershipUpdate
 
 from .base import CRUDBase
 
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm.interfaces import ORMOption
+
+    from app.core.enums import MembershipPlan, MembershipStatus
+
 
 class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
+    """CRUD especializado para membresías de clientes."""
+
     # ------------------------------------------------------------------ #
     # Overrides
     # ------------------------------------------------------------------ #
@@ -29,23 +37,21 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
         self,
         db: AsyncSession,
         *,
-        id: UUID,
+        obj_id: UUID,
         include_relations: bool = False,
     ) -> Membership | None:
-        """
-        Obtiene una membresía por su ID, con opción de incluir relaciones.
-        """
-        opts = (
+        """Obtiene una membresía por ID, con opción de incluir relaciones."""
+        opts: list[ORMOption] | None = (
             [selectinload(Membership.client)]
             if include_relations
             else None
         )
-        return await super().get(db, id=id, options=opts)
+        return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(
+    async def get_multi_filtered(  # noqa: PLR0913
         self,
         db: AsyncSession,
         *,
@@ -55,13 +61,10 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
         skip: int = 0,
         limit: int = 100,
     ) -> list[Membership]:
-        """
-        Obtiene una lista filtrada de membresías.
-        Permite filtrar por cliente, estado y plan.
-        """
+        """Obtiene una lista filtrada de membresías según criterios avanzados."""
         stmt = (
             select(Membership)
-            .where(Membership.deleted_at.is_(None))
+            .where(Membership.deleted_at.is_(None))  # type: ignore[attr-defined]
             .offset(skip)
             .limit(limit)
         )
@@ -78,7 +81,7 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
         stmt = stmt.options(selectinload(Membership.client))
 
         res = await db.execute(stmt)
-        return res.scalars().unique().all()
+        return list(res.scalars().unique().all())
 
 
 membership = CRUDMembership(Membership)

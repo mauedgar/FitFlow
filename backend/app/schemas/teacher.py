@@ -1,6 +1,5 @@
-"""
-Schemas para Teacher (Sprint 6–7)
----------------------------------
+"""Schemas para Teacher (Sprint 6-7).
+
 Incluye:
 • Esquemas base heredados de Person
 • Esquema privado (Teacher)
@@ -11,7 +10,6 @@ Incluye:
 
 from __future__ import annotations
 
-import uuid
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,9 +18,9 @@ from .person import PersonBase, PersonCreate, PersonUpdate
 
 # Evitar circularidad
 if TYPE_CHECKING:
-    from .class_schedule import (
-        ClassSchedulePublic,
-    )
+    import uuid
+
+    from .class_schedule import ClassSchedulePublic
 
 
 # --------------------------------------------------------------------------- #
@@ -31,18 +29,21 @@ if TYPE_CHECKING:
 
 class TeacherBase(PersonBase):
     """Campos comunes del profesor."""
+
     bio: str | None = None
     cuil: str | None = None
 
 
 class TeacherCreate(PersonCreate):
     """Esquema para crear un profesor."""
+
     bio: str | None = None
     cuil: str | None = None
 
 
 class TeacherUpdate(PersonUpdate):
     """Esquema para actualizar un profesor."""
+
     bio: str | None = None
     cuil: str | None = None
 
@@ -52,14 +53,15 @@ class TeacherUpdate(PersonUpdate):
 # --------------------------------------------------------------------------- #
 
 class Teacher(TeacherBase):
-    """
-    Perfil completo del profesor.
+    """Perfil completo del profesor.
+
     Incluye:
         • datos sensibles (cuil)
-        • horarios completos
+        • horarios completos.
     """
+
     id: uuid.UUID
-    class_schedules: list[ClassSchedulePublic] = Field(default_factory=list)  
+    class_schedules: list[ClassSchedulePublic] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -69,21 +71,24 @@ class Teacher(TeacherBase):
 # --------------------------------------------------------------------------- #
 
 class TeacherPublic(BaseModel):
-    """
-    Versión pública del profesor.
+    """Versión pública del profesor.
+
     NO incluye datos sensibles.
     Usada en:
         • listados públicos
         • vistas operativas
         • frontend
     """
+
     id: uuid.UUID
     first_name: str
     last_name: str
+    full_name: str
     bio: str | None = None
+    profile_image_url: str | None = None
 
-    # Consistencia con GymClassWithSchedules
-    schedules: list[ClassSchedulePublic] | None = None  
+    # Opcional: horarios públicos
+    schedules: list[ClassSchedulePublic] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -93,27 +98,31 @@ class TeacherPublic(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class TeacherInClassResponse(BaseModel):
-    """
-    Profesor dentro de una GymClass.
+    """Profesor dentro de una GymClass.
+
     Versión compacta y pública.
     NO incluye datos sensibles.
     """
+
     id: uuid.UUID
     first_name: str
     last_name: str
+    full_name: str
     bio: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class TeacherInClassScheduleResponse(BaseModel):
-    """
-    Profesor dentro de un ClassSchedule.
+    """Profesor dentro de un ClassSchedule.
+
     Versión compacta para evitar cargar relaciones completas.
     """
+
     id: uuid.UUID
     first_name: str
     last_name: str
+    full_name: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -123,14 +132,16 @@ class TeacherInClassScheduleResponse(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class TeacherInScheduleResponseMini(BaseModel):
-    """
-    Versión mínima del profesor.
+    """Versión mínima del profesor.
+
     Usado en:
         • sesiones
         • front desk
         • dashboards
     """
+
     first_name: str
     last_name: str
+    full_name: str
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,0 +1,89 @@
+frontend
+├── public
+│   └── vite.svg
+├── src
+│   ├── assets
+│   │   └── react.svg
+│   ├── components
+│   │   ├── admin
+│   │   │   └── layout
+│   │   │       ├── AdminLayout.tsx
+│   │   │       ├── AdminNavBar.tsx
+│   │   │       └── AdminSidebar.tsx
+│   │   ├── auth
+│   │   │   ├── ProtectedRoute.tsx
+│   │   │   ├── RedirectIfAdmin.tsx
+│   │   │   └── RootAuthGuard.tsx
+│   │   ├── classes
+│   │   │   ├── ClassCard.tsx
+│   │   │   ├── ClassDetailModal.tsx
+│   │   │   ├── ClassDetailView.tsx
+│   │   │   ├── ClassList.tsx
+│   │   │   ├── ClassScheduleSection.tsx
+│   │   │   └── ClassSessionCard.tsx
+│   │   ├── common
+│   │   │   ├── ErrorDisplay.tsx
+│   │   │   └── LoadingSpinner.tsx
+│   │   ├── dashboard
+│   │   │   ├── BookingCard.tsx
+│   │   │   ├── DocumentReminder.tsx
+│   │   │   ├── NotificationPanel.tsx
+│   │   │   ├── PaymentReminder.tsx
+│   │   │   ├── UpcomingEvents.tsx
+│   │   │   └── WeeklyCalendar.tsx
+│   │   ├── Footer
+│   │   │   └── Footer.tsx
+│   │   ├── landing
+│   │   │   ├── ActivitiesSection.tsx
+│   │   │   └── InfiniteCarousel.tsx
+│   │   └── layout
+│   │       ├── Layout.tsx
+│   │       └── Navbar.tsx
+│   ├── context
+│   │   ├── AuthContext.tsx
+│   │   ├── AuthProvider.tsx
+│   │   └── useAuth.tsx
+│   ├── pages
+│   │   ├── admin
+│   │   │   ├── AdminDashboardPage.tsx
+│   │   │   ├── ClientsPage.tsx
+│   │   │   ├── CrudClassesPage.tsx
+│   │   │   └── TeachersPage.tsx
+│   │   ├── AboutPage.tsx
+│   │   ├── AdminPage.tsx
+│   │   ├── ClassDetailPage.tsx
+│   │   ├── ClassesPage.tsx
+│   │   ├── HomePage.tsx
+│   │   ├── JoinUsPage.tsx
+│   │   ├── LandingPage.tsx
+│   │   ├── LoginPage.tsx
+│   │   ├── NotFoundPage.tsx
+│   │   ├── NutritionPage.tsx
+│   │   ├── PlansPage.tsx
+│   │   └── RegisterPage.tsx
+│   ├── routes
+│   │   └── AppRouter.tsx
+│   ├── services
+│   │   ├── api.ts
+│   │   ├── classService.ts
+│   │   └── teacherService.ts
+│   ├── types
+│   │   └── index.ts
+│   ├── utils
+│   │   └── formatters.ts
+│   ├── App.css
+│   ├── App.tsx
+│   ├── index.css
+│   ├── main.tsx
+│   └── vite-env.d.ts
+├── .gitignore
+├── eslint.config.js
+├── index.html
+├── package-lock.json
+├── package.json
+├── README.md
+├── requirements.txt
+├── tsconfig.app.json
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts

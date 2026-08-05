@@ -1,29 +1,27 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, String
-from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import Column, DateTime, Enum as SQLAlchemyEnum, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
-
-from ..core.enums import MembershipPlan, MembershipStatus
+from backend.app.core.enums import MembershipPlan, MembershipStatus
 
 if TYPE_CHECKING:
     from .client import Client
 
 
 class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
-    """
-    Membresía asociada a un cliente.
+    """Membresía asociada a un cliente.
 
     Esta entidad define el tipo de acceso comercial del cliente,
     su vigencia temporal y algunos metadatos operativos útiles
     para control de ingreso y futura facturación.
     """
-    __tablename__ = "memberships"
+
+    __tablename__ = "memberships" # pyright: ignore[reportAssignmentType]
 
     # Identificador único de la membresía.
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -32,14 +30,14 @@ class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     plan = Column(
         SQLAlchemyEnum(MembershipPlan, name="membershipplan"),
         nullable=False,
-        default=MembershipPlan.gym_only
+        default=MembershipPlan.gym_only,
     )
 
     # Estado operativo de la membresía.
     status = Column(
         SQLAlchemyEnum(MembershipStatus, name="membershipstatus"),
         nullable=False,
-        default=MembershipStatus.active
+        default=MembershipStatus.active,
     )
 
     # Fecha de inicio de vigencia.
@@ -59,11 +57,11 @@ class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
         UUID(as_uuid=True),
         ForeignKey("clients.id"),
         unique=True,
-        nullable=False
+        nullable=False,
     )
 
     # Relación inversa con el cliente.
-    client: Mapped["Client"] = relationship( # type: ignore
+    client: Mapped["Client"] = relationship(
         "Client",
-        back_populates="membership"
+        back_populates="membership",
     )

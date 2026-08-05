@@ -1,0 +1,121 @@
+Table alembic_version {
+  version_num varchar(32) [primary key]
+}
+
+Table clients {
+  id uuid [primary key]
+}
+
+Ref: clients.id > persons.id
+Table persons {
+  id uuid [primary key]
+  address varchar
+  medical_fit_url varchar
+  user_id uuid
+  first_name varchar
+  last_name varchar
+  document_number varchar
+  profile_image_url varchar
+  person_type varchar(50)
+  created_at timestamp
+  updated_at timestamp
+  active boolean
+  deleted_at timestamp
+}
+
+Ref: persons.user_id > users.id
+Table users {
+  id uuid [primary key]
+  email varchar
+  hashed_password varchar
+  role varchar(10)
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp
+  active boolean
+}
+
+Table class_sessions {
+  id uuid [primary key]
+  class_schedule_id uuid
+  starts_at timestamp
+  ends_at timestamp
+  capacity_snapshot integer
+  status varchar(9)
+  created_at timestamp
+  updated_at timestamp
+  active boolean
+}
+
+Ref: class_sessions.class_schedule_id > class_schedules.id
+Table class_schedules {
+  id uuid [primary key]
+  gym_class_id uuid
+  teacher_id uuid
+  days_of_week jsonb
+  start_time time
+  start_date date
+  end_date date
+  duration_minutes integer
+  capacity integer
+  allowed_plan varchar(12)
+  created_at timestamp
+  updated_at timestamp
+  active boolean
+  deleted_at timestamp
+}
+
+Ref: class_schedules.gym_class_id > gym_classes.id
+Ref: class_schedules.teacher_id > teachers.id
+Table gym_classes {
+  id uuid [primary key]
+  name varchar
+  description varchar
+  duration_minutes integer
+  default_capacity integer
+  activity_type varchar(17)
+  image_url varchar
+  created_at timestamp
+  updated_at timestamp
+  active boolean
+  deleted_at timestamp
+  difficulty varchar(12)
+}
+
+Table teachers {
+  id uuid [primary key]
+  cuil varchar
+  bio varchar
+}
+
+Ref: teachers.id > persons.id
+Table bookings {
+  id uuid [primary key]
+  client_id uuid
+  class_session_id uuid
+  status varchar(9)
+  checked_in_at timestamp
+  cancelled_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  active boolean
+}
+
+Ref: bookings.class_session_id > class_sessions.id
+Ref: bookings.client_id > clients.id
+Table memberships {
+  id uuid [primary key]
+  plan varchar(12)
+  start_date timestamp
+  end_date timestamp
+  last_check_in timestamp
+  last_invoice_id varchar
+  client_id uuid
+  status varchar(9)
+  created_at timestamp
+  updated_at timestamp
+  active boolean
+  deleted_at timestamp
+}
+
+Ref: memberships.client_id > clients.id

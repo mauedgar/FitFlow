@@ -1,5 +1,6 @@
-"""
-CRUD para User (asíncrono, Sprint 6–7)
+# pyright: ignore-all
+"""CRUD para User (asíncrono, Sprint 6-7).
+
 --------------------------------------
 • Gestión de cuentas autenticables.
 • Creación con contraseña hasheada.
@@ -9,10 +10,9 @@ CRUD para User (asíncrono, Sprint 6–7)
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.security import get_password_hash
@@ -21,8 +21,16 @@ from app.schemas.user import UserCreate, UserUpdate
 
 from .base import CRUDBase
 
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm.interfaces import ORMOption
+
 
 class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
+    """CRUD especializado para usuarios autenticables."""
+
     # ------------------------------------------------------------------ #
     # Overrides
     # ------------------------------------------------------------------ #
@@ -30,20 +38,16 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         self,
         db: AsyncSession,
         *,
-        id: UUID,
+        obj_id: UUID,
         include_relations: bool = False,
     ) -> User | None:
-        """
-        Obtiene un usuario por su ID, con opción de incluir su perfil Person.
-        """
-        opts = (
-            [
-                selectinload(User.person_profile),
-            ]
+        """Obtiene un usuario por ID, con opción de incluir su perfil Person."""
+        opts: list[ORMOption] | None = (
+            [selectinload(User.person_profile)]
             if include_relations
             else None
         )
-        return await super().get(db, id=id, options=opts)
+        return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
     # Búsquedas específicas
@@ -55,9 +59,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         email: str,
         include_relations: bool = False,
     ) -> User | None:
-        """
-        Obtiene un usuario por su email.
-        """
+        """Obtiene un usuario por su email."""
         stmt = select(User).where(User.email == email)
 
         if include_relations:
@@ -75,15 +77,13 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         *,
         obj_in: UserCreate,
     ) -> User:
-        """
-        Crea un usuario autenticable con contraseña hasheada.
-        """
+        """Crea un usuario autenticable con contraseña hasheada."""
         data = obj_in.model_dump()
 
-        db_obj = User(
-            email=data["email"],
-            hashed_password=get_password_hash(data["password"]),
-            role=data.get("role"),
+        db_obj = User(  # type: ignore[call-arg]
+            email=data["email"], # pyright: ignore[reportCallIssue]
+            hashed_password=get_password_hash(data["password"]), # pyright: ignore[reportCallIssue]
+            role=data.get("role"), # pyright: ignore[reportCallIssue]
         )
 
         db.add(db_obj)
@@ -101,13 +101,9 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         db_obj: User,
         obj_in: UserUpdate,
     ) -> User:
-        """
-        Actualiza parcialmente un usuario.
-        Si se envía una contraseña nueva, se hashea.
-        """
+        """Actualiza parcialmente un usuario. Si cambia la contraseña, se hashea."""
         update_data = obj_in.model_dump(exclude_unset=True)
 
-        # Si actualiza contraseña → hashear
         if "password" in update_data:
             update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
 

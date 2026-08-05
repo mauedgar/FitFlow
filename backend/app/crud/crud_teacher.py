@@ -1,5 +1,6 @@
-"""
-CRUD para Teacher (asíncrono, Sprint 6–7)
+# pyright: ignore-all
+"""CRUD para Teacher (asíncrono, Sprint 6-7).
+
 -----------------------------------------
 • Perfil de profesor asociado a Person.
 • Búsquedas específicas.
@@ -8,21 +9,27 @@ CRUD para Teacher (asíncrono, Sprint 6–7)
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-# IMPORTS CORRECTOS (evitan el error de Pylance)
 from app.models.teacher import Teacher
-from app.models.user import User
 from app.schemas.teacher import TeacherCreate, TeacherUpdate
 
 from .base import CRUDBase
 
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm.interfaces import ORMOption
+
+    from app.models.user import User
 
 class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
+    """CRUD especializado para perfiles de profesor."""
+
     # ------------------------------------------------------------------ #
     # Overrides
     # ------------------------------------------------------------------ #
@@ -30,20 +37,16 @@ class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
         self,
         db: AsyncSession,
         *,
-        id: UUID,
+        obj_id: UUID,
         include_relations: bool = False,
     ) -> Teacher | None:
-        """
-        Obtiene un profesor por su ID, con opción de incluir relaciones.
-        """
-        opts = (
-            [
-                selectinload(Teacher.class_schedules),
-            ]
+        """Obtiene un profesor por ID, con opción de incluir relaciones."""
+        opts: list[ORMOption] | None = (
+            [selectinload(Teacher.class_schedules)]
             if include_relations
             else None
         )
-        return await super().get(db, id=id, options=opts)
+        return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
     # Búsquedas específicas
@@ -54,16 +57,11 @@ class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
         *,
         full_name: str,
     ) -> Teacher | None:
-        """
-        Obtiene un profesor por su nombre completo (búsqueda flexible).
-        """
+        """Obtiene un profesor por su nombre completo (búsqueda flexible)."""
         normalized = f"%{full_name.strip().lower()}%"
 
-        stmt = (
-            select(Teacher)
-            .where(
-                func.lower(Teacher.first_name + " " + Teacher.last_name).like(normalized)
-            )
+        stmt = select(Teacher).where(
+            func.lower(Teacher.first_name + " " + Teacher.last_name).like(normalized),
         )
 
         res = await db.execute(stmt)
@@ -79,21 +77,19 @@ class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
         obj_in: TeacherCreate,
         user: User,
     ) -> Teacher:
-        """
-        Crea un perfil de Profesor y lo asocia a un User existente.
-        """
+        """Crea un perfil de profesor y lo asocia a un usuario existente."""
         data = obj_in.model_dump()
 
         db_obj = Teacher(
-            first_name=data["first_name"],
-            last_name=data["last_name"],
-            document_number=data.get("document_number"),
-            address=data.get("address"),
-            medical_fit_url=data.get("medical_fit_url"),
-            profile_image_url=data.get("profile_image_url"),
-            bio=data.get("bio"),
-            cuil=data.get("cuil"),
-            user=user,
+            first_name=data["first_name"], #pyright: ignore[reportCallIssue]
+            last_name=data["last_name"], #pyright: ignore[reportCallIssue]
+            document_number=data.get("document_number"), #pyright: ignore[reportCallIssue]
+            address=data.get("address"), #pyright: ignore[reportCallIssue]
+            medical_fit_url=data.get("medical_fit_url"), #pyright: ignore[reportCallIssue]
+            profile_image_url=data.get("profile_image_url"), #pyright: ignore[reportCallIssue]
+            bio=data.get("bio"), #pyright: ignore[reportCallIssue]
+            cuil=data.get("cuil"), #pyright: ignore[reportCallIssue]
+            user=user, #pyright: ignore[reportCallIssue]
         )
 
         db.add(db_obj)
