@@ -1,74 +1,94 @@
-"""
-Router User (Sprint 6–7)
-------------------------
+"""Router User (Sprint 6-7).
+
+-----------------------------------------
 • Registro y gestión de usuarios.
 • Endpoints públicos y privados.
 • Lógica centralizada en services.
 • Respuestas optimizadas para frontend.
+• Compatible con TanStack Query.
+• Sin SQLAlchemy directo.
 """
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
-from app import crud, schemas
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.core.deps import require_admin_or_self_guard
 from app.db.session import get_async_session
-from app.models.user import User
 from app.services.user_service import (
     to_user_public,
     to_user_with_profile,
     to_user_with_stats,
 )
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from backend.app.schemas.user import (
+    UserCreate,
+    UserPublic,
+    UserWithProfile,
+    UserWithStats,
+)
 
-from backend.app.core.deps import require_admin_or_self_guard
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.models.user import User
+
+from app.crud.crud_user import user_crud
 
 router = APIRouter(prefix="/users", tags=["users"])
 
-# ruff: noqa: B008
+
 # --------------------------------------------------------------------------- #
 # Registrar usuario
 # --------------------------------------------------------------------------- #
-@router.post("/register", response_model=schemas.UserPublic, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
 async def register_user(
     *,
-    user_in: schemas.UserCreate,
-    db: AsyncSession = Depends(get_async_session),  
-):
-    """Registra un nuevo usuario en el sistema."""
-    db_user = await crud.user.get_by_email(db, email=user_in.email)
-    if db_user:
+    user_in: UserCreate,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> UserPublic:
+    """Registra un nuevo usuario en el sistema.
+
+    Reglas:
+        • El email debe ser único.
+        • La contraseña se hashea automáticamente.
+        • El rol por defecto es CLIENT.
+    """
+    existing = await user_crud.get_by_email(db=db, email=user_in.email)
+    if existing:
         raise HTTPException(400, "El email ya está registrado.")
 
-    user = await crud.user.create(obj_in=user_in, db=db)
+    user = await user_crud.create(db=db, obj_in=user_in)
     return to_user_public(user)
 
 
 # --------------------------------------------------------------------------- #
 # Listado público de usuarios
 # --------------------------------------------------------------------------- #
-@router.get("/public", response_model=list[schemas.UserPublic])
+@router.get("/public", response_model=list[UserPublic])
 async def list_public_users(
     *,
-    db: AsyncSession = Depends(get_async_session),
-):
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> list[UserPublic]:
     """Lista usuarios en versión pública."""
-    users = await crud.user.get_multi(db)
+    users = await user_crud.get_multi(db=db)
     return [to_user_public(u) for u in users]
 
 
 # --------------------------------------------------------------------------- #
 # Usuario público por ID
 # --------------------------------------------------------------------------- #
-@router.get("/{user_id}/public", response_model=schemas.UserPublic)
+@router.get("/{user_id}/public", response_model=UserPublic)
 async def read_public_user(
     *,
     user_id: UUID,
-    db: AsyncSession = Depends(get_async_session),
-):
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> UserPublic:
     """Obtiene un usuario en versión pública."""
-    user = await crud.user.get(db, id=user_id)
+    user = await user_crud.get(db=db, obj_id=user_id)
     if not user:
         raise HTTPException(404, "Usuario no encontrado.")
 
@@ -78,24 +98,35 @@ async def read_public_user(
 # --------------------------------------------------------------------------- #
 # Perfil del usuario actual
 # --------------------------------------------------------------------------- #
-@router.get("/me", response_model=schemas.UserWithProfile)
+@router.get("/me", response_model=UserWithProfile)
 async def read_my_profile(
     *,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_admin_or_self_guard),
-):
-    """Devuelve el perfil del usuario actual."""
+    db: Annotated[AsyncSession, Depends(get_async_session)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_or_self_guard)],
+) -> UserWithProfile:
+    """Devuelve el perfil del usuario actual.
+
+    Incluye:
+        • datos públicos
+        • perfil asociado (cliente o profesor)
+    """
     return to_user_with_profile(current_user)
 
 
 # --------------------------------------------------------------------------- #
 # Estadísticas del usuario actual
 # --------------------------------------------------------------------------- #
-@router.get("/me/stats", response_model=schemas.UserWithStats)
+@router.get("/me/stats", response_model=UserWithStats)
 async def read_my_stats(
     *,
-    db: AsyncSession = Depends(get_async_session),
-    current_user: User = Depends(require_admin_or_self_guard),
-):
-    """Devuelve estadísticas básicas del usuario actual."""
+    db: Annotated[AsyncSession, Depends(get_async_session)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_or_self_guard)],
+) -> UserWithStats:
+    """Devuelve estadísticas básicas del usuario actual.
+
+    Incluye:
+        • total de reservas (si es cliente)
+        • reservas futuras (si es cliente)
+        • clases dictadas (si es profesor)
+    """
     return to_user_with_stats(current_user)

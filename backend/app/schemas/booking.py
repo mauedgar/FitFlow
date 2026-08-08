@@ -12,19 +12,26 @@ Incluye:
 
 from __future__ import annotations
 
+from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-# Evitar circularidad
+# Importar enums SIEMPRE en runtime (Pydantic v2 los necesita)
+from app.core.enums import BookingStatus  # noqa: TC001
+
+# Importar client normalmente (no genera ciclos)
+from app.schemas.client import ClientInBookingResponse, ClientPublic  # noqa: TC001
+
+# Evitar circularidad: class_session importa booking → usar TYPE_CHECKING
 if TYPE_CHECKING:
-    import uuid
-    from datetime import datetime
 
-    from app.models.booking import BookingStatus
+    from app.schemas.class_session import (
+        ClassSessionInBookingResponse,
+        ClassSessionPublic,
+    )
 
-    from .class_session import ClassSessionInBookingResponse, ClassSessionPublic
-    from .client import ClientInBookingResponse, ClientPublic
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -49,8 +56,8 @@ class BookingCreate(BookingBase):
         • class_session_id XOR class_schedule_id
     """
 
-    class_session_id: uuid.UUID | None = None
-    class_schedule_id: uuid.UUID | None = None
+    class_session_id: UUID | None = None
+    class_schedule_id: UUID | None = None
 
     @model_validator(mode="after")
     def check_exactly_one_id_is_provided(self) -> BookingCreate:
@@ -59,10 +66,8 @@ class BookingCreate(BookingBase):
         has_schedule_id = self.class_schedule_id is not None
 
         if not (has_session_id ^ has_schedule_id):
-            msg = "Debe proporcionar exclusivamente 'class_session_id' o 'class_schedule_id'."  # noqa: E501
-            raise ValueError(
-                msg,
-            )
+            msg = "Debe proporcionar exclusivamente 'class_session_id' o 'class_schedule_id'."
+            raise ValueError(msg)
         return self
 
 
@@ -87,13 +92,14 @@ class Booking(BookingBase):
         • timestamps
     """
 
-    id: uuid.UUID
-    client_id: uuid.UUID
-    class_session_id: uuid.UUID
+    id: UUID
+    client_id: UUID
+    class_session_id: UUID
     created_at: datetime
 
+    # Forward refs porque class_session está en TYPE_CHECKING
     client: ClientInBookingResponse
-    class_session: ClassSessionInBookingResponse
+    class_session: "ClassSessionInBookingResponse"  # noqa: UP037
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -108,8 +114,8 @@ class BookingInClientResponse(BookingBase):
     Evita recursión.
     """
 
-    id: uuid.UUID
-    class_session_id: uuid.UUID
+    id: UUID
+    class_session_id: UUID
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -121,8 +127,8 @@ class BookingInClassSessionResponse(BookingBase):
     Evita recursión.
     """
 
-    id: uuid.UUID
-    client_id: uuid.UUID
+    id: UUID
+    client_id: UUID
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -133,10 +139,10 @@ class BookingInClassSessionResponse(BookingBase):
 # --------------------------------------------------------------------------- #
 
 class BookingCreateInternal(BaseModel):
-    """Esquema interno para crear una reserva después de resolver la lógica de negocio."""  # noqa: E501
+    """Esquema interno para crear una reserva después de resolver la lógica de negocio."""
 
-    client_id: uuid.UUID
-    class_session_id: uuid.UUID
+    client_id: UUID
+    class_session_id: UUID
     created_at: datetime
     status: BookingStatus
 
@@ -154,7 +160,7 @@ class BookingPublic(BaseModel):
         • dashboards
     """
 
-    id: uuid.UUID
+    id: UUID
     status: BookingStatus
     starts_at: datetime
     ends_at: datetime
@@ -175,7 +181,7 @@ class BookingWithSession(BookingPublic):
         • front_desk.
     """
 
-    class_session: ClassSessionPublic
+    class_session: "ClassSessionPublic"  # noqa: UP037
 
 
 class BookingWithClient(BookingPublic):
@@ -187,3 +193,12 @@ class BookingWithClient(BookingPublic):
     """
 
     client: ClientPublic
+
+
+# --------------------------------------------------------------------------- #
+# 8. Resolver forward refs
+# --------------------------------------------------------------------------- #
+
+Booking.model_rebuild()
+BookingWithSession.model_rebuild()
+BookingWithClient.model_rebuild()

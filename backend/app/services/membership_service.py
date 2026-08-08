@@ -13,7 +13,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from app import schemas
+from app.core.enums import MembershipPlan, MembershipStatus
+from app.schemas.membership import (
+    MembershipPublic,
+    MembershipWithClient,
+    MembershipWithStats,
+)
 from app.services.client_service import to_client_public
 
 if TYPE_CHECKING:
@@ -24,17 +29,17 @@ if TYPE_CHECKING:
 # 1. Transformación automática: Membership → MembershipPublic
 # --------------------------------------------------------------------------- #
 
-def to_membership_public(m: Membership) -> schemas.MembershipPublic:
+def to_membership_public(m: Membership) -> MembershipPublic:
     """Transforma un modelo ORM Membership en su versión pública."""
     now = datetime.now(tz=timezone.utc)
 
-    return schemas.MembershipPublic(
+    return MembershipPublic(
         id=m.id, # pyright: ignore[reportArgumentType]
         plan=m.plan, # pyright: ignore[reportArgumentType]
         status=m.status, # pyright: ignore[reportArgumentType]
         start_date=m.start_date, # pyright: ignore[reportArgumentType]
         end_date=m.end_date, # pyright: ignore[reportArgumentType]
-        is_active=m.status == schemas.MembershipStatus.active, # pyright: ignore[reportArgumentType]
+        is_active=m.status == MembershipStatus.active, # pyright: ignore[reportArgumentType]
         is_expired=m.end_date < now, # pyright: ignore[reportArgumentType]
     )
 
@@ -45,7 +50,7 @@ def to_membership_public(m: Membership) -> schemas.MembershipPublic:
 
 def validate_membership_active(m: Membership) -> None:
     """Valida que la membresía esté activa."""
-    if m.status != schemas.MembershipStatus.active: # pyright: ignore[reportGeneralTypeIssues]
+    if m.status != MembershipStatus.active: # pyright: ignore[reportGeneralTypeIssues]
         msg = "La membresía no está activa."
         raise ValueError(msg)
 
@@ -58,12 +63,12 @@ def validate_membership_not_expired(m: Membership) -> None:
         raise ValueError(msg)
 
 
-def validate_membership_access(m: Membership, schedule_plan: schemas.MembershipPlan) -> None:
+def validate_membership_access(m: Membership, schedule_plan: MembershipPlan) -> None:
     """Valida si la membresía permite acceder al horario."""
     if schedule_plan is None:
         return
 
-    if m.plan in (schemas.MembershipPlan.premium, schemas.MembershipPlan.personalized):
+    if m.plan in (MembershipPlan.premium, MembershipPlan.personalized):
         return
 
     if m.plan != schedule_plan: # pyright: ignore[reportGeneralTypeIssues]
@@ -77,9 +82,9 @@ def validate_membership_access(m: Membership, schedule_plan: schemas.MembershipP
 # 3. Extender Membership con datos del cliente
 # --------------------------------------------------------------------------- #
 
-def to_membership_with_client(m: Membership) -> schemas.MembershipWithClient:
+def to_membership_with_client(m: Membership) -> MembershipWithClient:
     """Extiende la membresía con datos públicos del cliente."""
-    return schemas.MembershipWithClient(
+    return MembershipWithClient(
         **to_membership_public(m).model_dump(),
         client=to_client_public(m.client),
     )
@@ -89,7 +94,7 @@ def to_membership_with_client(m: Membership) -> schemas.MembershipWithClient:
 # 4. Extender Membership con estadísticas
 # --------------------------------------------------------------------------- #
 
-def to_membership_with_stats(m: Membership) -> schemas.MembershipWithStats:
+def to_membership_with_stats(m: Membership) -> MembershipWithStats:
     """Extiende la membresía con estadísticas básicas."""
     total_bookings = len(m.client.bookings)
 
@@ -98,7 +103,7 @@ def to_membership_with_stats(m: Membership) -> schemas.MembershipWithStats:
         if b.class_session.starts_at > datetime.now(tz=timezone.utc) # pyright: ignore[reportGeneralTypeIssues]
     ]
 
-    return schemas.MembershipWithStats(
+    return MembershipWithStats(
         **to_membership_public(m).model_dump(),
         total_bookings=total_bookings,
         upcoming_bookings=[b.id for b in upcoming], # pyright: ignore[reportArgumentType]
@@ -119,6 +124,6 @@ def is_membership_valid_for_booking(m: Membership) -> bool:
     """Indica si la membresía permite reservar."""
     now = datetime.now(tz=timezone.utc)
     return (
-        m.status == schemas.MembershipStatus.active
+        m.status == MembershipStatus.active
         and m.end_date > now
     ) # pyright: ignore[reportReturnType]

@@ -13,10 +13,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.crud.base import CRUDBase
 from app.models import Membership
 from app.schemas.membership import MembershipCreate, MembershipUpdate
-
-from .base import CRUDBase
 
 if TYPE_CHECKING:
     from uuid import UUID

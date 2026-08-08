@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app import crud
+from app.crud import class_schedule, class_session, gym_class
 from app.models import ClassSchedule, ClassSession
 from app.schemas.front_desk import (
     FrontDeskBookingView,
@@ -73,7 +73,7 @@ async def get_sessions_today(db: AsyncSession) -> FrontDeskDayView:
 
 async def get_session_capacity(db: AsyncSession, session_id: UUID) -> SessionCapacity | None:
     """Devuelve la capacidad disponible de una sesión."""
-    session = await crud.class_session.get(db, obj_id=session_id, include_relations=True)
+    session = await class_session.get(db, obj_id=session_id, include_relations=True)
     if not session:
         return None
 
@@ -91,11 +91,11 @@ async def get_session_capacity(db: AsyncSession, session_id: UUID) -> SessionCap
 
 async def cancel_session(db: AsyncSession, session_id: UUID) -> ClassSession | None:
     """Cancela una sesión (status = cancelled)."""
-    session = await crud.class_session.get(db, obj_id=session_id)
+    session = await class_session.get(db, obj_id=session_id)
     if not session:
         return None
 
-    return await crud.class_session.update(
+    return await class_session.update(
         db=db,
         db_obj=session,
         obj_in={"status": "cancelled"},
@@ -108,7 +108,7 @@ async def cancel_session(db: AsyncSession, session_id: UUID) -> ClassSession | N
 
 async def get_session_bookings(db: AsyncSession, session_id: UUID) -> list[FrontDeskBookingView] | None:
     """Devuelve todas las reservas de una sesión en formato FrontDesk."""
-    session = await crud.class_session.get(db, obj_id=session_id, include_relations=True)
+    session = await class_session.get(db, obj_id=session_id, include_relations=True)
     if not session:
         return None
 
@@ -130,7 +130,7 @@ async def get_session_bookings(db: AsyncSession, session_id: UUID) -> list[Front
 
 async def get_active_classes(db: AsyncSession) -> list:
     """Devuelve todas las clases activas."""
-    return await crud.gym_class.get_multi_filtered(db=db, active=True)
+    return await gym_class.get_multi_filtered(db=db, active=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -139,7 +139,7 @@ async def get_active_classes(db: AsyncSession) -> list:
 
 async def get_schedule_by_class(db: AsyncSession, class_id: UUID) -> list[ClassSchedule]:
     """Devuelve los horarios semanales de una clase."""
-    return await crud.class_schedule.get_multi_filtered(db=db, gym_class_id=class_id)
+    return await class_schedule.get_multi_filtered(db=db, gym_class_id=class_id)
 
 
 # --------------------------------------------------------------------------- #

@@ -15,6 +15,7 @@ Incluye:
 
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine.url import URL, make_url
 
@@ -83,6 +84,34 @@ class Settings(BaseSettings):
     EMAILS_FROM_EMAIL: str | None = None
 
     # -----------------------------------------------------------------------
+    # REDIS
+    # -----------------------------------------------------------------------
+    REDIS_URL: str | None = None
+
+    # -----------------------------------------------------------------------
+    # VALIDADORES
+    # -----------------------------------------------------------------------
+
+    @field_validator(
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_USER",
+        "SMTP_PASSWORD",
+        "EMAILS_FROM_EMAIL",
+        "REDIS_URL",
+        mode="before",
+    )
+    def empty_to_none(cls, v):  # noqa: ANN001, ANN201, N805
+        """Convierte strings vacíos ("") en None.
+        Esto evita errores cuando el .env contiene líneas como:
+            SMTP_PORT=
+        que de otra forma causarían fallos de validación.
+        """  # noqa: D205
+        if v == "":
+            return None
+        return v
+
+    # -----------------------------------------------------------------------
     # LOGS
     # -----------------------------------------------------------------------
     LOG_LEVEL: str = "INFO"
@@ -98,11 +127,6 @@ class Settings(BaseSettings):
     # -----------------------------------------------------------------------
     MEDIA_DIR: str = "media"
     MAX_UPLOAD_SIZE_MB: int = 5
-
-    # -----------------------------------------------------------------------
-    # REDIS
-    # -----------------------------------------------------------------------
-    REDIS_URL: str | None = None
 
     # -----------------------------------------------------------------------
     # RATE LIMITING

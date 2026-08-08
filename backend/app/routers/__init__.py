@@ -1,13 +1,12 @@
 # ruff: noqa: F401
 
-from . import (
+from app.routers import (
     auth,
     bookings,
     class_schedules,
     class_sessions,
     clients,
     gym_classes,
-    login,
     teachers,
     users,
 )

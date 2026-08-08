@@ -42,18 +42,6 @@ class BookingStatus(StrEnum):
     attended = "attended"
     no_show = "no_show"
 
-class ClassSessionStatus(StrEnum):
-    """Estados posibles de una sesión concreta.
-
-    - scheduled: la sesión está programada y disponible para operar.
-    - cancelled: la sesión fue cancelada y no debe aceptar reservas nuevas.
-    - completed: la sesión ya finalizó su ejecución operativa.
-    """
-
-    scheduled = "scheduled"
-    cancelled = "cancelled"
-    completed = "completed"
-
 class MembershipPlan(StrEnum):
     """Tipos de membresía que ofrece el gimnasio.
 
@@ -105,4 +93,18 @@ class AllowedPlan(StrEnum):
     premium = "premium"
     personalized = "personalized"
 
+class ClassSessionStatus(StrEnum):
+    """Estados posibles de una sesión concreta.
+
+    - scheduled: la sesión está programada y disponible para operar.
+    - cancelled: la sesión fue cancelada y no debe aceptar reservas nuevas.
+    - completed: la sesión ya finalizó su ejecución operativa.
+    """
+
+    draft = "draft"
+    scheduled = "scheduled"
+    open = "open"
+    closed = "closed"
+    cancelled = "cancelled"
+    completed = "completed"
 

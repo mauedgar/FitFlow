@@ -10,22 +10,22 @@ Incluye:
 • UserWithProfile (extendido)
 • UserWithStats (extendido)
 """
-
+# ruff: noqa: UP037
 from __future__ import annotations
 
+from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from backend.app.models.user import UserRole
+from app.models.user import UserRole
 
-# Evitar circularidad
+# Evitar circularidad: client.py y teacher.py importan user.py
 if TYPE_CHECKING:
-    import uuid
-    from datetime import datetime
 
-    from .client import ClientPublic
-    from .teacher import TeacherPublic
+    from app.schemas.client import ClientPublic
+    from app.schemas.teacher import TeacherPublic
 
 
 # --------------------------------------------------------------------------- #
@@ -79,7 +79,7 @@ class User(UserBase):
         • rol.
     """
 
-    id: uuid.UUID
+    id: UUID
     role: UserRole
     active: bool
     created_at: datetime
@@ -101,7 +101,7 @@ class UserPublic(BaseModel):
         • frontend.
     """
 
-    id: uuid.UUID
+    id: UUID
     email: EmailStr
     role: UserRole
     active: bool
@@ -117,11 +117,11 @@ class UserWithProfile(UserPublic):
     """Extiende UserPublic con el perfil asociado.
 
     • ClientPublic
-        • TeacherPublic
+    • TeacherPublic
     """
 
-    client: ClientPublic | None = None
-    teacher: TeacherPublic | None = None
+    client: "ClientPublic | None" = None
+    teacher: "TeacherPublic | None" = None
 
 
 # --------------------------------------------------------------------------- #
@@ -139,3 +139,10 @@ class UserWithStats(UserPublic):
     total_bookings: int
     upcoming_bookings: int
     total_classes_taught: int | None = None
+
+
+# --------------------------------------------------------------------------- #
+# Resolver forward refs
+# --------------------------------------------------------------------------- #
+
+UserWithProfile.model_rebuild()

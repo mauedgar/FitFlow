@@ -10,17 +10,16 @@ Incluye:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from datetime import datetime  # noqa: TC003
+from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, Field
 
-if TYPE_CHECKING:
-    from datetime import datetime
-    from uuid import UUID
+from app.core.enums import MembershipPlan, MembershipStatus  # noqa: TC001
+from app.schemas.client import ClientPublic  # noqa: TC001
 
-    from backend.app.core.enums import MembershipPlan, MembershipStatus
+# Evitar circularidad: client.py importa membership.py
 
-    from .client import ClientPublic
 
 
 # --------------------------------------------------------------------------- #
@@ -114,7 +113,7 @@ class MembershipPublic(BaseModel):
 class MembershipWithClient(MembershipPublic):
     """Extiende MembershipPublic con datos públicos del cliente."""
 
-    client: ClientPublic
+    client: "ClientPublic"  # noqa: UP037
 
 
 # --------------------------------------------------------------------------- #
@@ -163,3 +162,10 @@ class MembershipMini(BaseModel):
     is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# Resolver forward refs
+# --------------------------------------------------------------------------- #
+
+MembershipWithClient.model_rebuild()

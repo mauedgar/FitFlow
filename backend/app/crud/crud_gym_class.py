@@ -12,10 +12,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.crud.base import CRUDBase
 from app.models import ClassSchedule, GymClass
 from app.schemas.gym_class import GymClassCreate, GymClassUpdate
-
-from .base import CRUDBase
 
 if TYPE_CHECKING:
     from datetime import date

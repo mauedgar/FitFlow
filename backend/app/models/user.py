@@ -5,12 +5,12 @@ from sqlalchemy import Column, Enum as SQLAlchemyEnum, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, relationship
 
+from app.core.enums import UserRole
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
-from backend.app.core.enums import UserRole
 
 if TYPE_CHECKING:
-    from .person import Person
+    from app.models.person import Person
 
 class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     """Cuenta autenticable del sistema.

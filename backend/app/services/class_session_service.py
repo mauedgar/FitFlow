@@ -14,7 +14,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from app import schemas
+from backend.app.core.enums import ClassSessionStatus
+from backend.app.schemas.class_session import (
+    ClassSessionInResponse,
+    ClassSessionWithRelations,
+)
 
 if TYPE_CHECKING:
     from app.models import ClassSchedule, ClassSession
@@ -24,9 +28,9 @@ if TYPE_CHECKING:
 # 1. Transformación automática: ClassSession → ClassSessionInResponse
 # --------------------------------------------------------------------------- #
 
-def to_class_session_response(session: ClassSession) -> schemas.ClassSessionInResponse:
+def to_class_session_response(session: ClassSession) -> ClassSessionInResponse:
     """Transforma un modelo ORM ClassSession en un esquema compacto."""
-    return schemas.ClassSessionInResponse(
+    return ClassSessionInResponse(
         id=session.id,  # pyright: ignore[reportArgumentType]
         class_schedule_id=session.class_schedule_id, # pyright: ignore[reportArgumentType]
         starts_at=session.starts_at, # pyright: ignore[reportArgumentType]
@@ -60,7 +64,7 @@ def update_session_availability(session: ClassSession) -> ClassSession:
 
 def validate_session_active(session: ClassSession) -> None:
     """Valida que la sesión esté activa y programada."""
-    if session.status != schemas.ClassSessionStatus.scheduled: # pyright: ignore[reportGeneralTypeIssues]
+    if session.status != ClassSessionStatus.scheduled: # pyright: ignore[reportGeneralTypeIssues]
         msg = "La sesión no está activa o fue cancelada."
         raise ValueError(msg)
 
@@ -143,11 +147,11 @@ def get_future_sessions(schedule: ClassSchedule, days: int = 7) -> list[ClassSes
 # 7. Transformación completa con relaciones
 # --------------------------------------------------------------------------- #
 
-def to_class_session_with_relations(session: ClassSession) -> schemas.class_session.ClassSessionWithRelations:
+def to_class_session_with_relations(session: ClassSession) -> ClassSessionWithRelations:
     """Devuelve una sesión con todas sus relaciones cargadas."""
     schedule = session.class_schedule
 
-    return schemas.class_session.ClassSessionWithRelations(
+    return ClassSessionWithRelations(
         id=session.id,
         starts_at=session.starts_at,
         ends_at=session.ends_at,
@@ -160,3 +164,4 @@ def to_class_session_with_relations(session: ClassSession) -> schemas.class_sess
         teacher=schedule.teacher,
         bookings=session.bookings,
     )
+

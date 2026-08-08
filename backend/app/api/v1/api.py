@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from backend.app.routers import (
+from app.routers import (
     auth,
     bookings,
     class_schedules,

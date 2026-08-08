@@ -12,12 +12,13 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+from app.crud.base import CRUDBase
 from app.models import ClassSchedule, ClassSession
 from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
-
-from .base import CRUDBase
+from app.services import errors as svc_errors
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -68,6 +69,7 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         limit: int = 100,
         teacher_id: UUID | None = None,
         include_relations: bool = False,
+        gym_class_id: UUID | None = None,
     ) -> list[ClassSession]:
         """Obtiene una lista filtrada de sesiones."""
         stmt = (
@@ -76,6 +78,10 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
             .offset(skip)
             .limit(limit)
         )
+        if gym_class_id:
+            stmt = stmt.join(ClassSession.class_schedule).where(
+                ClassSchedule.gym_class_id == gym_class_id,
+            )
         if teacher_id:
             stmt = stmt.join(ClassSession.class_schedule).where(
                 ClassSchedule.teacher_id == teacher_id,
@@ -140,6 +146,26 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         await db.flush()  # asigna ID sin commit
 
         return instance, True
+
+    async def create_with_capacity_snapshot(
+        self,
+        db: "AsyncSession",  # noqa: UP037
+        *,
+        obj_in: ClassSessionCreate,
+        created_by: object | None = None,  # noqa: ARG002
+    ) -> ClassSession:
+        """Crea una ClassSession y persiste el capacity_snapshot tal como viene en el schema."""
+        data = obj_in.model_dump()
+        db_obj = ClassSession(**data)  # type: ignore[arg-type]
+        db.add(db_obj)
+        try:
+            await db.commit()
+        except IntegrityError as err:
+            await db.rollback()
+            msg = "No se pudo crear la sesión."
+            raise svc_errors.BusinessValidationError(msg) from err
+        await db.refresh(db_obj)
+        return db_obj
 
 
 # Instancia reusable

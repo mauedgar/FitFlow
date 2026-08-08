@@ -1,0 +1,120 @@
+backend
+├── alembic
+│   ├── versions
+│   │   ├── 38d9796100f0_update_enums.py
+│   │   ├── 3a6ad3ed45ab_rename_enum_types.py
+│   │   ├── 582ac5ff4673_update_client_membership.py
+│   │   ├── 6beb1fc321fd_fix_gym_class_default_capacity.py
+│   │   ├── a2b62b427037_check_enum_bookingstatus.py
+│   │   ├── d5f64f472402_add_classschedule_classsession_booking_.py
+│   │   ├── de9d327bfe41_initial_database_schema.py
+│   │   ├── f287ebba9f43_check_enum_bookingstatus.py
+│   │   └── f5453ed20cdc_core_domain_refactor.py
+│   ├── __init__.py
+│   ├── env.py
+│   ├── README
+│   └── script.py.mako
+├── app
+│   ├── api
+│   │   ├── v1
+│   │   │   ├── __init__.py
+│   │   │   └── api.py
+│   │   └── __init__.py
+│   ├── core
+│   │   ├── __init__.py
+│   │   ├── blacklist.py
+│   │   ├── config.py
+│   │   ├── deps.py
+│   │   ├── enums.py
+│   │   ├── redis_client.py
+│   │   ├── security.py
+│   │   ├── timezone.py
+│   │   └── token_store.py
+│   ├── crud
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── crud_base_sync.py
+│   │   ├── crud_booking.py
+│   │   ├── crud_class_schedule.py
+│   │   ├── crud_class_session.py
+│   │   ├── crud_client.py
+│   │   ├── crud_gym_class.py
+│   │   ├── crud_membership.py
+│   │   ├── crud_permission.py
+│   │   ├── crud_role.py
+│   │   ├── crud_teacher.py
+│   │   └── crud_user.py
+│   ├── db
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── base_class.py
+│   │   ├── mixins.py
+│   │   └── session.py
+│   ├── models
+│   │   ├── __init__.py
+│   │   ├── booking.py
+│   │   ├── class_schedule.py
+│   │   ├── class_session.py
+│   │   ├── client.py
+│   │   ├── gym_class.py
+│   │   ├── membership.py
+│   │   ├── permission.py
+│   │   ├── person.py
+│   │   ├── role.py
+│   │   ├── role_permissions.py
+│   │   ├── teacher.py
+│   │   └── user.py
+│   ├── routers
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── bookings.py
+│   │   ├── class_schedules.py
+│   │   ├── class_sessions.py
+│   │   ├── clients.py
+│   │   ├── front_desk.py
+│   │   ├── gym_classes.py
+│   │   ├── memberships.py
+│   │   ├── teachers.py
+│   │   └── users.py
+│   ├── schemas
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── booking.py
+│   │   ├── class_schedule.py
+│   │   ├── class_session.py
+│   │   ├── client.py
+│   │   ├── front_desk.py
+│   │   ├── gym_class.py
+│   │   ├── membership.py
+│   │   ├── permission.py
+│   │   ├── person.py
+│   │   ├── role.py
+│   │   ├── teacher.py
+│   │   ├── token.py
+│   │   └── user.py
+│   ├── scripts
+│   ├── services
+│   │   ├── __init__.py
+│   │   ├── auth_service.py
+│   │   ├── booking_service.py
+│   │   ├── class_schedule_service.py
+│   │   ├── class_session_service.py
+│   │   ├── client_service.py
+│   │   ├── errors.py
+│   │   ├── front_desk_service.py
+│   │   ├── gym_class_service.py
+│   │   ├── membership_service.py
+│   │   ├── teacher_service.py
+│   │   └── user_service.py
+│   ├── templates
+│   │   └── plantilla_crud_async.py
+│   ├── __init__.py
+│   └── main.py
+├── .env
+├── __init__.py
+├── alembic.ini
+├── Fitflow.srctrlbm
+├── Fitflow.srctrldb
+├── Fitflow.srctrlprj
+├── requirements_backend.txt
+└── start.sh

@@ -4,7 +4,7 @@ from sqlalchemy import Column, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, relationship
 
-from .person import Person
+from app.models.person import Person
 
 if TYPE_CHECKING:
     from .class_schedule import ClassSchedule

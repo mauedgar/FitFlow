@@ -11,13 +11,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, relationship
 
+from app.core.enums import BookingStatus
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, TimestampMixin
-from backend.app.core.enums import BookingStatus
 
 if TYPE_CHECKING:
-    from .class_session import ClassSession
-    from .client import Client
+    from app.models.class_session import ClassSession
+    from app.models.client import Client
 
 
 

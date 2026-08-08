@@ -1,4 +1,4 @@
-import logging  # noqa: INP001
+import logging  # noqa: N999
 from datetime import datetime, timezone
 from pathlib import Path
 from shutil import move

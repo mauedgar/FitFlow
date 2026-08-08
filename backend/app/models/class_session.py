@@ -15,13 +15,13 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, relationship
 
+from app.core.enums import ClassSessionStatus
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, TimestampMixin
 from app.models.booking import Booking
-from backend.app.core.enums import ClassSessionStatus
 
 if TYPE_CHECKING:
-    from .class_schedule import ClassSchedule
+    from app.models.class_schedule import ClassSchedule
 
 
 class ClassSession(Base, TimestampMixin, ActiveMixin):

@@ -5,7 +5,7 @@ utilizando Redis como almacenamiento rápido. Se emplea para implementar
 logout, revocación de tokens comprometidos y control de seguridad.
 """
 
-from .redis_client import redis_client
+from app.core.redis_client import redis_client
 
 # Prefijo utilizado para almacenar tokens invalidados en Redis.
 BLACKLIST_PREFIX = "blacklist_token:"

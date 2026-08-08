@@ -7,8 +7,8 @@ from sqlalchemy.orm import Mapped, relationship
 from .person import Person
 
 if TYPE_CHECKING:
-    from .booking import Booking
-    from .membership import Membership
+    from app.models.booking import Booking
+    from app.models.membership import Membership
 
 
 class Client(Person):

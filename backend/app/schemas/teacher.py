@@ -8,19 +8,19 @@ Incluye:
 • Esquema mini para vistas operativas
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .person import PersonBase, PersonCreate, PersonUpdate
+from app.schemas.class_schedule import ClassSchedulePublic, NextSessionInfo  # noqa: TC001
+from app.schemas.person import PersonBase, PersonCreate, PersonUpdate
 
 # Evitar circularidad
 if TYPE_CHECKING:
-    import uuid
+    from uuid import UUID
 
-    from .class_schedule import ClassSchedulePublic
 
 
 # --------------------------------------------------------------------------- #
@@ -60,7 +60,7 @@ class Teacher(TeacherBase):
         • horarios completos.
     """
 
-    id: uuid.UUID
+    id: UUID
     class_schedules: list[ClassSchedulePublic] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
@@ -80,7 +80,7 @@ class TeacherPublic(BaseModel):
         • frontend
     """
 
-    id: uuid.UUID
+    id: UUID
     first_name: str
     last_name: str
     full_name: str
@@ -104,7 +104,7 @@ class TeacherInClassResponse(BaseModel):
     NO incluye datos sensibles.
     """
 
-    id: uuid.UUID
+    id: UUID
     first_name: str
     last_name: str
     full_name: str
@@ -119,7 +119,7 @@ class TeacherInClassScheduleResponse(BaseModel):
     Versión compacta para evitar cargar relaciones completas.
     """
 
-    id: uuid.UUID
+    id: UUID
     first_name: str
     last_name: str
     full_name: str
@@ -145,3 +145,57 @@ class TeacherInScheduleResponseMini(BaseModel):
     full_name: str
 
     model_config = ConfigDict(from_attributes=True)
+
+    # --------------------------------------------------------------------------- #
+# 6. Esquema: Teacher con horarios públicos
+# --------------------------------------------------------------------------- #
+
+class TeacherWithSchedules(TeacherPublic):
+    """Extiende el esquema público del profesor con sus horarios.
+
+    Incluye:
+        • Lista de horarios públicos (`ClassSchedulePublic`)
+        • Ideal para vistas operativas y paneles administrativos.
+    """
+
+    schedules: list[ClassSchedulePublic] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 7. Esquema: Teacher con próxima sesión futura
+# --------------------------------------------------------------------------- #
+
+class TeacherWithNextSession(TeacherPublic):
+    """Extiende el esquema público del profesor con su próxima sesión futura.
+
+    Incluye:
+        • Información de la próxima sesión (`NextSessionInfo`)
+        • Usado en dashboards, front desk y vistas de disponibilidad.
+    """
+
+    next_session: NextSessionInfo | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 8. Esquema: Teacher con métricas operativas
+# --------------------------------------------------------------------------- #
+
+class TeacherWithMetrics(TeacherPublic):
+    """Extiende el esquema público del profesor con métricas operativas.
+
+    Incluye:
+        • total_classes → cantidad total de clases dictadas
+        • future_sessions → cantidad de sesiones futuras
+        • average_occupancy → ocupación promedio de las sesiones
+    """
+
+    total_classes: int = 0
+    future_sessions: int = 0
+    average_occupancy: float = 0.0
+
+    model_config = ConfigDict(from_attributes=True)
+

@@ -9,24 +9,24 @@ Incluye:
 • Esquemas compactos para anidamiento
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.enums import AllowedPlan  # noqa: TC001
+from app.schemas.class_session import ClassSessionInResponse  # noqa: TC001
+from app.schemas.gym_class import GymClassInClassScheduleResponse, GymClassPublic  # noqa: TC001
+from app.schemas.teacher import (
+    TeacherInClassScheduleResponse,  # noqa: TC001
+    TeacherInScheduleResponseMini,  # noqa: TC001
+)
+
 # Evitar circularidad
 if TYPE_CHECKING:
-    import uuid
     from datetime import date, datetime, time
-
-    from .class_session import ClassSessionInResponse, NextSessionInfo
-    from .gym_class import GymClassInClassScheduleResponse, GymClassPublic
-    from .teacher import (
-        TeacherInClassScheduleResponse,
-        TeacherInScheduleResponseMini,
-    )
-
+    from uuid import UUID
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -52,8 +52,8 @@ class ClassScheduleBase(BaseModel):
 class ClassScheduleCreate(ClassScheduleBase):
     """Esquema para crear un horario recurrente."""
 
-    gym_class_id: uuid.UUID
-    teacher_id: uuid.UUID
+    gym_class_id: UUID
+    teacher_id: UUID
 
 
 # --------------------------------------------------------------------------- #
@@ -69,8 +69,8 @@ class ClassScheduleUpdate(BaseModel):
     capacity: int | None = None
     start_date: date | None = None
     end_date: date | None = None
-    gym_class_id: uuid.UUID | None = None
-    teacher_id: uuid.UUID | None = None
+    gym_class_id: UUID | None = None
+    teacher_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -88,9 +88,9 @@ class ClassSchedule(ClassScheduleBase):
         • sesiones futuras.
     """
 
-    id: uuid.UUID
-    gym_class_id: uuid.UUID
-    teacher_id: uuid.UUID
+    id: UUID
+    gym_class_id: UUID
+    teacher_id: UUID
 
     gym_class: GymClassInClassScheduleResponse
     teacher: TeacherInClassScheduleResponse
@@ -111,18 +111,21 @@ class ClassSchedulePublic(BaseModel):
         • TeacherPublic
         • GymClassWithSchedules
         • listados públicos.
+        * teacher
+        * allowed plan
     """
 
-    id: uuid.UUID
+    id: UUID
     days_of_week: list[int]
     start_time: time
     duration_minutes: int
     capacity: int
 
     gym_class: GymClassPublic
+    teacher: TeacherInClassScheduleResponse
+    allowed_plan: AllowedPlan | None = None
 
     model_config = ConfigDict(from_attributes=True)
-
 
 # --------------------------------------------------------------------------- #
 # 6. Esquema compacto dentro de ClassSession
@@ -144,11 +147,12 @@ class ClassScheduleInClassSessionResponse(BaseModel):
 class NextSessionInfo(BaseModel):
     """Información calculada sobre la próxima sesión futura."""
 
+    session_id: UUID
     starts_at: datetime
     available_spots: int
+    current_bookings_count: int
 
     model_config = ConfigDict(from_attributes=True)
-
 
 # --------------------------------------------------------------------------- #
 # 8. Extensión con próxima sesión

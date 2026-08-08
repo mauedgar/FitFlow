@@ -14,10 +14,9 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.crud.base import CRUDBase
 from app.models.teacher import Teacher
 from app.schemas.teacher import TeacherCreate, TeacherUpdate
-
-from .base import CRUDBase
 
 if TYPE_CHECKING:
     from uuid import UUID

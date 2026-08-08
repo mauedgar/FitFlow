@@ -11,23 +11,24 @@ Incluye:
 
 from __future__ import annotations
 
+from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Evitar circularidad
+from app.core.enums import ClassSessionStatus  # noqa: TC001
+from app.schemas.class_schedule import (
+    ClassScheduleInClassSessionResponse,  # noqa: TC001
+    ClassSchedulePublic,  # noqa: TC001
+    NextSessionInfo,  # noqa: TC001
+)
+
+# Evitar circularidad: booking.py importa class_session.py
 if TYPE_CHECKING:
-    import uuid
-    from datetime import datetime
 
-    from backend.app.core.enums import ClassSessionStatus
+    from app.schemas.booking import BookingPublic
 
-    from .booking import BookingPublic
-    from .class_schedule import (
-        ClassScheduleInClassSessionResponse,
-        ClassSchedulePublic,
-        NextSessionInfo,
-    )
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -50,7 +51,7 @@ class ClassSessionBase(BaseModel):
 class ClassSessionCreate(ClassSessionBase):
     """Esquema para crear una sesión individual."""
 
-    class_schedule_id: uuid.UUID
+    class_schedule_id: UUID
 
 
 # --------------------------------------------------------------------------- #
@@ -80,15 +81,16 @@ class ClassSession(ClassSessionBase):
         • campos calculados de disponibilidad.
     """
 
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
+    id: UUID
+    class_schedule_id: UUID
 
     class_schedule: ClassSchedulePublic
-    bookings: list[BookingPublic] = Field(default_factory=list)
+    bookings: list["BookingPublic"] = Field(default_factory=list)  # noqa: UP037
 
     current_bookings_count: int = 0
     available_spots: int = 0
     capacity_snapshot: int
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -105,12 +107,13 @@ class ClassSessionPublic(ClassSessionBase):
         • listados públicos de sesiones.
     """
 
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
+    id: UUID
+    class_schedule_id: UUID
 
     current_bookings_count: int = 0
     available_spots: int = 0
     capacity_snapshot: int
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -154,8 +157,8 @@ class ClassSessionInResponse(ClassSessionBase):
     Incluye campos calculados pero no relaciones completas.
     """
 
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
+    id: UUID
+    class_schedule_id: UUID
 
     current_bookings_count: int = 0
     available_spots: int = 0
@@ -173,11 +176,12 @@ class ClassSessionInBookingResponse(ClassSessionBase):
     Incluye solo la relación mínima necesaria.
     """
 
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
+    id: UUID
+    class_schedule_id: UUID
     class_schedule: ClassScheduleInClassSessionResponse
 
     model_config = ConfigDict(from_attributes=True)
+
 
 # --------------------------------------------------------------------------- #
 # 10. Sesión completa con todas las relaciones (detalle)
@@ -198,19 +202,25 @@ class ClassSessionWithRelations(ClassSessionBase):
         • dashboards internos
     """
 
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
+    id: UUID
+    class_schedule_id: UUID
 
-    # Relaciones completas
     class_schedule: ClassSchedulePublic
     gym_class: ClassSchedulePublic.gym_class.__class__  # type: ignore[attr-defined]
     teacher: ClassSchedulePublic.teacher.__class__  # type: ignore[attr-defined]
 
-    bookings: list[BookingPublic] = Field(default_factory=list)
+    bookings: list["BookingPublic"] = Field(default_factory=list)  # noqa: UP037
 
-    # Campos calculados
     capacity_snapshot: int
     current_bookings_count: int = 0
     available_spots: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 11. Resolver forward refs
+# --------------------------------------------------------------------------- #
+
+ClassSession.model_rebuild()
+ClassSessionWithRelations.model_rebuild()

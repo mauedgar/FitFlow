@@ -16,12 +16,11 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
-from .base import IDSchema, SoftDeleteSchema, TimestampSchema
+from app.core.enums import ActivityType, DifficultyLevel  # noqa: TC001
+from app.schemas.base import IDSchema, SoftDeleteSchema, TimestampSchema
 
 if TYPE_CHECKING:
-    from backend.app.core.enums import ActivityType, DifficultyLevel
-
-    from .class_schedule import ClassSchedulePublic
+    from app.schemas.class_schedule import ClassSchedulePublic
 
 # ruff: noqa: PIE790
 # --------------------------------------------------------------------------- #
@@ -69,8 +68,6 @@ class GymClassUpdate(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    class Config:  # noqa: D106
-        from_attributes = True
 
 # --------------------------------------------------------------------------- #
 # 4. Respuesta completa (privada/operativa)

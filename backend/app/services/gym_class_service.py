@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from app import schemas
+from app.schemas.gym_class import GymClassPublic, GymClassWithSchedules
 from app.services.class_schedule_service import to_class_schedule_public
 
 if TYPE_CHECKING:
@@ -21,9 +21,9 @@ if TYPE_CHECKING:
 # 1. Transformación automática: GymClass → GymClassPublic
 # --------------------------------------------------------------------------- #
 
-def to_gym_class_public(gym_class: GymClass) -> schemas.GymClassPublic:
+def to_gym_class_public(gym_class: GymClass) -> GymClassPublic:
     """Transforma un modelo ORM GymClass en su versión pública."""
-    return schemas.GymClassPublic(
+    return GymClassPublic(
         id=gym_class.id,
         name=gym_class.name,
         description=gym_class.description,
@@ -36,14 +36,14 @@ def to_gym_class_public(gym_class: GymClass) -> schemas.GymClassPublic:
 # 2. Extender GymClass con horarios públicos
 # --------------------------------------------------------------------------- #
 
-def to_gym_class_with_schedules(gym_class: GymClass) -> schemas.GymClassWithSchedules:
+def to_gym_class_with_schedules(gym_class: GymClass) -> GymClassWithSchedules:
     """Extiende GymClass con sus horarios públicos asociados."""
     schedules = [
         to_class_schedule_public(s)
         for s in gym_class.class_schedules
     ]
 
-    return schemas.GymClassWithSchedules(
+    return GymClassWithSchedules(
         **to_gym_class_public(gym_class).model_dump(),
         schedules=schedules,
     )

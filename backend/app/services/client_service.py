@@ -13,10 +13,19 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from app import schemas
 from app.services.booking_service import to_booking_public
+from backend.app.crud import user_crud
+from backend.app.schemas.client import (
+    ClientPublic,
+    ClientWithActivity,
+    ClientWithBookings,
+    ClientWithMembership,
+    ClientWithStats,
+)
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
     from app.models import Booking, Client, Membership
 
 
@@ -24,9 +33,9 @@ if TYPE_CHECKING:
 # 1. Transformación automática: Client → ClientPublic
 # --------------------------------------------------------------------------- #
 
-def to_client_public(client: Client) -> schemas.ClientPublic:
+def to_client_public(client: Client) -> ClientPublic:
     """Versión pública del cliente."""
-    return schemas.ClientPublic(
+    return ClientPublic(
         id=client.id, # pyright: ignore[reportArgumentType]
         full_name=client.full_name, # pyright: ignore[reportAttributeAccessIssue]
         email=client.user.email, # pyright: ignore[reportArgumentType]
@@ -40,11 +49,11 @@ def to_client_public(client: Client) -> schemas.ClientPublic:
 # 2. Extender Client con reservas públicas
 # --------------------------------------------------------------------------- #
 
-def to_client_with_bookings(client: Client) -> schemas.ClientWithBookings:
+def to_client_with_bookings(client: Client) -> ClientWithBookings:
     """Extiende el cliente con sus reservas públicas."""
     bookings = [to_booking_public(b) for b in client.bookings]
 
-    return schemas.ClientWithBookings(
+    return ClientWithBookings(
         **to_client_public(client).model_dump(),
         bookings=bookings,
     )
@@ -54,11 +63,11 @@ def to_client_with_bookings(client: Client) -> schemas.ClientWithBookings:
 # 3. Extender Client con membresía activa
 # --------------------------------------------------------------------------- #
 
-def to_client_with_membership(client: Client) -> schemas.ClientWithMembership:
+def to_client_with_membership(client: Client) -> ClientWithMembership:
     """Extiende el cliente con su membresía activa."""
     membership: Membership | None = client.membership
 
-    return schemas.ClientWithMembership(
+    return ClientWithMembership(
         **to_client_public(client).model_dump(),
         membership=membership, # pyright: ignore[reportArgumentType]
     )
@@ -125,12 +134,12 @@ def get_client_daily_activity(client: Client) -> int:
 # 6. Extender Client con estadísticas completas
 # --------------------------------------------------------------------------- #
 
-def to_client_with_stats(client: Client) -> schemas.ClientWithStats:
+def to_client_with_stats(client: Client) -> ClientWithStats:
     """Extiende el cliente con estadísticas completas."""
     total_bookings = get_client_total_bookings(client)
     upcoming = get_client_upcoming_bookings(client)
 
-    return schemas.ClientWithStats(
+    return ClientWithStats(
         **to_client_public(client).model_dump(),
         total_bookings=total_bookings,
         upcoming_bookings=[to_booking_public(b) for b in upcoming],
@@ -141,7 +150,7 @@ def to_client_with_stats(client: Client) -> schemas.ClientWithStats:
 # 7. Extender Client con actividad completa (dashboard)
 # --------------------------------------------------------------------------- #
 
-def to_client_with_activity(client: Client) -> schemas.ClientWithActivity:
+def to_client_with_activity(client: Client) -> ClientWithActivity:
     """Extiende el cliente con toda su actividad operativa."""
     today = get_client_bookings_today(client)
     week = get_client_bookings_this_week(client)
@@ -149,7 +158,7 @@ def to_client_with_activity(client: Client) -> schemas.ClientWithActivity:
     past = get_client_past_bookings(client)
     active = get_client_active_bookings(client)
 
-    return schemas.ClientWithActivity(
+    return ClientWithActivity(
         **to_client_public(client).model_dump(),
         bookings_today=[to_booking_public(b) for b in today],
         bookings_this_week=[to_booking_public(b) for b in week],
@@ -157,3 +166,11 @@ def to_client_with_activity(client: Client) -> schemas.ClientWithActivity:
         past_bookings=[to_booking_public(b) for b in past],
         active_bookings=[to_booking_public(b) for b in active],
     )
+
+async def unlink_user_profile(db: AsyncSession, client: Client) -> None:
+    """Desasocia el perfil Person del User vinculado al cliente."""
+    user = await user_crud.get(db=db, obj_id=client.user.id) # pyright: ignore[reportArgumentType]
+    if user:
+        user.person_profile = None   # pyright: ignore[reportAttributeAccessIssue]
+        db.add(user)
+        await db.commit()

@@ -13,7 +13,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from app import schemas
+from app.schemas.teacher import (
+    TeacherPublic,
+    TeacherWithMetrics,
+    TeacherWithNextSession,
+    TeacherWithSchedules,
+)
 from app.services.class_schedule_service import (
     get_schedule_next_session,
     to_class_schedule_public,
@@ -27,9 +32,9 @@ if TYPE_CHECKING:
 # 1. Transformación automática: Teacher → TeacherPublic
 # --------------------------------------------------------------------------- #
 
-def to_teacher_public(teacher: Teacher) -> schemas.TeacherPublic:
+def to_teacher_public(teacher: Teacher) -> TeacherPublic:
     """Transforma un modelo ORM Teacher en un esquema público."""
-    return schemas.TeacherPublic(
+    return TeacherPublic(
         id=teacher.id, # pyright: ignore[reportArgumentType]
         first_name=teacher.first_name, # pyright: ignore[reportArgumentType]
         last_name=teacher.last_name, # pyright: ignore[reportArgumentType]
@@ -111,11 +116,11 @@ def get_teacher_average_occupancy(teacher: Teacher) -> float:
 # 5. Extender Teacher con horarios públicos
 # --------------------------------------------------------------------------- #
 
-def to_teacher_with_schedules(teacher: Teacher) -> schemas.TeacherWithSchedules:
+def to_teacher_with_schedules(teacher: Teacher) -> TeacherWithSchedules:
     """Extiende el profesor con sus horarios públicos."""
     schedules = [to_class_schedule_public(s) for s in teacher.class_schedules]
 
-    return schemas.TeacherWithSchedules(
+    return TeacherWithSchedules(
         **to_teacher_public(teacher).model_dump(),
         schedules=schedules,
     )
@@ -125,7 +130,7 @@ def to_teacher_with_schedules(teacher: Teacher) -> schemas.TeacherWithSchedules:
 # 6. Extender Teacher con próxima sesión futura
 # --------------------------------------------------------------------------- #
 
-def to_teacher_with_next_session(teacher: Teacher) -> schemas.TeacherWithNextSession:
+def to_teacher_with_next_session(teacher: Teacher) -> TeacherWithNextSession:
     """Extiende el profesor con su próxima sesión futura."""
     next_sessions = [
         get_schedule_next_session(s)
@@ -138,9 +143,9 @@ def to_teacher_with_next_session(teacher: Teacher) -> schemas.TeacherWithNextSes
         default=None,
     )
 
-    return schemas.TeacherWithNextSession(
+    return TeacherWithNextSession(
         **to_teacher_public(teacher).model_dump(),
-        next_upcoming_session=next_upcoming,
+        next_session=next_upcoming,
     )
 
 
@@ -148,9 +153,9 @@ def to_teacher_with_next_session(teacher: Teacher) -> schemas.TeacherWithNextSes
 # 7. Extender Teacher con métricas operativas
 # --------------------------------------------------------------------------- #
 
-def to_teacher_with_metrics(teacher: Teacher) -> schemas.TeacherWithMetrics:
+def to_teacher_with_metrics(teacher: Teacher) -> TeacherWithMetrics:
     """Extiende el profesor con métricas operativas para dashboards."""
-    return schemas.TeacherWithMetrics(
+    return TeacherWithMetrics(
         **to_teacher_public(teacher).model_dump(),
         total_classes=get_teacher_total_classes(teacher),
         future_sessions=get_teacher_future_sessions_count(teacher),

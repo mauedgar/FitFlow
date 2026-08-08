@@ -16,10 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.security import get_password_hash
+from app.crud.base import CRUDBase
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
-
-from .base import CRUDBase
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -80,7 +79,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         """Crea un usuario autenticable con contraseña hasheada."""
         data = obj_in.model_dump()
 
-        db_obj = User(  # type: ignore[call-arg]
+        db_obj = User(
             email=data["email"], # pyright: ignore[reportCallIssue]
             hashed_password=get_password_hash(data["password"]), # pyright: ignore[reportCallIssue]
             role=data.get("role"), # pyright: ignore[reportCallIssue]
@@ -110,4 +109,5 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         return await super().update(db, db_obj=db_obj, obj_in=update_data)
 
 
-user = CRUDUser(User)
+# Instancia final del CRUD (importar esta en deps y auth_service)
+user_crud = CRUDUser(User)
