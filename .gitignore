@@ -5,8 +5,11 @@ __pycache__/
 
 # C extensions
 *.so
-
+**/package-lock.json
 # Distribution / packaging
+**/yarn.lock
+**/pnpm-lock.yaml
+**/bun.lockb
 .Python
 build/
 develop-eggs/
@@ -31,11 +34,18 @@ MANIFEST
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
-
+package-lock.json
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
+.venv*/
+.venv_backend/
+.venv_sourcetrail/
+.venv_tools/
+internos/
+historico/
 
+script/
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -50,6 +60,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+node_modules/
 
 # Translations
 *.mo
@@ -74,7 +85,8 @@ docs/_build/
 # PyBuilder
 .pybuilder/
 target/
-
+IDE/
+versions/
 # Jupyter Notebook
 .ipynb_checkpoints
 

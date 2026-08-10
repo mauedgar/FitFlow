@@ -1,15 +1,5 @@
 backend
 ├── alembic
-│   ├── versions
-│   │   ├── 38d9796100f0_update_enums.py
-│   │   ├── 3a6ad3ed45ab_rename_enum_types.py
-│   │   ├── 582ac5ff4673_update_client_membership.py
-│   │   ├── 6beb1fc321fd_fix_gym_class_default_capacity.py
-│   │   ├── a2b62b427037_check_enum_bookingstatus.py
-│   │   ├── d5f64f472402_add_classschedule_classsession_booking_.py
-│   │   ├── de9d327bfe41_initial_database_schema.py
-│   │   ├── f287ebba9f43_check_enum_bookingstatus.py
-│   │   └── f5453ed20cdc_core_domain_refactor.py
 │   ├── __init__.py
 │   ├── env.py
 │   ├── README
@@ -92,7 +82,6 @@ backend
 │   │   ├── teacher.py
 │   │   ├── token.py
 │   │   └── user.py
-│   ├── scripts
 │   ├── services
 │   │   ├── __init__.py
 │   │   ├── auth_service.py

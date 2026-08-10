@@ -1,187 +1,788 @@
+from __future__ import annotations
+
 import logging
+import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from shutil import move
 
-from PIL import Image, ImageDraw, ImageFont  # pyright: ignore[reportMissingImports]
+# ============================================================
+# CONFIGURACIÓN
+# ============================================================
 
-# ruff: noqa: BLE001
-
-IGNORAR = {
-    ".git",
-    ".venv",
-    ".venv_backend",
-    "__pycache__",
-    ".mypy_cache",
-    ".pytest_cache",
-    "node_modules",
-    ".idea",
-    ".vscode",
-    "dist",
-    "build",
-    ".cache",
-    ".ruff_cache",
-    ".coverage",
-}
-# ---------------------------------------------------------
-# Configuración del logger
-# ---------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
+
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------
-# Construcción del árbol de directorios
-# ---------------------------------------------------------
-def build_tree(root: Path, prefix: str = "") -> list[str]:
-    """Construye un árbol de directorios en formato texto.
+# ============================================================
+# DIRECTORIOS A IGNORAR
+# ============================================================
 
-    Args:
-        root (Path): Directorio raíz desde donde se construye el árbol.
-        prefix (str): Prefijo visual para representar niveles del árbol.
+IGNORAR_DIRECTORIOS: set[str] = {
+    # Control de versiones
+    ".git",
+    "versions",
 
-    Returns:
-        list[str]: Líneas que representan el árbol completo.
+    # Entornos Python
+    ".venv",
+    ".venv_backend",
+    ".venv_sourcetrail",
+    "Fitflow.srctrlbm",
+    "Fitflow.srctrldb",
+    "Fitflow.srctrlprj",
+    "venv",
+    "env",
 
-    """
-    lines = [root.name]
-    children = sorted(
-        [p for p in root.iterdir() if p.name not in IGNORAR],
-        key=lambda p: (p.is_file(), p.name.lower()),
+    # Scripts auxiliares
+    "scripts",
+
+    # Python / tooling
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".nox",
+
+    # Node / frontend
+    "node_modules",
+    ".next",
+    ".nuxt",
+    ".turbo",
+
+    # IDE
+    ".idea",
+    ".vscode",
+
+    # Build / distribución
+    "dist",
+    "build",
+    "out",
+    "target",
+
+    # Cachés
+    ".cache",
+    ".parcel-cache",
+
+    # Coverage
+    ".coverage",
+    "htmlcov",
+}
+
+
+# ============================================================
+# ARCHIVOS A IGNORAR
+# ============================================================
+
+IGNORAR_ARCHIVOS: set[str] = {
+    ".DS_Store",
+    "Thumbs.db",
+}
+
+
+IGNORAR_EXTENSIONES: set[str] = {
+    ".pyc",
+    ".pyo",
+    ".log",
+    ".tmp",
+    ".temp",
+}
+
+
+# ============================================================
+# RUTAS GENERADAS POR ESTE SISTEMA
+# ============================================================
+
+# Estas rutas NO deben aparecer dentro de los árboles.
+#
+# Especialmente importante para evitar que los TXT generados
+# terminen describiéndose a sí mismos en la siguiente ejecución.
+IGNORAR_RUTAS_RELATIVAS: set[Path] = {
+    Path("docs/arquitectura/Estructura directorios"),
+    Path("docs/historico/arquitectura"),
+}
+
+
+# ============================================================
+# PROTECCIÓN CONTRA DIRECTORIOS EXTREMADAMENTE POBLADOS
+# ============================================================
+
+MAX_ELEMENTOS_POR_DIRECTORIO = 150
+
+
+# ============================================================
+# VALIDACIÓN DE FECHAS
+# ============================================================
+
+FECHA_RE = re.compile(r"^\d{2}-\d{2}-\d{2}$")
+
+
+# ============================================================
+# FILTROS
+# ============================================================
+
+def es_directorio_ignorado(
+    path: Path,
+    raiz: Path,
+) -> bool:
+    """Determina si un directorio debe excluirse del árbol."""
+    if path.name in IGNORAR_DIRECTORIOS:
+        return True
+
+    try:
+        relativa = path.relative_to(raiz)
+    except ValueError:
+        return False
+
+    return any(
+        relativa == ruta or ruta in relativa.parents
+        for ruta in IGNORAR_RUTAS_RELATIVAS
     )
 
-    for i, path in enumerate(children):
-        last = i == len(children) - 1
-        branch = "└── " if last else "├── "
-        lines.append(prefix + branch + path.name)
 
-        if path.is_dir():
-            extension = "    " if last else "│   "
-            sub = build_tree(path, prefix + extension)
+def es_archivo_ignorado(path: Path) -> bool:
+    """Determina si un archivo debe excluirse del árbol."""
+    if path.name in IGNORAR_ARCHIVOS:
+        return True
+
+    return path.suffix.lower() in IGNORAR_EXTENSIONES
+
+
+# ============================================================
+# LECTURA SEGURA DE DIRECTORIOS
+# ============================================================
+
+def obtener_hijos_visibles(
+    carpeta: Path,
+    raiz: Path,
+) -> list[Path]:
+    """Obtiene los elementos visibles de una carpeta.
+
+    Los errores de permisos o filesystem no interrumpen
+    todo el proceso.
+    """
+    try:
+        hijos = list(carpeta.iterdir())
+
+    except PermissionError:
+        logger.warning(
+            "Sin permisos para leer: %s",
+            carpeta,
+        )
+        return []
+
+    except FileNotFoundError:
+        logger.warning(
+            "La carpeta desapareció durante el recorrido: %s",
+            carpeta,
+        )
+        return []
+
+    except OSError as exc:
+        logger.warning(
+            "No se pudo leer %s: %s",
+            carpeta,
+            exc,
+        )
+        return []
+
+    visibles: list[Path] = []
+
+    for path in hijos:
+        try:
+            if path.is_dir():
+                if es_directorio_ignorado(path, raiz):
+                    continue
+
+                visibles.append(path)
+                continue
+
+            if path.is_file() and not es_archivo_ignorado(path):
+                visibles.append(path)
+
+        except OSError as exc:
+            logger.warning(
+                "No se pudo inspeccionar %s: %s",
+                path,
+                exc,
+            )
+
+    return sorted(
+        visibles,
+        key=lambda p: (
+            p.is_file(),
+            p.name.lower(),
+        ),
+    )
+
+
+# ============================================================
+# CONSTRUCCIÓN DEL ÁRBOL
+# ============================================================
+
+def build_tree(
+    root: Path,
+    raiz_proyecto: Path | None = None,
+    prefix: str = "",
+) -> list[str]:
+    """Construye el árbol de una carpeta.
+
+    Se excluyen:
+        - caches
+        - entornos virtuales
+        - node_modules
+        - builds
+        - IDEs
+        - históricos
+        - documentación generada
+
+    Las carpetas extremadamente pobladas se resumen.
+    """
+    if raiz_proyecto is None:
+        raiz_proyecto = root
+
+    lines = [root.name]
+
+    hijos = obtener_hijos_visibles(
+        root,
+        raiz_proyecto,
+    )
+
+    total_hijos = len(hijos)
+
+    # --------------------------------------------------------
+    # Directorio excesivamente poblado
+    # --------------------------------------------------------
+
+    if total_hijos > MAX_ELEMENTOS_POR_DIRECTORIO:
+
+        logger.info(
+            "Directorio muy poblado: %s (%d elementos). "
+            "Se mostrará resumido.",
+            root,
+            total_hijos,
+        )
+
+        elementos_mostrados = hijos[
+            :MAX_ELEMENTOS_POR_DIRECTORIO
+        ]
+
+        for index, path in enumerate(
+            elementos_mostrados,
+        ):
+            last = (
+                index
+                == len(elementos_mostrados) - 1
+            )
+
+            branch = (
+                "└── "
+                if last
+                else "├── "
+            )
+
+            lines.append(
+                prefix
+                + branch
+                + path.name,
+            )
+
+        restantes = (
+            total_hijos
+            - MAX_ELEMENTOS_POR_DIRECTORIO
+        )
+
+        lines.append(
+            prefix
+            + "└── "
+            + f"[... {restantes} elementos omitidos]",
+        )
+
+        return lines
+
+    # --------------------------------------------------------
+    # Recorrido normal
+    # --------------------------------------------------------
+
+    for index, path in enumerate(hijos):
+
+        last = index == len(hijos) - 1
+
+        branch = (
+            "└── "
+            if last
+            else "├── "
+        )
+
+        lines.append(
+            prefix
+            + branch
+            + path.name,
+        )
+
+        if not path.is_dir():
+            continue
+
+        extension = (
+            "    "
+            if last
+            else "│   "
+        )
+
+        try:
+            sub = build_tree(
+                path,
+                raiz_proyecto=raiz_proyecto,
+                prefix=prefix + extension,
+            )
+
             lines.extend(sub[1:])
+
+        except RecursionError:
+            logger.exception(
+                "Se alcanzó el límite de recursión en: %s",
+                path,
+            )
+
+            lines.append(
+                prefix
+                + extension
+                + "└── [... recorrido interrumpido]",
+            )
+
+        except OSError as exc:
+            logger.warning(
+                "Error recorriendo %s: %s",
+                path,
+                exc,
+            )
+
+            lines.append(
+                prefix
+                + extension
+                + "└── [... acceso no disponible]",
+            )
 
     return lines
 
 
-# ---------------------------------------------------------
-# Generación de imagen PNG
-# ---------------------------------------------------------
-def generar_imagen(lines: list[str], destino: Path) -> None:
-    """Genera una imagen PNG con el contenido del árbol de directorios.
+# ============================================================
+# HISTÓRICO
+# ============================================================
 
-    Args:
-        lines (list[str]): Líneas del árbol de directorios.
-        destino (Path): Ruta donde se guardará la imagen.
+def extraer_fecha_desde_nombre(
+    archivo: Path,
+) -> str | None:
+    """Extrae la fecha dd-mm-yy del final del nombre.
 
+    Ejemplo:
+        FitFlow_estructura_backend_08-08-26.txt
     """
-    font = ImageFont.load_default()
-    padding = 20
-    line_height = 16
+    partes = archivo.stem.split("_")
 
-    width = max(font.getlength(line) for line in lines) + padding * 2
-    height = len(lines) * line_height + padding * 2
+    if len(partes) < 3:  # noqa: PLR2004
+        return None
 
-    img = Image.new("RGB", (int(width), int(height)), "white")
-    draw = ImageDraw.Draw(img)
+    fecha = partes[-1]
 
-    y = padding
-    for line in lines:
-        draw.text((padding, y), line, fill="black", font=font)
-        y += line_height
+    if not FECHA_RE.fullmatch(fecha):
+        return None
 
-    img.save(destino)
+    return fecha
 
 
-# ---------------------------------------------------------
-# Mover archivos antiguos al histórico
-# ---------------------------------------------------------
-def mover_a_historico_si_corresponde(carpeta_origen: Path, carpeta_hist_base: Path, fecha_hoy: str) -> None:
-    """Mueve archivos antiguos al histórico según su fecha en el nombre.
+def mover_a_historico_si_corresponde(  # noqa: C901, PLR0912
+    carpeta_origen: Path,
+    carpeta_hist_base: Path,
+    fecha_hoy: str,
+) -> None:
+    """Mueve TXT anteriores al histórico.
 
-    Args:
-        carpeta_origen (Path): Carpeta donde están los archivos actuales.
-        carpeta_hist_base (Path): Carpeta base del histórico.
-        fecha_hoy (str): Fecha actual en formato dd-mm-yy.
+    Los archivos del día actual se eliminan para poder
+    regenerarlos.
 
+    Los archivos con nombres inesperados se conservan.
     """
-    for archivo in carpeta_origen.iterdir():
+    try:
+        archivos = list(
+            carpeta_origen.iterdir(),
+        )
+
+    except FileNotFoundError:
+        logger.info(
+            "No existe todavía la carpeta: %s",
+            carpeta_origen,
+        )
+        return
+
+    except PermissionError:
+        logger.exception(
+            "Sin permisos para leer: %s",
+            carpeta_origen,
+        )
+        return
+
+    except OSError as exc:
+        logger.exception(
+            "No se pudo leer %s: %s",
+            carpeta_origen,
+            exc,  # noqa: TRY401
+        )
+        return
+
+    for archivo in archivos:
+
         if not archivo.is_file():
             continue
 
-        partes = archivo.stem.split("_")
-        fecha_archivo = partes[-1] if len(partes) >= 3 else None  # noqa: PLR2004
+        # ----------------------------------------------------
+        # Solo procesar TXT
+        # ----------------------------------------------------
 
-        if fecha_archivo != fecha_hoy:
-            carpeta_hist = carpeta_hist_base / fecha_archivo # pyright: ignore[reportOperatorIssue]
-            carpeta_hist.mkdir(parents=True, exist_ok=True)
+        if archivo.suffix.lower() != ".txt":
+            continue
 
-            subcarpeta = "TXT" if archivo.suffix == ".txt" else "PNG"
-            destino_final = carpeta_hist / subcarpeta
-            destino_final.mkdir(exist_ok=True)
+        fecha_archivo = (
+            extraer_fecha_desde_nombre(
+                archivo,
+            )
+        )
 
-            move(str(archivo), destino_final / archivo.name)
-            msg2 = f"Movido a histórico ({fecha_archivo}): {archivo.name}"
-            logger.info(msg2)
+        # ----------------------------------------------------
+        # Nombre inesperado
+        # ----------------------------------------------------
 
-        else:
-            archivo.unlink()
-            msg3=f"Reemplazado archivo del mismo día: {archivo.name}"
-            logger.info(msg3)
+        if fecha_archivo is None:
+
+            logger.warning(
+                "Archivo ignorado por no contener "
+                "una fecha válida: %s",
+                archivo.name,
+            )
+
+            continue
+
+        # ----------------------------------------------------
+        # Archivo del día actual
+        # ----------------------------------------------------
+
+        if fecha_archivo == fecha_hoy:
+
+            try:
+                archivo.unlink()
+
+                logger.info(
+                    "Archivo actual eliminado: %s",
+                    archivo.name,
+                )
+
+            except FileNotFoundError:
+                logger.warning(
+                    "El archivo ya no existe: %s",
+                    archivo,
+                )
+
+            except PermissionError:
+                logger.exception(
+                    "Sin permisos para eliminar: %s",
+                    archivo,
+                )
+
+            except OSError as exc:
+                logger.exception(
+                    "No se pudo eliminar %s: %s",
+                    archivo,
+                    exc,  # noqa: TRY401
+                )
+
+            continue
+
+        # ----------------------------------------------------
+        # Archivo histórico
+        # ----------------------------------------------------
+
+        carpeta_hist = (
+            carpeta_hist_base
+            / fecha_archivo
+            / "TXT"
+        )
+
+        try:
+            carpeta_hist.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+
+            destino = (
+                carpeta_hist
+                / archivo.name
+            )
+
+            # No sobrescribir históricos existentes.
+            if destino.exists():
+
+                logger.warning(
+                    "El archivo histórico ya existe: %s",
+                    destino,
+                )
+
+                continue
+
+            move(
+                str(archivo),
+                str(destino),
+            )
+
+            logger.info(
+                "Movido a histórico (%s): %s",
+                fecha_archivo,
+                archivo.name,
+            )
+
+        except FileNotFoundError:
+            logger.warning(
+                "El archivo desapareció antes de moverlo: %s",
+                archivo,
+            )
+
+        except PermissionError:
+            logger.exception(
+                "Sin permisos para mover: %s",
+                archivo,
+            )
+
+        except OSError as exc:
+            logger.exception(
+                "No se pudo mover %s: %s",
+                archivo,
+                exc,  # noqa: TRY401
+            )
 
 
-# ---------------------------------------------------------
+# ============================================================
+# GENERACIÓN DE TXT
+# ============================================================
+
+def generar_estructura(
+    nombre: str,
+    raiz: Path,
+    carpeta_txt: Path,
+    fecha_hoy: str,
+    raiz_proyecto: Path,
+) -> None:
+    """Genera un TXT para una estructura concreta."""
+    if not raiz.exists():
+
+        logger.warning(
+            "La ruta no existe, se omite: %s",
+            raiz,
+        )
+
+        return
+
+    if not raiz.is_dir():
+
+        logger.warning(
+            "La ruta no es un directorio, se omite: %s",
+            raiz,
+        )
+
+        return
+
+    try:
+
+        arbol = build_tree(
+            raiz,
+            raiz_proyecto=raiz_proyecto,
+        )
+
+    except Exception:
+        logger.exception(
+            "Error construyendo estructura: %s",
+            raiz,
+        )
+
+        return
+
+    archivo_txt = (
+        carpeta_txt
+        / f"FitFlow_estructura_{nombre}_{fecha_hoy}.txt"
+    )
+
+    try:
+
+        archivo_txt.write_text(
+            "\n".join(arbol),
+            encoding="utf-8",
+        )
+
+        logger.info(
+            "TXT generado: %s",
+            archivo_txt.name,
+        )
+
+    except OSError as exc:
+
+        logger.exception(
+            "No se pudo escribir %s: %s",
+            archivo_txt,
+            exc,  # noqa: TRY401
+        )
+
+
+# ============================================================
 # MAIN
-# ---------------------------------------------------------
-if __name__ == "__main__":
-    CARPETA_SCRIPTS = Path(__file__).resolve().parent
-    RAIZ_PROYECTO = CARPETA_SCRIPTS.parent
+# ============================================================
 
-    BASE = RAIZ_PROYECTO / "docs" / "arquitectura" / "Estructura directorios"
-    BASE.mkdir(parents=True, exist_ok=True)
+def main() -> None:
+    """Punto de entrada principal."""
+    carpeta_scripts = (
+        Path(__file__).resolve().parent
+    )
 
-    CARPETA_TXT = BASE / "TXT"
-    CARPETA_PNG = BASE / "PNG"
-    CARPETA_TXT.mkdir(exist_ok=True)
-    CARPETA_PNG.mkdir(exist_ok=True)
+    raiz_proyecto = (
+        carpeta_scripts.parent
+    )
 
-    fecha_hoy = datetime.now(tz=timezone.utc).strftime("%d-%m-%y")
+    # --------------------------------------------------------
+    # Directorio de documentación
+    # --------------------------------------------------------
 
-    HISTORICO_BASE = RAIZ_PROYECTO / "docs" / "historico" / "arquitectura"
-    HISTORICO_BASE.mkdir(parents=True, exist_ok=True)
+    base = (
+        raiz_proyecto
+        / "docs"
+        / "arquitectura"
+        / "Estructura directorios"
+    )
 
-    mover_a_historico_si_corresponde(CARPETA_TXT, HISTORICO_BASE, fecha_hoy)
-    mover_a_historico_si_corresponde(CARPETA_PNG, HISTORICO_BASE, fecha_hoy)
+    carpeta_txt = base / "TXT"
+
+    historico_base = (
+        raiz_proyecto
+        / "docs"
+        / "historico"
+        / "arquitectura"
+    )
+
+    # --------------------------------------------------------
+    # Crear directorios necesarios
+    # --------------------------------------------------------
+
+    try:
+
+        carpeta_txt.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        historico_base.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+    except OSError as exc:
+
+        logger.critical(
+            "No se pudieron crear las carpetas necesarias: %s",
+            exc,
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # Fecha
+    # --------------------------------------------------------
+
+    fecha_hoy = datetime.now(
+        tz=timezone.utc
+    ).strftime("%d-%m-%y")
+
+    # --------------------------------------------------------
+    # Histórico
+    # --------------------------------------------------------
+
+    mover_a_historico_si_corresponde(
+        carpeta_txt,
+        historico_base,
+        fecha_hoy,
+    )
+
+    # --------------------------------------------------------
+    # SOLO BACKEND Y FRONTEND
+    # --------------------------------------------------------
 
     estructuras = {
-        "general": build_tree(RAIZ_PROYECTO),
-        "frontend": build_tree(RAIZ_PROYECTO / "frontend"),
-        "backend": build_tree(RAIZ_PROYECTO / "backend"),
+        "backend": raiz_proyecto / "backend",
+        "frontend": raiz_proyecto / "frontend",
     }
 
-    for nombre, arbol in estructuras.items():
-        archivo_txt = CARPETA_TXT / f"FitFlow_estructura_{nombre}_{fecha_hoy}.txt"
-        archivo_txt.write_text("\n".join(arbol), encoding="utf-8")
-        msg4=f"TXT generado: {archivo_txt.name}"
-        logger.info(msg4)
+    # --------------------------------------------------------
+    # Generación
+    # --------------------------------------------------------
 
-        archivo_png = CARPETA_PNG / f"FitFlow_estructura_{nombre}_{fecha_hoy}.png"
-        generar_imagen(arbol, archivo_png)
-        msg5=f"PNG generado: {archivo_png.name}"
-        logger.info(msg5)
+    for nombre, raiz in estructuras.items():
 
-    logger.info("Proceso completado con histórico y nuevas estructuras generadas.")
+        generar_estructura(
+            nombre=nombre,
+            raiz=raiz,
+            carpeta_txt=carpeta_txt,
+            fecha_hoy=fecha_hoy,
+            raiz_proyecto=raiz_proyecto,
+        )
 
-    respuesta = input(f"\n¿Querés abrir la carpeta destino?\n{BASE}\n(S/N): ").strip().lower()
-    if respuesta == "s":
-        try:
-            import os
-            os.startfile(BASE)  # Windows  # noqa: S606
-        except Exception:
-            try:
-                import subprocess
-                subprocess.run(["open", BASE])  # macOS  # noqa: PLW1510, S603, S607
-            except Exception:
-                subprocess.run(["xdg-open", BASE])  # Linux  # noqa: PLW1510, S603, S607
+    logger.info(
+        "Proceso completado. "
+        "Se generaron únicamente las estructuras "
+        "de backend y frontend."
+    )
+
+    # --------------------------------------------------------
+    # Abrir carpeta destino
+    # --------------------------------------------------------
+
+    try:
+
+        respuesta = input(
+            f"\n¿Querés abrir la carpeta destino?\n"
+            f"{base}\n"
+            "(S/N): "
+        ).strip().lower()
+
+    except (EOFError, KeyboardInterrupt):
+
+        logger.info(
+            "Ejecución finalizada sin abrir carpeta."
+        )
+
+        return
+
+    if respuesta != "s":
+        return
+
+    try:
+
+        if os.name == "nt":
+            os.startfile(base)  # type: ignore[attr-defined]
+
+        elif os.name == "darwin":
+            os.system(f'open "{base}"')  # noqa: S605
+
+        else:
+            os.system(f'xdg-open "{base}"')  # noqa: S605
+
+    except Exception:
+
+        logger.exception(
+            "No se pudo abrir automáticamente: %s",
+            base,
+        )
+
+
+if __name__ == "__main__":
+    main()
+
