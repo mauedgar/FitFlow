@@ -7,6 +7,7 @@ from app.models.class_session import ClassSession  # noqa: F401
 from app.models.client import Client  # noqa: F401
 from app.models.gym_class import GymClass  # noqa: F401
 from app.models.membership import Membership  # noqa: F401
+from app.models.person import Person  # noqa: F401
 from app.models.teacher import Teacher  # noqa: F401
 
 # Importa todos tus modelos aquí

@@ -1,5 +1,5 @@
-"""
-Schemas para User (Sprint 6–7)
+"""Schemas para User (Sprint 6-7).
+
 ------------------------------
 Incluye:
 • UserBase
@@ -10,21 +10,22 @@ Incluye:
 • UserWithProfile (extendido)
 • UserWithStats (extendido)
 """
-
+# ruff: noqa: UP037
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
+from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from ..models.user import UserRole
+from app.models.user import UserRole
 
-# Evitar circularidad
+# Evitar circularidad: client.py y teacher.py importan user.py
 if TYPE_CHECKING:
-    from .client import ClientPublic
-    from .teacher import TeacherPublic
+
+    from app.schemas.client import ClientPublic
+    from app.schemas.teacher import TeacherPublic
 
 
 # --------------------------------------------------------------------------- #
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
 
 class UserBase(BaseModel):
     """Campos comunes del usuario."""
+
     email: EmailStr
 
     model_config = ConfigDict(from_attributes=True)
@@ -44,6 +46,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """Esquema para crear un usuario."""
+
     password: str
     role: UserRole | None = UserRole.client
 
@@ -54,6 +57,7 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     """Esquema para actualizar parcialmente un usuario."""
+
     email: EmailStr | None = None
     password: str | None = None
     active: bool | None = None
@@ -67,14 +71,15 @@ class UserUpdate(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class User(UserBase):
-    """
-    Esquema privado del usuario.
+    """Esquema privado del usuario.
+
     Incluye:
         • timestamps
         • estado activo
-        • rol
+        • rol.
     """
-    id: uuid.UUID
+
+    id: UUID
     role: UserRole
     active: bool
     created_at: datetime
@@ -88,14 +93,15 @@ class User(UserBase):
 # --------------------------------------------------------------------------- #
 
 class UserPublic(BaseModel):
-    """
-    Versión pública del usuario.
+    """Versión pública del usuario.
+
     Usada en:
         • /users/me
         • /users/public
-        • frontend
+        • frontend.
     """
-    id: uuid.UUID
+
+    id: UUID
     email: EmailStr
     role: UserRole
     active: bool
@@ -108,13 +114,14 @@ class UserPublic(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class UserWithProfile(UserPublic):
+    """Extiende UserPublic con el perfil asociado.
+
+    • ClientPublic
+    • TeacherPublic
     """
-    Extiende UserPublic con el perfil asociado:
-        • ClientPublic
-        • TeacherPublic
-    """
-    client: ClientPublic | None = None  
-    teacher: TeacherPublic | None = None  
+
+    client: "ClientPublic | None" = None
+    teacher: "TeacherPublic | None" = None
 
 
 # --------------------------------------------------------------------------- #
@@ -122,12 +129,20 @@ class UserWithProfile(UserPublic):
 # --------------------------------------------------------------------------- #
 
 class UserWithStats(UserPublic):
-    """
-    Extiende UserPublic con estadísticas básicas.
+    """Extiende UserPublic con estadísticas básicas.
+
     Usado en:
         • /users/me/stats
-        • dashboards
+        • dashboards.
     """
+
     total_bookings: int
     upcoming_bookings: int
     total_classes_taught: int | None = None
+
+
+# --------------------------------------------------------------------------- #
+# Resolver forward refs
+# --------------------------------------------------------------------------- #
+
+UserWithProfile.model_rebuild()

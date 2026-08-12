@@ -1,5 +1,5 @@
-"""
-Schemas para Person (Sprint 6–7)
+"""Schemas para Person (Sprint 6-7).
+
 --------------------------------
 Incluye:
 • PersonBase
@@ -16,10 +16,11 @@ from pydantic import BaseModel, ConfigDict
 # --------------------------------------------------------------------------- #
 
 class PersonBase(BaseModel):
-    """
-    Campos comunes de identidad personal.
+    """Campos comunes de identidad personal.
+
     Usado por Client y Teacher.
     """
+
     first_name: str
     last_name: str
     document_number: str | None = None
@@ -35,10 +36,11 @@ class PersonBase(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class PersonCreate(PersonBase):
-    """
-    Esquema para crear una persona.
+    """Esquema para crear una persona.
+
     Todos los campos obligatorios vienen de PersonBase.
     """
+
     pass
 
 
@@ -47,11 +49,12 @@ class PersonCreate(PersonBase):
 # --------------------------------------------------------------------------- #
 
 class PersonUpdate(BaseModel):
-    """
-    Esquema para actualizar parcialmente una persona.
+    """Esquema para actualizar parcialmente una persona.
+
     TODOS los campos son opcionales.
     Esto permite PATCH sin romper modelos derivados.
     """
+
     first_name: str | None = None
     last_name: str | None = None
     document_number: str | None = None

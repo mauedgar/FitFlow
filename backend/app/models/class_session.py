@@ -1,30 +1,38 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, UniqueConstraint
-from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Enum as SQLAlchemyEnum,
+    ForeignKey,
+    Integer,
+    UniqueConstraint,
+    func,
+    select,
+)
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, relationship
 
+from app.core.enums import ClassSessionStatus
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, TimestampMixin
-
-from ..core.enums import ClassSessionStatus
+from app.models.booking import Booking
 
 if TYPE_CHECKING:
-    from .booking import Booking
-    from .class_schedule import ClassSchedule
+    from app.models.class_schedule import ClassSchedule
 
 
 class ClassSession(Base, TimestampMixin, ActiveMixin):
-    """
-    Ocurrencia concreta y reservable de una actividad en una fecha y hora específicas.
+    """Ocurrencia concreta y reservable de una actividad en una fecha y hora específicas.
 
     Esta entidad se genera a partir de un ClassSchedule recurrente y representa
     una sesión real del calendario. Es la unidad sobre la que el cliente reserva,
     el staff hace check-in y el sistema controla cupos y asistencia.
     """
-    __tablename__ = "class_sessions"
+
+    __tablename__ = "class_sessions" # pyright: ignore[reportAssignmentType]
 
     # Identificador único de la sesión concreta.
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -33,7 +41,7 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
     class_schedule_id = Column(
         UUID(as_uuid=True),
         ForeignKey("class_schedules.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
     )
 
     # Fecha y hora exacta de inicio de la sesión.
@@ -50,19 +58,19 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
     status = Column(
         SQLAlchemyEnum(ClassSessionStatus, name="classsessionstatus"),
         nullable=False,
-        default=ClassSessionStatus.scheduled
+        default=ClassSessionStatus.scheduled,
     )
 
     # Relación con el horario recurrente de origen.
     class_schedule: Mapped["ClassSchedule"] = relationship(
         "ClassSchedule",
-        back_populates="class_sessions"
+        back_populates="class_sessions",
     )
 
     # Reservas asociadas a esta sesión concreta.
     bookings: Mapped[list["Booking"]] = relationship(
         "Booking",
-        back_populates="class_session"
+        back_populates="class_session",
     )
 
     # Evita duplicar dos sesiones con el mismo schedule y la misma fecha/hora de inicio.
@@ -70,6 +78,29 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
         UniqueConstraint(
             "class_schedule_id",
             "starts_at",
-            name="uq_class_schedule_starts_at"
+            name="uq_class_schedule_starts_at",
         ),
     )
+    # ------------------------------------------------------------------ #
+    # Propiedades híbridas (calculadas)
+    # ------------------------------------------------------------------ #
+
+    @hybrid_property
+    def current_bookings_count(self) -> int: # type: ignore[misc]
+        """Cantidad actual de reservas confirmadas para esta sesión."""
+        return len(self.bookings)
+
+    @current_bookings_count.expression  # type: ignore[misc]
+    def current_bookings_count(cls):  # noqa: ANN201, N805
+        """Versión SQL para usar en queries."""
+        return (
+            select(func.count(Booking.id))
+            .where(Booking.class_session_id == cls.id)
+            .correlate(cls)  # type: ignore[arg-type]
+            .scalar_subquery()
+        )
+
+    @hybrid_property
+    def available_spots(self) -> int:
+        """Cantidad de lugares disponibles en la sesión."""
+        return max(self.capacity_snapshot - self.current_bookings_count, 0) # pyright: ignore[reportReturnType]

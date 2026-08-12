@@ -1,85 +1,115 @@
-# app/schemas/front_desk.py
-"""
-Schemas operativos para el módulo Front Desk
---------------------------------------------
-Estos esquemas NO reemplazan los esquemas base de GymClass, ClassSchedule,
-ClassSession o Booking. Son "vistas" simplificadas para el flujo operativo
-de mesa de entrada.
+"""Schemas operativos para el módulo Front Desk.
 
-Se usan en endpoints como:
-    • GET /front-desk/sessions/today
-    • GET /front-desk/sessions/{id}/capacity
-    • GET /front-desk/sessions/{id}/bookings
-    • GET /front-desk/classes
-    • GET /front-desk/schedule?class_id=...
+Estas vistas simplifican la información para mesa de entrada,
+sin exponer relaciones profundas ni datos sensibles.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+if TYPE_CHECKING:
+    from datetime import date, datetime
+    from uuid import UUID
 
 
 # --------------------------------------------------------------------------- #
 # CAPACIDAD DE SESIÓN
 # --------------------------------------------------------------------------- #
+
 class SessionCapacity(BaseModel):
-    """
-    Representa la capacidad disponible de una sesión:
-        • capacidad total
-        • reservas usadas
-        • lugares disponibles
-    """
+    """Representa la capacidad disponible de una sesión."""
+
     session_id: UUID
     capacity: int
     used: int
     available: int
 
+    model_config = ConfigDict(from_attributes=True)
+
 
 # --------------------------------------------------------------------------- #
 # SESIÓN DEL DÍA (vista operativa)
 # --------------------------------------------------------------------------- #
+
 class FrontDeskSessionView(BaseModel):
-    """
-    Vista simplificada de una sesión para el front desk.
-    Incluye datos ya resueltos para evitar que el frontend navegue relaciones.
-    """
+    """Vista simplificada de una sesión para front desk."""
+
     id: UUID
+    class_schedule_id: UUID
+    gym_class_id: UUID
+    teacher_id: UUID
+
     starts_at: datetime
     ends_at: datetime
     status: str
 
     gym_class_name: str
-    teacher_name: str
+    teacher_full_name: str
 
-    capacity: int
-    used: int
-    available: int
+    capacity_snapshot: int
+    current_bookings_count: int
+    available_spots: int
+
+    is_live: bool
+    is_upcoming: bool
+    is_full: bool
+    is_empty: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# SESIÓN DETALLADA (vista operativa)
+# --------------------------------------------------------------------------- #
+
+class FrontDeskSessionDetailView(FrontDeskSessionView):
+    """Vista detallada de una sesión, con reservas incluidas."""
+
+    bookings: list[FrontDeskBookingView]
 
 
 # --------------------------------------------------------------------------- #
 # RESERVA EN SESIÓN (vista operativa)
 # --------------------------------------------------------------------------- #
+
 class FrontDeskBookingView(BaseModel):
-    """
-    Vista simplificada de una reserva dentro de una sesión.
-    """
+    """Vista simplificada de una reserva dentro de una sesión."""
+
     id: UUID
+    client_id: UUID
     client_name: str
     client_email: str
     status: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --------------------------------------------------------------------------- #
 # CLASE ACTIVA (vista operativa)
 # --------------------------------------------------------------------------- #
+
 class FrontDeskClassView(BaseModel):
-    """
-    Vista simplificada de una clase activa para front desk.
-    """
+    """Vista simplificada de una clase activa."""
+
     id: UUID
     name: str
     difficulty: str
     activity_type: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# VISTA DEL DÍA COMPLETO
+# --------------------------------------------------------------------------- #
+
+class FrontDeskDayView(BaseModel):
+    """Vista operativa del día completo."""
+
+    date: date
+    sessions: list[FrontDeskSessionView]
+
+    model_config = ConfigDict(from_attributes=True)

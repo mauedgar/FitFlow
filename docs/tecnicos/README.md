@@ -46,7 +46,7 @@ Base de Datos: PostgreSQL
 
 Servidor: Uvicorn
 
-Autenticación: JWT + Roles
+Autenticación: JWT + Roles(ahora RRAB)
 
 Estilo: Arquitectura modular (app/core/db/models/schemas/api)
 
@@ -70,7 +70,7 @@ Contenedores: Docker + docker-compose
 
 Servicios: PostgreSQL + Adminer
 
-4. Estructura del Proyecto
+4. Estructura del Proyecto(desactualizada)
 
 FitFlow/
 │
@@ -182,7 +182,7 @@ front_desk
 
 Gestión operativa del gimnasio
 
-10. Endpoints Principales
+10. Endpoints Principales(totalmente desactualizado)
 
 10.1 Autenticación
 

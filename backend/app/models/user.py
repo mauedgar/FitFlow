@@ -1,28 +1,26 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, String
-from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import Column, Enum as SQLAlchemyEnum, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, relationship
 
+from app.core.enums import UserRole
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
-from ..core.enums import UserRole
-
 if TYPE_CHECKING:
-    from .person import Person
+    from app.models.person import Person
 
 class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
-    """
-    Cuenta autenticable del sistema.
+    """Cuenta autenticable del sistema.
 
     Esta entidad concentra la información necesaria para login,
     autorización y control de acceso. Los datos personales y la
     especialización funcional se delegan a Person y sus subclases.
     """
-    __tablename__ = "users"
+
+    __tablename__ = "users" # pyright: ignore[reportAssignmentType]
 
     # Identificador único del usuario autenticable.
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -37,7 +35,7 @@ class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     role = Column(
         SQLAlchemyEnum(UserRole, name="userrole"),
         nullable=False,
-        default=UserRole.client
+        default=UserRole.client,
     )
 
     # Relación uno a uno con el perfil personal del usuario.
@@ -45,11 +43,9 @@ class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
         "Person",
         back_populates="user",
         uselist=False,
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:
-        """
-        Representación legible del usuario para debugging y logs.
-        """
+        """Representación legible del usuario para debugging y logs."""
         return f"<User(email='{self.email}', role='{self.role}')>"

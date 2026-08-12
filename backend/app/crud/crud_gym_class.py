@@ -1,5 +1,5 @@
-"""
-CRUD para GymClass (asíncrono, Sprint 5)
+"""CRUD para GymClass (asíncrono, Sprint 5).
+
 ----------------------------------------
 • Sin relación directa con Teacher (usa ClassSchedule).
 • Filtros avanzados: difficulty, activity_type, search, teacher, día, rango fechas.
@@ -7,20 +7,26 @@ CRUD para GymClass (asíncrono, Sprint 5)
 
 from __future__ import annotations
 
-from datetime import date
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.crud.base import CRUDBase
 from app.models import ClassSchedule, GymClass
 from app.schemas.gym_class import GymClassCreate, GymClassUpdate
 
-from .base import CRUDBase
+if TYPE_CHECKING:
+    from datetime import date
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from sqlalchemy.orm.interfaces import ORMOption
 
 
 class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
+    """CRUD especializado para clases del gimnasio."""
+
     # ------------------------------------------------------------------ #
     # Overrides
     # ------------------------------------------------------------------ #
@@ -28,34 +34,42 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
         self,
         db: AsyncSession,
         *,
-        id: UUID,
+        obj_id: UUID,
         include_schedules: bool = False,
-    ) -> None | GymClass:
-        opts = [selectinload(GymClass.class_schedules)] if include_schedules else None
-        return await super().get(db, id=id, options=opts)
+    ) -> GymClass | None:
+        """Obtiene una clase del gimnasio según criterios avanzados."""
+        opts: list[ORMOption] | None = (
+            [selectinload(GymClass.class_schedules)]
+            if include_schedules
+            else None
+        )
+        return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(
+    async def get_multi_filtered(    # noqa: PLR0913 — muchos argumentos son necesarios para filtros avanzados
         self,
         db: AsyncSession,
         *,
         skip: int = 0,
         limit: int = 100,
-        difficulty: None | str = None,
-        activity_type: None | str = None,
-        active: None | bool = True,
-        search: None | str = None,
-        teacher_id: None | UUID = None,
-        day_of_week: None | int = None,
-        date_from: None | date = None,
-        date_to: None | date = None,
+        difficulty: str | None = None,
+        activity_type: str | None = None,
+        active: bool | None = True,
+        search: str | None = None,
+        teacher_id: UUID | None = None,
+        day_of_week: int | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
     ) -> list[GymClass]:
-        stmt = select(GymClass).where(GymClass.deleted_at.is_(None))
+        """Obtiene una lista filtrada de clases del gimnasio según criterios avanzados."""
+        stmt = select(GymClass).where(
+            GymClass.deleted_at.is_(None),  # type: ignore[attr-defined]
+        )
 
         if active is not None:
-            stmt = stmt.where(GymClass.active.is_(active))
+            stmt = stmt.where(GymClass.active.is_(active))  # type: ignore[attr-defined]
 
         if difficulty:
             stmt = stmt.where(GymClass.difficulty == difficulty)
@@ -66,7 +80,8 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
         if search:
             like = f"%{search.lower()}%"
             stmt = stmt.where(
-                func.lower(GymClass.name).ilike(like) | func.lower(GymClass.description).ilike(like)
+                func.lower(GymClass.name).ilike(like)
+                | func.lower(GymClass.description).ilike(like),
             )
 
         # Filtros que implican JOIN con ClassSchedule
@@ -84,7 +99,8 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
 
             if date_to:
                 stmt = stmt.where(
-                    (ClassSchedule.end_date.is_(None)) | (ClassSchedule.end_date <= date_to)
+                    (ClassSchedule.end_date.is_(None))  # type: ignore[attr-defined]
+                    | (ClassSchedule.end_date <= date_to),  # type: ignore[attr-defined]
                 )
 
         stmt = (
@@ -95,7 +111,7 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
         )
 
         res = await db.execute(stmt)
-        return res.scalars().unique().all()
+        return list(res.scalars().unique().all())
 
 
 # Instancia reusable

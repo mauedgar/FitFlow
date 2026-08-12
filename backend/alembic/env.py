@@ -15,7 +15,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 # 2. Cargar las variables de entorno desde el archivo .env en la raíz del proyecto
 # OJO: La ruta es relativa a la carpeta 'backend', por eso subimos un nivel con '..'
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-target_metadata = Base.metadata
+target_metadata = Base.metadata # pyright: ignore[reportAttributeAccessIssue]
 # Importa tu Base de SQLAlchemy desde tus modelos
 # La ruta puede variar según tu estructura, pero esta es la común.
 # this is the Alembic Config object, which provides

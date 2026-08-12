@@ -1,0 +1,1016 @@
+classDiagram
+  class ActiveMixin {
+    active : Mapped[bool]
+  }
+  class ActivityType {
+    name
+  }
+  class AllowedPlan {
+    name
+  }
+  class AuditSchema {
+    changed_at : datetime
+    changed_by : UUID
+    model_config
+    new_value : str | None
+    previous_value : str | None
+  }
+  class AuthError {
+  }
+  class Base {
+  }
+  class Booking {
+    cancelled_at
+    checked_in_at
+    class_session : Mapped['ClassSession']
+    class_session_id
+    client : Mapped['Client']
+    client_id
+    id
+    status
+  }
+  class Booking {
+    class_session : str
+    class_session_id : UUID
+    client
+    client_id : UUID
+    created_at : datetime
+    id : UUID
+    model_config
+  }
+  class BookingBase {
+    model_config
+    status
+  }
+  class BookingCreate {
+    class_schedule_id : UUID | None
+    class_session_id : UUID | None
+    check_exactly_one_id_is_provided() BookingCreate
+  }
+  class BookingCreateInternal {
+    class_session_id : UUID
+    client_id : UUID
+    created_at : datetime
+    status
+  }
+  class BookingError {
+  }
+  class BookingInClassSessionResponse {
+    client_id : UUID
+    created_at : datetime
+    id : UUID
+    model_config
+  }
+  class BookingInClientResponse {
+    class_session_id : UUID
+    created_at : datetime
+    id : UUID
+    model_config
+  }
+  class BookingPublic {
+    ends_at : datetime
+    gym_class_name : str
+    id : UUID
+    model_config
+    starts_at : datetime
+    status
+  }
+  class BookingStatus {
+    name
+  }
+  class BookingUpdate {
+    model_config
+    status : BookingStatus | None
+  }
+  class BookingWithClient {
+    client
+  }
+  class BookingWithSession {
+    class_session : str
+  }
+  class BusinessValidationError {
+  }
+  class BusinessValidationError {
+  }
+  class CRUDBase {
+    model : type[ModelType]
+    create(db: AsyncSession) ModelType
+    get(db: AsyncSession) ModelType | None
+    get_multi(db: AsyncSession) list[ModelType]
+    remove(db: AsyncSession) None
+    update(db: AsyncSession) ModelType
+  }
+  class CRUDBooking {
+    create_with_capacity_check(db: 'AsyncSession') Booking
+    get(db: 'AsyncSession') Booking | None
+    get_by_client_and_session(db: 'AsyncSession') Booking | None
+    get_multi_filtered(db: 'AsyncSession') list[Booking]
+    get_with_relations(db: 'AsyncSession') Booking | None
+  }
+  class CRUDClassSchedule {
+    create(db: 'AsyncSession') ClassSchedule
+    get(db: 'AsyncSession') ClassSchedule | None
+    get_active_schedules_for_class(db: 'AsyncSession') list[ClassSchedule]
+    get_multi_filtered(db: 'AsyncSession') list[ClassSchedule]
+    remove(db: 'AsyncSession') None
+    update(db: 'AsyncSession') ClassSchedule
+  }
+  class CRUDClassSession {
+    create_with_capacity_snapshot(db: 'AsyncSession') ClassSession
+    get(db: AsyncSession) ClassSession | None
+    get_multi_filtered(db: AsyncSession) list[ClassSession]
+    get_or_create(db: AsyncSession) tuple[ClassSession, bool]
+  }
+  class CRUDClient {
+    create_with_user(db: AsyncSession) Client
+    get_by_membership_id(db: AsyncSession) Client | None
+    get_by_user_id(db: AsyncSession) Client | None
+    get_with_relations(db: AsyncSession) Client | None
+  }
+  class CRUDGymClass {
+    get(db: AsyncSession) GymClass | None
+    get_multi_filtered(db: AsyncSession) list[GymClass]
+  }
+  class CRUDMembership {
+    get(db: AsyncSession) Membership | None
+    get_multi_filtered(db: AsyncSession) list[Membership]
+  }
+  class CRUDSync {
+    model : type[ModelType]
+    create(db: Session) ModelType
+    get(db: Session) ModelType | None
+    get_multi(db: Session) list[ModelType]
+    remove(db: Session) None
+    update(db: Session) ModelType
+  }
+  class CRUDTeacher {
+    create_with_user(db: AsyncSession) Teacher
+    get(db: AsyncSession) Teacher | None
+    get_by_full_name(db: AsyncSession) Teacher | None
+  }
+  class CRUDUser {
+    create(db: AsyncSession) User
+    get(db: AsyncSession) User | None
+    get_by_email(db: AsyncSession) User | None
+    update(db: AsyncSession) User
+  }
+  class ClassSchedule {
+    allowed_plan
+    capacity
+    class_sessions : Mapped[list['ClassSession']]
+    created_by_id
+    days_of_week
+    duration_minutes
+    end_date
+    gym_class : Mapped['GymClass']
+    gym_class_id
+    id
+    rrule
+    start_date
+    start_time
+    teacher : Mapped['Teacher']
+    teacher_id
+    updated_by_id
+  }
+  class ClassSchedule {
+    future_sessions : Optional[list[ClassSessionInResponse]]
+    gym_class
+    gym_class_id : UUID
+    id : UUID
+    model_config
+    teacher
+    teacher_id : UUID
+  }
+  class ClassScheduleBase {
+    capacity : Optional[int]
+    days_of_week : Optional[list[int]]
+    duration_minutes : Optional[int]
+    end_date : date | None
+    model_config
+    start_date : date
+    start_time : time
+  }
+  class ClassScheduleCreate {
+    gym_class_id : UUID
+    teacher_id : UUID
+  }
+  class ClassScheduleInClassSessionResponse {
+    gym_class
+    model_config
+    teacher
+  }
+  class ClassSchedulePublic {
+    allowed_plan : AllowedPlan | None
+    capacity : int
+    days_of_week : list[int]
+    duration_minutes : int
+    gym_class
+    id : UUID
+    model_config
+    start_time : time
+    teacher
+  }
+  class ClassScheduleUpdate {
+    capacity : int | None
+    days_of_week : list[int] | None
+    duration_minutes : int | None
+    end_date : date | None
+    gym_class_id : UUID | None
+    model_config
+    start_date : date | None
+    start_time : time | None
+    teacher_id : UUID | None
+  }
+  class ClassScheduleWithNextSession {
+    next_session : NextSessionInfo | None
+  }
+  class ClassSession {
+    bookings : Mapped[list['Booking']]
+    capacity_snapshot
+    class_schedule : Mapped['ClassSchedule']
+    class_schedule_id
+    ends_at
+    id
+    starts_at
+    status
+    available_spots() int
+    current_bookings_count() int
+  }
+  class ClassSession {
+    available_spots : int
+    bookings : Optional[list['BookingPublic']]
+    capacity_snapshot : int
+    class_schedule
+    class_schedule_id : UUID
+    current_bookings_count : int
+    id : UUID
+    model_config
+  }
+  class ClassSessionBase {
+    ends_at : datetime
+    model_config
+    starts_at : datetime
+    status : bool
+  }
+  class ClassSessionCreate {
+    class_schedule_id : UUID
+  }
+  class ClassSessionInBookingResponse {
+    class_schedule
+    class_schedule_id : UUID
+    id : UUID
+    model_config
+  }
+  class ClassSessionInResponse {
+    available_spots : int
+    class_schedule_id : UUID
+    current_bookings_count : int
+    id : UUID
+    model_config
+  }
+  class ClassSessionPublic {
+    available_spots : int
+    capacity_snapshot : int
+    class_schedule_id : UUID
+    current_bookings_count : int
+    id : UUID
+    model_config
+  }
+  class ClassSessionStatus {
+    name
+  }
+  class ClassSessionUpdate {
+    ends_at : datetime | None
+    model_config
+    starts_at : datetime | None
+    status : ClassSessionStatus | None
+  }
+  class ClassSessionWithNext {
+    next_session : NextSessionInfo | None
+  }
+  class ClassSessionWithRelations {
+    available_spots : int
+    bookings : Optional[list['BookingPublic']]
+    capacity_snapshot : int
+    class_schedule
+    class_schedule_id : UUID
+    current_bookings_count : int
+    gym_class
+    id : UUID
+    model_config
+    teacher
+  }
+  class ClassSessionWithSchedule {
+    capacity_snapshot : int
+    class_schedule
+  }
+  class Client {
+    bookings : Mapped[list['Booking']]
+    id
+    membership : Mapped['Membership']
+  }
+  class Client {
+    bookings : Optional[list['BookingPublic']]
+    id : UUID
+    membership : MembershipPublic | None
+    model_config
+  }
+  class ClientBase {
+  }
+  class ClientCreate {
+  }
+  class ClientInBookingResponse {
+    id : UUID
+    model_config
+  }
+  class ClientPublic {
+    avatar_url : str | None
+    created_at : str | None
+    email : str
+    full_name : str
+    id : UUID
+    model_config
+    phone : str | None
+  }
+  class ClientUpdate {
+  }
+  class ClientWithActivity {
+    active_bookings : Optional[list['BookingPublic']]
+    bookings_this_week : Optional[list['BookingPublic']]
+    bookings_today : Optional[list['BookingPublic']]
+    model_config
+    past_bookings : Optional[list['BookingPublic']]
+    upcoming_bookings : Optional[list['BookingPublic']]
+  }
+  class ClientWithBookings {
+    bookings : Optional[list['BookingPublic']]
+  }
+  class ClientWithMembership {
+    membership : MembershipPublic | None
+  }
+  class ClientWithStats {
+    total_bookings : int
+    upcoming_bookings : Optional[list['BookingPublic']]
+  }
+  class ConfigDict {
+    alias_generator : Callable[[str], str] | AliasGenerator | None
+    allow_inf_nan : bool
+    arbitrary_types_allowed : bool
+    cache_strings : bool | Literal['all', 'keys', 'none']
+    coerce_numbers_to_str : bool
+    defer_build : bool
+    extra : ExtraValues | None
+    field_title_generator : Callable[[str, FieldInfo | ComputedFieldInfo], str] | None
+    from_attributes : bool
+    frozen : bool
+    hide_input_in_errors : bool
+    ignored_types : tuple[type, ...]
+    json_encoders : dict[type[object], JsonEncoder] | None
+    json_schema_extra : JsonDict | JsonSchemaExtraCallable | None
+    json_schema_mode_override : Literal['validation', 'serialization', None]
+    json_schema_serialization_defaults_required : bool
+    loc_by_alias : bool
+    model_title_generator : Callable[[type], str] | None
+    plugin_settings : dict[str, object] | None
+    populate_by_name : bool
+    protected_namespaces : tuple[str | Pattern[str], ...]
+    regex_engine : Literal['rust-regex', 'python-re']
+    revalidate_instances : Literal['always', 'never', 'subclass-instances']
+    schema_generator : type[_GenerateSchema] | None
+    ser_json_bytes : Literal['utf8', 'base64', 'hex']
+    ser_json_inf_nan : Literal['null', 'constants', 'strings']
+    ser_json_timedelta : Literal['iso8601', 'float']
+    serialize_by_alias : bool
+    str_max_length : int | None
+    str_min_length : int
+    str_strip_whitespace : bool
+    str_to_lower : bool
+    str_to_upper : bool
+    strict : bool
+    title : str | None
+    use_attribute_docstrings : bool
+    use_enum_values : bool
+    val_json_bytes : Literal['utf8', 'base64', 'hex']
+    validate_assignment : bool
+    validate_by_alias : bool
+    validate_by_name : bool
+    validate_default : bool
+    validate_return : bool
+    validation_error_cause : bool
+  }
+  class ConflictError {
+  }
+  class ConflictError {
+  }
+  class DifficultyLevel {
+    name
+  }
+  class DomainError {
+  }
+  class EmailStr {
+  }
+  class ExternalServiceError {
+  }
+  class FrontDeskBookingView {
+    client_email : str
+    client_id : UUID
+    client_name : str
+    id : UUID
+    model_config
+    status : str
+  }
+  class FrontDeskClassView {
+    activity_type : str
+    difficulty : str
+    id : UUID
+    model_config
+    name : str
+  }
+  class FrontDeskDayView {
+    date : date
+    model_config
+    sessions : list[FrontDeskSessionView]
+  }
+  class FrontDeskSessionDetailView {
+    bookings : list[FrontDeskBookingView]
+  }
+  class FrontDeskSessionView {
+    available_spots : int
+    capacity_snapshot : int
+    class_schedule_id : UUID
+    current_bookings_count : int
+    ends_at : datetime
+    gym_class_id : UUID
+    gym_class_name : str
+    id : UUID
+    is_empty : bool
+    is_full : bool
+    is_live : bool
+    is_upcoming : bool
+    model_config
+    starts_at : datetime
+    status : str
+    teacher_full_name : str
+    teacher_id : UUID
+  }
+  class GymClass {
+    activity_type
+    class_schedules : Mapped[list['ClassSchedule']]
+    default_capacity
+    description
+    difficulty
+    duration_minutes
+    id
+    image_url
+    name
+  }
+  class GymClassBase {
+    activity_type
+    default_capacity : Optional[int]
+    description : str | None
+    difficulty
+    duration_minutes : Optional[int]
+    image_url : HttpUrl | None
+    model_config
+    name : Optional[str]
+  }
+  class GymClassCreate {
+  }
+  class GymClassInClassScheduleResponse {
+    model_config
+  }
+  class GymClassInTeacherResponse {
+    model_config
+  }
+  class GymClassPublic {
+    model_config
+  }
+  class GymClassRead {
+    class_schedules : list[ClassSchedulePublic] | None
+    model_config
+  }
+  class GymClassUpdate {
+    activity_type : ActivityType | None
+    default_capacity : int | None
+    description : str | None
+    difficulty : DifficultyLevel | None
+    duration_minutes : int | None
+    image_url : HttpUrl | None
+    model_config
+    name : str | None
+  }
+  class GymClassWithSchedules {
+    schedules : Optional[list[ClassSchedulePublic]]
+  }
+  class IDSchema {
+    id : UUID
+    model_config
+  }
+  class Membership {
+    client : Mapped[Client]
+    client_id : Mapped[uuid.UUID]
+    end_date : Mapped[datetime]
+    id : Mapped[uuid.UUID]
+    last_check_in : Mapped[datetime | None]
+    last_invoice_id : Mapped[str | None]
+    plan : Mapped[MembershipPlan]
+    start_date : Mapped[datetime]
+    status : Mapped[MembershipStatus]
+  }
+  class Membership {
+    client_id : UUID
+    id : UUID
+    model_config
+  }
+  class MembershipBase {
+    end_date : datetime
+    last_check_in : datetime | None
+    last_invoice_id : str | None
+    model_config
+    plan
+    start_date : datetime
+    status
+  }
+  class MembershipCreate {
+    client_id : UUID
+  }
+  class MembershipInClientResponse {
+    end_date : datetime
+    id : UUID
+    is_active : bool
+    is_expired : bool
+    model_config
+    plan
+    status
+  }
+  class MembershipMini {
+    is_active : bool
+    model_config
+    plan
+    status
+  }
+  class MembershipPlan {
+    name
+  }
+  class MembershipPublic {
+    end_date : datetime
+    id : UUID
+    is_active : bool
+    is_expired : bool
+    model_config
+    plan
+    start_date : datetime
+    status
+  }
+  class MembershipStatus {
+    name
+  }
+  class MembershipUpdate {
+    end_date : datetime | None
+    last_check_in : datetime | None
+    last_invoice_id : str | None
+    model_config
+    plan : MembershipPlan | None
+    start_date : datetime | None
+    status : MembershipStatus | None
+  }
+  class MembershipWithClient {
+    client : str
+  }
+  class MembershipWithStats {
+    total_bookings : int
+    upcoming_bookings : Optional[list[UUID]]
+  }
+  class ModelProtocol {
+    active : bool
+    deleted_at : Any
+    id : Any
+  }
+  class NextSessionInfo {
+    available_spots : int
+    current_bookings_count : int
+    model_config
+    session_id : UUID
+    starts_at : datetime
+  }
+  class NotFoundError {
+  }
+  class NotFoundError {
+  }
+  class OperationalSchema {
+    model_config
+  }
+  class Permission {
+    description
+    id
+    roles
+  }
+  class PermissionBase {
+    description : str | None
+    id : str
+  }
+  class PermissionCreate {
+  }
+  class PermissionDeniedError {
+  }
+  class PermissionUpdate {
+    description : str | None
+  }
+  class Person {
+    address
+    document_number
+    first_name
+    id
+    last_name
+    medical_fit_url
+    person_type
+    profile_image_url
+    user : Mapped['User']
+    user_id
+  }
+  class PersonBase {
+    address : str | None
+    document_number : str | None
+    first_name : str
+    last_name : str
+    medical_fit_url : str | None
+    model_config
+    profile_image_url : str | None
+  }
+  class PersonCreate {
+  }
+  class PersonUpdate {
+    address : str | None
+    document_number : str | None
+    first_name : str | None
+    last_name : str | None
+    medical_fit_url : str | None
+    model_config
+    profile_image_url : str | None
+  }
+  class PublicIDSchema {
+    id : UUID
+    model_config
+  }
+  class PublicTimestampSchema {
+    created_at : datetime | None
+    model_config
+  }
+  class Role {
+    description
+    id
+    permissions
+  }
+  class RoleBase {
+    description : str | None
+    id : str
+  }
+  class RoleCreate {
+  }
+  class RoleUpdate {
+    description : str | None
+  }
+  class SessionCapacity {
+    available : int
+    capacity : int
+    model_config
+    session_id : UUID
+    used : int
+  }
+  class Settings {
+    ACCESS_TOKEN_EXPIRE_MINUTES : int
+    ALGORITHM : str
+    API_V1_STR : str
+    BACKEND_CORS_ORIGINS : list[str]
+    DATABASE_URL : str
+    DATABASE_URL_ASYNC : str
+    DEBUG : bool
+    DEFAULT_PAGE_SIZE : int
+    EMAILS_FROM_EMAIL : str | None
+    ENV : str
+    LOG_LEVEL : str
+    MAX_PAGE_SIZE : int
+    MAX_UPLOAD_SIZE_MB : int
+    MEDIA_DIR : str
+    RATE_LIMIT_REQUESTS : int
+    RATE_LIMIT_WINDOW_SECONDS : int
+    REDIS_URL : str | None
+    REFRESH_TOKEN_EXPIRE_MINUTES : int
+    REFRESH_TOKEN_ROTATION : bool
+    SECRET_KEY : str
+    SMTP_HOST : str | None
+    SMTP_PASSWORD : str | None
+    SMTP_PORT : int | None
+    SMTP_USER : str | None
+    TESTING : bool
+    model_config
+    empty_to_none(v)
+  }
+  class SettingsConfigDict {
+    case_sensitive : bool
+    cli_avoid_json : bool
+    cli_enforce_required : bool
+    cli_exit_on_error : bool
+    cli_flag_prefix_char : str
+    cli_hide_none_type : bool
+    cli_ignore_unknown_args : bool | None
+    cli_implicit_flags : bool | None
+    cli_kebab_case : bool | None
+    cli_parse_args : bool | list[str] | tuple[str, ...] | None
+    cli_parse_none_str : str | None
+    cli_prefix : str
+    cli_prog_name : str | None
+    cli_shortcuts : Mapping[str, str | list[str]] | None
+    cli_use_class_docs_for_groups : bool
+    enable_decoding : bool
+    env_file : DotenvType | None
+    env_file_encoding : str | None
+    env_ignore_empty : bool
+    env_nested_delimiter : str | None
+    env_nested_max_split : int | None
+    env_parse_enums : bool | None
+    env_parse_none_str : str | None
+    env_prefix : str
+    json_file : PathType | None
+    json_file_encoding : str | None
+    nested_model_default_partial_update : bool | None
+    pyproject_toml_depth : int
+    pyproject_toml_table_header : tuple[str, ...]
+    secrets_dir : PathType | None
+    toml_file : PathType | None
+    yaml_config_section : str | None
+    yaml_file : PathType | None
+    yaml_file_encoding : str | None
+  }
+  class SoftDeleteMixin {
+    deleted_at : Mapped[datetime | None]
+  }
+  class SoftDeleteSchema {
+    active : bool
+    deleted_at : datetime | None
+    model_config
+  }
+  class Teacher {
+    bio
+    class_schedules : Mapped[list['ClassSchedule']]
+    cuil
+    full_name : str
+    id
+  }
+  class Teacher {
+    class_schedules : Optional[list[ClassSchedulePublic]]
+    id : UUID
+    model_config
+  }
+  class TeacherBase {
+    bio : str | None
+    cuil : str | None
+  }
+  class TeacherCreate {
+    bio : str | None
+    cuil : str | None
+  }
+  class TeacherInClassResponse {
+    bio : str | None
+    first_name : str
+    full_name : str
+    id : UUID
+    last_name : str
+    model_config
+  }
+  class TeacherInClassScheduleResponse {
+    first_name : str
+    full_name : str
+    id : UUID
+    last_name : str
+    model_config
+  }
+  class TeacherInScheduleResponseMini {
+    first_name : str
+    full_name : str
+    last_name : str
+    model_config
+  }
+  class TeacherPublic {
+    bio : str | None
+    first_name : str
+    full_name : str
+    id : UUID
+    last_name : str
+    model_config
+    profile_image_url : str | None
+    schedules : list[ClassSchedulePublic] | None
+  }
+  class TeacherUpdate {
+    bio : str | None
+    cuil : str | None
+  }
+  class TeacherWithMetrics {
+    average_occupancy : float
+    future_sessions : int
+    model_config
+    total_classes : int
+  }
+  class TeacherWithNextSession {
+    model_config
+    next_session : NextSessionInfo | None
+  }
+  class TeacherWithSchedules {
+    model_config
+    schedules : Optional[list[ClassSchedulePublic]]
+  }
+  class TimestampMixin {
+    created_at : Mapped[datetime]
+    updated_at : Mapped[datetime]
+  }
+  class TimestampSchema {
+    created_at : datetime | None
+    model_config
+    updated_at : datetime | None
+  }
+  class Token {
+    access_token : str
+    token_type : str
+  }
+  class TokenPair {
+    access_token : str
+    refresh_token : str
+    token_type : str
+  }
+  class TokenPayload {
+    exp : int | None
+    role : str | None
+    sub : str | None
+  }
+  class User {
+    email
+    hashed_password
+    id
+    person_profile : Mapped['Person']
+    role
+  }
+  class User {
+    active : bool
+    created_at : datetime
+    id : UUID
+    model_config
+    role
+    updated_at : datetime
+  }
+  class UserBase {
+    email : Annotated
+    model_config
+  }
+  class UserCreate {
+    password : str
+    role : UserRole | None
+  }
+  class UserPublic {
+    active : bool
+    email : Annotated
+    id : UUID
+    model_config
+    role
+  }
+  class UserRole {
+    name
+  }
+  class UserUpdate {
+    active : bool | None
+    email : EmailStr | None
+    model_config
+    password : str | None
+    role : UserRole | None
+  }
+  class UserWithProfile {
+    client : str
+    teacher : str
+  }
+  class UserWithStats {
+    total_bookings : int
+    total_classes_taught : int | None
+    upcoming_bookings : int
+  }
+  Client --|> Person
+  OperationalSchema --|> IDSchema
+  OperationalSchema --|> SoftDeleteSchema
+  OperationalSchema --|> TimestampSchema
+  Booking --|> BookingBase
+  BookingCreate --|> BookingBase
+  BookingInClassSessionResponse --|> BookingBase
+  BookingInClientResponse --|> BookingBase
+  BookingWithClient --|> BookingPublic
+  BookingWithSession --|> BookingPublic
+  ClassSchedule --|> ClassScheduleBase
+  ClassScheduleCreate --|> ClassScheduleBase
+  ClassScheduleWithNextSession --|> ClassSchedulePublic
+  ClassSession --|> ClassSessionBase
+  ClassSessionCreate --|> ClassSessionBase
+  ClassSessionInBookingResponse --|> ClassSessionBase
+  ClassSessionInResponse --|> ClassSessionBase
+  ClassSessionPublic --|> ClassSessionBase
+  ClassSessionWithNext --|> ClassSessionPublic
+  ClassSessionWithRelations --|> ClassSessionBase
+  ClassSessionWithSchedule --|> ClassSessionPublic
+  Client --|> ClientBase
+  ClientInBookingResponse --|> ClientBase
+  ClientWithActivity --|> ClientPublic
+  ClientWithBookings --|> ClientPublic
+  ClientWithMembership --|> ClientPublic
+  ClientWithStats --|> ClientPublic
+  FrontDeskSessionDetailView --|> FrontDeskSessionView
+  GymClassCreate --|> GymClassBase
+  GymClassInClassScheduleResponse --|> GymClassBase
+  GymClassInTeacherResponse --|> GymClassBase
+  GymClassPublic --|> GymClassBase
+  GymClassRead --|> GymClassBase
+  GymClassWithSchedules --|> GymClassPublic
+  Membership --|> MembershipBase
+  MembershipCreate --|> MembershipBase
+  MembershipWithClient --|> MembershipPublic
+  MembershipWithStats --|> MembershipPublic
+  PermissionCreate --|> PermissionBase
+  PersonCreate --|> PersonBase
+  RoleCreate --|> RoleBase
+  Teacher --|> TeacherBase
+  TeacherWithMetrics --|> TeacherPublic
+  TeacherWithNextSession --|> TeacherPublic
+  TeacherWithSchedules --|> TeacherPublic
+  User --|> UserBase
+  UserCreate --|> UserBase
+  UserWithProfile --|> UserPublic
+  UserWithStats --|> UserPublic
+  BusinessValidationError --|> BookingError
+  ConflictError --|> BookingError
+  NotFoundError --|> BookingError
+  AuthError --|> DomainError
+  BusinessValidationError --|> DomainError
+  ConflictError --|> DomainError
+  ExternalServiceError --|> DomainError
+  NotFoundError --|> DomainError
+  PermissionDeniedError --|> DomainError
+  SettingsConfigDict --|> ConfigDict
+  UserBase --> EmailStr : email
+  UserPublic --> EmailStr : email
+  ConfigDict --* AuditSchema : model_config
+  ConfigDict --* IDSchema : model_config
+  ConfigDict --* OperationalSchema : model_config
+  ConfigDict --* PublicIDSchema : model_config
+  ConfigDict --* PublicTimestampSchema : model_config
+  ConfigDict --* SoftDeleteSchema : model_config
+  ConfigDict --* TimestampSchema : model_config
+  ConfigDict --* Booking : model_config
+  ConfigDict --* BookingBase : model_config
+  ConfigDict --* BookingInClassSessionResponse : model_config
+  ConfigDict --* BookingInClientResponse : model_config
+  ConfigDict --* BookingPublic : model_config
+  ConfigDict --* BookingUpdate : model_config
+  ConfigDict --* ClassSchedule : model_config
+  ConfigDict --* ClassScheduleBase : model_config
+  ConfigDict --* ClassScheduleInClassSessionResponse : model_config
+  ConfigDict --* ClassSchedulePublic : model_config
+  ConfigDict --* ClassScheduleUpdate : model_config
+  ConfigDict --* NextSessionInfo : model_config
+  ConfigDict --* ClassSession : model_config
+  ConfigDict --* ClassSessionBase : model_config
+  ConfigDict --* ClassSessionInBookingResponse : model_config
+  ConfigDict --* ClassSessionInResponse : model_config
+  ConfigDict --* ClassSessionPublic : model_config
+  ConfigDict --* ClassSessionUpdate : model_config
+  ConfigDict --* ClassSessionWithRelations : model_config
+  ConfigDict --* Client : model_config
+  ConfigDict --* ClientInBookingResponse : model_config
+  ConfigDict --* ClientPublic : model_config
+  ConfigDict --* ClientWithActivity : model_config
+  ConfigDict --* FrontDeskBookingView : model_config
+  ConfigDict --* FrontDeskClassView : model_config
+  ConfigDict --* FrontDeskDayView : model_config
+  ConfigDict --* FrontDeskSessionView : model_config
+  ConfigDict --* SessionCapacity : model_config
+  ConfigDict --* GymClassBase : model_config
+  ConfigDict --* GymClassInClassScheduleResponse : model_config
+  ConfigDict --* GymClassInTeacherResponse : model_config
+  ConfigDict --* GymClassPublic : model_config
+  ConfigDict --* GymClassRead : model_config
+  ConfigDict --* GymClassUpdate : model_config
+  ConfigDict --* Membership : model_config
+  ConfigDict --* MembershipBase : model_config
+  ConfigDict --* MembershipInClientResponse : model_config
+  ConfigDict --* MembershipMini : model_config
+  ConfigDict --* MembershipPublic : model_config
+  ConfigDict --* MembershipUpdate : model_config
+  ConfigDict --* PersonBase : model_config
+  ConfigDict --* PersonUpdate : model_config
+  ConfigDict --* Teacher : model_config
+  ConfigDict --* TeacherInClassResponse : model_config
+  ConfigDict --* TeacherInClassScheduleResponse : model_config
+  ConfigDict --* TeacherInScheduleResponseMini : model_config
+  ConfigDict --* TeacherPublic : model_config
+  ConfigDict --* TeacherWithMetrics : model_config
+  ConfigDict --* TeacherWithNextSession : model_config
+  ConfigDict --* TeacherWithSchedules : model_config
+  ConfigDict --* User : model_config
+  ConfigDict --* UserBase : model_config
+  ConfigDict --* UserPublic : model_config
+  ConfigDict --* UserUpdate : model_config
+  SettingsConfigDict --* Settings : model_config

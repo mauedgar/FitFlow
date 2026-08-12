@@ -1,5 +1,5 @@
-"""
-Schemas para Booking (Sprint 6–7)
+"""Schemas para Booking (Sprint 6-7).
+
 ---------------------------------
 Incluye:
 • Esquemas base (crear/actualizar)
@@ -12,18 +12,26 @@ Incluye:
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
+from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from app.models.booking import BookingStatus
+# Importar enums SIEMPRE en runtime (Pydantic v2 los necesita)
+from app.core.enums import BookingStatus  # noqa: TC001
 
-# Evitar circularidad
+# Importar client normalmente (no genera ciclos)
+from app.schemas.client import ClientInBookingResponse, ClientPublic  # noqa: TC001
+
+# Evitar circularidad: class_session importa booking → usar TYPE_CHECKING
 if TYPE_CHECKING:
-    from .class_session import ClassSessionInBookingResponse, ClassSessionPublic
-    from .client import ClientInBookingResponse, ClientPublic
+
+    from app.schemas.class_session import (
+        ClassSessionInBookingResponse,
+        ClassSessionPublic,
+    )
+
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -31,6 +39,7 @@ if TYPE_CHECKING:
 
 class BookingBase(BaseModel):
     """Campos comunes de una reserva."""
+
     status: BookingStatus
 
     model_config = ConfigDict(from_attributes=True)
@@ -41,28 +50,30 @@ class BookingBase(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class BookingCreate(BookingBase):
-    """
-    Esquema para crear una reserva.
+    """Esquema para crear una reserva.
+
     Regla de negocio:
         • class_session_id XOR class_schedule_id
     """
-    class_session_id: uuid.UUID | None = None
-    class_schedule_id: uuid.UUID | None = None
+
+    class_session_id: UUID | None = None
+    class_schedule_id: UUID | None = None
 
     @model_validator(mode="after")
     def check_exactly_one_id_is_provided(self) -> BookingCreate:
+        """Check un id."""
         has_session_id = self.class_session_id is not None
         has_schedule_id = self.class_schedule_id is not None
 
         if not (has_session_id ^ has_schedule_id):
-            raise ValueError(
-                "Debe proporcionar exclusivamente 'class_session_id' o 'class_schedule_id'."
-            )
+            msg = "Debe proporcionar exclusivamente 'class_session_id' o 'class_schedule_id'."
+            raise ValueError(msg)
         return self
 
 
 class BookingUpdate(BaseModel):
     """Esquema para actualizar parcialmente una reserva."""
+
     status: BookingStatus | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -73,20 +84,22 @@ class BookingUpdate(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class Booking(BookingBase):
-    """
-    Esquema completo de una reserva (privado).
+    """Esquema completo de una reserva (privado).
+
     Incluye:
         • cliente
         • sesión
         • timestamps
     """
-    id: uuid.UUID
-    client_id: uuid.UUID
-    class_session_id: uuid.UUID
+
+    id: UUID
+    client_id: UUID
+    class_session_id: UUID
     created_at: datetime
 
+    # Forward refs porque class_session está en TYPE_CHECKING
     client: ClientInBookingResponse
-    class_session: ClassSessionInBookingResponse
+    class_session: "ClassSessionInBookingResponse"  # noqa: UP037
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -96,24 +109,26 @@ class Booking(BookingBase):
 # --------------------------------------------------------------------------- #
 
 class BookingInClientResponse(BookingBase):
-    """
-    Versión compacta dentro de Client.
+    """Versión compacta dentro de Client.
+
     Evita recursión.
     """
-    id: uuid.UUID
-    class_session_id: uuid.UUID
+
+    id: UUID
+    class_session_id: UUID
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class BookingInClassSessionResponse(BookingBase):
-    """
-    Versión compacta dentro de ClassSession.
+    """Versión compacta dentro de ClassSession.
+
     Evita recursión.
     """
-    id: uuid.UUID
-    client_id: uuid.UUID
+
+    id: UUID
+    client_id: UUID
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -124,11 +139,10 @@ class BookingInClassSessionResponse(BookingBase):
 # --------------------------------------------------------------------------- #
 
 class BookingCreateInternal(BaseModel):
-    """
-    Esquema interno para crear una reserva después de resolver la lógica de negocio.
-    """
-    client_id: uuid.UUID
-    class_session_id: uuid.UUID
+    """Esquema interno para crear una reserva después de resolver la lógica de negocio."""
+
+    client_id: UUID
+    class_session_id: UUID
     created_at: datetime
     status: BookingStatus
 
@@ -138,14 +152,15 @@ class BookingCreateInternal(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class BookingPublic(BaseModel):
-    """
-    Versión pública de una reserva.
+    """Versión pública de una reserva.
+
     Usada en:
         • frontend cliente
         • listados públicos
         • dashboards
     """
-    id: uuid.UUID
+
+    id: UUID
     status: BookingStatus
     starts_at: datetime
     ends_at: datetime
@@ -159,20 +174,31 @@ class BookingPublic(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class BookingWithSession(BookingPublic):
-    """
-    Extiende BookingPublic con datos públicos de la sesión.
+    """Extiende BookingPublic con datos públicos de la sesión.
+
     Usado en:
         • /bookings/me
-        • front_desk
+        • front_desk.
     """
-    class_session: ClassSessionPublic
+
+    class_session: "ClassSessionPublic"  # noqa: UP037
 
 
 class BookingWithClient(BookingPublic):
-    """
-    Extiende BookingPublic con datos públicos del cliente.
+    """Extiende BookingPublic con datos públicos del cliente.
+
     Usado en:
         • front_desk
         • dashboards
     """
+
     client: ClientPublic
+
+
+# --------------------------------------------------------------------------- #
+# 8. Resolver forward refs
+# --------------------------------------------------------------------------- #
+
+Booking.model_rebuild()
+BookingWithSession.model_rebuild()
+BookingWithClient.model_rebuild()

@@ -7,13 +7,12 @@ from sqlalchemy.orm import Mapped, relationship
 from .person import Person
 
 if TYPE_CHECKING:
-    from .booking import Booking
-    from .membership import Membership
+    from app.models.booking import Booking
+    from app.models.membership import Membership
 
 
 class Client(Person):
-    """
-    Perfil de cliente del gimnasio.
+    """Perfil de cliente del gimnasio.
 
     Esta entidad extiende a Person y representa a un usuario que puede:
     - tener una membresía,
@@ -21,6 +20,7 @@ class Client(Person):
     - hacer check-in,
     - y participar de actividades agendadas.
     """
+
     __tablename__ = "clients"
 
     # La clave primaria coincide con el registro base de Person.
@@ -30,7 +30,7 @@ class Client(Person):
     bookings: Mapped[list["Booking"]] = relationship(
         "Booking",
         back_populates="client",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
     )
 
     # Membresía activa o principal del cliente.
@@ -38,7 +38,7 @@ class Client(Person):
         "Membership",
         back_populates="client",
         uselist=False,
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
     )
 
     __mapper_args__ = {  # noqa: RUF012

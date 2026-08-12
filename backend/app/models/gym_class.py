@@ -1,23 +1,20 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, Integer, String
-from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import Column, Enum as SQLAlchemyEnum, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, relationship
 
+from app.core.enums import ActivityType, DifficultyLevel
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
-from ..core.enums import ActivityType, DifficultyLevel
-
 if TYPE_CHECKING:
-    from .class_schedule import ClassSchedule
+    from app.models.class_schedule import ClassSchedule
 
 
 class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
-    """
-    Catálogo base de actividades del gimnasio.
+    """Catálogo base de actividades del gimnasio.
 
     Esta entidad representa la definición abstracta de una actividad
     reservable, como por ejemplo:
@@ -29,7 +26,8 @@ class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     capacidad efectiva y generación de sesiones futuras) se delega a
     ClassSchedule y ClassSession.
     """
-    __tablename__ = "gym_classes"
+
+    __tablename__ = "gym_classes" # pyright: ignore[reportAssignmentType]
 
     # Identificador único de la actividad dentro del catálogo.
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -43,7 +41,7 @@ class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     # Tipo de actividad ofrecida.
     activity_type = Column(
         SQLAlchemyEnum(ActivityType, name="activitytype"),
-        nullable=False
+        nullable=False,
     )
 
     # Duración sugerida por defecto para la actividad, expresada en minutos.
@@ -54,7 +52,7 @@ class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     # debe ser opcional según la lógica final del producto.
     difficulty = Column(
         SQLAlchemyEnum(DifficultyLevel, name="difficultylevel"),
-        nullable=True
+        nullable=True,
     )
 
     # Capacidad sugerida por defecto. El cupo operativo real se define

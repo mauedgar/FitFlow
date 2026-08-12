@@ -1,5 +1,5 @@
-"""
-Schemas Base (Sprint 6–7)
+"""Schemas Base (Sprint 6-7).
+
 -------------------------
 Incluye:
 • IDSchema
@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict
 
 class IDSchema(BaseModel):
     """Esquema base con identificador único."""
+
     id: UUID
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,6 +33,7 @@ class IDSchema(BaseModel):
 
 class TimestampSchema(BaseModel):
     """Timestamps completos para modelos privados/operativos."""
+
     created_at: datetime | None = None
     updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
@@ -43,6 +45,7 @@ class TimestampSchema(BaseModel):
 
 class SoftDeleteSchema(BaseModel):
     """Campos de soft-delete y estado activo."""
+
     deleted_at: datetime | None = None
     active: bool = True
     model_config = ConfigDict(from_attributes=True)
@@ -54,6 +57,7 @@ class SoftDeleteSchema(BaseModel):
 
 class PublicIDSchema(BaseModel):
     """Versión pública del ID (sin soft-delete)."""
+
     id: UUID
     model_config = ConfigDict(from_attributes=True)
 
@@ -64,6 +68,7 @@ class PublicIDSchema(BaseModel):
 
 class PublicTimestampSchema(BaseModel):
     """Timestamps públicos (solo created_at)."""
+
     created_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
@@ -73,15 +78,16 @@ class PublicTimestampSchema(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class OperationalSchema(IDSchema, TimestampSchema, SoftDeleteSchema):
-    """
-    Esquema completo para modelos operativos internos.
+    """Esquema completo para modelos operativos internos.
+
     Incluye:
         • id
         • created_at
         • updated_at
         • deleted_at
-        • active
+        • active.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -90,14 +96,15 @@ class OperationalSchema(IDSchema, TimestampSchema, SoftDeleteSchema):
 # --------------------------------------------------------------------------- #
 
 class AuditSchema(BaseModel):
-    """
-    Esquema base para auditoría de cambios.
+    """Esquema base para auditoría de cambios.
+
     Usado en:
         • reservas
         • sesiones
         • membresías
-        • cambios de estado
+        • cambios de estado.
     """
+
     changed_at: datetime
     changed_by: UUID
     previous_value: str | None = None

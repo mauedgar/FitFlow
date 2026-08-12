@@ -1,69 +1,95 @@
+"""Modelo ORM de las membresías de FitFlow."""
+
+from __future__ import annotations
+
 import uuid
+from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, String
-from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy import DateTime, Enum as SQLAlchemyEnum, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.enums import MembershipPlan, MembershipStatus
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
-from ..core.enums import MembershipPlan, MembershipStatus
-
 if TYPE_CHECKING:
-    from .client import Client
+    from app.models.client import Client
 
 
 class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
-    """
-    Membresía asociada a un cliente.
+    """Membresía asociada a un cliente.
 
     Esta entidad define el tipo de acceso comercial del cliente,
     su vigencia temporal y algunos metadatos operativos útiles
     para control de ingreso y futura facturación.
     """
+
     __tablename__ = "memberships"
 
     # Identificador único de la membresía.
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
 
     # Plan comercial contratado por el cliente.
-    plan = Column(
-        SQLAlchemyEnum(MembershipPlan, name="membershipplan"),
+    plan: Mapped[MembershipPlan] = mapped_column(
+        SQLAlchemyEnum(
+            MembershipPlan,
+            name="membershipplan",
+        ),
         nullable=False,
-        default=MembershipPlan.gym_only
+        default=MembershipPlan.gym_only,
     )
 
     # Estado operativo de la membresía.
-    status = Column(
-        SQLAlchemyEnum(MembershipStatus, name="membershipstatus"),
+    status: Mapped[MembershipStatus] = mapped_column(
+        SQLAlchemyEnum(
+            MembershipStatus,
+            name="membershipstatus",
+        ),
         nullable=False,
-        default=MembershipStatus.active
+        default=MembershipStatus.active,
     )
 
     # Fecha de inicio de vigencia.
-    start_date = Column(DateTime(timezone=True), nullable=False)
+    start_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
 
     # Fecha de finalización de vigencia.
-    end_date = Column(DateTime(timezone=True), nullable=False)
+    end_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
 
     # Último check-in registrado para esta membresía.
-    last_check_in = Column(DateTime(timezone=True), nullable=True)
+    last_check_in: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     # Referencia opcional a la última factura o comprobante externo.
-    last_invoice_id = Column(String, nullable=True)
+    last_invoice_id: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True,
+    )
 
     # Cliente titular de la membresía.
-    client_id = Column(
+    client_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("clients.id"),
         unique=True,
-        nullable=False
+        nullable=False,
     )
 
     # Relación inversa con el cliente.
-    client: Mapped["Client"] = relationship( # type: ignore
+    client: Mapped[Client] = relationship(
         "Client",
-        back_populates="membership"
+        back_populates="membership",
     )
+

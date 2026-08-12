@@ -1,39 +1,40 @@
-"""
-Servicios para User (Sprint 6–7)
-================================
+"""Servicios para User.
 
 Incluye:
 • Transformaciones ORM → Schemas públicos.
 • Extensiones con perfil (cliente o profesor).
-• Extensiones con estadísticas básicas.
+• Extensiones con estadísticas completas.
+• Actividad del usuario.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
-from app import schemas
-from app.models import User
-from app.services.client_service import to_client_public
+from app.services.client_service import (
+    get_client_total_bookings,
+    get_client_upcoming_bookings,
+    to_client_public,
+)
 from app.services.teacher_service import to_teacher_public
+from app.schemas.user import UserPublic, UserWithProfile, UserWithStats
+
+if TYPE_CHECKING:
+    from app.models import User
+
 
 # --------------------------------------------------------------------------- #
 # 1. Transformación automática: User → UserPublic
 # --------------------------------------------------------------------------- #
 
-def to_user_public(user: User) -> schemas.UserPublic:
-    """
-    Versión pública del usuario.
-    Usada en:
-        • frontend
-        • listados públicos
-        • dashboards
-    """
-    return schemas.UserPublic(
-        id=user.id,
-        email=user.email,
-        role=user.role,
-        active=user.active,
+def to_user_public(user: User) -> UserPublic:
+    """Versión pública del usuario."""
+    return UserPublic(
+        id=user.id, # pyright: ignore[reportArgumentType]
+        email=user.email, # pyright: ignore[reportArgumentType]
+        role=user.role, # pyright: ignore[reportArgumentType]
+        active=user.active, # pyright: ignore[reportArgumentType]
     )
 
 
@@ -41,28 +42,18 @@ def to_user_public(user: User) -> schemas.UserPublic:
 # 2. Extender User con su perfil (cliente o profesor)
 # --------------------------------------------------------------------------- #
 
-def to_user_with_profile(user: User) -> schemas.UserWithProfile:
-    """
-    Extiende el usuario con su perfil asociado:
-        • ClientPublic
-        • TeacherPublic
-    Usado en:
-        • /users/me
-        • frontend
-        • dashboards
-    """
+def to_user_with_profile(user: User) -> UserWithProfile:
+    """Extiende el usuario con su perfil asociado."""
     client_public = None
     teacher_public = None
 
-    # Perfil cliente
     if user.person_profile and hasattr(user.person_profile, "client"):
-        client_public = to_client_public(user.person_profile.client)
+        client_public = to_client_public(user.person_profile.client) # pyright: ignore[reportAttributeAccessIssue]
 
-    # Perfil profesor
     if user.person_profile and hasattr(user.person_profile, "teacher"):
-        teacher_public = to_teacher_public(user.person_profile.teacher)
+        teacher_public = to_teacher_public(user.person_profile.teacher) # pyright: ignore[reportAttributeAccessIssue]
 
-    return schemas.UserWithProfile(
+    return UserWithProfile(
         **to_user_public(user).model_dump(),
         client=client_public,
         teacher=teacher_public,
@@ -70,37 +61,27 @@ def to_user_with_profile(user: User) -> schemas.UserWithProfile:
 
 
 # --------------------------------------------------------------------------- #
-# 3. Extender User con estadísticas básicas
+# 3. Extender User con estadísticas completas
 # --------------------------------------------------------------------------- #
 
-def to_user_with_stats(user: User) -> schemas.UserWithStats:
-    """
-    Extiende el usuario con estadísticas básicas.
-    Usado en:
-        • /users/me/stats
-        • dashboards
-    """
-    now = datetime.now(tz=timezone.utc)
+def to_user_with_stats(user: User) -> UserWithStats:
+    """Extiende el usuario con estadísticas completas."""
+    now = datetime.now(tz=timezone.utc)  # noqa: F841
 
     total_bookings = 0
     upcoming_bookings = 0
     total_classes_taught = 0
 
-    # Si es cliente
     if user.person_profile and hasattr(user.person_profile, "client"):
-        client = user.person_profile.client
-        total_bookings = len(client.bookings)
-        upcoming_bookings = len([
-            b for b in client.bookings
-            if b.class_session.starts_at > now
-        ])
+        client = user.person_profile.client # pyright: ignore[reportAttributeAccessIssue]
+        total_bookings = get_client_total_bookings(client)
+        upcoming_bookings = len(get_client_upcoming_bookings(client))
 
-    # Si es profesor
     if user.person_profile and hasattr(user.person_profile, "teacher"):
-        teacher = user.person_profile.teacher
+        teacher = user.person_profile.teacher # pyright: ignore[reportAttributeAccessIssue]
         total_classes_taught = len(teacher.class_schedules)
 
-    return schemas.UserWithStats(
+    return UserWithStats(
         **to_user_public(user).model_dump(),
         total_bookings=total_bookings,
         upcoming_bookings=upcoming_bookings,

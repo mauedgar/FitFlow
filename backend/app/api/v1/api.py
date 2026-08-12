@@ -2,14 +2,14 @@
 
 from fastapi import APIRouter
 
-from .endpoints import (
+from app.routers import (
+    auth,
     bookings,
     class_schedules,
     class_sessions,
     clients,
     front_desk,
     gym_classes,
-    login,
     memberships,
     teachers,
     users,
@@ -20,7 +20,7 @@ api_router = APIRouter()
 # -----------------------------
 # Autenticación y Usuarios
 # -----------------------------
-api_router.include_router(login.router)
+api_router.include_router(auth.router)
 api_router.include_router(users.router)
 
 # -----------------------------

@@ -1,5 +1,5 @@
-"""
-Schemas para ClassSession (Sprint 6–7)
+"""Schemas para ClassSession (Sprint 6-7).
+
 --------------------------------------
 Incluye:
 • Esquemas base (crear/actualizar)
@@ -11,20 +11,24 @@ Incluye:
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
+from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Evitar circularidad
+from app.core.enums import ClassSessionStatus  # noqa: TC001
+from app.schemas.class_schedule import (
+    ClassScheduleInClassSessionResponse,  # noqa: TC001
+    ClassSchedulePublic,  # noqa: TC001
+    NextSessionInfo,  # noqa: TC001
+)
+
+# Evitar circularidad: booking.py importa class_session.py
 if TYPE_CHECKING:
-    from .booking import BookingPublic
-    from .class_schedule import (
-        ClassScheduleInClassSessionResponse,
-        ClassSchedulePublic,
-        NextSessionInfo,
-    )
+
+    from app.schemas.booking import BookingPublic
+
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -32,6 +36,7 @@ if TYPE_CHECKING:
 
 class ClassSessionBase(BaseModel):
     """Campos comunes de una sesión individual."""
+
     starts_at: datetime
     ends_at: datetime
     status: bool = False
@@ -45,7 +50,8 @@ class ClassSessionBase(BaseModel):
 
 class ClassSessionCreate(ClassSessionBase):
     """Esquema para crear una sesión individual."""
-    class_schedule_id: uuid.UUID
+
+    class_schedule_id: UUID
 
 
 # --------------------------------------------------------------------------- #
@@ -54,9 +60,10 @@ class ClassSessionCreate(ClassSessionBase):
 
 class ClassSessionUpdate(BaseModel):
     """Esquema para actualizar parcialmente una sesión."""
+
     starts_at: datetime | None = None
     ends_at: datetime | None = None
-    status: bool | None = None
+    status: ClassSessionStatus | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,21 +73,23 @@ class ClassSessionUpdate(BaseModel):
 # --------------------------------------------------------------------------- #
 
 class ClassSession(ClassSessionBase):
-    """
-    Esquema completo de una sesión (privado).
+    """Esquema completo de una sesión (privado).
+
     Incluye:
         • relación con ClassSchedule
         • relación con Bookings
-        • campos calculados de disponibilidad
+        • campos calculados de disponibilidad.
     """
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
+
+    id: UUID
+    class_schedule_id: UUID
 
     class_schedule: ClassSchedulePublic
-    bookings: list[BookingPublic] = Field(default_factory=list)
+    bookings: list["BookingPublic"] = Field(default_factory=list)  # noqa: UP037
 
     current_bookings_count: int = 0
     available_spots: int = 0
+    capacity_snapshot: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -90,18 +99,20 @@ class ClassSession(ClassSessionBase):
 # --------------------------------------------------------------------------- #
 
 class ClassSessionPublic(ClassSessionBase):
-    """
-    Versión pública de una sesión.
+    """Versión pública de una sesión.
+
     Usada en:
         • frontend cliente
         • catálogo público
-        • listados públicos de sesiones
+        • listados públicos de sesiones.
     """
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
+
+    id: UUID
+    class_schedule_id: UUID
 
     current_bookings_count: int = 0
     available_spots: int = 0
+    capacity_snapshot: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -111,12 +122,13 @@ class ClassSessionPublic(ClassSessionBase):
 # --------------------------------------------------------------------------- #
 
 class ClassSessionWithSchedule(ClassSessionPublic):
+    """Extiende ClassSessionPublic con datos públicos del horario.
+
+    • detalle de sesión
+        • front_desk.
     """
-    Extiende ClassSessionPublic con datos públicos del horario.
-    Usado en:
-        • detalle de sesión
-        • front_desk
-    """
+
+    capacity_snapshot: int
     class_schedule: ClassSchedulePublic
 
 
@@ -125,12 +137,13 @@ class ClassSessionWithSchedule(ClassSessionPublic):
 # --------------------------------------------------------------------------- #
 
 class ClassSessionWithNext(ClassSessionPublic):
-    """
-    Extiende ClassSessionPublic con información de la próxima sesión.
+    """Extiende ClassSessionPublic con información de la próxima sesión.
+
     Usado en:
         • dashboards
-        • front_desk
+        • front_desk.
     """
+
     next_session: NextSessionInfo | None = None
 
 
@@ -139,12 +152,13 @@ class ClassSessionWithNext(ClassSessionPublic):
 # --------------------------------------------------------------------------- #
 
 class ClassSessionInResponse(ClassSessionBase):
-    """
-    Versión compacta de la sesión para anidarla dentro de ClassSchedule o GymClass.
+    """Versión compacta de la sesión para anidarla dentro de ClassSchedule o GymClass.
+
     Incluye campos calculados pero no relaciones completas.
     """
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
+
+    id: UUID
+    class_schedule_id: UUID
 
     current_bookings_count: int = 0
     available_spots: int = 0
@@ -157,12 +171,56 @@ class ClassSessionInResponse(ClassSessionBase):
 # --------------------------------------------------------------------------- #
 
 class ClassSessionInBookingResponse(ClassSessionBase):
-    """
-    Versión compacta de la sesión dentro de Booking.
+    """Versión compacta de la sesión dentro de Booking.
+
     Incluye solo la relación mínima necesaria.
     """
-    id: uuid.UUID
-    class_schedule_id: uuid.UUID
+
+    id: UUID
+    class_schedule_id: UUID
     class_schedule: ClassScheduleInClassSessionResponse
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 10. Sesión completa con todas las relaciones (detalle)
+# --------------------------------------------------------------------------- #
+
+class ClassSessionWithRelations(ClassSessionBase):
+    """Sesión completa con todas sus relaciones cargadas.
+
+    Incluye:
+        • class_schedule (público)
+        • gym_class (público)
+        • teacher (público)
+        • bookings (público)
+        • campos calculados
+    Usado en:
+        • /sessions/{id}
+        • front desk
+        • dashboards internos
+    """
+
+    id: UUID
+    class_schedule_id: UUID
+
+    class_schedule: ClassSchedulePublic
+    gym_class: ClassSchedulePublic.gym_class.__class__  # type: ignore[attr-defined]
+    teacher: ClassSchedulePublic.teacher.__class__  # type: ignore[attr-defined]
+
+    bookings: list["BookingPublic"] = Field(default_factory=list)  # noqa: UP037
+
+    capacity_snapshot: int
+    current_bookings_count: int = 0
+    available_spots: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
+# 11. Resolver forward refs
+# --------------------------------------------------------------------------- #
+
+ClassSession.model_rebuild()
+ClassSessionWithRelations.model_rebuild()

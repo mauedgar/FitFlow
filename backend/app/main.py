@@ -30,5 +30,5 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
-def read_root():
+def read_root():  # noqa: ANN201, D103
     return {"message": "Welcome to FitFlow API"}
