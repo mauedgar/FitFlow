@@ -24,7 +24,7 @@ from app.services.membership_service import (
     to_membership_with_client,
     to_membership_with_stats,
 )
-from backend.app.schemas.membership import (
+from app.schemas.membership import (
     MembershipCreate,
     MembershipPublic,
     MembershipUpdate,

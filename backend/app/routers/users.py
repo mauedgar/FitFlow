@@ -22,7 +22,7 @@ from app.services.user_service import (
     to_user_with_profile,
     to_user_with_stats,
 )
-from backend.app.schemas.user import (
+from app.schemas.user import (
     UserCreate,
     UserPublic,
     UserWithProfile,

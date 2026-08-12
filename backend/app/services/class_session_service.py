@@ -14,8 +14,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from backend.app.core.enums import ClassSessionStatus
-from backend.app.schemas.class_session import (
+from app.core.enums import ClassSessionStatus
+from app.schemas.class_session import (
     ClassSessionInResponse,
     ClassSessionWithRelations,
 )

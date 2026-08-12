@@ -1,0 +1,471 @@
+# 01-file-access-rule.md
+---
+description: Protocol accesing files
+---
+Never assume a tool supports glob patterns.
+
+When multiple files are required:
+1. list the directory;
+2. identify relevant files;
+3. read files individually;
+4. process only files actually read;
+5. report files actually inspected.
+
+Never invent file names or contents.
+
+# 02-evidence-protocol.md
+---
+description: Evidence Protocol
+---
+
+Distinguish explicitly between:
+- VERIFIED FACT
+- INFERENCE
+- NOT VERIFIED
+- CONTRADICTION
+
+Never present an inference as an observed fact.
+
+If evidence is insufficient, say so.
+
+# 03-architecture-awareness.md
+---
+description: A description of your rule
+---
+
+FitFlow is a gym management system.
+
+Respect the existing architecture and domain model.
+
+Do not introduce new abstractions, entities, relationships,
+or architectural patterns without evidence that they are required.
+
+# 04-safe-changes.md
+---
+description: Don't modify
+---
+
+Do not modify files during an audit.
+
+Before modifying an existing file:
+1. read the current file;
+2. understand the relevant context;
+3. make the smallest necessary change;
+4. report exactly what changed.
+
+# 05-context-management.md
+---
+description: Maintain continuity during long-running FitFlow investigations and audits.
+---
+
+# Context Management
+
+Long-running investigations may involve many files, tool calls, and intermediate findings.
+
+## Preserve progress
+
+Do not restart an investigation merely because the task is large.
+
+Before continuing a long-running investigation, determine:
+
+- What has already been verified.
+- Which files have already been inspected.
+- Which entities and relationships have been established.
+- Which findings remain unverified.
+- Which investigation steps remain pending.
+
+Do not reread files solely to reconstruct information that is already available in the current context.
+
+## Context pressure
+
+If the available context becomes insufficient:
+
+1. Do not restart the investigation.
+2. Do not reread previously analyzed files unnecessarily.
+3. Preserve only information required to continue the current task.
+4. Reduce the working context to:
+   - verified facts
+   - relevant files
+   - important relationships
+   - confirmed inconsistencies
+   - unresolved questions
+   - completed steps
+   - pending steps
+5. Continue from the last unresolved step.
+
+Do not invent or claim knowledge that is no longer available in the current context.
+
+## Continuation
+
+If the user asks to continue a previous investigation:
+
+- Resume from the available state.
+- Do not restart from the beginning unless necessary.
+- If required state is unavailable, identify what information is missing and retrieve only that information.
+
+# 06-controlled-exploration.md
+---
+description: Control how the agent explores the FitFlow codebase to keep investigations focused and evidence-based.
+---
+
+# Controlled Exploration
+
+You are working as an autonomous coding agent on the FitFlow project.
+
+## Exploration
+
+1. Before making changes, understand the relevant existing implementation.
+2. Do not explore the entire repository unless explicitly requested.
+3. Prefer targeted search or directory listing to discover relevant files.
+4. If the relevant file is already known, read it directly instead of searching unnecessarily.
+5. Read only files relevant to the current task.
+6. Do not repeatedly read the same file unless its contents are needed again.
+7. Avoid generated, cached, dependency, build, and environment directories.
+8. Prefer current source code and current project documentation over historical documentation.
+9. Historical documentation may help explain previous architectural decisions, but must never be treated as proof of the current implementation.
+10. When information is insufficient, obtain the missing information with the available tools instead of guessing.
+11. Keep the working context focused on the current task.
+
+## Before modifying code
+
+- Identify affected components.
+- Identify relevant models, services, repositories, endpoints, schemas, and relationships.
+- Check conventions in the surrounding code.
+- Consider existing business rules and dependencies.
+
+## When modifying code
+
+- Make the smallest coherent set of changes required.
+- Preserve unrelated existing behavior.
+- Do not create duplicate implementations.
+- Do not silently change business rules.
+- Do not perform broad refactors unless explicitly requested.
+
+## After modifying code
+
+- Review the changes.
+- Check consistency with related models and interfaces.
+- Run the most relevant available tests or validation commands when appropriate.
+- Clearly report what changed and any remaining uncertainty.
+
+## Tool usage
+
+Use the available tools when they can provide direct evidence.
+
+Prefer:
+- directory listing for discovering files
+- targeted search for locating relevant symbols
+- file reading for inspecting source code
+- terminal commands for verification, diagnostics, and project operations when appropriate
+
+Do not simulate tool results.
+
+If a tool requires user approval, do not assume the operation succeeded.
+If an alternative read-only tool can obtain the required information, prefer it.
+
+Do not use terminal commands when an available dedicated file tool can perform the same read-only operation.
+
+# 07-evidence-first.md
+---
+description: Tool failures and rejected tool calls
+---
+
+## Tool failures and rejected tool calls
+
+A rejected, failed, or unavailable tool call is not evidence.
+
+Do not treat the intended result of a tool call as if it had been obtained.
+
+If a tool call is rejected:
+
+1. Determine whether the required information can be obtained with another available tool.
+2. If an alternative tool can provide the same evidence, use it.
+3. If retrying the same tool is reasonable and the rejection appears transient, retry once.
+4. If the information still cannot be verified, continue only when useful and clearly mark the resulting statement as an INFERENCE or UNVERIFIED finding.
+5. Never fabricate the missing tool result.
+
+When continuing from incomplete evidence, explicitly distinguish:
+
+- VERIFIED: obtained from the source/tool.
+- INFERENCE: conclusion derived from available evidence but not directly verified.
+- UNVERIFIED: information that could not be established.
+
+# 08-workspace-and-file-path.md
+---
+description: Project path
+---
+
+## Workspace and file paths
+
+The project workspace root is:
+C:\Proyectos web\FitFlow
+
+The backend root is:
+C:\Proyectos web\FitFlow\backend
+
+When using file tools:
+- Treat C:\Proyectos web\FitFlow as the project root.
+- Treat C:\Proyectos web\FitFlow\backend as the backend root.
+- Prefer paths relative to the workspace when the tool accepts relative paths.
+- Backend paths therefore start with: backend\
+- Do not invent or guess paths.
+- Before reading a file, verify that the path exists using the available file/directory tool when necessary.
+- If a tool returns a path, reuse that exact path instead of reconstructing it.
+- Do not switch between C:\Proyectos web\FitFlow, C:\fitflow, backend\, or other roots.
+- Never assume that a directory exists because its name is conventional.
+- Never fabricate tool results.
+
+# 09-tool-excecution.md
+---
+description: Excecuting tools
+---
+## Tool execution
+When a tool is available for filesystem access, USE THE TOOL.
+Do not merely describe the tool call in your reasoning.
+
+If a tool call fails:
+1. Read the actual error.
+2. Do not assume the file does not exist.
+3. Do not invent an alternative project structure.
+4. Retry only with a path justified by the workspace or by the tool output.
+
+# 10-file-existence.md
+
+
+# concat_rules.txt
+# 01-file-access-rule.md
+---
+description: Protocol accesing files
+---
+Never assume a tool supports glob patterns.
+
+When multiple files are required:
+1. list the directory;
+2. identify relevant files;
+3. read files individually;
+4. process only files actually read;
+5. report files actually inspected.
+
+Never invent file names or contents.
+
+# 02-evidence-protocol.md
+---
+description: Evidence Protocol
+---
+
+Distinguish explicitly between:
+- VERIFIED FACT
+- INFERENCE
+- NOT VERIFIED
+- CONTRADICTION
+
+Never present an inference as an observed fact.
+
+If evidence is insufficient, say so.
+
+# 03-architecture-awareness.md
+---
+description: A description of your rule
+---
+
+FitFlow is a gym management system.
+
+Respect the existing architecture and domain model.
+
+Do not introduce new abstractions, entities, relationships,
+or architectural patterns without evidence that they are required.
+
+# 04-safe-changes.md
+---
+description: Don't modify
+---
+
+Do not modify files during an audit.
+
+Before modifying an existing file:
+1. read the current file;
+2. understand the relevant context;
+3. make the smallest necessary change;
+4. report exactly what changed.
+
+# 05-context-management.md
+---
+description: Maintain continuity during long-running FitFlow investigations and audits.
+---
+
+# Context Management
+
+Long-running investigations may involve many files, tool calls, and intermediate findings.
+
+## Preserve progress
+
+Do not restart an investigation merely because the task is large.
+
+Before continuing a long-running investigation, determine:
+
+- What has already been verified.
+- Which files have already been inspected.
+- Which entities and relationships have been established.
+- Which findings remain unverified.
+- Which investigation steps remain pending.
+
+Do not reread files solely to reconstruct information that is already available in the current context.
+
+## Context pressure
+
+If the available context becomes insufficient:
+
+1. Do not restart the investigation.
+2. Do not reread previously analyzed files unnecessarily.
+3. Preserve only information required to continue the current task.
+4. Reduce the working context to:
+   - verified facts
+   - relevant files
+   - important relationships
+   - confirmed inconsistencies
+   - unresolved questions
+   - completed steps
+   - pending steps
+5. Continue from the last unresolved step.
+
+Do not invent or claim knowledge that is no longer available in the current context.
+
+## Continuation
+
+If the user asks to continue a previous investigation:
+
+- Resume from the available state.
+- Do not restart from the beginning unless necessary.
+- If required state is unavailable, identify what information is missing and retrieve only that information.
+
+# 06-controlled-exploration.md
+---
+description: Control how the agent explores the FitFlow codebase to keep investigations focused and evidence-based.
+---
+
+# Controlled Exploration
+
+You are working as an autonomous coding agent on the FitFlow project.
+
+## Exploration
+
+1. Before making changes, understand the relevant existing implementation.
+2. Do not explore the entire repository unless explicitly requested.
+3. Prefer targeted search or directory listing to discover relevant files.
+4. If the relevant file is already known, read it directly instead of searching unnecessarily.
+5. Read only files relevant to the current task.
+6. Do not repeatedly read the same file unless its contents are needed again.
+7. Avoid generated, cached, dependency, build, and environment directories.
+8. Prefer current source code and current project documentation over historical documentation.
+9. Historical documentation may help explain previous architectural decisions, but must never be treated as proof of the current implementation.
+10. When information is insufficient, obtain the missing information with the available tools instead of guessing.
+11. Keep the working context focused on the current task.
+
+## Before modifying code
+
+- Identify affected components.
+- Identify relevant models, services, repositories, endpoints, schemas, and relationships.
+- Check conventions in the surrounding code.
+- Consider existing business rules and dependencies.
+
+## When modifying code
+
+- Make the smallest coherent set of changes required.
+- Preserve unrelated existing behavior.
+- Do not create duplicate implementations.
+- Do not silently change business rules.
+- Do not perform broad refactors unless explicitly requested.
+
+## After modifying code
+
+- Review the changes.
+- Check consistency with related models and interfaces.
+- Run the most relevant available tests or validation commands when appropriate.
+- Clearly report what changed and any remaining uncertainty.
+
+## Tool usage
+
+Use the available tools when they can provide direct evidence.
+
+Prefer:
+- directory listing for discovering files
+- targeted search for locating relevant symbols
+- file reading for inspecting source code
+- terminal commands for verification, diagnostics, and project operations when appropriate
+
+Do not simulate tool results.
+
+If a tool requires user approval, do not assume the operation succeeded.
+If an alternative read-only tool can obtain the required information, prefer it.
+
+Do not use terminal commands when an available dedicated file tool can perform the same read-only operation.
+
+# 07-evidence-first.md
+---
+description: Tool failures and rejected tool calls
+---
+
+## Tool failures and rejected tool calls
+
+A rejected, failed, or unavailable tool call is not evidence.
+
+Do not treat the intended result of a tool call as if it had been obtained.
+
+If a tool call is rejected:
+
+1. Determine whether the required information can be obtained with another available tool.
+2. If an alternative tool can provide the same evidence, use it.
+3. If retrying the same tool is reasonable and the rejection appears transient, retry once.
+4. If the information still cannot be verified, continue only when useful and clearly mark the resulting statement as an INFERENCE or UNVERIFIED finding.
+5. Never fabricate the missing tool result.
+
+When continuing from incomplete evidence, explicitly distinguish:
+
+- VERIFIED: obtained from the source/tool.
+- INFERENCE: conclusion derived from available evidence but not directly verified.
+- UNVERIFIED: information that could not be established.
+
+# 08-workspace-and-file-path.md
+---
+description: Project path
+---
+
+## Workspace and file paths
+
+The project workspace root is:
+C:\Proyectos web\FitFlow
+
+The backend root is:
+C:\Proyectos web\FitFlow\backend
+
+When using file tools:
+- Treat C:\Proyectos web\FitFlow as the project root.
+- Treat C:\Proyectos web\FitFlow\backend as the backend root.
+- Prefer paths relative to the workspace when the tool accepts relative paths.
+- Backend paths therefore start with: backend\
+- Do not invent or guess paths.
+- Before reading a file, verify that the path exists using the available file/directory tool when necessary.
+- If a tool returns a path, reuse that exact path instead of reconstructing it.
+- Do not switch between C:\Proyectos web\FitFlow, C:\fitflow, backend\, or other roots.
+- Never assume that a directory exists because its name is conventional.
+- Never fabricate tool results.
+
+# 09-tool-excecution.md
+---
+description: Excecuting tools
+---
+## Tool execution
+When a tool is available for filesystem access, USE THE TOOL.
+Do not merely describe the tool call in your reasoning.
+
+If a tool call fails:
+1. Read the actual error.
+2. Do not assume the file does not exist.
+3. Do not invent an alternative project structure.
+4. Retry only with a path justified by the workspace or by the tool output.
+
+# 10-file-existence.md
+
+
+
+

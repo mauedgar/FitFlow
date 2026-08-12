@@ -14,8 +14,8 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from app.services.booking_service import to_booking_public
-from backend.app.crud import user_crud
-from backend.app.schemas.client import (
+from app.crud import user_crud
+from app.schemas.client import (
     ClientPublic,
     ClientWithActivity,
     ClientWithBookings,

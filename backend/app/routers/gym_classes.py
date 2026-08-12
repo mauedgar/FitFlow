@@ -24,8 +24,8 @@ from app.services.class_schedule_service import (
 from app.services.gym_class_service import (
     to_gym_class_public,
 )
-from backend.app.schemas.class_schedule import ClassSchedulePublic, NextSessionInfo
-from backend.app.schemas.gym_class import (
+from app.schemas.class_schedule import ClassSchedulePublic, NextSessionInfo
+from app.schemas.gym_class import (
     GymClassCreate,
     GymClassPublic,
     GymClassRead,

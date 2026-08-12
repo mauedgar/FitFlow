@@ -31,8 +31,8 @@ from app.schemas.class_schedule import (
 )
 from app.schemas.class_session import ClassSessionCreate, ClassSessionPublic
 from app.services import errors as svc_errors
-from backend.app.core.enums import AllowedPlan, MembershipPlan
-from backend.app.models.membership import Membership  # noqa: TC001
+from app.core.enums import AllowedPlan, MembershipPlan
+from app.models.membership import Membership  # noqa: TC001
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession

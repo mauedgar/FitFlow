@@ -28,12 +28,12 @@ from app.services.class_session_service import (
     to_class_session_response,
     update_session_availability,
 )
-from backend.app.schemas.class_session import (
+from app.schemas.class_session import (
     ClassSessionCreate,
     ClassSessionInResponse,
     ClassSessionUpdate,
 )
-from backend.app.schemas.front_desk import SessionCapacity
+from app.schemas.front_desk import SessionCapacity
 
 if TYPE_CHECKING:
     from uuid import UUID

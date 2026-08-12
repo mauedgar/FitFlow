@@ -33,14 +33,14 @@ from app.services.class_session_service import (
 from app.services.teacher_service import (
     to_teacher_public,
 )
-from backend.app.core.enums import UserRole
-from backend.app.schemas.class_schedule import (
+from app.core.enums import UserRole
+from app.schemas.class_schedule import (
     ClassSchedule,
     ClassSchedulePublic,
     NextSessionInfo,
 )
-from backend.app.schemas.class_session import ClassSessionInResponse
-from backend.app.schemas.teacher import (
+from app.schemas.class_session import ClassSessionInResponse
+from app.schemas.teacher import (
     Teacher,
     TeacherCreate,
     TeacherPublic,

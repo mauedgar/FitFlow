@@ -28,11 +28,11 @@ from app.services.class_session_service import (
     to_class_session_response,
     update_session_availability,
 )
-from backend.app.schemas.booking import BookingPublic
-from backend.app.schemas.class_schedule import ClassSchedulePublic
-from backend.app.schemas.class_session import ClassSessionInResponse, ClassSessionUpdate
-from backend.app.schemas.front_desk import SessionCapacity
-from backend.app.schemas.gym_class import GymClassPublic
+from app.schemas.booking import BookingPublic
+from app.schemas.class_schedule import ClassSchedulePublic
+from app.schemas.class_session import ClassSessionInResponse, ClassSessionUpdate
+from app.schemas.front_desk import SessionCapacity
+from app.schemas.gym_class import GymClassPublic
 
 # ruff: noqa: ARG001
 if TYPE_CHECKING:

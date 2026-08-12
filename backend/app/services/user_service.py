@@ -18,7 +18,7 @@ from app.services.client_service import (
     to_client_public,
 )
 from app.services.teacher_service import to_teacher_public
-from backend.app.schemas.user import UserPublic, UserWithProfile, UserWithStats
+from app.schemas.user import UserPublic, UserWithProfile, UserWithStats
 
 if TYPE_CHECKING:
     from app.models import User

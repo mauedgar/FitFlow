@@ -32,7 +32,7 @@ from app.services.client_service import (
     to_client_with_stats,
     unlink_user_profile,
 )
-from backend.app.schemas.client import (
+from app.schemas.client import (
     Client,
     ClientCreate,
     ClientPublic,
