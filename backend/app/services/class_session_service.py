@@ -21,7 +21,7 @@ from app.schemas.class_session import (
 )
 
 if TYPE_CHECKING:
-    from app.models import ClassSchedule, ClassSession
+    from backend.app.db.models import ClassSchedule, ClassSession
 
 
 # --------------------------------------------------------------------------- #

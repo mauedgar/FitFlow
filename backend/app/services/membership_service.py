@@ -22,7 +22,7 @@ from app.schemas.membership import (
 from app.services.client_service import to_client_public
 
 if TYPE_CHECKING:
-    from app.models import Membership
+    from backend.app.db.models import Membership
 
 
 # --------------------------------------------------------------------------- #

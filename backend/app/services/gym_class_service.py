@@ -14,7 +14,7 @@ from app.schemas.gym_class import GymClassPublic, GymClassWithSchedules
 from app.services.class_schedule_service import to_class_schedule_public
 
 if TYPE_CHECKING:
-    from app.models import GymClass
+    from backend.app.db.models import GymClass
 
 
 # --------------------------------------------------------------------------- #

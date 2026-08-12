@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.security import get_password_hash
 from app.crud.base import CRUDBase
-from app.models.user import User
+from backend.app.db.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 
 if TYPE_CHECKING:

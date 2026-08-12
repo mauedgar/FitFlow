@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from app.models import Membership
+from backend.app.db.models import Membership
 from app.schemas.membership import MembershipCreate, MembershipUpdate
 
 if TYPE_CHECKING:

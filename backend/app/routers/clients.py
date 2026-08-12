@@ -23,7 +23,7 @@ from app.core.deps import (
 )
 from app.crud.crud_user import user_crud
 from app.db.session import get_async_session
-from app.models.user import User, UserRole
+from backend.app.db.models.user import User, UserRole
 from app.services.client_service import (
     to_client_public,
     to_client_with_activity,

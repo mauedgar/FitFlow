@@ -19,7 +19,7 @@ from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from app.models.user import UserRole
+from backend.app.db.models.user import UserRole
 
 # Evitar circularidad: client.py y teacher.py importan user.py
 if TYPE_CHECKING:

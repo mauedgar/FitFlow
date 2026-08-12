@@ -1,5 +1,6 @@
+templates/
 # Byte-compiled / optimized / DLL files
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 
@@ -38,12 +39,11 @@ package-lock.json
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
-.venv*/
-.venv_backend/
-.venv_sourcetrail/
-.venv_tools/
-internos/
-historico/
+**/.venv*/
+**/.venv_backend/
+**/.venv_tools/
+**/internos/
+**/historico/
 
 script/
 # Unit test / coverage reports

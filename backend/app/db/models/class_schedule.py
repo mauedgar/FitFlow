@@ -33,9 +33,9 @@ from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.class_session import ClassSession
-    from app.models.gym_class import GymClass
-    from app.models.teacher import Teacher
+    from backend.app.db.models.class_session import ClassSession
+    from backend.app.db.models.gym_class import GymClass
+    from backend.app.db.models.teacher import Teacher
 
 
 class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):

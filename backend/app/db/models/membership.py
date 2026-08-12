@@ -15,7 +15,7 @@ from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.client import Client
+    from backend.app.db.models.client import Client
 
 
 class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):

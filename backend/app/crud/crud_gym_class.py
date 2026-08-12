@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from app.models import ClassSchedule, GymClass
+from backend.app.db.models import ClassSchedule, GymClass
 from app.schemas.gym_class import GymClassCreate, GymClassUpdate
 
 if TYPE_CHECKING:

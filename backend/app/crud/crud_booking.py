@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from app.models import Booking, ClassSchedule, ClassSession
+from backend.app.db.models import Booking, ClassSchedule, ClassSession
 from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingUpdate
 
 # Excepciones de dominio centralizadas

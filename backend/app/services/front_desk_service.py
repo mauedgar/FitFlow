@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.crud import class_schedule, class_session, gym_class
-from app.models import ClassSchedule, ClassSession
+from backend.app.db.models import ClassSchedule, ClassSession
 from app.schemas.front_desk import (
     FrontDeskBookingView,
     FrontDeskDayView,

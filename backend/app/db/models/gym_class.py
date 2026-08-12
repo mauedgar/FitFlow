@@ -10,7 +10,7 @@ from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.class_schedule import ClassSchedule
+    from backend.app.db.models.class_schedule import ClassSchedule
 
 
 class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):

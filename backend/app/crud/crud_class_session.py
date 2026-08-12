@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from app.models import ClassSchedule, ClassSession
+from backend.app.db.models import ClassSchedule, ClassSession
 from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
 from app.services import errors as svc_errors
 

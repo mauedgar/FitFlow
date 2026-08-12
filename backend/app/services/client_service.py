@@ -26,7 +26,7 @@ from app.schemas.client import (
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from app.models import Booking, Client, Membership
+    from backend.app.db.models import Booking, Client, Membership
 
 
 # --------------------------------------------------------------------------- #

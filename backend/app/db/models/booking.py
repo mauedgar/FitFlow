@@ -16,8 +16,8 @@ from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.class_session import ClassSession
-    from app.models.client import Client
+    from backend.app.db.models.class_session import ClassSession
+    from backend.app.db.models.client import Client
 
 
 

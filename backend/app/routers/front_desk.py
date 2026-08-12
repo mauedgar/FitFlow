@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from app.models.user import User
+    from backend.app.db.models.user import User
 
 
 router = APIRouter(prefix="/front-desk", tags=["front-desk"])

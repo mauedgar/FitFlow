@@ -10,7 +10,7 @@ from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.person import Person
+    from backend.app.db.models.person import Person
 
 class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     """Cuenta autenticable del sistema.

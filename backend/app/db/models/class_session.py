@@ -18,10 +18,10 @@ from sqlalchemy.orm import Mapped, relationship
 from app.core.enums import ClassSessionStatus
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, TimestampMixin
-from app.models.booking import Booking
+from backend.app.db.models.booking import Booking
 
 if TYPE_CHECKING:
-    from app.models.class_schedule import ClassSchedule
+    from backend.app.db.models.class_schedule import ClassSchedule
 
 
 class ClassSession(Base, TimestampMixin, ActiveMixin):
