@@ -17,8 +17,10 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.crud import class_schedule, class_session, gym_class
-from backend.app.db.models import ClassSchedule, ClassSession
+from app.crud.crud_class_schedule import class_schedule
+from app.crud.crud_class_session import class_session
+from app.crud.crud_gym_class import gym_class
+from app.db.models import ClassSchedule, ClassSession
 from app.schemas.front_desk import (
     FrontDeskBookingView,
     FrontDeskDayView,

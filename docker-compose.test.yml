@@ -1,0 +1,45 @@
+name: fitflow-test
+
+services:
+  postgres_test:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: fitflow_test
+      POSTGRES_USER: fitflow_test_user
+      POSTGRES_PASSWORD: fitflow_test_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fitflow_test_user -d fitflow_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - test_network
+
+  backend_test:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.test
+    command: ["sleep", "infinity"]
+    environment:
+      ENV: test
+      TESTING: "true"
+      DEBUG: "false"
+      DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@postgres_test:5432/fitflow_test
+      SECRET_KEY: fitflow-test-only-secret-key
+      MEDIA_DIR: /tmp/fitflow-media
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTEST_ADDOPTS: "-p no:cacheprovider --basetemp=/tmp/pytest"
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+    networks:
+      - test_network
+
+volumes:
+  postgres_test_data:
+
+networks:
+  test_network:
+    driver: bridge

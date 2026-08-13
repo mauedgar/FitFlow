@@ -1,14 +1,15 @@
+import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, ForeignKey
+from sqlalchemy import ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .person import Person
 
 if TYPE_CHECKING:
-    from backend.app.db.models.booking import Booking
-    from backend.app.db.models.membership import Membership
+    from app.db.models.booking import Booking
+    from app.db.models.membership import Membership
 
 
 class Client(Person):
@@ -24,21 +25,25 @@ class Client(Person):
     __tablename__ = "clients"
 
     # La clave primaria coincide con el registro base de Person.
-    id = Column(UUID(as_uuid=True), ForeignKey("persons.id"), primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("persons.id"), primary_key=True
+    )
 
     # Reservas realizadas por el cliente.
     bookings: Mapped[list["Booking"]] = relationship(
         "Booking",
         back_populates="client",
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     # Membresía activa o principal del cliente.
-    membership: Mapped["Membership"] = relationship(
+    membership: Mapped["Membership | None"] = relationship(
         "Membership",
         back_populates="client",
         uselist=False,
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     __mapper_args__ = {  # noqa: RUF012

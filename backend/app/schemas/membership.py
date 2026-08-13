@@ -11,15 +11,16 @@ Incluye:
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003
+from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import MembershipPlan, MembershipStatus  # noqa: TC001
-from app.schemas.client import ClientPublic  # noqa: TC001
 
 # Evitar circularidad: client.py importa membership.py
-
+if TYPE_CHECKING:
+    from app.schemas.client import ClientPublic
 
 
 # --------------------------------------------------------------------------- #
@@ -167,5 +168,3 @@ class MembershipMini(BaseModel):
 # --------------------------------------------------------------------------- #
 # Resolver forward refs
 # --------------------------------------------------------------------------- #
-
-MembershipWithClient.model_rebuild()

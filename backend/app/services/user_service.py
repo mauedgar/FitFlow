@@ -21,7 +21,7 @@ from app.services.teacher_service import to_teacher_public
 from app.schemas.user import UserPublic, UserWithProfile, UserWithStats
 
 if TYPE_CHECKING:
-    from backend.app.db.models import User
+    from app.db.models import User
 
 
 # --------------------------------------------------------------------------- #

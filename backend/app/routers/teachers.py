@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import selectinload
 
-from app import crud
+from app.crud import crud_teacher as crud
 from app.core.deps import (
     require_admin,
     require_admin_or_teacher,
@@ -52,7 +52,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from backend.app.db.models.user import User
+    from app.db.models.user import User
 
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])

@@ -1,14 +1,23 @@
-"""Model package for FitFlow backend."""
+"""Registro explícito de los modelos ORM activos de FitFlow."""
 
-# Este archivo hace que sea más fácil importar tus modelos desde otros lugares.
-from backend.app.db.models.booking import Booking  # noqa: F401
-from backend.app.db.models.class_schedule import ClassSchedule  # noqa: F401
-from backend.app.db.models.class_session import ClassSession  # noqa: F401
-from backend.app.db.models.client import Client  # noqa: F401
-from backend.app.db.models.gym_class import GymClass  # noqa: F401
-from backend.app.db.models.membership import Membership  # noqa: F401
-from backend.app.db.models.permission import Permission  # noqa: F401
-from backend.app.db.models.person import Person  # noqa: F401
-from backend.app.db.models.role import Role  # noqa: F401
-from backend.app.db.models.teacher import Teacher  # noqa: F401
-from backend.app.db.models.user import User  # noqa: F401
+from app.db.models.booking import Booking
+from app.db.models.class_schedule import ClassSchedule
+from app.db.models.class_session import ClassSession
+from app.db.models.client import Client
+from app.db.models.gym_class import GymClass
+from app.db.models.membership import Membership
+from app.db.models.person import Person
+from app.db.models.teacher import Teacher
+from app.db.models.user import User
+
+__all__ = [
+    "Booking",
+    "ClassSchedule",
+    "ClassSession",
+    "Client",
+    "GymClass",
+    "Membership",
+    "Person",
+    "Teacher",
+    "User",
+]

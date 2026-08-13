@@ -13,24 +13,21 @@ Incluye:
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003
-from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
 # Importar enums SIEMPRE en runtime (Pydantic v2 los necesita)
 from app.core.enums import BookingStatus  # noqa: TC001
+from app.schemas.booking_refs import BookingPublic
 
 # Importar client normalmente (no genera ciclos)
 from app.schemas.client import ClientInBookingResponse, ClientPublic  # noqa: TC001
 
-# Evitar circularidad: class_session importa booking → usar TYPE_CHECKING
-if TYPE_CHECKING:
-
-    from app.schemas.class_session import (
-        ClassSessionInBookingResponse,
-        ClassSessionPublic,
-    )
+from app.schemas.class_session import (
+    ClassSessionInBookingResponse,
+    ClassSessionPublic,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -99,7 +96,7 @@ class Booking(BookingBase):
 
     # Forward refs porque class_session está en TYPE_CHECKING
     client: ClientInBookingResponse
-    class_session: "ClassSessionInBookingResponse"  # noqa: UP037
+    class_session: ClassSessionInBookingResponse
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -151,25 +148,6 @@ class BookingCreateInternal(BaseModel):
 # 6. Versión pública (frontend)
 # --------------------------------------------------------------------------- #
 
-class BookingPublic(BaseModel):
-    """Versión pública de una reserva.
-
-    Usada en:
-        • frontend cliente
-        • listados públicos
-        • dashboards
-    """
-
-    id: UUID
-    status: BookingStatus
-    starts_at: datetime
-    ends_at: datetime
-    gym_class_name: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# --------------------------------------------------------------------------- #
 # 7. Extensiones públicas
 # --------------------------------------------------------------------------- #
 
@@ -193,12 +171,3 @@ class BookingWithClient(BookingPublic):
     """
 
     client: ClientPublic
-
-
-# --------------------------------------------------------------------------- #
-# 8. Resolver forward refs
-# --------------------------------------------------------------------------- #
-
-Booking.model_rebuild()
-BookingWithSession.model_rebuild()
-BookingWithClient.model_rebuild()

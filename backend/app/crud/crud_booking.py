@@ -10,11 +10,12 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.core.enums import BookingStatus
 from app.crud.base import CRUDBase
-from backend.app.db.models import Booking, ClassSchedule, ClassSession
+from app.db.models import Booking, ClassSchedule, ClassSession
 from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingUpdate
 
 # Excepciones de dominio centralizadas
@@ -72,12 +73,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         limit: int = 100,
     ) -> list[Booking]:
         """Aplica filtros avanzados para obtener reservas según distintos criterios."""
-        stmt = (
-            select(Booking)
-            .where(Booking.deleted_at.is_(None))  # type: ignore[attr-defined]
-            .offset(skip)
-            .limit(limit)
-        )
+        stmt = select(Booking).offset(skip).limit(limit)
 
         if client_id:
             stmt = stmt.where(Booking.client_id == client_id)
@@ -132,7 +128,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             .where(
                 Booking.client_id == client_id,
                 Booking.class_session_id == session_id,
-                Booking.deleted_at.is_(None),  # type: ignore[attr-defined]
+                Booking.status != BookingStatus.cancelled,
             )
         )
         res = await db.execute(stmt)
@@ -150,7 +146,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         """Devuelve una reserva con todas sus relaciones cargadas."""
         stmt = (
             select(Booking)
-            .where(Booking.id == booking_id, Booking.deleted_at.is_(None))  # type: ignore[attr-defined]
+            .where(Booking.id == booking_id)
             .options(
                 selectinload(Booking.client),
                 selectinload(Booking.class_session)
@@ -205,9 +201,12 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
                 msg = "ClassSession no encontrada."
                 raise NotFoundError(msg)
 
-            # asegurar tipos concretos para linters
             capacity = int(session.capacity_snapshot) # pyright: ignore[reportArgumentType]
-            current = int(session.current_bookings_count)
+            count_stmt = select(func.count(Booking.id)).where(
+                Booking.class_session_id == session_id,
+                Booking.status != BookingStatus.cancelled,
+            )
+            current = int((await db.scalar(count_stmt)) or 0)
             available = capacity - current
             if available <= 0:
                 msg_0 = "No hay lugares disponibles para esta sesión."
@@ -217,7 +216,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             q2 = select(Booking).where(
                 Booking.class_session_id == session_id,
                 Booking.client_id == client_id,
-                Booking.cancelled_at.is_(None),  # si usás soft delete
+                Booking.status != BookingStatus.cancelled,
             )
             res2 = await db.execute(q2)
             if res2.scalar_one_or_none():
@@ -225,11 +224,8 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
                 raise ConflictError(msg_1)
 
             # crear booking (adaptá si obj_in es otro tipo)
-            booking = Booking(**obj_in.dict())
+            booking = Booking(**obj_in.model_dump())
             db.add(booking)
-
-            # actualizar contador en la sesión (si lo mantenés en la tabla)
-            session.current_bookings_count = current + 1
             await db.flush()  # asegura INSERT/UPDATE en la transacción
 
             return booking

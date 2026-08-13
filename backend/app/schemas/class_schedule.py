@@ -11,22 +11,18 @@ Incluye:
 
 from __future__ import annotations  # noqa: I001
 
-from typing import TYPE_CHECKING
+from datetime import date, datetime, time
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import AllowedPlan  # noqa: TC001
-from app.schemas.class_session import ClassSessionInResponse  # noqa: TC001
+from app.schemas.class_session_refs import ClassSessionInResponse
 from app.schemas.gym_class import GymClassInClassScheduleResponse, GymClassPublic  # noqa: TC001
-from app.schemas.teacher import (
-    TeacherInClassScheduleResponse,  # noqa: TC001
-    TeacherInScheduleResponseMini,  # noqa: TC001
+from app.schemas.teacher_refs import (
+    TeacherInClassScheduleResponse,
+    TeacherInScheduleResponseMini,
 )
-
-# Evitar circularidad
-if TYPE_CHECKING:
-    from datetime import date, datetime, time
-    from uuid import UUID
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -168,3 +164,14 @@ class ClassScheduleWithNextSession(ClassSchedulePublic):
     """
 
     next_session: NextSessionInfo | None = None
+
+
+# Completa las referencias de GymClass sin introducir un import circular.
+from app.schemas import gym_class as gym_class_schemas  # noqa: E402
+
+gym_class_schemas.GymClassRead.model_rebuild(
+    _types_namespace={"ClassSchedulePublic": ClassSchedulePublic}
+)
+gym_class_schemas.GymClassWithSchedules.model_rebuild(
+    _types_namespace={"ClassSchedulePublic": ClassSchedulePublic}
+)

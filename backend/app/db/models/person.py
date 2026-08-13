@@ -1,15 +1,15 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, ForeignKey, String
+from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from backend.app.db.models.user import User
+    from app.db.models.user import User
 
 
 class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
@@ -23,33 +23,37 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     funcional se implementa mediante herencia con Client y Teacher.
     """
 
-    __tablename__ = "persons" # pyright: ignore[reportAssignmentType]
+    __tablename__ = "persons"
 
     # Identificador único de la persona.
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Nombre de pila de la persona.
-    first_name = Column(String, index=True, nullable=False)
+    first_name: Mapped[str] = mapped_column(String, index=True, nullable=False)
 
     # Apellido de la persona.
-    last_name = Column(String, index=True, nullable=False)
+    last_name: Mapped[str] = mapped_column(String, index=True, nullable=False)
 
     # Número de documento identificatorio personal (DNI, cédula, pasaporte, etc.).
-    document_number = Column(String, unique=True, index=True, nullable=True)
+    document_number: Mapped[str | None] = mapped_column(
+        String, unique=True, index=True, nullable=True
+    )
 
     # Domicilio o dirección declarada.
-    address = Column(String, nullable=True)
+    address: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Ruta o URL al apto físico o certificado médico, si aplica.
-    medical_fit_url = Column(String, nullable=True)
+    medical_fit_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Ruta o URL de la imagen de perfil.
-    profile_image_url = Column(String, nullable=True)
+    profile_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Relación uno a uno con la cuenta autenticable del sistema.
     # Esta separación permite desacoplar credenciales de acceso
     # respecto de la identidad personal.
-    user_id = Column(
+    user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),
         nullable=False,
@@ -59,12 +63,13 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     user: Mapped["User"] = relationship(
         "User",
         back_populates="person_profile",
+        lazy="raise",
     )
 
     # Discriminador polimórfico para la herencia ORM.
     # Permite distinguir si la persona es una base genérica,
     # un cliente o un profesor.
-    person_type = Column(String(50), nullable=True)
+    person_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     __mapper_args__ = {  # noqa: RUF012
         "polymorphic_identity": "person",

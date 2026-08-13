@@ -14,19 +14,11 @@ Incluye:
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003
-from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from backend.app.db.models.user import UserRole
-
-# Evitar circularidad: client.py y teacher.py importan user.py
-if TYPE_CHECKING:
-
-    from app.schemas.client import ClientPublic
-    from app.schemas.teacher import TeacherPublic
-
+from app.db.models.user import UserRole
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -145,4 +137,9 @@ class UserWithStats(UserPublic):
 # Resolver forward refs
 # --------------------------------------------------------------------------- #
 
-UserWithProfile.model_rebuild()
+from app.schemas.client import ClientPublic  # noqa: E402
+from app.schemas.teacher import TeacherPublic  # noqa: E402
+
+UserWithProfile.model_rebuild(
+    _types_namespace={"ClientPublic": ClientPublic, "TeacherPublic": TeacherPublic}
+)

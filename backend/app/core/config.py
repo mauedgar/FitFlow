@@ -53,7 +53,7 @@ class Settings(BaseSettings):
         """Convierte la URL sincrónica en una URL asyncpg."""
         url: URL = make_url(self.DATABASE_URL)
         url = url.set(drivername="postgresql+asyncpg")
-        return str(url)
+        return url.render_as_string(hide_password=False)
 
     # -----------------------------------------------------------------------
     # JWT / AUTENTICACIÓN

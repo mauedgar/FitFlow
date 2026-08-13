@@ -9,16 +9,11 @@ Incluye:
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# Evitar circularidad: booking.py importa client.py
-if TYPE_CHECKING:
-
-    from app.schemas.booking import BookingPublic
-
+from app.schemas.booking_refs import BookingPublic
 from app.schemas.membership import MembershipPublic  # noqa: TC001
 from app.schemas.person import PersonBase, PersonCreate, PersonUpdate
 
@@ -52,7 +47,7 @@ class Client(ClientBase):
     """
 
     id: UUID
-    bookings: list["BookingPublic"] = Field(default_factory=list)
+    bookings: list[BookingPublic] = Field(default_factory=list)
     membership: MembershipPublic | None = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -93,7 +88,7 @@ class ClientWithBookings(ClientPublic):
         • front_desk.
     """
 
-    bookings: list["BookingPublic"] = Field(default_factory=list)
+    bookings: list[BookingPublic] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -124,7 +119,7 @@ class ClientWithStats(ClientPublic):
     """
 
     total_bookings: int
-    upcoming_bookings: list["BookingPublic"] = Field(default_factory=list)
+    upcoming_bookings: list[BookingPublic] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- #
@@ -161,11 +156,11 @@ class ClientWithActivity(ClientPublic):
         • perfil cliente
     """
 
-    bookings_today: list["BookingPublic"] = Field(default_factory=list)
-    bookings_this_week: list["BookingPublic"] = Field(default_factory=list)
-    upcoming_bookings: list["BookingPublic"] = Field(default_factory=list)
-    past_bookings: list["BookingPublic"] = Field(default_factory=list)
-    active_bookings: list["BookingPublic"] = Field(default_factory=list)
+    bookings_today: list[BookingPublic] = Field(default_factory=list)
+    bookings_this_week: list[BookingPublic] = Field(default_factory=list)
+    upcoming_bookings: list[BookingPublic] = Field(default_factory=list)
+    past_bookings: list[BookingPublic] = Field(default_factory=list)
+    active_bookings: list[BookingPublic] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -174,7 +169,6 @@ class ClientWithActivity(ClientPublic):
 # Resolver forward refs
 # --------------------------------------------------------------------------- #
 
-Client.model_rebuild()
-ClientWithBookings.model_rebuild()
-ClientWithStats.model_rebuild()
-ClientWithActivity.model_rebuild()
+from app.schemas.membership import MembershipWithClient  # noqa: E402
+
+MembershipWithClient.model_rebuild(_types_namespace={"ClientPublic": ClientPublic})

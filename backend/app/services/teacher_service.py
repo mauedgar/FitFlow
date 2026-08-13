@@ -25,7 +25,7 @@ from app.services.class_schedule_service import (
 )
 
 if TYPE_CHECKING:
-    from backend.app.db.models import Teacher
+    from app.db.models import Teacher
 
 
 # --------------------------------------------------------------------------- #

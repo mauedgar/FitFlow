@@ -6,14 +6,10 @@ sin exponer relaciones profundas ni datos sensibles.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from datetime import date, datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
-
-if TYPE_CHECKING:
-    from datetime import date, datetime
-    from uuid import UUID
-
 
 # --------------------------------------------------------------------------- #
 # CAPACIDAD DE SESIÓN

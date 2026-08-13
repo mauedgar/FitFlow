@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from backend.app.db.models import ClassSchedule, ClassSession
+from app.db.models import ClassSchedule, ClassSession
 from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
 from app.services import errors as svc_errors
 
@@ -74,7 +74,7 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         """Obtiene una lista filtrada de sesiones."""
         stmt = (
             select(ClassSession)
-            .where(ClassSession.deleted_at.is_(None))  # type: ignore[attr-defined]
+            .where(ClassSession.active.is_(True))
             .offset(skip)
             .limit(limit)
         )

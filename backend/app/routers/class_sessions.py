@@ -22,8 +22,8 @@ from app.core.timezone import LOCAL_TZ
 from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_class_session import class_session
 from app.db.session import get_async_session
-from backend.app.db.models.class_schedule import ClassSchedule
-from backend.app.db.models.class_session import ClassSession
+from app.db.models.class_schedule import ClassSchedule
+from app.db.models.class_session import ClassSession
 from app.services.class_session_service import (
     to_class_session_response,
     update_session_availability,
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from backend.app.db.models.user import User
+    from app.db.models.user import User
 
 router = APIRouter(prefix="/class-sessions", tags=["class-sessions"])
 

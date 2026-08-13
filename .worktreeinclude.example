@@ -1,0 +1,3 @@
+# Codex worktree include example.
+# Keep empty unless a gitignored file is intentionally required in managed worktrees.
+# Never include secrets such as .env by default.

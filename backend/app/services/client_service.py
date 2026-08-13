@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from app.services.booking_service import to_booking_public
-from app.crud import user_crud
+from app.crud.crud_user import user_crud
 from app.schemas.client import (
     ClientPublic,
     ClientWithActivity,
@@ -26,7 +26,7 @@ from app.schemas.client import (
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from backend.app.db.models import Booking, Client, Membership
+    from app.db.models import Booking, Client, Membership
 
 
 # --------------------------------------------------------------------------- #

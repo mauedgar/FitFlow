@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app import crud
+from app.crud import crud_client as crud
 from app.core.deps import (
     require_admin,
     require_admin_client_or_self,
@@ -23,7 +23,7 @@ from app.core.deps import (
 )
 from app.crud.crud_user import user_crud
 from app.db.session import get_async_session
-from backend.app.db.models.user import User, UserRole
+from app.db.models.user import User, UserRole
 from app.services.client_service import (
     to_client_public,
     to_client_with_activity,

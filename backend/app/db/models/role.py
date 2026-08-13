@@ -1,20 +1,11 @@
-# app/models/role.py
-from __future__ import annotations
+"""Contrato legacy no persistente para RBAC granular futuro."""
 
-from sqlalchemy import Column, String
-from sqlalchemy.orm import relationship
-
-from app.db.base_class import Base
+from dataclasses import dataclass
 
 
-class Role(Base):
-    """Rol del sistema (admin, teacher, client, front_desk)."""
+@dataclass(slots=True)
+class Role:
+    """Rol no ORM; la autorización vigente usa ``UserRole``."""
 
-    id = Column(String, primary_key=True)
-    description = Column(String, nullable=True)
-
-    permissions = relationship(
-        "Permission",
-        secondary="role_permissions",
-        back_populates="roles",
-    )
+    id: str
+    description: str | None = None

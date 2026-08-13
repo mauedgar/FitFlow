@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from backend.app.db.models import ClassSchedule, GymClass
+from app.db.models import ClassSchedule, GymClass
 from app.schemas.class_schedule import ClassScheduleCreate, ClassScheduleUpdate
 from app.services import errors as svc_errors
 

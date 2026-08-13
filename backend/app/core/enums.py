@@ -101,7 +101,6 @@ class ClassSessionStatus(StrEnum):
     - completed: la sesión ya finalizó su ejecución operativa.
     """
 
-    draft = "draft"
     scheduled = "scheduled"
     open = "open"
     closed = "closed"

@@ -1,8 +1,8 @@
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    Column,
     DateTime,
     Enum as SQLAlchemyEnum,
     ForeignKey,
@@ -13,15 +13,15 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.enums import ClassSessionStatus
+from app.core.enums import BookingStatus, ClassSessionStatus
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, TimestampMixin
-from backend.app.db.models.booking import Booking
+from app.db.models.booking import Booking
 
 if TYPE_CHECKING:
-    from backend.app.db.models.class_schedule import ClassSchedule
+    from app.db.models.class_schedule import ClassSchedule
 
 
 class ClassSession(Base, TimestampMixin, ActiveMixin):
@@ -32,30 +32,34 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
     el staff hace check-in y el sistema controla cupos y asistencia.
     """
 
-    __tablename__ = "class_sessions" # pyright: ignore[reportAssignmentType]
+    __tablename__ = "class_sessions"
 
     # Identificador único de la sesión concreta.
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Referencia al horario recurrente que originó esta sesión.
-    class_schedule_id = Column(
+    class_schedule_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("class_schedules.id", ondelete="CASCADE"),
         nullable=False,
     )
 
     # Fecha y hora exacta de inicio de la sesión.
-    starts_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    starts_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
 
     # Fecha y hora exacta de finalización de la sesión.
-    ends_at = Column(DateTime(timezone=True), nullable=False)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # Capacidad máxima heredada del schedule al momento de generar la sesión.
     # Se guarda como snapshot para evitar inconsistencias si el schedule cambia luego.
-    capacity_snapshot = Column(Integer, nullable=False)
+    capacity_snapshot: Mapped[int] = mapped_column(Integer, nullable=False)
 
     # Estado operativo de la sesión concreta.
-    status = Column(
+    status: Mapped[ClassSessionStatus] = mapped_column(
         SQLAlchemyEnum(ClassSessionStatus, name="classsessionstatus"),
         nullable=False,
         default=ClassSessionStatus.scheduled,
@@ -65,12 +69,14 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
     class_schedule: Mapped["ClassSchedule"] = relationship(
         "ClassSchedule",
         back_populates="class_sessions",
+        lazy="raise",
     )
 
     # Reservas asociadas a esta sesión concreta.
     bookings: Mapped[list["Booking"]] = relationship(
         "Booking",
         back_populates="class_session",
+        lazy="raise",
     )
 
     # Evita duplicar dos sesiones con el mismo schedule y la misma fecha/hora de inicio.
@@ -88,14 +94,19 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
     @hybrid_property
     def current_bookings_count(self) -> int: # type: ignore[misc]
         """Cantidad actual de reservas confirmadas para esta sesión."""
-        return len(self.bookings)
+        return sum(
+            booking.status != BookingStatus.cancelled for booking in self.bookings
+        )
 
     @current_bookings_count.expression  # type: ignore[misc]
     def current_bookings_count(cls):  # noqa: ANN201, N805
         """Versión SQL para usar en queries."""
         return (
             select(func.count(Booking.id))
-            .where(Booking.class_session_id == cls.id)
+            .where(
+                Booking.class_session_id == cls.id,
+                Booking.status != BookingStatus.cancelled,
+            )
             .correlate(cls)  # type: ignore[arg-type]
             .scalar_subquery()
         )

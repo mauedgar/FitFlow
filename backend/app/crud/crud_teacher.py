@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from backend.app.db.models.teacher import Teacher
+from app.db.models.teacher import Teacher
 from app.schemas.teacher import TeacherCreate, TeacherUpdate
 
 if TYPE_CHECKING:
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
 
-    from backend.app.db.models.user import User
+    from app.db.models.user import User
 
 class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
     """CRUD especializado para perfiles de profesor."""

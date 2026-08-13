@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /app/backend
+
+COPY backend/requirements_backend.txt backend/requirements_test.txt ./
+RUN pip install --no-cache-dir --upgrade -r requirements_test.txt
+
+COPY backend/__init__.py ./
+COPY backend/app ./app
+COPY backend/alembic/env.py backend/alembic/README backend/alembic/script.py.mako ./alembic/
+COPY backend/alembic/versions ./alembic/versions
+COPY backend/alembic.ini backend/pytest.ini ./
+COPY backend/tests ./tests
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/backend
+
+CMD ["sleep", "infinity"]

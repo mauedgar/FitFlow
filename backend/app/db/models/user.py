@@ -1,16 +1,16 @@
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, Enum as SQLAlchemyEnum, String
+from sqlalchemy import Enum as SQLAlchemyEnum, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import UserRole
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from backend.app.db.models.person import Person
+    from app.db.models.person import Person
 
 class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     """Cuenta autenticable del sistema.
@@ -20,30 +20,33 @@ class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     especialización funcional se delegan a Person y sus subclases.
     """
 
-    __tablename__ = "users" # pyright: ignore[reportAssignmentType]
+    __tablename__ = "users"
 
     # Identificador único del usuario autenticable.
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
 
     # Email único utilizado como credencial principal de acceso.
-    email = Column(String, unique=True, index=True, nullable=False)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
 
     # Contraseña hasheada del usuario.
-    hashed_password = Column(String, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
 
     # Rol principal del usuario dentro del sistema.
-    role = Column(
+    role: Mapped[UserRole] = mapped_column(
         SQLAlchemyEnum(UserRole, name="userrole"),
         nullable=False,
         default=UserRole.client,
     )
 
     # Relación uno a uno con el perfil personal del usuario.
-    person_profile: Mapped["Person"] = relationship(
+    person_profile: Mapped["Person | None"] = relationship(
         "Person",
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan",
+        lazy="raise",
     )
 
     def __repr__(self) -> str:

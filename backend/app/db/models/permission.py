@@ -1,20 +1,11 @@
-# app/models/permission.py
-from __future__ import annotations
+"""Contrato legacy no persistente para RBAC granular futuro."""
 
-from sqlalchemy import Column, String
-from sqlalchemy.orm import relationship
-
-from app.db.base_class import Base
+from dataclasses import dataclass
 
 
-class Permission(Base):
-    """Permiso granular del sistema (crear clase, cancelar reserva, etc.)."""
+@dataclass(slots=True)
+class Permission:
+    """Permiso no ORM; la autorización vigente usa ``UserRole``."""
 
-    id = Column(String, primary_key=True)
-    description = Column(String, nullable=True)
-
-    roles = relationship(
-        "Role",
-        secondary="role_permissions",
-        back_populates="permissions",
-    )
+    id: str
+    description: str | None = None

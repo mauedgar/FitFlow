@@ -1,0 +1,29 @@
+[project]
+name = "FitFlow"
+
+[discovery]
+include = [
+    "backend/**",
+    "frontend/src/**",
+    "docs/**",
+]
+
+exclude = [
+    ".git/**",
+    "**/.venv*/**",
+    "backend/.venv_backend/**",
+    "scripts/.venv_tools/**",
+    "node_modules/**",
+    "**/__pycache__/**",
+    "docs/archive/**",
+    ".ai/local/**",
+    ".index/**",
+    "build/**",
+    "dist/**",
+]
+
+[index]
+symbols = true
+relations = true
+textual = true
+semantic = false

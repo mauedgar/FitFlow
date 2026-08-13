@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from fastapi.security import OAuth2PasswordRequestForm
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from backend.app.db.models.user import User
+    from app.db.models.user import User
 
 # ruff:noqa: UP037
 @router.post("/token", response_model=TokenPair, status_code=status.HTTP_200_OK)

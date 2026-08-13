@@ -12,24 +12,22 @@ Incluye:
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003
-from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.enums import ClassSessionStatus  # noqa: TC001
+from app.schemas.booking_refs import BookingPublic
 from app.schemas.class_schedule import (
     ClassScheduleInClassSessionResponse,  # noqa: TC001
     ClassSchedulePublic,  # noqa: TC001
     NextSessionInfo,  # noqa: TC001
 )
+from app.schemas.class_session_refs import ClassSessionInResponse
+from app.schemas.gym_class import GymClassPublic
+from app.schemas.teacher_refs import TeacherInClassScheduleResponse
 
 # Evitar circularidad: booking.py importa class_session.py
-if TYPE_CHECKING:
-
-    from app.schemas.booking import BookingPublic
-
-
 # --------------------------------------------------------------------------- #
 # 1. Base
 # --------------------------------------------------------------------------- #
@@ -39,7 +37,7 @@ class ClassSessionBase(BaseModel):
 
     starts_at: datetime
     ends_at: datetime
-    status: bool = False
+    status: ClassSessionStatus = ClassSessionStatus.scheduled
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -85,7 +83,7 @@ class ClassSession(ClassSessionBase):
     class_schedule_id: UUID
 
     class_schedule: ClassSchedulePublic
-    bookings: list["BookingPublic"] = Field(default_factory=list)  # noqa: UP037
+    bookings: list[BookingPublic] = Field(default_factory=list)
 
     current_bookings_count: int = 0
     available_spots: int = 0
@@ -151,22 +149,6 @@ class ClassSessionWithNext(ClassSessionPublic):
 # 8. Esquema compacto para anidamiento en ClassSchedule o GymClass
 # --------------------------------------------------------------------------- #
 
-class ClassSessionInResponse(ClassSessionBase):
-    """Versión compacta de la sesión para anidarla dentro de ClassSchedule o GymClass.
-
-    Incluye campos calculados pero no relaciones completas.
-    """
-
-    id: UUID
-    class_schedule_id: UUID
-
-    current_bookings_count: int = 0
-    available_spots: int = 0
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# --------------------------------------------------------------------------- #
 # 9. Esquema compacto dentro de Booking
 # --------------------------------------------------------------------------- #
 
@@ -206,10 +188,10 @@ class ClassSessionWithRelations(ClassSessionBase):
     class_schedule_id: UUID
 
     class_schedule: ClassSchedulePublic
-    gym_class: ClassSchedulePublic.gym_class.__class__  # type: ignore[attr-defined]
-    teacher: ClassSchedulePublic.teacher.__class__  # type: ignore[attr-defined]
+    gym_class: GymClassPublic
+    teacher: TeacherInClassScheduleResponse
 
-    bookings: list["BookingPublic"] = Field(default_factory=list)  # noqa: UP037
+    bookings: list[BookingPublic] = Field(default_factory=list)
 
     capacity_snapshot: int
     current_bookings_count: int = 0
@@ -221,6 +203,3 @@ class ClassSessionWithRelations(ClassSessionBase):
 # --------------------------------------------------------------------------- #
 # 11. Resolver forward refs
 # --------------------------------------------------------------------------- #
-
-ClassSession.model_rebuild()
-ClassSessionWithRelations.model_rebuild()

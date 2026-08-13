@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime  # noqa: TC003
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum as SQLAlchemyEnum, ForeignKey, String
+from sqlalchemy import DateTime, Enum as SQLAlchemyEnum, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,7 +15,7 @@ from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
-    from backend.app.db.models.client import Client
+    from app.db.models.client import Client
 
 
 class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
@@ -59,6 +59,7 @@ class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     start_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
+        server_default=func.now(),
     )
 
     # Fecha de finalización de vigencia.
@@ -91,5 +92,6 @@ class Membership(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     client: Mapped[Client] = relationship(
         "Client",
         back_populates="membership",
+        lazy="raise",
     )
 

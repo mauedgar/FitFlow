@@ -17,7 +17,7 @@ from app.core.enums import ClassSessionStatus, MembershipPlan, MembershipStatus
 from app.schemas.booking import BookingCreateInternal, BookingPublic, BookingStatus
 
 if TYPE_CHECKING:
-    from backend.app.db.models import Booking, ClassSchedule, ClassSession, Membership
+    from app.db.models import Booking, ClassSchedule, ClassSession, Membership
 
 # ruff: noqa: UP037
 # -------------------------

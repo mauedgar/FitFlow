@@ -10,18 +10,16 @@ Incluye:
 
 from __future__ import annotations  # noqa: I001
 
-from typing import TYPE_CHECKING
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.class_schedule import ClassSchedulePublic, NextSessionInfo  # noqa: TC001
 from app.schemas.person import PersonBase, PersonCreate, PersonUpdate
-
-# Evitar circularidad
-if TYPE_CHECKING:
-    from uuid import UUID
-
-
+from app.schemas.teacher_refs import (
+    TeacherInClassScheduleResponse,
+    TeacherInScheduleResponseMini,
+)
 
 # --------------------------------------------------------------------------- #
 # 1. Base (hereda de Person)
@@ -113,40 +111,7 @@ class TeacherInClassResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class TeacherInClassScheduleResponse(BaseModel):
-    """Profesor dentro de un ClassSchedule.
-
-    Versión compacta para evitar cargar relaciones completas.
-    """
-
-    id: UUID
-    first_name: str
-    last_name: str
-    full_name: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 # --------------------------------------------------------------------------- #
-# 5. Esquema mini (ultra ligero)
-# --------------------------------------------------------------------------- #
-
-class TeacherInScheduleResponseMini(BaseModel):
-    """Versión mínima del profesor.
-
-    Usado en:
-        • sesiones
-        • front desk
-        • dashboards
-    """
-
-    first_name: str
-    last_name: str
-    full_name: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-    # --------------------------------------------------------------------------- #
 # 6. Esquema: Teacher con horarios públicos
 # --------------------------------------------------------------------------- #
 
