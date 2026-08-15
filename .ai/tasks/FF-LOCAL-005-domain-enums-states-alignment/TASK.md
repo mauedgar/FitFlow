@@ -1,89 +1,88 @@
 ---
 id: FF-LOCAL-005
-title: Auditar y alinear enums y estados funcionales del dominio
-status: Ready
+title: Auditar y alinear enums y estados del dominio
+status: Done
 priority: High
 area: backend
 execution_lane: codex
 type: refactor
 baseline_revision: pending
-depends_on: [FF-LOCAL-004]
 ---
 
 # Objetivo
-Inventariar y alinear los enums/estados funcionales reales de FitFlow manteniendo conceptos distintos separados aunque compartan valores.
 
-Archivo canónico actual a verificar:
-`backend/app/core/enums.py`
-
-No moverlo por iniciativa propia.
-
-# Principios aceptados
-- mantener estados funcionales explícitos y estables
-- `MembershipPlan` y `AllowedPlan` permanecen separados conceptualmente
-- compartir valores no implica redundancia
-- `MembershipPlan` = plan que posee el cliente
-- `AllowedPlan` = planes que una oferta/schedule admite
-- no agregar/eliminar valores sólo para hacer coincidir docs con código
+Inventariar los valores enumerados utilizados realmente por FitFlow,
+reconciliarlos con el dominio aceptado y centralizar enums faltantes o
+inconsistentes sin cambiar reglas de negocio arbitrariamente.
 
 # Scope
-`app/core/enums.py` y consumidores en models, schemas, services, CRUD, routers, tests, migraciones y frontend sólo para verificar contratos.
 
-# Fase A — Inventario
-Matriz:
-`enum | valor | definición | consumidores | persistencia | API/frontend | estado`
+- backend/app/schemas/enums.py
+- backend/app/db/models/
+- backend/app/schemas/
+- backend/app/services/
+- backend/app/crud/
+- backend/app/routers/
+- migraciones relevantes
+- tests
+- frontend solamente para detectar contratos/API dependientes
 
-Clasificación: `CONFIRMED`, `MISSING`, `REDUNDANT`, `LEGACY`, `A_REVIEW`.
+# Fase A — Auditoría read-only
 
-Revisar como mínimo:
-- UserRole
-- DifficultyLevel
-- BookingStatus
-- MembershipPlan
-- MembershipStatus
-- ActivityType
-- AllowedPlan
-- ClassSessionStatus
+Inventariar:
 
-# Casos explícitos
-## ClassSessionStatus
-Verificar funcionalmente: `draft`, `scheduled`, `open`, `closed`, `cancelled`, `completed`.
-No eliminar `draft` por discrepancia documental. Determinar uso, persistencia y transiciones.
+enum | value | definición | consumidores | persistencia | docs | estado
 
-## AllowedPlan
-Mantener separado de MembershipPlan. Verificar si la ausencia de `gym_only` es intencional, omisión real o no aplicable. No agregarlo sin evidencia.
+Buscar también strings hardcodeados correspondientes a:
 
-## UserRole
-Verificar `admin`, `teacher`, `client`, `front_desk` y completar docstring si corresponde.
+- roles
+- booking status
+- membership status
+- membership plan
+- allowed plan
+- session status
+- difficulty
+- activity type
 
-# Strings hardcodeados
-Buscar equivalentes de roles/status/plans/activity/difficulty fuera de enums. Sustituir sólo cuando sea inequívoco y no altere persistencia/contratos.
+# Casos explícitos a verificar
+
+- ClassSessionStatus.draft
+- AllowedPlan vs MembershipPlan
+- ausencia intencional o no de gym_only en AllowedPlan
+- valores persistidos por SQLAlchemy/PostgreSQL
+- valores utilizados por frontend/API
+- posibles estados definidos como strings fuera de enums
+
+# Regla de decisión
+
+No agregar, eliminar ni renombrar un valor solamente para hacer coincidir
+documentación y código.
+
+Clasificar cada caso como:
+
+- CONFIRMED
+- MISSING
+- REDUNDANT
+- LEGACY
+- A_REVIEW
 
 # Fase B — Implementación
-- completar faltantes demostrables
-- retirar legacy sólo con evidencia/compatibilidad
-- normalizar consumidores seguros
-- mejorar docstrings
-- agregar/actualizar tests
 
-# Restricciones
-No mover enums, fusionar AllowedPlan/MembershipPlan, inventar estados ni introducir una state machine nueva.
+Sólo después de la auditoría:
+
+- agregar enums/valores inequívocamente necesarios;
+- sustituir strings hardcodeados seguros;
+- corregir documentación de enums;
+- mantener compatibilidad de persistencia;
+- no realizar migraciones destructivas sin aprobación.
 
 # Criterios de aceptación
-- [ ] inventario completo
-- [ ] estados/strings relevantes clasificados
-- [ ] `draft` resuelto por evidencia
-- [ ] AllowedPlan documentado como concepto separado
-- [ ] `gym_only` resuelto por evidencia
-- [ ] roles/estados con significado funcional claro
-- [ ] impacto de persistencia explícito
-- [ ] tests + Ruff + type-check ejecutados
 
-# Validaciones
-- pytest targeted: required
-- Ruff: required
-- type-check: required
-- Alembic impact review: si cambia un enum persistido
-
-# Impacto documental
-Puede actualizar `domain.md` y `current-state.md`. ADR sólo si surge una nueva decisión durable.
+- [ ] inventario completo;
+- [ ] no quedan estados relevantes descubiertos sin clasificación;
+- [ ] ClassSessionStatus.draft queda resuelto;
+- [ ] AllowedPlan queda conceptualmente definido;
+- [ ] no se cambia semántica sin evidencia;
+- [ ] tests relevantes agregados/actualizados;
+- [ ] Ruff/type-check ejecutados;
+- [ ] discrepancias restantes documentadas como A revisar.

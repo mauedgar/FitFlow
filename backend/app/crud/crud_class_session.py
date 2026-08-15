@@ -5,18 +5,23 @@
 • Filtros avanzados: rango de fechas, estado, disponibilidad.
 • Incluye método get_or_create asíncrono.
 """
-
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.enums import ClassSessionStatus
 from app.crud.base import CRUDBase
 from app.db.models import ClassSchedule, ClassSession
+from app.db.models.class_schedule import ClassSchedule
+from app.db.models.class_session import ClassSession
 from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
 from app.services import errors as svc_errors
 
@@ -74,7 +79,10 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         """Obtiene una lista filtrada de sesiones."""
         stmt = (
             select(ClassSession)
-            .where(ClassSession.active.is_(True))
+            .where(
+                ClassSession.active.is_(True),
+                ClassSession.deleted_at.is_(None),
+            )
             .offset(skip)
             .limit(limit)
         )
@@ -166,6 +174,78 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
             raise svc_errors.BusinessValidationError(msg) from err
         await db.refresh(db_obj)
         return db_obj
+
+    async def get_starts_for_schedule_in_window(
+        self,
+        db: AsyncSession,
+        *,
+        schedule_id: UUID,
+        starts_at: datetime,
+        ends_at: datetime,
+    ) -> set[datetime]:
+        """Devuelve los inicios de sesiones ya existentes dentro de la ventana."""
+        stmt = select(ClassSession.starts_at).where(
+            ClassSession.class_schedule_id == schedule_id,
+            ClassSession.starts_at >= starts_at,
+            ClassSession.starts_at <= ends_at,
+        )
+        result = await db.execute(stmt)
+        return set(result.scalars().all())
+
+    async def teacher_has_conflict(
+        self,
+        db: AsyncSession,
+        *,
+        teacher_id: UUID,
+        excluded_schedule_id: UUID,
+        starts_at: datetime,
+        ends_at: datetime,
+    ) -> bool:
+        """Indica si el profesor ya tiene otra sesión activa que se solapa."""
+        stmt = (
+            select(ClassSession.id)
+            .join(
+                ClassSchedule,
+                ClassSession.class_schedule_id == ClassSchedule.id,
+            )
+            .where(
+                ClassSession.class_schedule_id != excluded_schedule_id,
+                ClassSession.active.is_(True),
+                ClassSession.deleted_at.is_(None),
+                ClassSession.status != ClassSessionStatus.cancelled,
+                ClassSession.starts_at < ends_at,
+                ClassSession.ends_at > starts_at,
+                ClassSchedule.teacher_id == teacher_id,
+            )
+            .limit(1)
+        )
+        return (await db.scalar(stmt)) is not None
+
+    async def create_many(
+        self,
+        db: AsyncSession,
+        *,
+        sessions_data: Sequence[dict[str, Any]],
+    ) -> list[ClassSession]:
+        """Crea sesiones en una única transacción."""
+        if not sessions_data:
+            return []
+
+        sessions = [ClassSession(**data) for data in sessions_data]
+        db.add_all(sessions)
+
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
+        for session in sessions:
+            await db.refresh(session)
+
+        return sessions
+
+
 
 
 # Instancia reusable

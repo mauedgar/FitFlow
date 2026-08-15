@@ -11,18 +11,18 @@ Incluye:
 
 from __future__ import annotations
 
-# Evitar circularidad
 from typing import TYPE_CHECKING
 
+# Evitar circularidad
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from app.core.enums import ActivityType, DifficultyLevel  # noqa: TC001
 from app.schemas.base import IDSchema, SoftDeleteSchema, TimestampSchema
+from app.schemas.class_schedule import ClassSchedulePublic
 
 if TYPE_CHECKING:
-    from app.schemas.class_schedule import ClassSchedulePublic
+    from app.schemas.class_schedule_refs import ClassScheduleInResponse
 
-# ruff: noqa: PIE790
 # --------------------------------------------------------------------------- #
 # 1. Base
 # --------------------------------------------------------------------------- #
@@ -48,7 +48,7 @@ class GymClassBase(BaseModel):
 class GymClassCreate(GymClassBase):
     """Esquema para crear una nueva clase del gimnasio."""
 
-    pass
+
 
 
 # --------------------------------------------------------------------------- #
@@ -73,7 +73,7 @@ class GymClassUpdate(BaseModel):
 # 4. Respuesta completa (privada/operativa)
 # --------------------------------------------------------------------------- #
 
-class GymClassRead(IDSchema, GymClassBase, TimestampSchema, SoftDeleteSchema):
+class GymClassWithRelations(IDSchema, GymClassBase, TimestampSchema, SoftDeleteSchema):
     """Esquema completo para respuestas internas.
 
     Incluye:
@@ -84,7 +84,7 @@ class GymClassRead(IDSchema, GymClassBase, TimestampSchema, SoftDeleteSchema):
     - horarios asociados (lazy).
     """
 
-    class_schedules: list[ClassSchedulePublic] | None = None
+    class_schedules: list[ClassScheduleInResponse] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

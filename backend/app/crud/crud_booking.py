@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import BookingStatus
+from app.core.enums import BookingStatus, ClassSessionStatus
 from app.crud.base import CRUDBase
 from app.db.models import Booking, ClassSchedule, ClassSession
 from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingUpdate
@@ -65,7 +65,10 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         *,
         client_id: "UUID | None" = None,
         session_id: "UUID | None" = None,
+        schedule_id: "UUID | None" = None,
+        gym_class_id: "UUID | None" = None,
         status: "BookingStatus | None" = None,
+        date: "date | None" = None,
         date_from: "date | None" = None,
         date_to: "date | None" = None,
         checked_in: "bool | None" = None,
@@ -82,11 +85,15 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         if status:
             stmt = stmt.where(Booking.status == status)
 
-        # Unir class_session solo si hace falta (evitar joins duplicados)
-        joined_session = False
-        if date_from or date_to:
+        # Join only when a session or schedule attribute is filtered.
+        if date_from or date_to or date or schedule_id or gym_class_id:
             stmt = stmt.join(Booking.class_session)
-            joined_session = True  # noqa: F841
+        if schedule_id or gym_class_id:
+            stmt = stmt.join(ClassSession.class_schedule)
+        if schedule_id:
+            stmt = stmt.where(ClassSchedule.id == schedule_id)
+        if gym_class_id:
+            stmt = stmt.where(ClassSchedule.gym_class_id == gym_class_id)
 
         if date_from:
             stmt = stmt.where(
@@ -95,6 +102,11 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         if date_to:
             stmt = stmt.where(
                 ClassSession.starts_at <= datetime.combine(date_to, datetime.max.time()),
+            )
+        if date:
+            stmt = stmt.where(
+                ClassSession.starts_at >= datetime.combine(date, datetime.min.time()),
+                ClassSession.starts_at <= datetime.combine(date, datetime.max.time()),
             )
 
         if checked_in is True:
@@ -200,6 +212,12 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             if session is None:
                 msg = "ClassSession no encontrada."
                 raise NotFoundError(msg)
+            if (
+                not session.active
+                or session.deleted_at is not None
+                or session.status not in {ClassSessionStatus.scheduled, ClassSessionStatus.open}
+            ):
+                raise ConflictError("La sesión no admite reservas.")
 
             capacity = int(session.capacity_snapshot) # pyright: ignore[reportArgumentType]
             count_stmt = select(func.count(Booking.id)).where(

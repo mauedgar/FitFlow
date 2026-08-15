@@ -1,5 +1,4 @@
 """Servicios para Client.
-
 Incluye:
 • Transformaciones ORM → Schemas públicos.
 • Extensiones con reservas, membresías y estadísticas.
@@ -13,8 +12,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from app.services.booking_service import to_booking_public
-from app.crud.crud_user import user_crud
 from app.schemas.client import (
     ClientPublic,
     ClientWithActivity,
@@ -22,9 +19,9 @@ from app.schemas.client import (
     ClientWithMembership,
     ClientWithStats,
 )
+from app.services.booking_service import to_booking_public
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.db.models import Booking, Client, Membership
 
@@ -43,7 +40,6 @@ def to_client_public(client: Client) -> ClientPublic:
         avatar_url=client.avatar_url, # pyright: ignore[reportAttributeAccessIssue]
         created_at=client.created_at, # pyright: ignore[reportArgumentType]
     )
-
 
 # --------------------------------------------------------------------------- #
 # 2. Extender Client con reservas públicas
@@ -167,10 +163,3 @@ def to_client_with_activity(client: Client) -> ClientWithActivity:
         active_bookings=[to_booking_public(b) for b in active],
     )
 
-async def unlink_user_profile(db: AsyncSession, client: Client) -> None:
-    """Desasocia el perfil Person del User vinculado al cliente."""
-    user = await user_crud.get(db=db, obj_id=client.user.id) # pyright: ignore[reportArgumentType]
-    if user:
-        user.person_profile = None   # pyright: ignore[reportAttributeAccessIssue]
-        db.add(user)
-        await db.commit()

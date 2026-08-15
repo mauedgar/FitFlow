@@ -11,11 +11,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import require_admin_or_self_guard
+from app.db.models.user import User
 from app.db.session import get_async_session
 from app.services.user_service import (
     to_user_public,
@@ -29,14 +32,7 @@ from app.schemas.user import (
     UserWithStats,
 )
 
-if TYPE_CHECKING:
-    from uuid import UUID
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from app.db.models.user import User
-
-from app.crud.crud_user import user_crud
+from app.crud.crud_user import user as user_crud
 
 router = APIRouter(prefix="/users", tags=["users"])
 

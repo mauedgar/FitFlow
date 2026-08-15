@@ -1,145 +1,65 @@
 # Estado actual de FitFlow
 
-**Snapshot documental:** 2026-08-13  
-**Milestone de producto:** Sprint 6.8 - en desarrollo  
-**Objetivo inmediato:** estabilizar el nucleo y cerrar el backend suficiente para avanzar al MVP.
+**Snapshot documental:** 2026-08-15
+**Milestone:** Sprint 6.8 - consolidacion en Review
+**Objetivo:** preservar un baseline ejecutable y preparar el cierre del MVP.
 
-## 1. Estado general
+## Estado general
 
-Sprint 6.8 sigue abierto. Su funcion es consolidar dominio, tipado, contratos, relaciones, responsabilidades y endpoints necesarios sin iniciar otra refactorizacion indefinida.
+Sprint 6.8 queda consolidado hasta FF-LOCAL-010. No se conserva el plan
+descartado de una matriz HTTP adicional de roles/JWT/Redis.
 
-El frontend existe, pero no se considera actualmente una representacion fiable del flujo completo hasta sincronizarlo con contratos backend estabilizados.
+La arquitectura vigente es `Request -> Schema -> Router -> Service -> CRUD ->
+Model -> PostgreSQL`, con FastAPI async, SQLAlchemy 2.x Async, Pydantic v2,
+PostgreSQL, JWT y Redis diferido.
 
-## 2. Backend
+## Backend consolidado
 
-### Confirmado / avanzado
-- FastAPI async, SQLAlchemy 2.x Async, Pydantic v2, PostgreSQL, JWT y Redis forman el stack vigente.
-- Router / Schema / Service / CRUD / Model sigue siendo la base arquitectonica.
-- Booking dispone de una estrategia de creacion con chequeo atomico de capacidad/duplicados que debe preservarse y validarse.
-- cancelacion operacional != eliminacion logica.
-- ClassSession utiliza capacidad snapshot/disponibilidad derivada.
-- existen vistas/schemas de Front Desk sobre el dominio existente.
+- Las entidades activas cargan metadata y mappers SQLAlchemy 2.x.
+- Booking resuelve `class_session_id` o `class_schedule_id`, protege capacidad
+  y cancela conservando historia.
+- Booking cancelado no consume cupo y puede permitir una nueva reserva.
+- ClassSession conserva soft delete administrativo; no se borra su historial.
+- Client, GymClass y ClassSchedule usan bajas conservativas; Membership cambia
+  de estado sin eliminar su historial.
+- ClassSchedule registra actor minimo con referencias nullable a User; la
+  migracion fue verificada exclusivamente en `fitflow_test`.
 
-### En consolidacion / a verificar
-- relaciones/cardinalidades y tipado SQLAlchemy;
-- eliminacion de ignores que oculten problemas reales;
-- contratos Pydantic Create/Update/Public/Internal;
-- endpoints y errores HTTP;
-- cobertura de tests critica;
-- auditoria temporal/actor;
-- convenciones de naming del repositorio.
+## RRULE y sesiones
 
-## 3. ClassSchedule / RRULE
+RRULE es la fuente unica de recurrencia. La generacion usa `LOCAL_TZ`, persiste
+sesiones en UTC y completa solo faltantes futuros dentro de 15 dias. No
+reescribe sesiones, Bookings ni `capacity_snapshot` existentes. `days_of_week`
+no forma parte del contrato activo.
 
-RRULE es una **decision aceptada de arquitectura objetivo**, no una implementacion asumida.
+## Front Desk y HTTP
 
-Sprint 6.8 debe verificar/completar:
-- contrato RRULE;
-- generacion de sesiones;
-- eliminacion de fallbacks legacy incompatibles;
-- ventana de vigencia;
-- capacidad snapshot;
-- conflictos de profesor;
-- tests correspondientes.
+FF-LOCAL-010.1 esta implementada: Front Desk usa un service unico, loaders
+explicitos y check-in `confirmed -> attended` con `checked_in_at`.
 
-## 4. Testing
+FF-LOCAL-010.2 esta implementada parcialmente en el alcance consolidado: las
+rutas publicas de GymClass, Teacher y ClassSchedule preceden a sus rutas UUID y
+la proyeccion publica de GymClass esta completa. La cobertura HTTP integral del
+MVP no se declara ejecutada.
 
-### Baseline estructural v3
-La documentacion adopta una estructura de `backend/tests/` con:
-- smoke;
-- unit;
-- integration;
-- api;
-- concurrency;
-- helpers/factories;
-- templates no recolectables por pytest.
+La propuesta 010.3 de matriz HTTP completa de roles/JWT/Redis queda descartada.
+Redis continua configurado como infraestructura, sin afirmar cobertura de API
+que no fue ejecutada.
 
-Se incluye `backend/pytest.ini`, un smoke test del harness y wrappers de ejecucion.
+## Testing y validacion
 
-### Estado real de cobertura
-**Pendiente critico.** La existencia del harness no significa que el dominio este cubierto. La primera task operativa debe reconciliar dependencias/fixtures con el backend real e incorporar tests representativos de Booking y demas invariantes criticas.
+El baseline vive en `backend/tests/` y usa exclusivamente `fitflow-test` para
+pruebas con PostgreSQL. Se validaron metadata, mappers, RRULE, Booking,
+cancelacion, capacidad, check-in y Redis en pruebas dirigidas. Pyright de los
+modulos tocados por FF-LOCAL-010 fue PASS. La fixture HTTP async compartida y la
+suite integral del MVP quedan como deuda explicita.
 
-Hasta entonces, la automatizacion debe distinguir claramente `PASS`, `FAIL`, `NOT_RUN` y `UNAVAILABLE`.
+## Documentacion y workflow
 
-## 5. Frontend
+`.ai/tasks/` contiene el contrato y resultado de cada feature flag. FF-LOCAL-009
+y FF-LOCAL-010 estan en `Review`; sus cambios deben revisarse antes de marcarse
+`Done`. `AGENTS.md`, ADRs y documentos de dominio siguen siendo la guia activa.
 
-Stack: React + TypeScript + Vite + Chakra UI + TanStack Query + Axios.
-
-Estado: existente pero parcialmente desacoplado del backend actual. No se prioriza rediseño visual; la proxima integracion se apoya en contratos estabilizados.
-
-## 6. Infraestructura
-
-- Docker + Docker Compose;
-- PostgreSQL;
-- Adminer para desarrollo/administracion;
-- Redis segun configuracion.
-
-No introducir brokers/microservicios para el MVP.
-
-## 7. Operacion de desarrollo
-
-Se adopta un ciclo de task comun para humano/Codex/Aider:
-- Jira: control de trabajo;
-- Git: trazabilidad de implementacion;
-- `.ai/tasks/`: contrato, plan/estado cuando aplique y resultado;
-- `docs/`: conocimiento durable.
-
-Estados de referencia: Backlog -> Ready -> In Progress -> Validation -> Review -> Done, con Blocked.
-
-## 8. Tooling de IA
-
-### Codex + Project Index
-Direccion principal para tareas complejas. El indice localiza; Codex verifica fuente real.
-
-### Project Index
-Diseno avanzado / implementacion progresiva. Discovery + AST + relaciones + docs; semantica opcional por medicion.
-
-### AiderDesk
-Rama operativa experimental. M-Explorer util para localizar evidencia; Worker/Reviewer permanecen separados.
-
-EmbeddingGemma no es requisito de M-Explorer.
-
-## 9. Secuencia inmediata de consolidación
-
-El próximo bloque de Sprint 6.8 se ejecutará mediante tareas delimitadas:
-
-1. **Testing baseline operativo**
-   - hacer pytest/pytest-asyncio ejecutable contra el backend real;
-   - establecer fixtures seguras;
-   - comenzar por invariantes críticas.
-
-2. **Naming audit read-only**
-   - inventariar convenciones por capa;
-   - no renombrar todavía.
-
-3. **SQLAlchemy 2.x model normalization**
-   - normalizar sintaxis y typing;
-   - preservar atributos, constraints, relaciones y semántica actuales.
-
-4. **ORM integrity review**
-   - revisar FK, relationships, cardinalidad, cascade, nullable, unique e índices;
-   - separar diagnóstico de corrección;
-   - cambios ambiguos requieren decisión humana.
-
-5. **Domain enums & states alignment**
-   - inventariar enums y strings operativos;
-   - reconciliar roles, status, plans, activity y difficulty;
-   - resolver explícitamente `ClassSessionStatus.draft` y `AllowedPlan`.
-
-6. **Pydantic v2 contract alignment**
-   - consolidar Create / Update / Public / Internal;
-   - mantener reglas estructurales separadas de reglas de negocio.
-
-7. **ClassSchedule / ClassSession consolidation**
-   - verificar e implementar RRULE según la decisión aceptada;
-   - generación de sesiones;
-   - temporalidad;
-   - capacity_snapshot;
-   - allowed_plan;
-   - tests correspondientes.
-
-Después de este bloque se continuará con Booking, Front Desk y cierre de endpoints.
-
-## 10. Documentos reemplazados
-
-Sprint 7 antiguo y los roadmaps/indexador originales permanecen archivados. Esta suite v3 pasa a ser baseline documental cuando se incorpora al repositorio.
+No se declara implementado RBAC granular: `Role`, `Permission` y
+`role_permissions` permanecen aislados como drafts. `UserRole` es el mecanismo
+funcional vigente.

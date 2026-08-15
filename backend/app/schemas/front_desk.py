@@ -11,6 +11,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from app.core.enums import (
+    ActivityType,
+    BookingStatus,
+    ClassSessionStatus,
+    DifficultyLevel,
+)
+
 # --------------------------------------------------------------------------- #
 # CAPACIDAD DE SESIÓN
 # --------------------------------------------------------------------------- #
@@ -40,7 +47,7 @@ class FrontDeskSessionView(BaseModel):
 
     starts_at: datetime
     ends_at: datetime
-    status: str
+    status: ClassSessionStatus
 
     gym_class_name: str
     teacher_full_name: str
@@ -78,7 +85,7 @@ class FrontDeskBookingView(BaseModel):
     client_id: UUID
     client_name: str
     client_email: str
-    status: str
+    status: BookingStatus
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -92,8 +99,8 @@ class FrontDeskClassView(BaseModel):
 
     id: UUID
     name: str
-    difficulty: str
-    activity_type: str
+    difficulty: DifficultyLevel | None
+    activity_type: ActivityType
 
     model_config = ConfigDict(from_attributes=True)
 

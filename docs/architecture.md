@@ -1,17 +1,21 @@
 # Arquitectura de FitFlow
 
-**Estado:** Canonico  
-**Actualizado:** 2026-08-13
+**Estado:** Canonico
+
+**Actualizado:** 2026-08-15
 
 ## 1. Proposito
 
-Documentar la arquitectura actual, las responsabilidades obligatorias y la direccion objetivo sin confundir target con implementacion.
+Definir la arquitectura vigente, las responsabilidades obligatorias, la
+direccion de dependencias y la evolucion aprobada de FitFlow.
 
-## 2. Baseline actual
+Este documento es normativo. El estado de implementacion se registra en
+`current-state.md`; las tareas y sus resultados no modifican esta arquitectura.
 
-FitFlow es un repositorio full-stack.
+## 2. Baseline tecnologico
 
 ### Backend
+
 - Python 3.11+
 - FastAPI async
 - SQLAlchemy 2.x Async
@@ -19,9 +23,10 @@ FitFlow es un repositorio full-stack.
 - Pydantic v2
 - PostgreSQL
 - Redis
-- JWT access + refresh y roles
+- JWT access y refresh con roles
 
 ### Frontend
+
 - React
 - TypeScript
 - Vite
@@ -29,20 +34,43 @@ FitFlow es un repositorio full-stack.
 - TanStack Query
 - Axios
 
-### Infraestructura de desarrollo
-- Docker
-- Docker Compose
+### Desarrollo e infraestructura
+
+- Docker y Docker Compose
 - PostgreSQL
 - Adminer
 - Redis cuando el entorno lo requiera
 
-Adminer es una herramienta de administracion/desarrollo, no parte del dominio.
+Adminer es tooling de desarrollo y no forma parte del dominio.
 
-## 3. Flujo de responsabilidades
+## 3. Arquitectura vigente
+
+FitFlow es un monolito full-stack. El backend esta organizado fisicamente por
+capas tecnicas y logicamente por dominios representados en cada capa.
 
 ```text
-Request
-  -> Pydantic Schema
+app/
+  routers/
+  services/
+  crud/
+  schemas/
+  db/models/
+```
+
+La direccion obligatoria de dependencias es:
+
+```text
+Router -> Service -> CRUD -> SQLAlchemy Model -> PostgreSQL
+```
+
+Los schemas Pydantic son contratos de entrada y salida. No constituyen una capa
+de persistencia ni una etapa fija entre las capas anteriores.
+
+### Flujo de entrada
+
+```text
+HTTP Request
+  -> FastAPI: routing, dependencias y validacion
   -> Router
   -> Service
   -> CRUD
@@ -50,56 +78,168 @@ Request
   -> PostgreSQL
 ```
 
+### Flujo de salida
+
+```text
+PostgreSQL
+  -> SQLAlchemy Model
+  -> CRUD
+  -> Service
+  -> Router
+  -> Pydantic response model
+  -> JSON
+```
+
+## 4. Responsabilidades obligatorias
+### Docstrings
+Las reglas de estilo, docstrings, linting y type checking se definen en `quality-and-validation.md` o `coding-standards.md`.
 ### Routers / FastAPI
-HTTP, parametros, DI, autenticacion/autorizacion, status codes, OpenAPI y traduccion de errores. No son propietarios de reglas de negocio.
+
+Los routers son responsables de:
+
+- protocolo HTTP;
+- parametros de path, query y body;
+- dependency injection;
+- autenticacion y autorizacion;
+- status codes y OpenAPI;
+- traduccion de errores de dominio a respuestas HTTP;
+- declaracion del contrato de respuesta.
+
+Los routers no contienen reglas de negocio ni consultas ORM. El codigo nuevo
+debe delegar los casos de uso en services.
 
 ### Schemas / Pydantic v2
-Contratos, tipos, serializacion y validacion estructural. Pueden expresar invariantes del dato; no deben consultar DB ni decidir acceso de negocio.
+
+Los schemas son responsables de:
+
+- contratos de entrada y salida;
+- tipos y serializacion;
+- validacion estructural;
+- invariantes locales que no requieren estado persistido.
+
+Los schemas no consultan infraestructura, no acceden a ORM y no deciden reglas
+de negocio dependientes del estado.
+
+Convenciones vigentes:
+
+- `*InResponse`: contrato compacto para una respuesta anidada;
+- `*Public`: contrato publico y autocontenido;
+- `<Class1>In<Class2>Response`: contrato compacto de `Class1` dentro de
+  `Class2`;
+- `<Class>WithRelations`: contrato que requiere relaciones ORM cargadas
+  explicitamente;
+- `*_refs.py`: contratos hoja destinados a evitar ciclos entre schemas.
+
+Los modulos `*_refs.py` no importan services, CRUD ni modelos ORM.
 
 ### Services
-Propietarios de reglas de negocio, calculos, validaciones dependientes de estado y orquestacion.
+
+Los services son responsables de:
+
+- casos de uso;
+- reglas de negocio;
+- calculos de dominio;
+- validaciones dependientes del estado;
+- coordinacion entre operaciones CRUD;
+- transformaciones puras y resultados derivados.
+
+Una funcion service es `async` solo cuando coordina I/O. Los helpers que operan
+exclusivamente sobre datos ya cargados son sync.
+
+El codigo nuevo de services no ejecuta `select`, `db.execute`, `db.scalar`,
+`db.add` ni consultas ORM equivalentes. Las operaciones de almacenamiento se
+delegan en CRUD.
 
 ### CRUD
-Acceso a datos, consultas, persistencia y operaciones transaccionales. Puede garantizar consistencia atomica; no define politicas comerciales.
+
+CRUD es responsable de:
+
+- consultas SQLAlchemy;
+- carga explicita de relaciones;
+- filtros de persistencia;
+- altas, modificaciones y bajas;
+- operaciones atomicas;
+- control transaccional de operaciones de almacenamiento.
+
+CRUD puede implementar operaciones especificas cuando una garantia de
+consistencia depende de la base de datos. CRUD no importa routers, services ni
+schemas de respuesta y no define politicas comerciales.
 
 ### SQLAlchemy / PostgreSQL
-Persistencia, relaciones e integridad estructural.
+
+Los modelos ORM representan persistencia, relaciones y restricciones
+estructurales. No importan routers, services, CRUD ni schemas Pydantic.
+
+PostgreSQL es la fuente persistente del dominio.
 
 ### Redis
-Estado temporal/infraestructura con ownership explicito. No duplica a PostgreSQL como fuente persistente del dominio.
 
-## 4. Postura arquitectonica conocida
+Redis mantiene estado temporal o de infraestructura con ownership explicito.
+No reemplaza ni duplica a PostgreSQL como fuente persistente del dominio.
 
-### Confirmado
-- separacion Router / Schema / Service / CRUD / Model;
-- SQLAlchemy 2.x + Pydantic v2;
-- PostgreSQL como persistencia principal;
-- frontend React/TypeScript/Vite/Chakra/TanStack/Axios;
-- Booking requiere proteccion transaccional de capacidad/duplicados;
-- estados operativos se distinguen de eliminacion logica;
-- el workflow de desarrollo se apoya en Git, tareas delimitadas y validacion reproducible.
+## 5. Politica de dependencias
 
-### Accepted / Pending Implementation
-- RRULE como fuente unica de recurrencia de `ClassSchedule`;
-- eliminacion definitiva del legacy equivalente a `days_of_week`;
-- consolidacion gradual hacia monolito modular;
-- baseline completo de tests de negocio/integracion suficiente para automatizacion confiable.
+Dependencias permitidas:
 
-## 5. Arquitectura objetivo: monolito modular
+| Origen | Destinos permitidos |
+| --- | --- |
+| Router | Services, schemas, dependencias HTTP y seguridad |
+| Service | CRUD, dominio, enums y schemas cuando produce un DTO derivado |
+| CRUD | Modelos ORM, sesion DB y utilidades de persistencia |
+| Schema | Schemas hoja, tipos y enums estables |
+| Modelo ORM | Base ORM, mixins, tipos y enums estables |
 
-FitFlow se consolidara gradualmente como **Modular Monolith**.
+Dependencias prohibidas:
 
-Esto significa:
-- una aplicacion sencilla de desarrollar/desplegar;
-- limites internos claros por responsabilidades y dominio;
-- sin microservicios, brokers, CQRS o event sourcing para resolver necesidades actuales del MVP;
-- posibilidad futura de extraer un modulo si aparece una necesidad real de escala, ownership o aislamiento.
+- CRUD hacia services o routers;
+- modelos ORM hacia schemas, CRUD, services o routers;
+- schemas hacia CRUD, services o modelos ORM;
+- imports mutuos entre services;
+- imports locales usados como solucion permanente a ciclos arquitectonicos.
 
-No son "beneficios del monolito" sino tecnicas alternativas que agregarian complejidad distribuida innecesaria hoy.
+`TYPE_CHECKING` se utiliza solo para anotaciones que no se necesitan en runtime.
+No se utiliza para ocultar una dependencia circular funcional.
 
-Una futura extraccion a servicios no sera gratuita: requerira contratos de comunicacion, ownership de datos, seguridad entre servicios, observabilidad, deploy y testing independiente. La modularidad interna reduce el costo de esa evolucion, no lo elimina.
+## 6. Estado de transicion
 
-## 6. Dominio operativo
+Se reconocen como deuda arquitectonica vigente:
+
+- routers que llaman CRUD directamente;
+- services que ejecutan consultas o persistencia ORM directa;
+- organizacion interna inconsistente de algunos routers;
+- contratos HTTP pendientes de validacion integral.
+
+Estas desviaciones pueden conservarse hasta que una tarea delimitada las
+refactorice. No constituyen precedente para codigo nuevo.
+
+Los mappers `to_*` son validos cuando son transformaciones puras. No realizan
+I/O ni carga implicita de relaciones. Deben eliminarse cuando Pydantic pueda
+serializar directamente el ORM cargado sin perder campos derivados ni reglas
+del contrato.
+
+## 7. Arquitectura objetivo: monolito modular
+
+FitFlow evolucionara gradualmente a un monolito modular sin alterar su unidad
+de despliegue.
+
+La arquitectura objetivo exige:
+
+- limites claros por dominio;
+- cohesion interna de cada dominio;
+- dependencias explicitas entre dominios;
+- ausencia de acceso transversal directo a persistencia ajena;
+- contratos HTTP estables;
+- PostgreSQL compartido como fuente persistente;
+- una aplicacion backend desplegable como unidad.
+
+La estructura fisica por capas se conserva durante el MVP. La reorganizacion
+por modulos verticales solo se realiza mediante una decision arquitectonica y
+una migracion planificada.
+
+No se incorporan microservicios, brokers, CQRS ni event sourcing sin una
+necesidad aprobada de escala, ownership o aislamiento.
+
+## 8. Dominio operativo
 
 ```text
 User -> Person -> Client / Teacher
@@ -107,32 +247,51 @@ Client -> Membership
 GymClass -> ClassSchedule -> ClassSession -> Booking
 ```
 
-Front Desk es una vista/operacion sobre el dominio existente, no una entidad paralela.
+Front Desk es una capacidad operativa sobre el dominio existente y no una
+entidad paralela.
 
-## 7. Concerns transversales
+## 9. Concerns transversales
 
 ### Seguridad
-JWT, roles y current-user dependencies deben permanecer centralizados y auditables.
+
+JWT, roles y dependencias de usuario actual permanecen centralizados y
+auditables.
 
 ### Fechas
-La interpretacion operacional de horarios pertenece a services. Evitar mezclar hora local y UTC arbitrariamente.
+
+La interpretacion operacional de horarios pertenece a services. Los horarios
+locales se convierten a UTC en limites definidos y se persisten de forma
+consistente.
 
 ### Auditoria
-Timestamps/actor donde aporten trazabilidad. No introducir event sourcing universal para el MVP.
+
+Los timestamps y estados existentes proporcionan la trazabilidad vigente. La
+auditoria uniforme por actor queda pendiente de una politica, modelo de datos y
+migracion aprobados. No se agregan parametros `created_by` aislados antes de
+esa decision.
 
 ### Soft delete
-`active`, `status` y `deleted_at` expresan conceptos distintos.
+
+`active`, estados operativos y `deleted_at` representan conceptos diferentes.
+La baja logica no reemplaza las transiciones de estado.
 
 ### Testing
-La estrategia de testing es parte de la arquitectura operativa: las capas deben ser testeables sin requerir que el agente reinterprete todo el sistema en cada cambio. Ver `quality-and-validation.md`.
 
-## 8. Tooling de IA
+La estrategia de testing forma parte de la arquitectura operativa. Las
+validaciones obligatorias se definen en `quality-and-validation.md`.
 
-Las herramientas de IA son tooling de desarrollo:
-- Codex como pipeline potente;
-- Project Index reutilizable;
-- AiderDesk como pipeline local independiente;
-- RepoMap como hint runtime de Aider;
-- MCP como candidato futuro de interfaz para exponer tools/contexto, no requisito actual.
+## 10. Tooling de IA
 
-Indices/caches son derivados y nunca reemplazan al codigo.
+Las herramientas de IA son tooling de desarrollo. Sus indices y caches son
+artefactos derivados y no reemplazan codigo, tests ni documentacion canonica.
+
+## 11. Ownership documental
+
+- `architecture.md`: arquitectura, responsabilidades y dependencias;
+- `current-state.md`: estado implementado y desviaciones verificadas;
+- `quality-and-validation.md`: estrategia y comandos de validacion;
+- `TASK.md`: alcance autorizado de una tarea;
+- `RESULT.md`: resultado y evidencia de ejecucion.
+
+Un informe, prompt o resultado de agente no modifica esta arquitectura. Todo
+cambio arquitectonico debe actualizar este documento de forma explicita.

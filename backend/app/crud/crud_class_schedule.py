@@ -58,7 +58,7 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(  # noqa: C901, PLR0913
+    async def get_multi_filtered(  # noqa: PLR0913
         self,
         db: "AsyncSession",
         *,
@@ -67,7 +67,6 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         gym_class_id: "UUID | None" = None,
         teacher_id: "UUID | None" = None,
         allowed_plan: str | None = None,
-        day_of_week: int | None = None,
         date_from: "date | None" = None,
         date_to: "date | None" = None,
         active: bool | None = True,
@@ -95,9 +94,6 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         if allowed_plan:
             stmt = stmt.where(ClassSchedule.allowed_plan == allowed_plan)
 
-        if day_of_week is not None:
-            # days_of_week assumed to be an array/JSON field containing ints 0..6
-            stmt = stmt.where(ClassSchedule.days_of_week.contains([day_of_week]))
 
         if date_from and date_to:
             # schedules that overlap the [date_from, date_to] window
@@ -142,7 +138,7 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         db: "AsyncSession",
         *,
         obj_in: ClassScheduleCreate,
-        created_by: object | None = None,  # noqa: ARG002
+        created_by: UUID | None = None,
     ) -> ClassSchedule:
         """Crea un ClassSchedule.
 
@@ -150,6 +146,8 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         Lanza BusinessValidationError en caso de violaciones simples (ej. capacity < 0).
         """
         data = obj_in.model_dump()
+        data["created_by_id"] = created_by
+        data["updated_by_id"] = created_by
         capacity = data.get("capacity")
         if capacity is not None and int(capacity) < 0:
             msg = "Capacity debe ser >= 0."
@@ -166,12 +164,14 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         *,
         db_obj: ClassSchedule,
         obj_in: ClassScheduleUpdate,
+        updated_by: UUID | None = None,
     ) -> ClassSchedule:
         """Actualiza un ClassSchedule.
 
         No genera ni borra ClassSession automáticamente; el service decide la generación/actualización de sesiones.
         """
         update_data = obj_in.model_dump(exclude_unset=True)
+        update_data["updated_by_id"] = updated_by
         if "capacity" in update_data and int(update_data["capacity"]) < 0:
             msg = "Capacity debe ser >= 0."
             raise svc_errors.BusinessValidationError(msg)
@@ -226,6 +226,24 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
 
         res = await db.execute(stmt)
         return list(res.scalars().all())
+
+    async def get_for_session_generation(
+        self,
+        db: AsyncSession,
+        *,
+        schedule_id: UUID,
+    ) -> ClassSchedule | None:
+        """Obtiene el schedule con las relaciones requeridas para generar sesiones."""
+        stmt = (
+            select(ClassSchedule)
+            .where(ClassSchedule.id == schedule_id)
+            .options(
+                selectinload(ClassSchedule.gym_class),
+                selectinload(ClassSchedule.teacher),
+            )
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
 
 # Instancia reusable

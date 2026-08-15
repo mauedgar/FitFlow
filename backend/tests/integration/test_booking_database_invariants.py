@@ -3,9 +3,11 @@ import uuid
 from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.enums import (
     ActivityType,
     BookingStatus,
@@ -13,6 +15,7 @@ from app.core.enums import (
     UserRole,
 )
 from app.crud.crud_booking import booking as booking_crud
+from app.crud.crud_class_session import class_session as class_session_crud
 from app.db.models import (
     Booking,
     ClassSchedule,
@@ -25,12 +28,23 @@ from app.db.models import (
 from app.db.session import AsyncSessionLocal, engine
 from app.schemas.booking import BookingCreateInternal
 from app.services.errors import ConflictError
+from app.services.front_desk_service import check_in_booking
 
 
 @pytest.fixture(autouse=True)
 async def dispose_engine_pool_after_test():
     yield
     await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def require_isolated_test_database() -> None:
+    """Fail before opening a connection unless the configured DB is fitflow_test."""
+    database_name = make_url(settings.DATABASE_URL).database
+    assert database_name == "fitflow_test", (
+        "Integration tests require the isolated fitflow_test database; "
+        f"configured database is {database_name!r}."
+    )
 
 
 async def _client(db: AsyncSession, suffix: str) -> Client:
@@ -72,7 +86,7 @@ async def _session_with_clients(client_count: int = 1) -> tuple[uuid.UUID, list[
         schedule = ClassSchedule(
             gym_class=gym_class,
             teacher=teacher,
-            days_of_week=[0],
+            rrule="RRULE:FREQ=WEEKLY;BYDAY=MO",
             start_time=time(10, 0),
             duration_minutes=60,
             capacity=1,
@@ -137,6 +151,38 @@ async def test_cancelled_booking_releases_capacity_and_allows_rebooking() -> Non
 
 
 @pytest.mark.integration
+@pytest.mark.asyncio
+async def test_soft_deleting_session_preserves_booking_history() -> None:
+    session_id, client_ids = await _session_with_clients()
+
+    async with AsyncSessionLocal() as db:
+        booking = Booking(
+            client_id=client_ids[0],
+            class_session_id=session_id,
+            status=BookingStatus.confirmed,
+        )
+        db.add(booking)
+        await db.commit()
+
+        session = await class_session_crud.get(db=db, obj_id=session_id)
+        assert session is not None
+        await class_session_crud.remove(db=db, db_obj=session)
+
+    async with AsyncSessionLocal() as db:
+        stored_session = await db.scalar(
+            select(ClassSession).where(ClassSession.id == session_id)
+        )
+        booking_count = await db.scalar(
+            select(func.count(Booking.id)).where(Booking.class_session_id == session_id)
+        )
+        assert stored_session is not None
+        assert stored_session.active is False
+        assert stored_session.deleted_at is not None
+        assert booking_count == 1
+        assert await class_session_crud.get(db=db, obj_id=session_id) is None
+
+
+@pytest.mark.integration
 @pytest.mark.concurrency
 @pytest.mark.asyncio
 async def test_last_capacity_is_protected_by_row_lock() -> None:
@@ -164,3 +210,30 @@ async def test_last_capacity_is_protected_by_row_lock() -> None:
     results = await asyncio.gather(*(reserve(client_id) for client_id in client_ids))
     assert sorted(results) == ["conflict", "created"]
     assert await _count_bookings(session_id) == 1
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_front_desk_check_in_records_attendance_without_deleting_booking() -> None:
+    session_id, client_ids = await _session_with_clients()
+
+    async with AsyncSessionLocal() as db:
+        booking = Booking(
+            client_id=client_ids[0],
+            class_session_id=session_id,
+            status=BookingStatus.confirmed,
+        )
+        db.add(booking)
+        await db.commit()
+        booking_id = booking.id
+
+    async with AsyncSessionLocal() as db:
+        view = await check_in_booking(db, session_id=session_id, booking_id=booking_id)
+        assert view.id == booking_id
+        assert view.status == BookingStatus.attended
+
+    async with AsyncSessionLocal() as db:
+        stored = await db.get(Booking, booking_id)
+        assert stored is not None
+        assert stored.status == BookingStatus.attended
+        assert stored.checked_in_at is not None

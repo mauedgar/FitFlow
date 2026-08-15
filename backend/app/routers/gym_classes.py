@@ -1,5 +1,4 @@
 """Router GymClass (Sprint 6-7).
-
 ---------------------------------
 • CRUD del catálogo de clases.
 • Filtros operativos avanzados.
@@ -10,13 +9,26 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from datetime import date
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.deps import require_admin
 from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_gym_class import gym_class
+from app.db.models.user import User
 from app.db.session import get_async_session
+from app.schemas.class_schedule import ClassSchedulePublic, NextSessionInfo
+from app.schemas.gym_class import (
+    GymClassCreate,
+    GymClassPublic,
+    GymClassUpdate,
+    GymClassWithRelations,
+)
+from app.services import gym_class_service
 from app.services.class_schedule_service import (
     get_next_session,
     to_class_schedule_public,
@@ -24,20 +36,6 @@ from app.services.class_schedule_service import (
 from app.services.gym_class_service import (
     to_gym_class_public,
 )
-from app.schemas.class_schedule import ClassSchedulePublic, NextSessionInfo
-from app.schemas.gym_class import (
-    GymClassCreate,
-    GymClassPublic,
-    GymClassRead,
-    GymClassUpdate,
-)
-
-if TYPE_CHECKING:
-    from datetime import date
-    from uuid import UUID
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
 
 router = APIRouter(prefix="/gym-classes", tags=["gym-classes"])
 
@@ -45,12 +43,12 @@ router = APIRouter(prefix="/gym-classes", tags=["gym-classes"])
 # --------------------------------------------------------------------------- #
 # Crear GymClass
 # --------------------------------------------------------------------------- #
-@router.post("/", response_model=GymClassRead, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=GymClassWithRelations, status_code=status.HTTP_201_CREATED)
 async def create_gym_class(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     class_in: GymClassCreate,
-) -> GymClassRead:
+) -> GymClassWithRelations:
     """Crea una nueva clase en el catálogo.
 
     Incluye:
@@ -61,13 +59,23 @@ async def create_gym_class(
         • Panel administrativo para gestionar el catálogo.
     """
     gym_classs = await gym_class.create(db=db, obj_in=class_in)
-    return GymClassRead.model_validate(gym_classs)
+    return GymClassWithRelations.model_validate(gym_classs)
+
+
+@router.get("/public", response_model=list[GymClassPublic])
+async def list_public_gym_classes_first(
+    *,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> list[GymClassPublic]:
+    """Register the static public path before `/{class_id}`."""
+    classes = await gym_class.get_multi(db=db)
+    return [to_gym_class_public(item) for item in classes]
 
 
 # --------------------------------------------------------------------------- #
 # Listar GymClasses (operativo)
 # --------------------------------------------------------------------------- #
-@router.get("/", response_model=list[GymClassRead])
+@router.get("/", response_model=list[GymClassWithRelations])
 async def list_gym_classes(  # noqa: PLR0913
     *,
     skip: Annotated[int, Query(ge=0)]=0,
@@ -77,12 +85,11 @@ async def list_gym_classes(  # noqa: PLR0913
     active: Annotated[bool | None, Query()]=True,
     search: Annotated[str | None, Query()] = None,
     teacher_id: Annotated[UUID | None, Query()] = None,
-    day_of_week: Annotated[int | None, Query(ge=0, le=6)]=None,
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
     include_schedules: Annotated[bool, Query()] = False,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> list[GymClassRead]:
+) -> list[GymClassWithRelations]:
     """Lista clases del catálogo con filtros operativos.
 
     Filtros disponibles:
@@ -91,7 +98,6 @@ async def list_gym_classes(  # noqa: PLR0913
         • estado activo/inactivo
         • búsqueda por nombre
         • profesor asignado
-        • día de la semana
         • rango de fechas
 
     Si `include_schedules=True`, se incluyen los horarios asociados.
@@ -105,13 +111,12 @@ async def list_gym_classes(  # noqa: PLR0913
         active=active,
         search=search,
         teacher_id=teacher_id,
-        day_of_week=day_of_week,
         date_from=date_from,
         date_to=date_to,
     )
 
     if not include_schedules:
-        return [GymClassRead.model_validate(c) for c in classes]
+        return [GymClassWithRelations.model_validate(c) for c in classes]
 
     ids = [c.id for c in classes]
     classes_with_sched = await gym_class.get_multi(
@@ -123,16 +128,17 @@ async def list_gym_classes(  # noqa: PLR0913
     )
 
     classes_map = {c.id: c for c in classes_with_sched}
-    return [GymClassRead.model_validate(classes_map[i]) for i in ids]
+    return [GymClassWithRelations.model_validate(classes_map[i]) for i in ids]
 # --------------------------------------------------------------------------- #
 # Obtener GymClass por ID (operativo)
 # --------------------------------------------------------------------------- #
-@router.get("/{class_id}", response_model=GymClassRead)
+@router.get("/{class_id}", response_model=GymClassWithRelations)
 async def read_gym_class(
     *,
     class_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> GymClassRead:
+    _: Annotated[User, Depends(require_admin)],
+) -> GymClassWithRelations:
     """Obtiene una clase del catálogo por ID.
 
     Incluye:
@@ -147,19 +153,19 @@ async def read_gym_class(
     if not gym_classs:
         raise HTTPException(404, "Clase no encontrada")
 
-    return GymClassRead.model_validate(gym_classs)
+    return GymClassWithRelations.model_validate(gym_classs)
 
 
 # --------------------------------------------------------------------------- #
 # Actualizar GymClass
 # --------------------------------------------------------------------------- #
-@router.put("/{class_id}", response_model=GymClassRead)
+@router.put("/{class_id}", response_model=GymClassWithRelations)
 async def update_gym_class(
     *,
     class_id: UUID,
     class_in: GymClassUpdate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> GymClassRead:
+) -> GymClassWithRelations:
     """Actualiza una clase del catálogo.
 
     Permite modificar:
@@ -176,7 +182,7 @@ async def update_gym_class(
         raise HTTPException(404, "Clase no encontrada")
 
     updated = await gym_class.update(db=db, db_obj=gym_classs, obj_in=class_in)
-    return GymClassRead.model_validate(updated)
+    return GymClassWithRelations.model_validate(updated)
 
 
 # --------------------------------------------------------------------------- #
@@ -195,17 +201,16 @@ async def delete_gym_class(
         • Se marca como eliminada según tu estrategia de SoftDeleteMixin.
     """
     gym_classs = await gym_class.get(db=db, obj_id=class_id)
-    if not gym_class:
+    if not gym_classs:
         raise HTTPException(404, "Clase no encontrada")
 
     await gym_class.remove(db=db, db_obj=gym_classs) # pyright: ignore[reportArgumentType]
-    return {"detail": "GymClass eliminada"}
+    return {"detail": "GymClass desactivada"}
 
 
 # --------------------------------------------------------------------------- #
 # Listado público de clases
 # --------------------------------------------------------------------------- #
-@router.get("/public", response_model=list[GymClassPublic])
 async def list_public_gym_classes(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
@@ -220,8 +225,6 @@ async def list_public_gym_classes(
     """
     classes = await gym_class.get_multi(db=db)
     return [to_gym_class_public(c) for c in classes]
-
-
 # --------------------------------------------------------------------------- #
 # Clase pública por ID
 # --------------------------------------------------------------------------- #
@@ -231,37 +234,12 @@ async def read_public_gym_class(
     class_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> GymClassPublic:
-    """Obtiene una clase en versión pública.
-
-    Incluye:
-        • datos públicos de la clase
-        • horarios públicos asociados
-    """
-    gym_classs = await gym_class.get(db=db, obj_id=class_id, include_schedules=True)
+    """Devuelve una clase. Con sus datos sin schedules."""
+    gym_classs = await gym_class.get(db=db, obj_id=class_id,include_schedules=False)
     if not gym_classs:
-        raise HTTPException(404, "Clase no encontrada")
-
+            raise HTTPException(404, "Clase no encontrada")
     return to_gym_class_public(gym_classs)
 
-
-# --------------------------------------------------------------------------- #
-# Horarios públicos de una clase
-# --------------------------------------------------------------------------- #
-@router.get("/{class_id}/schedules/public", response_model=list[ClassSchedulePublic])
-async def read_public_class_schedules(
-    *,
-    class_id: UUID,
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> list[ClassSchedulePublic]:
-    """Lista horarios públicos de una clase."""
-    schedules = await class_schedule.get_multi_filtered(
-        db=db,
-        gym_class_id=class_id,
-    )
-    return [to_class_schedule_public(s) for s in schedules]
-
-
-# --------------------------------------------------------------------------- #
 # Próxima sesión de una clase
 # --------------------------------------------------------------------------- #
 @router.get("/{class_id}/next-session", response_model=NextSessionInfo | None)
@@ -292,6 +270,37 @@ async def read_class_next_session(
         return None
 
     return min(next_sessions, key=lambda ns: ns.starts_at)
+    """Obtiene una clase en versión pública.
+
+    Incluye:
+        • datos públicos de la clase
+        • horarios públicos asociados
+    """
+    gym_classs = await gym_class.get(db=db, obj_id=class_id, include_schedules=True)
+    if not gym_classs:
+        raise HTTPException(404, "Clase no encontrada")
+
+    return to_gym_class_public(gym_classs)
+
+
+# --------------------------------------------------------------------------- #
+# Horarios públicos de una clase
+# --------------------------------------------------------------------------- #
+@router.get("/{class_id}/schedules/public", response_model=list[ClassSchedulePublic])
+async def read_public_class_schedules(
+    *,
+    class_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> list[ClassSchedulePublic]:
+    """Lista horarios públicos de una clase."""
+    schedules = await class_schedule.get_multi_filtered(
+        db=db,
+        gym_class_id=class_id,
+    )
+    return [to_class_schedule_public(s) for s in schedules]
+
+
+#
 
 
 # --------------------------------------------------------------------------- #
@@ -311,21 +320,3 @@ async def read_public_classes_by_teacher(
     return [to_gym_class_public(c) for c in classes]
 
 
-# --------------------------------------------------------------------------- #
-# Clases públicas por día de la semana
-# --------------------------------------------------------------------------- #
-@router.get("/day/{day_of_week}/public", response_model=list[GymClassPublic])
-async def read_public_classes_by_day(
-    *,
-    day_of_week: int,
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> list[GymClassPublic]:
-    """Lista clases públicas que tienen horarios en un día específico."""
-    schedules = await class_schedule.get_multi_filtered(
-        db=db,
-        day_of_week=day_of_week,
-        include_relations=True,
-    )
-
-    classes = {s.gym_class for s in schedules}
-    return [to_gym_class_public(c) for c in classes]

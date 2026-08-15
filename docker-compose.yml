@@ -10,11 +10,26 @@ services:
       - "8000:8000" # Mapea el puerto 8000 del contenedor a tu máquina
     environment:
       - DATABASE_URL=postgresql://fitflow_admin:159753Lu@fitflow_postgres:5432/fitflow_db
+      - REDIS_URL=redis://redis:6379/0
     networks:
       - fitflow_network
     depends_on:
       postgres:
         condition: service_healthy # Se asegura de que el contenedor de postgres se inicie antes que el backend
+      redis:
+        condition: service_healthy
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - fitflow_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   # Base de datos PostgreSQL
   postgres:
     image: postgres:15-alpine
@@ -51,6 +66,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   fitflow_network:

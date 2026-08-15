@@ -1,7 +1,7 @@
 ---
 id: FF-LOCAL-007
 title: Consolidar ClassSchedule y ClassSession
-status: Ready
+status: Done
 priority: High
 area: backend
 execution_lane: codex

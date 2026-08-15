@@ -109,5 +109,5 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         return await super().update(db, db_obj=db_obj, obj_in=update_data)
 
 
-# Instancia final del CRUD (importar esta en deps y auth_service)
-user_crud = CRUDUser(User)
+# Instancia reusable del CRUD de usuarios.
+user = CRUDUser(User)

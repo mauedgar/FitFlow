@@ -22,12 +22,12 @@ class Teacher(Person):
 
     # La clave primaria coincide con el registro base de Person.
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("persons.id"), primary_key=True
+        UUID(as_uuid=True), ForeignKey("persons.id"), primary_key=True,
     )
 
     # Identificador fiscal o laboral del profesor, si aplica.
     cuil: Mapped[str | None] = mapped_column(
-        String, unique=True, index=True, nullable=True
+        String, unique=True, index=True, nullable=True,
     )
 
     # Biografía o descripción breve del perfil profesional.

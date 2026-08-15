@@ -9,19 +9,38 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.crud import crud_teacher as crud
 from app.core.deps import (
     require_admin,
     require_admin_or_teacher,
     require_admin_teacher_or_self,
 )
-from app.crud.crud_user import user_crud
+from app.core.enums import UserRole
+from app.crud.crud_class_schedule import class_schedule
+from app.crud.crud_class_session import class_session
+from app.crud.crud_teacher import teacher
+from app.crud.crud_user import user as user_crud
+from app.db.models.teacher import Teacher
+from app.db.models.user import User
 from app.db.session import get_async_session
+from app.schemas.class_schedule import (
+    ClassSchedulePublic,
+    ClassScheduleWithRelations,
+    NextSessionInfo,
+)
+from app.schemas.class_session import ClassSessionInResponse
+from app.schemas.teacher import (
+    TeacherCreate,
+    TeacherPublic,
+    TeacherUpdate,
+    TeacherWithRelations,
+)
 from app.services.class_schedule_service import (
     get_next_session,
     to_class_schedule_public,
@@ -33,27 +52,6 @@ from app.services.class_session_service import (
 from app.services.teacher_service import (
     to_teacher_public,
 )
-from app.core.enums import UserRole
-from app.schemas.class_schedule import (
-    ClassSchedule,
-    ClassSchedulePublic,
-    NextSessionInfo,
-)
-from app.schemas.class_session import ClassSessionInResponse
-from app.schemas.teacher import (
-    Teacher,
-    TeacherCreate,
-    TeacherPublic,
-    TeacherUpdate,
-)
-
-if TYPE_CHECKING:
-    from uuid import UUID
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from app.db.models.user import User
-
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])
 
@@ -61,14 +59,14 @@ router = APIRouter(prefix="/teachers", tags=["teachers"])
 # --------------------------------------------------------------------------- #
 # Crear Teacher para un User existente
 # --------------------------------------------------------------------------- #
-@router.post("/{user_id}", response_model=Teacher, status_code=status.HTTP_201_CREATED)
+@router.post("/{user_id}", response_model=TeacherWithRelations, status_code=status.HTTP_201_CREATED)
 async def create_teacher_for_user(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user_id: UUID,
     teacher_in: TeacherCreate,
     current_user: Annotated[User, Depends(require_admin)],  # noqa: ARG001
-) -> Teacher:
+) -> TeacherWithRelations:
     """Crea un perfil de profesor asociado a un usuario existente.
 
     Reglas:
@@ -87,21 +85,31 @@ async def create_teacher_for_user(
     if user.role != UserRole.teacher: # pyright: ignore[reportGeneralTypeIssues]
         raise HTTPException(400, f"El usuario no tiene rol '{UserRole.teacher}'.")
 
-    teacher = await crud.teacher.create_with_user(db=db, obj_in=teacher_in, user=user)
-    return Teacher.model_validate(teacher)
+    teacher_ = await teacher.create_with_user(db=db, obj_in=teacher_in, user=user)
+    return TeacherWithRelations.model_validate(teacher_)
+
+
+@router.get("/public", response_model=list[TeacherPublic])
+async def read_public_teachers_first(
+    *,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> list[TeacherPublic]:
+    """Register the static public path before `/{teacher_id}`."""
+    teachers = await teacher.get_multi(db=db)
+    return [to_teacher_public(item) for item in teachers]
 
 
 # --------------------------------------------------------------------------- #
 # Listar Teachers (operativo)
 # --------------------------------------------------------------------------- #
-@router.get("/", response_model=list[Teacher])
+@router.get("/", response_model=list[TeacherWithRelations])
 async def read_teachers(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     skip: int = 0,
     limit: int = 100,
     current_user: Annotated[User, Depends(require_admin_or_teacher)],  # noqa: ARG001
-) -> list[Teacher]:
+) -> list[TeacherWithRelations]:
     """Lista profesores en versión operativa (privada).
 
     Incluye:
@@ -111,20 +119,19 @@ async def read_teachers(
         • Panel administrativo.
         • Vistas internas de gestión de profesores.
     """
-    teachers = await crud.teacher.get_multi(
+    teachers = await teacher.get_multi(
         db=db,
         skip=skip,
         limit=limit,
         options=[selectinload(Teacher.class_schedules)], # pyright: ignore[reportArgumentType]
     )
 
-    return [Teacher.model_validate(t) for t in teachers]
+    return [TeacherWithRelations.model_validate(t) for t in teachers]
 
 
 # --------------------------------------------------------------------------- #
 # Listar Teachers (público)
 # --------------------------------------------------------------------------- #
-@router.get("/public", response_model=list[TeacherPublic])
 async def read_public_teachers(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
@@ -138,20 +145,20 @@ async def read_public_teachers(
         • Listados públicos del frontend.
         • Selección de profesor en la agenda.
     """
-    teachers = await crud.teacher.get_multi(db=db)
+    teachers = await teacher.get_multi(db=db)
     return [to_teacher_public(t) for t in teachers]
 
 
 # --------------------------------------------------------------------------- #
 # Obtener Teacher por ID (privado)
 # --------------------------------------------------------------------------- #
-@router.get("/{teacher_id}", response_model=Teacher)
+@router.get("/{teacher_id}", response_model=TeacherWithRelations)
 async def read_teacher_by_id(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
     current_user: Annotated[User, Depends(require_admin_teacher_or_self)],  # noqa: ARG001
-) -> Teacher:
+) -> TeacherWithRelations:
     """Obtiene el perfil privado de un profesor por ID.
 
     Incluye:
@@ -160,15 +167,15 @@ async def read_teacher_by_id(
     Reglas:
         • Solo admin, el propio profesor o roles autorizados pueden acceder.
     """
-    teacher = await crud.teacher.get(
+    teacher_ = await teacher.get(
         db=db,
         obj_id=teacher_id,
         include_relations=True,
     )
-    if not teacher:
+    if not teacher_:
         raise HTTPException(404, "Profesor no encontrado.")
 
-    return Teacher.model_validate(teacher)
+    return TeacherWithRelations.model_validate(teacher_)
 
 
 # --------------------------------------------------------------------------- #
@@ -188,24 +195,24 @@ async def read_teacher_public_by_id(
     Usado en:
         • Fichas públicas de profesor en el frontend.
     """
-    teacher = await crud.teacher.get(db=db, obj_id=teacher_id)
-    if not teacher:
+    teacher_ = await teacher.get(db=db, obj_id=teacher_id)
+    if not teacher_:
         raise HTTPException(404, "Profesor no encontrado.")
 
-    return to_teacher_public(teacher)
+    return to_teacher_public(teacher_)
 
 
 # --------------------------------------------------------------------------- #
 # Actualizar Teacher
 # --------------------------------------------------------------------------- #
-@router.put("/{teacher_id}", response_model=Teacher)
+@router.put("/{teacher_id}", response_model=TeacherWithRelations)
 async def update_teacher(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
     teacher_in: TeacherUpdate,
     current_user: Annotated[User, Depends(require_admin_teacher_or_self)],  # noqa: ARG001
-) -> Teacher:
+) -> TeacherWithRelations:
     """Actualiza el perfil privado de un profesor.
 
     Permite:
@@ -213,12 +220,12 @@ async def update_teacher(
     Reglas:
         • Solo admin o el propio profesor pueden actualizar su perfil.
     """
-    teacher = await crud.teacher.get(db=db, obj_id=teacher_id)
-    if not teacher:
+    teacher_ = await teacher.get(db=db, obj_id=teacher_id)
+    if not teacher_:
         raise HTTPException(404, "Profesor no encontrado.")
 
-    updated = await crud.teacher.update(db=db, db_obj=teacher, obj_in=teacher_in)
-    return Teacher.model_validate(updated)
+    updated = await teacher.update(db=db, db_obj=teacher_, obj_in=teacher_in)
+    return TeacherWithRelations.model_validate(updated)
 
 
 # --------------------------------------------------------------------------- #
@@ -239,24 +246,24 @@ async def delete_teacher(
     Efecto:
         • Marca el registro como eliminado según tu estrategia de CRUD.
     """
-    teacher = await crud.teacher.get(db=db, obj_id=teacher_id)
-    if not teacher:
+    teacher_ = await teacher.get(db=db, obj_id=teacher_id)
+    if not teacher_:
         raise HTTPException(404, "Profesor no encontrado.")
 
-    await crud.teacher.remove(db=db, db_obj=teacher)
+    await teacher.remove(db=db, db_obj=teacher_)
     return {"message": "Profesor eliminado exitosamente."}
 
 
 # --------------------------------------------------------------------------- #
 # Clases impartidas por el profesor (operativo)
 # --------------------------------------------------------------------------- #
-@router.get("/{teacher_id}/classes", response_model=list[ClassSchedule])
+@router.get("/{teacher_id}/classes", response_model=list[ClassScheduleWithRelations])
 async def read_teacher_classes(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
     current_user: Annotated[User, Depends(require_admin_or_teacher)],  # noqa: ARG001
-) -> list[ClassSchedule]:
+) -> list[ClassScheduleWithRelations]:
     """Lista las clases/horarios impartidos por un profesor (operativo).
 
     Incluye:
@@ -264,13 +271,13 @@ async def read_teacher_classes(
     Usado en:
         • Panel interno para ver qué dicta cada profesor.
     """
-    schedules = await crud.class_schedule.get_multi_filtered(
+    schedules = await class_schedule.get_multi_filtered(
         db=db,
         teacher_id=teacher_id,
         include_relations=True,
     )
 
-    return [ClassSchedule.model_validate(s) for s in schedules]
+    return [ClassScheduleWithRelations.model_validate(s) for s in schedules]
 
 
 # --------------------------------------------------------------------------- #
@@ -289,7 +296,7 @@ async def read_teacher_classes_public(
     Usado en:
         • Frontend para mostrar la oferta de un profesor.
     """
-    schedules = await crud.class_schedule.get_multi_filtered(
+    schedules = await class_schedule.get_multi_filtered(
         db=db,
         teacher_id=teacher_id,
     )
@@ -299,13 +306,13 @@ async def read_teacher_classes_public(
 # --------------------------------------------------------------------------- #
 # Horarios del profesor (operativo)
 # --------------------------------------------------------------------------- #
-@router.get("/{teacher_id}/schedule", response_model=list[ClassSchedule])
+@router.get("/{teacher_id}/schedule", response_model=list[ClassScheduleWithRelations])
 async def read_teacher_schedule(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
     current_user: Annotated[User, Depends(require_admin_or_teacher)],  # noqa: ARG001
-) -> list[ClassSchedule]:
+) -> list[ClassScheduleWithRelations]:
     """Lista el horario operativo completo de un profesor.
 
     Incluye:
@@ -313,13 +320,13 @@ async def read_teacher_schedule(
     Usado en:
         • Vistas internas de planificación y agenda del profesor.
     """
-    schedules = await crud.class_schedule.get_multi_filtered(
+    schedules = await class_schedule.get_multi_filtered(
         db=db,
         teacher_id=teacher_id,
         include_relations=True,
     )
 
-    return [ClassSchedule.model_validate(s) for s in schedules]
+    return [ClassScheduleWithRelations.model_validate(s) for s in schedules]
 
 
 # --------------------------------------------------------------------------- #
@@ -338,7 +345,7 @@ async def read_teacher_schedule_public(
     Usado en:
         • Agenda pública y selección de clases por profesor.
     """
-    schedules = await crud.class_schedule.get_multi_filtered(
+    schedules = await class_schedule.get_multi_filtered(
         db=db,
         teacher_id=teacher_id,
     )
@@ -363,7 +370,7 @@ async def read_teacher_next_session(
     Si no hay sesiones futuras:
         • Devuelve `None`.
     """
-    schedules = await crud.class_schedule.get_multi_filtered(
+    schedules = await class_schedule.get_multi_filtered(
         db=db,
         teacher_id=teacher_id,
         include_relations=True,
@@ -397,7 +404,7 @@ async def read_teacher_sessions_public(
     Usado en:
         • Frontend para ver todas las sesiones de un profesor.
     """
-    sessions = await crud.class_session.get_multi_filtered(
+    sessions = await class_session.get_multi_filtered(
         db=db,
         teacher_id=teacher_id,
         include_relations=True,

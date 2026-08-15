@@ -20,15 +20,13 @@ from pydantic import BaseModel, ConfigDict, model_validator
 # Importar enums SIEMPRE en runtime (Pydantic v2 los necesita)
 from app.core.enums import BookingStatus  # noqa: TC001
 from app.schemas.booking_refs import BookingPublic
-
-# Importar client normalmente (no genera ciclos)
-from app.schemas.client import ClientInBookingResponse, ClientPublic  # noqa: TC001
-
 from app.schemas.class_session import (
     ClassSessionInBookingResponse,
     ClassSessionPublic,
 )
 
+# Importar client normalmente (no genera ciclos)
+from app.schemas.client import ClientInBookingResponse, ClientPublic  # noqa: TC001
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -72,6 +70,7 @@ class BookingUpdate(BaseModel):
     """Esquema para actualizar parcialmente una reserva."""
 
     status: BookingStatus | None = None
+    cancelled_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,7 +79,7 @@ class BookingUpdate(BaseModel):
 # 3. Esquema privado (operativo)
 # --------------------------------------------------------------------------- #
 
-class Booking(BookingBase):
+class BookingWithRelations(BookingBase):
     """Esquema completo de una reserva (privado).
 
     Incluye:

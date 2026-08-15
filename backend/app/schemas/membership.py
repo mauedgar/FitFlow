@@ -71,7 +71,7 @@ class MembershipUpdate(BaseModel):
 # 4. Esquema privado (API interna)
 # --------------------------------------------------------------------------- #
 
-class Membership(MembershipBase):
+class MembershipInternal(MembershipBase):
     """Esquema privado de membresía.
 
     Incluye client_id para uso interno.

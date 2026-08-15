@@ -10,15 +10,19 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from datetime import UTC, datetime
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import require_admin
 from app.core.enums import MembershipStatus
 from app.crud.crud_client import client
 from app.crud.crud_membership import membership
 from app.db.session import get_async_session
+from app.db.models.user import User
 from app.services.membership_service import (
     to_membership_public,
     to_membership_with_client,
@@ -31,13 +35,6 @@ from app.schemas.membership import (
     MembershipWithClient,
     MembershipWithStats,
 )
-
-if TYPE_CHECKING:
-    from uuid import UUID
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from app.db.models.user import User
 
 # ruff: noqa: ARG001
 router = APIRouter(prefix="/memberships", tags=["memberships"])
@@ -148,7 +145,7 @@ async def update_membership(
         • último invoice
     """
     membershipp = await membership.get(db=db, obj_id=membership_id)
-    if not membership:
+    if not membershipp:
         raise HTTPException(404, "Membresía no encontrada.")
 
     updated = await membership.update(db=db, db_obj=membershipp, obj_in=membership_in) # pyright: ignore[reportArgumentType]
@@ -167,11 +164,15 @@ async def delete_membership(
 ) -> dict[str, str]:
     """Elimina una membresía (soft delete)."""
     membershipp = await membership.get(db=db, obj_id=membership_id)
-    if not membership:
+    if not membershipp:
         raise HTTPException(404, "Membresía no encontrada.")
 
-    await membership.remove(db=db, db_obj=membershipp) # pyright: ignore[reportArgumentType]
-    return {"message": "Membresía eliminada exitosamente."}
+    cancelled = await membership.update(
+        db=db,
+        db_obj=membershipp,
+        obj_in=MembershipUpdate(status=MembershipStatus.cancelled, end_date=datetime.now(UTC)),
+    )
+    return {"message": f"Membresía {cancelled.id} cancelada exitosamente."}
 
 
 # --------------------------------------------------------------------------- #

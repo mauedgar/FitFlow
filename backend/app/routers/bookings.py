@@ -10,9 +10,12 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Annotated
+from datetime import UTC, date, datetime
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import (
     require_admin,
@@ -25,6 +28,7 @@ from app.core.enums import BookingStatus, UserRole
 from app.crud.crud_booking import booking as booking_crud
 from app.crud.crud_class_session import class_session as class_session_crud
 from app.crud.crud_client import client as client_crud
+from app.db.models.user import User
 from app.db.session import get_async_session
 
 # Schemas importados explícitamente para response_model y tipos
@@ -38,8 +42,10 @@ from app.schemas.front_desk import SessionCapacity
 
 # Services
 from app.services.booking_service import (
+    resolve_booking_session,
     to_booking_internal,
     to_booking_public,
+    validate_booking_cancellation,
     validate_booking_creation,
 )
 from app.services.class_schedule_service import validate_membership_access
@@ -50,14 +56,6 @@ from app.services.errors import BusinessValidationError, ConflictError, NotFound
 
 logger = logging.getLogger("fitflow.bookings")
 router = APIRouter(prefix="/bookings", tags=["bookings"])
-
-if TYPE_CHECKING:
-    from datetime import date
-    from uuid import UUID
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from app.db.models.user import User
 
 # ruff:noqa: UP037
 # --------------------------------------------------------------------------- #
@@ -75,24 +73,15 @@ async def create_booking(  # noqa: C901
     Solo clientes y administradores pueden reservar.
     """
     try:
-        session = await class_session_crud.get(
-            db=db,
-            obj_id=booking_in.class_session_id,  # pyright: ignore[reportArgumentType]
-            include_relations=True,
-        )
+        session = await resolve_booking_session(db, booking_in)
+    except BusinessValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("DB error fetching class_session for booking creation")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La sesión no existe.")
-
-    # Actualizar disponibilidad (pure function)
-    try:
-        session = update_session_availability(session)
-    except Exception as exc:
-        logger.exception("Error updating session availability for session_id=%s", getattr(session, "id", None))
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
     try:
         client = await client_crud.get_by_user_id(
@@ -145,7 +134,10 @@ async def create_booking(  # noqa: C901
         logger.exception("DB error creating booking for client=%s session=%s", client.id, session.id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
-    return to_booking_public(booking_obj)
+    booking_with_relations = await booking_crud.get_with_relations(db=db, booking_id=booking_obj.id)
+    if booking_with_relations is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Reserva creada no disponible.")
+    return to_booking_public(booking_with_relations)
 
 
 # --------------------------------------------------------------------------- #
@@ -171,7 +163,6 @@ async def read_my_bookings(
         bookings = await booking_crud.get_multi_filtered(
             db=db,
             client_id=client.id,
-            include_relations=True,  # pyright: ignore[reportCallIssue]
         )
     except Exception as exc:
         logger.exception("DB error fetching bookings for client=%s", client.id)
@@ -216,16 +207,24 @@ async def cancel_booking(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No puedes cancelar reservas de otros clientes.")
 
     try:
+        validate_booking_cancellation(booking_obj)
         updated = await booking_crud.update(
             db=db,
             db_obj=booking_obj,
-            obj_in=BookingUpdate(status=BookingStatus.cancelled),
+            obj_in=BookingUpdate(status=BookingStatus.cancelled, cancelled_at=datetime.now(UTC)),
         )
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except BusinessValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("DB error updating booking id=%s to cancelled", booking_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
-    return to_booking_public(updated)
+    booking_with_relations = await booking_crud.get_with_relations(db=db, booking_id=updated.id)
+    if booking_with_relations is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Reserva actualizada no disponible.")
+    return to_booking_public(booking_with_relations)
 
 
 # --------------------------------------------------------------------------- #
@@ -299,8 +298,7 @@ async def read_class_bookings_public(
     try:
         bookings = await booking_crud.get_multi_filtered(
             db=db,
-            class_id=class_id,  # pyright: ignore[reportCallIssue]
-            include_relations=True,  # pyright: ignore[reportCallIssue]
+            gym_class_id=class_id,
         )
     except Exception as exc:
         logger.exception("DB error fetching bookings for class_id=%s", class_id)
@@ -323,7 +321,6 @@ async def read_schedule_bookings_public(
         bookings = await booking_crud.get_multi_filtered(
             db=db,
             schedule_id=schedule_id,  # pyright: ignore[reportCallIssue]
-            include_relations=True,  # pyright: ignore[reportCallIssue]
         )
     except Exception as exc:
         logger.exception("DB error fetching bookings for schedule_id=%s", schedule_id)
@@ -346,7 +343,6 @@ async def read_bookings_by_day(
         bookings = await booking_crud.get_multi_filtered(
             db=db,
             date=date_query,  # pyright: ignore[reportCallIssue]
-            include_relations=True,  # pyright: ignore[reportCallIssue]
         )
     except Exception as exc:
         logger.exception("DB error fetching bookings by day=%s", date_query)
@@ -371,7 +367,6 @@ async def read_bookings_by_range(
             db=db,
             date_from=date_from,
             date_to=date_to,
-            include_relations=True,  # pyright: ignore[reportCallIssue]
         )
     except Exception as exc:
         logger.exception("DB error fetching bookings by range %s - %s", date_from, date_to)
@@ -398,7 +393,6 @@ async def read_bookings_by_client(
         bookings = await booking_crud.get_multi_filtered(
             db=db,
             client_id=client_id,
-            include_relations=True,  # pyright: ignore[reportCallIssue]
         )
     except Exception as exc:
         logger.exception("DB error fetching bookings for client_id=%s", client_id)

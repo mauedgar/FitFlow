@@ -5,7 +5,7 @@ utilizando Redis como almacenamiento rápido. Se emplea para implementar
 logout, revocación de tokens comprometidos y control de seguridad.
 """
 
-from app.core.redis_client import redis_client
+from app.core.redis_client import get_redis_client
 
 # Prefijo utilizado para almacenar tokens invalidados en Redis.
 BLACKLIST_PREFIX = "blacklist_token:"
@@ -21,7 +21,7 @@ def blacklist_token(token: str) -> None:
         token: Token JWT que debe ser invalidado.
 
     """
-    redis_client.set(f"{BLACKLIST_PREFIX}{token}", "1")
+    get_redis_client().set(f"{BLACKLIST_PREFIX}{token}", "1")
 
 
 def is_token_blacklisted(token: str) -> bool:
@@ -34,4 +34,4 @@ def is_token_blacklisted(token: str) -> bool:
         True si el token está invalidado; False en caso contrario.
 
     """
-    return redis_client.exists(f"{BLACKLIST_PREFIX}{token}") == 1
+    return get_redis_client().exists(f"{BLACKLIST_PREFIX}{token}") == 1

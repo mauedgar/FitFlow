@@ -14,10 +14,9 @@ from uuid import UUID  # noqa: TC003
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.booking_refs import BookingPublic
-from app.schemas.membership import MembershipPublic  # noqa: TC001
+from app.schemas.membership import MembershipPublic
 from app.schemas.person import PersonBase, PersonCreate, PersonUpdate
 
-# ruff: noqa: UP037
 # --------------------------------------------------------------------------- #
 # Base
 # --------------------------------------------------------------------------- #
@@ -40,7 +39,7 @@ class ClientUpdate(PersonUpdate):
 # Esquema privado (API interna)
 # --------------------------------------------------------------------------- #
 
-class Client(ClientBase):
+class ClientWithRelations(ClientBase):
     """Esquema privado del cliente.
 
     Incluye relaciones completas para uso interno.

@@ -29,6 +29,12 @@ Estados conocidos: `active`, `expired`, `paused`, `cancelled`.
 
 La existencia de una membership valida y la compatibilidad de esa membership con una clase/agenda son validaciones distintas.
 
+`MembershipPlan` expresa la cobertura contratada por el cliente, mientras que
+`AllowedPlan` expresa la restricción de un `ClassSchedule`. Ambos conservan los
+valores `gym_only`, `classes`, `premium` y `personalized` cuando corresponde.
+Un plan `premium` incluye acceso a horarios `gym_only`, `classes` y `premium`;
+un plan `personalized` incluye esos accesos y los horarios `personalized`.
+
 ## 3. Dominio operativo
 
 ```text
@@ -41,10 +47,12 @@ Catalogo de actividades. Contiene propiedades de referencia como nombre, tipo, d
 ### ClassSchedule
 Configuracion recurrente de una clase; no es una ocurrencia concreta.
 
-**Decision aceptada:** RRULE sera la fuente unica de recurrencia.  
-**Estado actual:** la implementacion RRULE completa no se considera confirmada hasta verificar el codigo; cualquier legacy debe tratarse como deuda del Sprint 6.8, no como contrato definitivo.
+**Fuente única:** `rrule` RFC 5545, sin `DTSTART`; `start_date` y `start_time`
+definen el ancla local. `days_of_week` fue eliminado.
 
 El schedule puede contener profesor, ventana de vigencia, hora, duracion, capacidad y restricciones como `allowed_plan`.
+La generación completa únicamente sesiones futuras faltantes dentro de 15 días;
+no modifica snapshots ni historial existente.
 
 ### ClassSession
 Ocurrencia concreta de un schedule. Debe preservar `capacity_snapshot` para no reescribir historicamente la capacidad de una sesion cuando cambie el schedule.
@@ -54,6 +62,13 @@ Disponibilidad conceptual:
 ```text
 available_spots = max(capacity_snapshot - current_bookings_count, 0)
 ```
+
+`current_bookings_count` contabiliza solamente reservas que consumen cupo;
+una reserva con estado `cancelled` permanece como historial pero no ocupa lugar.
+
+La cancelación cambia el estado de la sesión. El endpoint administrativo de
+eliminación realiza soft delete (`active=false` y `deleted_at`), por lo que no
+borra sus Bookings ni reescribe la historia.
 
 La disponibilidad mostrada puede ser derivada; la operacion critica de reserva debe confiar en una comprobacion transaccional.
 
@@ -65,6 +80,15 @@ Reserva/intencion de asistencia de un cliente a una `ClassSession`.
 Estados conocidos: `confirmed`, `cancelled`, `attended`, `no_show`.
 
 Cancelar una reserva conserva historia; no equivale a soft-delete.
+Booking no expone borrado operativo: toda baja funcional se representa como
+cancelación con estado `cancelled` y, cuando corresponda, `cancelled_at`.
+
+Una sesión `scheduled` u `open` y futura puede aceptar reservas. Una sesión
+`closed`, `cancelled`, `completed` o pasada no admite reservas nuevas.
+
+Las bajas de Client, GymClass y ClassSchedule preservan historia por
+desactivación o soft delete. Membership se cancela por estado; su cardinalidad
+permanece 1:1 durante Sprint 6.8.
 
 ## 4. Invariantes de Booking
 

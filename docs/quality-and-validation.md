@@ -91,13 +91,21 @@ powershell -ExecutionPolicy Bypass -File scripts/quality/run_backend_tests.ps1
 powershell -ExecutionPolicy Bypass -File scripts/quality/run_backend_validation.ps1
 ```
 
-Fallback:
+Ambos wrappers construyen e inician exclusivamente el proyecto Compose
+`fitflow-test` y ejecutan las validaciones dentro de `backend_test`. No usan el
+Python local ni la base de desarrollo. El primero acepta argumentos adicionales
+de pytest, por ejemplo `-m smoke -q`.
+
+Comando exacto de smoke dentro del contenedor, desde la raiz montada `/app`:
 
 ```text
-python -m pytest backend/tests
+python -m pytest backend/tests -m smoke
 ```
 
-El Task `testing-baseline` debe reconciliar estos wrappers con el entorno real y dependencia manager existente.
+Los tests de integracion validan que `DATABASE_URL` nombre explicitamente
+`fitflow_test` antes de abrir una conexion. Los wrappers dejan el entorno activo
+para inspeccion; su limpieza acotada retira solo contenedores y red, preservando
+el volumen de pruebas.
 
 ## 7. Estados de evidencia
 
@@ -123,4 +131,14 @@ Segun alcance:
 
 ## 9. Estado de adopcion
 
-La estructura/harness v3 queda definida por esta suite. La cobertura real de FitFlow sigue siendo **pendiente critica** hasta completar la primera task y verificar tests contra el codigo actual.
+El harness v3 esta operativo sobre Python 3.11, pytest y pytest-asyncio dentro de
+`fitflow-test`. Se verificaron smoke de runtime/metadata, tests unitarios de ORM y
+dos invariantes reales de Booking. La cobertura restante de FitFlow continua
+siendo deuda activa; en particular no se ha demostrado cobertura HTTP completa.
+
+Ruff y Pyright están instalados en la imagen de tests. Un fallo de cualquiera
+debe registrarse como `FAIL` con su evidencia; `UNAVAILABLE` queda reservado
+para una herramienta que realmente no pueda ejecutarse.
+
+## 10. Docstrings
+Toda funcion publica, endpoint, metodo CRUD, funcion de service o helper no trivial debe tener un docstring breve.

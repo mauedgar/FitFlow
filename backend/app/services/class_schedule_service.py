@@ -10,29 +10,31 @@ Incluye:
 • Próxima sesión futura.
 • Helpers para front desk y dashboards.
 """
-
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from dateutil.rrule import FR, MO, SA, SU, TH, TU, WE, WEEKLY, rrule, rruleset, rrulestr
-from sqlalchemy.ext.asyncio import AsyncSession  # top-level import
+from dateutil.rrule import rrulestr
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.enums import AllowedPlan, ClassSessionStatus, MembershipPlan
 from app.core.timezone import LOCAL_TZ
-from app.crud.crud_class_schedule import class_schedule as class_schedule_crud
-from app.crud.crud_class_session import class_session as class_session_crud
+from app.crud.crud_class_schedule import (
+    class_schedule as crud_class_schedule,
+)
+from app.crud.crud_class_session import class_session as crud_class_session
+from app.db.models.membership import Membership  # noqa: TC001
 from app.db.session import get_async_session
 from app.schemas.class_schedule import (
     ClassSchedulePublic,
     ClassScheduleWithNextSession,
     NextSessionInfo,
 )
-from app.schemas.class_session import ClassSessionCreate, ClassSessionPublic
+from app.schemas.class_session import ClassSessionPublic
 from app.services import errors as svc_errors
-from app.core.enums import AllowedPlan, MembershipPlan
-from app.db.models.membership import Membership  # noqa: TC001
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,45 +74,18 @@ def _to_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def _map_days_to_rrule_byweekday(days: list[int]) -> list:
-    """Mapea lista 0..6 a constantes dateutil (MO..SU)."""
-    mapping = {0: MO, 1: TU, 2: WE, 3: TH, 4: FR, 5: SA, 6: SU}
-    return [mapping[d] for d in days if d in mapping]
-
-
-def _build_rrule(schedule: "ClassSchedule", window_start: date, window_end: date)->rrule|rruleset:  # noqa: ARG001
-    """Construye rrule desde schedule.rrule preferente; days_of_week fallback."""
-    raw = getattr(schedule, "rrule", None)
-    dtstart = datetime.combine(schedule.start_date, schedule.start_time).replace(tzinfo=LOCAL_TZ) # pyright: ignore[reportArgumentType]
-    if raw:
-        try:
-            return rrulestr(raw, dtstart=dtstart)
-        except Exception as err:
-            msg = "RRULE inválido en schedule."
-            raise svc_errors.BusinessValidationError(msg) from err
-
-    days = getattr(schedule, "days_of_week", []) or []
-    if not days:
-        return rrule(freq=WEEKLY, count=1, dtstart=dtstart)
-
-    byweekday = _map_days_to_rrule_byweekday(days)
-    dtstart_window = datetime.combine(window_start, schedule.start_time).replace(tzinfo=LOCAL_TZ) # pyright: ignore[reportArgumentType]
-    return rrule(freq=WEEKLY, byweekday=byweekday, dtstart=dtstart_window)
-
-    # Fallback: days_of_week  # noqa: ERA001
-    days = getattr(schedule, "days_of_week", []) or []
-    if not days:
-        # única ocurrencia en start_date
-        return rrule(freq=WEEKLY, count=1, dtstart=dtstart)
-
-    byweekday = _map_days_to_rrule_byweekday(days)
-    # dtstart: usar window_start con la hora del schedule para generar desde la ventana
-    dtstart_window = datetime.combine(window_start, schedule.start_time).replace(tzinfo=LOCAL_TZ) # pyright: ignore[reportArgumentType]
-    return rrule(freq=WEEKLY, byweekday=byweekday, dtstart=dtstart_window)
+def _build_rrule(schedule: "ClassSchedule"):
+    """Build the canonical RRULE anchored at the schedule's local start."""
+    dtstart = datetime.combine(schedule.start_date, schedule.start_time, tzinfo=LOCAL_TZ)
+    try:
+        return rrulestr(schedule.rrule, dtstart=dtstart)
+    except (TypeError, ValueError) as err:
+        msg = "RRULE inválido en schedule."
+        raise svc_errors.BusinessValidationError(msg) from err
 
 
 def _occurrences_between(
-    rule_obj: "rrule",
+    rule_obj: object,
     window_start: date,
     window_end: date,
     schedule_start_time: time,
@@ -121,7 +96,7 @@ def _occurrences_between(
     """
     start_dt = datetime.combine(window_start, datetime.min.time()).replace(tzinfo=LOCAL_TZ)
     end_dt = datetime.combine(window_end, datetime.max.time()).replace(tzinfo=LOCAL_TZ)
-    occs = list(rule_obj.between(start_dt, end_dt, inc=True))
+    occs = list(rule_obj.between(start_dt, end_dt, inc=True))  # type: ignore[attr-defined]
     normalized: list[datetime] = []
     for occ_dt in occs:
         occ_local = occ_dt if occ_dt.tzinfo is not None else occ_dt.replace(tzinfo=LOCAL_TZ)
@@ -146,8 +121,7 @@ def to_class_schedule_public(schedule: "ClassSchedule") -> ClassSchedulePublic:
             "id": schedule.id,
             "gym_class": schedule.gym_class,
             "teacher": schedule.teacher,
-            "rrule": getattr(schedule, "rrule", None),
-            "days_of_week": getattr(schedule, "days_of_week", None),
+            "rrule": schedule.rrule,
             "start_time": schedule.start_time,
             "duration_minutes": schedule.duration_minutes,
             "capacity": schedule.capacity,
@@ -180,7 +154,7 @@ def validate_schedule_integrity(schedule: "ClassSchedule") -> None:
     if schedule.teacher is None:
         msg = "El horario no tiene profesor asignado."
         raise svc_errors.BusinessValidationError(msg)
-    if schedule.capacity is None or int(schedule.capacity) < 0: # pyright: ignore[reportArgumentType]
+    if schedule.capacity is None or int(schedule.capacity) < 1: # pyright: ignore[reportArgumentType]
         msg_0 = "Capacity inválida en el schedule."
         raise svc_errors.BusinessValidationError(msg_0)
 
@@ -195,10 +169,10 @@ def validate_membership_access(
 
     El acceso se determina según una jerarquía de planes:
 
-    - ``gym_only``: no permite acceder a clases.
+    - ``gym_only``: permite horarios restringidos a ``gym_only``.
     - ``classes``: permite clases cuyo ``allowed_plan`` sea ``classes``.
-    - ``premium``: permite clases ``classes`` y ``premium``.
-    - ``personalized``: permite clases ``classes``, ``premium`` y
+    - ``premium``: permite ``gym_only``, ``classes`` y ``premium``.
+    - ``personalized``: permite ``gym_only``, ``classes``, ``premium`` y
       ``personalized``.
 
     Si el horario no define ``allowed_plan`` (``None``), se considera
@@ -226,15 +200,19 @@ def validate_membership_access(
     membership_plan = membership.plan
 
     allowed_plans_by_membership = {
-        MembershipPlan.gym_only: set(),
+        MembershipPlan.gym_only: {
+            AllowedPlan.gym_only,
+        },
         MembershipPlan.classes: {
             AllowedPlan.classes,
         },
         MembershipPlan.premium: {
+            AllowedPlan.gym_only,
             AllowedPlan.classes,
             AllowedPlan.premium,
         },
         MembershipPlan.personalized: {
+            AllowedPlan.gym_only,
             AllowedPlan.classes,
             AllowedPlan.premium,
             AllowedPlan.personalized,
@@ -336,120 +314,109 @@ def to_class_schedule_with_next_session(schedule: "ClassSchedule") -> ClassSched
 # -------------------------
 # 5. Generación de sesiones (orquestador)
 # -------------------------
-async def generate_sessions_for_schedule(  # noqa: C901
-    schedule_id: str,
+async def generate_sessions_for_schedule(
+    *,
+    schedule_id: UUID,
     window_start: date,
     window_end: date,
-    created_by: "UserPublic",
-    db: "AsyncSession | None" = None,
+    db: AsyncSession,
 ) -> list[ClassSessionPublic]:
-    """Genera (o asegura existencia) de ClassSession para el schedule en la ventana [window_start, window_end].
-    - Usa schedule.rrule si está presente; si no, usa days_of_week como fallback.
-    - Valida solapamiento de teacher antes de crear sesiones.
-    - Copia capacity a capacity_snapshot en cada ClassSession.
-    """  # noqa: D205
-    db = await _get_db_session(db)
-    sched = await class_schedule_crud.get(db, obj_id=UUID(schedule_id), include_relations=True)  # type: ignore[name-defined]
-    if not sched:
+    """Crea las sesiones futuras faltantes de un ClassSchedule en una ventana."""
+    schedule = await crud_class_schedule.get_for_session_generation(
+        db,
+        schedule_id=schedule_id,
+    )
+    if schedule is None:
         msg = "ClassSchedule no encontrado."
         raise svc_errors.NotFoundError(msg)
 
-    # Validaciones básicas
-    validate_schedule_integrity(sched)
+    validate_schedule_integrity(schedule)
 
-    # Construir rrule y obtener ocurrencias en LOCAL_TZ
-    rule_obj = _build_rrule(sched, window_start, window_end)
-    occs_local = _occurrences_between(rule_obj, window_start, window_end, sched.start_time) # pyright: ignore[reportArgumentType]
-
-    created_sessions: list[ClassSessionPublic] = []
-
-    # Cargar sesiones existentes del teacher en ventana para validar solapamientos
-    # Usamos CRUD para obtener schedules del mismo teacher en ventana y sus sessions
-    teacher_schedules = await class_schedule_crud.get_multi_filtered(
-        db,
-        teacher_id=sched.teacher_id, # pyright: ignore[reportArgumentType]
-        date_from=window_start,
-        date_to=window_end,
-        include_relations=True,
+    effective_start = max(window_start, schedule.start_date)
+    effective_end = (
+        min(window_end, schedule.end_date)
+        if schedule.end_date is not None
+        else window_end
     )
-    existing_sessions: list = []
-    for s in teacher_schedules:
-        sessions = getattr(s, "class_sessions", []) or []
-        # filtrar y extender
-        existing_sessions.extend([cs for cs in sessions if getattr(cs, "starts_at", None) is not None])
 
-    def _overlaps(a_start: datetime, a_dur: int, b_start: datetime, b_dur: int) -> bool:
-        a0 = a_start
-        a1 = a_start + timedelta(minutes=a_dur)
-        b0 = b_start
-        b1 = b_start + timedelta(minutes=b_dur)
-        return not (a1 <= b0 or b1 <= a0)
+    if effective_end < effective_start:
+        return []
 
-    for occ_local in occs_local:
-        # Normalizar a UTC para persistir
-        occ_utc = _to_utc(occ_local)
-        # Validar solapamiento con existing_sessions
-        for ex in existing_sessions:
-            ex_start = getattr(ex, "starts_at", None)
-            ex_dur = getattr(ex, "duration_minutes", sched.duration_minutes)
-            if ex_start is None:
-                continue
-            # Asegurar ex_start es tz-aware UTC
-            if ex_start.tzinfo is None:
-                ex_start = ex_start.replace(tzinfo=timezone.utc)
-            if _overlaps(occ_utc, sched.duration_minutes, ex_start, ex_dur): # pyright: ignore[reportArgumentType]
-                msg_0 = "Solapamiento detectado para el profesor en la ventana solicitada."
-                raise svc_errors.BusinessValidationError(msg_0)
+    window_starts_at = _to_utc(
+        datetime.combine(effective_start, time.min, tzinfo=LOCAL_TZ),
+    )
+    window_ends_at = _to_utc(
+        datetime.combine(effective_end, time.max, tzinfo=LOCAL_TZ),
+    )
 
-        # Preparar payload mínimo para crear session
-        cs_payload = {
-            "class_schedule_id": str(sched.id),
-            "starts_at": occ_utc,
-            "duration_minutes": int(sched.duration_minutes), # pyright: ignore[reportArgumentType]
-            "capacity_snapshot": {"capacity": int(sched.capacity)}, # pyright: ignore[reportArgumentType]
-            "status": "scheduled",
-        }
+    existing_starts = await crud_class_session.get_starts_for_schedule_in_window(
+        db,
+        schedule_id=schedule.id,
+        starts_at=window_starts_at,
+        ends_at=window_ends_at,
+    )
 
-        # Intentar get_or_create si el CRUD lo soporta
-        try:
-            created_obj, created_flag = await class_session_crud.get_or_create(  # noqa: RUF059
-                db,
-                defaults={
-                    "duration_minutes": sched.duration_minutes,
-                    "capacity_snapshot": {"capacity": int(sched.capacity)}, # pyright: ignore[reportArgumentType]
-                    "status": "scheduled",
-                },
-                class_schedule_id=sched.id,
-                starts_at=occ_utc,
+    occurrences = _occurrences_between(
+        _build_rrule(schedule),
+        effective_start,
+        effective_end,
+        schedule.start_time,
+    )
+
+    now = _now_utc()
+    sessions_data: list[dict[str, object]] = []
+
+    for local_start in occurrences:
+        starts_at = _to_utc(local_start)
+
+        if starts_at <= now or starts_at in existing_starts:
+            continue
+
+        ends_at = starts_at + timedelta(minutes=schedule.duration_minutes)
+
+        has_conflict = await crud_class_session.teacher_has_conflict(
+            db,
+            teacher_id=schedule.teacher_id,
+            excluded_schedule_id=schedule.id,
+            starts_at=starts_at,
+            ends_at=ends_at,
+        )
+        if has_conflict:
+            msg = "Solapamiento detectado para el profesor."
+            raise svc_errors.BusinessValidationError(
+                msg,
             )
-            cs_obj = created_obj
-        except AttributeError:
-            # Fallback: usar create_with_capacity_snapshot si get_or_create no existe
-            try:
-                # class_session_crud.create_with_capacity_snapshot espera un schema; adaptamos si es necesario
-                cs_payload = {
-                    "class_schedule_id": str(sched.id),
-                    "starts_at": occ_utc.isoformat(),
-                    "duration_minutes": sched.duration_minutes,
-                    "capacity_snapshot": {"capacity": int(sched.capacity)}, # pyright: ignore[reportArgumentType]
-                    "status": "scheduled",
-                }
 
-                cs_schema = ClassSessionCreate.model_validate(cs_payload)  # pydantic v2
-                cs_obj = await class_session_crud.create_with_capacity_snapshot(
-                    db,
-                    obj_in=cs_schema,
-                    created_by=getattr(created_by, "id", None),
-                )
-            except Exception as err:
-                msg_1 = "Error al crear ClassSession."
-                raise svc_errors.ExternalServiceError(msg_1) from err
+        sessions_data.append(
+            {
+                "class_schedule_id": schedule.id,
+                "starts_at": starts_at,
+                "ends_at": ends_at,
+                "capacity_snapshot": schedule.capacity,
+                "status": ClassSessionStatus.scheduled,
+            },
+        )
 
-        # Convertir a schema público (si ya es ORM, ClassSessionPublic.model_validate lo acepta)
-        created_sessions.append(ClassSessionPublic.model_validate(cs_obj))
+    created = await crud_class_session.create_many(
+        db,
+        sessions_data=sessions_data,
+    )
 
-    return created_sessions
-
+    return [
+        ClassSessionPublic.model_validate(
+            {
+                "id": session.id,
+                "class_schedule_id": session.class_schedule_id,
+                "starts_at": session.starts_at,
+                "ends_at": session.ends_at,
+                "capacity_snapshot": session.capacity_snapshot,
+                "status": session.status,
+                "current_bookings_count": 0,
+                "available_spots": session.capacity_snapshot,
+            },
+        )
+        for session in created
+    ]
 
 # -------------------------
 # 6. Helpers operativos

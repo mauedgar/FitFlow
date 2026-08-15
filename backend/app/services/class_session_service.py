@@ -132,7 +132,7 @@ def is_session_empty(session: ClassSession) -> bool:
 # 6. Sesiones futuras (acotadas a 1 semana)
 # --------------------------------------------------------------------------- #
 
-def get_future_sessions(schedule: ClassSchedule, days: int = 7) -> list[ClassSession]:
+def get_future_sessions(schedule: ClassSchedule, days: int = 15) -> list[ClassSession]:
     """Devuelve las sesiones futuras del horario dentro de X días."""
     now = datetime.now(tz=timezone.utc)
     limit = now + timedelta(days=days)

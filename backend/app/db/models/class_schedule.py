@@ -1,16 +1,16 @@
 # app/models/class_schedule.py
-"""Modelo vigente de ClassSchedule basado en ``days_of_week``.
+"""Modelo ClassSchedule con RRULE como fuente única de recurrencia.
 
 Representa la configuración recurrente de una clase dentro de la agenda.
 - La `capacity` es la fuente de verdad y se copia a cada ClassSession generado.
-- RRULE es la arquitectura objetivo, pero requiere una migración funcional separada.
+- `rrule` (RFC5545) define la recurrencia.
 - Fechas/horas se almacenan en UTC/naive y se interpretan con LOCAL_TZ en servicios/serializers.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import date, time
+from datetime import date, time  # noqa: TC003
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -20,9 +20,10 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    String,
     Time,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import AllowedPlan
@@ -40,7 +41,7 @@ class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
 
     Reglas y notas:
     - `capacity` debe ser >= 1.
-    - `days_of_week` conserva el contrato ejecutable hasta migrar a RRULE.
+    - `rrule` es la única fuente de recurrencia.
     - `start_date`/`end_date` definen la ventana de vigencia del schedule.
     - `start_time` define la hora del día (sin tz en DB); los servicios aplican LOCAL_TZ.
     """
@@ -49,7 +50,7 @@ class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
 
     # Identificador
     id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
 
     # Relaciones principales
@@ -63,9 +64,19 @@ class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
         ForeignKey("teachers.id", ondelete="CASCADE"),
         nullable=False,
     )
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    updated_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
-    # Representación vigente. RRULE se incorporará en su migración funcional.
-    days_of_week: Mapped[list[int]] = mapped_column(JSONB, nullable=False)
+    # Regla RFC 5545 canónica. DTSTART se deriva de start_date y start_time.
+    rrule: Mapped[str] = mapped_column(String, nullable=False)
 
     # Hora de inicio (sin zona en DB; interpretar con LOCAL_TZ en servicios)
     start_time: Mapped[time] = mapped_column(Time(timezone=False), nullable=False)

@@ -47,6 +47,11 @@ Request -> Pydantic Schema -> Router -> Service -> CRUD -> SQLAlchemy Model -> P
 
 - **Routers/FastAPI:** HTTP, DI, auth/autorizacion, status codes, OpenAPI y traduccion de errores.
 - **Schemas/Pydantic v2:** contratos y validacion estructural; no reglas dependientes de DB.
+
+Convenciones de schemas: `*InResponse` es una vista compacta anidada;
+`*Public` es autocontenido y público; `<Class1>In<Class2>Response` representa
+`Class1` dentro de `Class2`; y `*WithRelations` requiere relaciones cargadas
+explícitamente. Mantener estos sufijos al crear contratos nuevos.
 - **Services:** propietarios de las reglas de negocio.
 - **CRUD:** persistencia, consultas y limites transaccionales; no decide politicas de negocio.
 - **SQLAlchemy/PostgreSQL:** persistencia e integridad estructural.
@@ -155,3 +160,8 @@ Do not inspect or modify these paths unless explicitly requested:
 - scripts/generated/
 - .env
 - .env.*
+## 11. Normas de Código (Coding Standards)
+
+- **Docstrings obligatorios**: Cada función o método creado o modificado **must** incluir un docstring breve.
+- **Anotaciones**: Usa tipado explícito (`__anotated__`) en los parámetros y retornos de las funciones.
+- **Formato de docstring**: Mantén una descripción de una o dos líneas que resuma la acción de la función.

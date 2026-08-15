@@ -1,18 +1,19 @@
 $ErrorActionPreference = "Stop"
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
-$Backend = Join-Path $Root "backend"
-$VenvPython = Join-Path $Backend ".venv_backend\Scripts\python.exe"
+$ComposeFile = Join-Path $Root "docker-compose.test.yml"
+$ComposeArgs = @(
+    "compose",
+    "--project-name", "fitflow-test",
+    "--file", $ComposeFile
+)
 
-if (Test-Path $VenvPython) {
-    $Python = $VenvPython
-} else {
-    $Python = "python"
-}
-
-Push-Location $Backend
+Push-Location $Root
 try {
-    & $Python -m pytest @args
+    & docker @ComposeArgs up --build --detach
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    & docker @ComposeArgs exec --no-TTY backend_test python -m pytest tests @args
     exit $LASTEXITCODE
 }
 finally {

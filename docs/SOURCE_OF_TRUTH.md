@@ -54,6 +54,7 @@ Ayuda a encontrar informacion:
 - grafo de relaciones;
 - pdoc;
 - RepoMap;
+- llamaindex
 - caches;
 - bundles/resumenes de contexto.
 
@@ -63,7 +64,7 @@ Deben ser regenerables y, cuando sea posible, asociados a una revision Git.
 
 `docs/archive/` contiene planes/snapshots reemplazados. Sirve para trazabilidad, no como instruccion activa.
 
-## 3. Regla de conflicto
+## 3. Regla de conflicto(auditar)
 
 Si codigo, tests y docs difieren:
 1. confirmar revision/estado del codigo;

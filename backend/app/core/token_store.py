@@ -4,7 +4,7 @@ Este módulo permite almacenar, validar y eliminar tokens de refresco
 utilizados en el flujo de autenticación OAuth2.
 """
 
-from app.core.redis_client import redis_client
+from app.core.redis_client import get_redis_client
 
 # Prefijo para las claves de tokens de refresco en Redis.
 REFRESH_PREFIX = "refresh_token:"
@@ -18,7 +18,7 @@ def store_refresh_token(user_id: str, token: str) -> None:
         token: Token de refresco emitido por el sistema.
 
     """
-    redis_client.set(f"{REFRESH_PREFIX}{token}", user_id)
+    get_redis_client().set(f"{REFRESH_PREFIX}{token}", user_id)
 
 
 def is_refresh_token_valid(token: str) -> bool:
@@ -31,7 +31,7 @@ def is_refresh_token_valid(token: str) -> bool:
         True si el token está almacenado en Redis; False en caso contrario.
 
     """
-    return redis_client.exists(f"{REFRESH_PREFIX}{token}") == 1
+    return get_redis_client().exists(f"{REFRESH_PREFIX}{token}") == 1
 
 
 def delete_refresh_token(token: str) -> None:
@@ -41,4 +41,4 @@ def delete_refresh_token(token: str) -> None:
         token: Token de refresco que debe invalidarse.
 
     """
-    redis_client.delete(f"{REFRESH_PREFIX}{token}")
+    get_redis_client().delete(f"{REFRESH_PREFIX}{token}")

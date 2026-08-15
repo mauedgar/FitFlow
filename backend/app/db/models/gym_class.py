@@ -31,7 +31,7 @@ class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
 
     # Identificador único de la actividad dentro del catálogo.
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
 
     # Nombre visible de la actividad.
@@ -60,7 +60,7 @@ class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     # Capacidad sugerida por defecto. El cupo operativo real se define
     # posteriormente en ClassSchedule y se replica en ClassSession.
     default_capacity: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=10
+        Integer, nullable=False, default=10,
     )
 
     # Imagen opcional para enriquecer la presentación visual del catálogo.
@@ -76,9 +76,9 @@ class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "duration_minutes >= 1", name="ck_gym_class_duration_positive"
+            "duration_minutes >= 1", name="ck_gym_class_duration_positive",
         ),
         CheckConstraint(
-            "default_capacity >= 1", name="ck_gym_class_capacity_positive"
+            "default_capacity >= 1", name="ck_gym_class_capacity_positive",
         ),
     )

@@ -14,7 +14,8 @@ from __future__ import annotations  # noqa: I001
 from datetime import date, datetime, time
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from dateutil.rrule import rrulestr
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.enums import AllowedPlan  # noqa: TC001
 from app.schemas.class_session_refs import ClassSessionInResponse
@@ -31,14 +32,33 @@ from app.schemas.teacher_refs import (
 class ClassScheduleBase(BaseModel):
     """Campos comunes del horario recurrente."""
 
-    days_of_week: list[int] = Field(..., min_length=1, max_length=7)
+    rrule: str = Field(..., min_length=1, max_length=512)
     start_time: time
     duration_minutes: int = Field(..., ge=1)
     capacity: int = Field(..., ge=1)
     start_date: date
     end_date: date | None = None
+    allowed_plan: AllowedPlan | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("rrule")
+    @classmethod
+    def validate_rrule(cls, value: str) -> str:
+        """Accept one canonical RFC 5545 RRULE line without DTSTART."""
+        normalized = value.strip().upper()
+        if not normalized.startswith("RRULE:") or "\n" in normalized:
+            msg = "rrule debe ser una única línea con prefijo 'RRULE:'."
+            raise ValueError(msg)
+        if "DTSTART" in normalized:
+            msg = "rrule no debe incluir DTSTART; se deriva del schedule."
+            raise ValueError(msg)
+        try:
+            rrulestr(normalized)
+        except (TypeError, ValueError) as err:
+            msg = "rrule no es parseable."
+            raise ValueError(msg) from err
+        return normalized
 
 
 # --------------------------------------------------------------------------- #
@@ -59,7 +79,7 @@ class ClassScheduleCreate(ClassScheduleBase):
 class ClassScheduleUpdate(BaseModel):
     """Esquema para actualizar parcialmente un horario recurrente."""
 
-    days_of_week: list[int] | None = None
+    rrule: str | None = Field(None, min_length=1, max_length=512)
     start_time: time | None = None
     duration_minutes: int | None = None
     capacity: int | None = None
@@ -67,15 +87,23 @@ class ClassScheduleUpdate(BaseModel):
     end_date: date | None = None
     gym_class_id: UUID | None = None
     teacher_id: UUID | None = None
+    allowed_plan: AllowedPlan | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("rrule")
+    @classmethod
+    def validate_optional_rrule(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return ClassScheduleBase.validate_rrule(value)
 
 
 # --------------------------------------------------------------------------- #
 # 4. Esquema privado (operativo)
 # --------------------------------------------------------------------------- #
 
-class ClassSchedule(ClassScheduleBase):
+class ClassScheduleWithRelations(ClassScheduleBase):
     """Esquema completo del horario recurrente (privado).
 
     Incluye:
@@ -87,11 +115,20 @@ class ClassSchedule(ClassScheduleBase):
     id: UUID
     gym_class_id: UUID
     teacher_id: UUID
-
     gym_class: GymClassInClassScheduleResponse
     teacher: TeacherInClassScheduleResponse
 
     future_sessions: list[ClassSessionInResponse] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ClassScheduleInternal(ClassScheduleBase):
+    """Auditoría interna de un schedule; no se publica en respuestas HTTP."""
+
+    id: UUID
+    created_by_id: UUID | None = None
+    updated_by_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -112,7 +149,7 @@ class ClassSchedulePublic(BaseModel):
     """
 
     id: UUID
-    days_of_week: list[int]
+    rrule: str
     start_time: time
     duration_minutes: int
     capacity: int
@@ -169,9 +206,9 @@ class ClassScheduleWithNextSession(ClassSchedulePublic):
 # Completa las referencias de GymClass sin introducir un import circular.
 from app.schemas import gym_class as gym_class_schemas  # noqa: E402
 
-gym_class_schemas.GymClassRead.model_rebuild(
-    _types_namespace={"ClassSchedulePublic": ClassSchedulePublic}
+gym_class_schemas.GymClassWithRelations.model_rebuild(
+    _types_namespace={"ClassSchedulePublic": ClassSchedulePublic},
 )
 gym_class_schemas.GymClassWithSchedules.model_rebuild(
-    _types_namespace={"ClassSchedulePublic": ClassSchedulePublic}
+    _types_namespace={"ClassSchedulePublic": ClassSchedulePublic},
 )

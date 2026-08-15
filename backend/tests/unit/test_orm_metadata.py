@@ -105,6 +105,8 @@ def test_existing_on_delete_semantics_are_preserved() -> None:
         ("bookings", "class_session_id"): "CASCADE",
         ("class_schedules", "gym_class_id"): "CASCADE",
         ("class_schedules", "teacher_id"): "CASCADE",
+        ("class_schedules", "created_by_id"): "SET NULL",
+        ("class_schedules", "updated_by_id"): "SET NULL",
         ("class_sessions", "class_schedule_id"): "CASCADE",
         ("clients", "id"): None,
         ("memberships", "client_id"): None,
@@ -128,9 +130,8 @@ def test_session_status_contract_is_aligned() -> None:
     ]
 
 
-def test_schedule_mapping_matches_pre_rrule_schema() -> None:
+def test_schedule_mapping_uses_rrule_as_the_only_recurrence_source() -> None:
     columns = set(ClassSchedule.__table__.columns.keys())
-    assert "days_of_week" in columns
-    assert "rrule" not in columns
-    assert "created_by_id" not in columns
-    assert "updated_by_id" not in columns
+    assert "rrule" in columns
+    assert "days_of_week" not in columns
+    assert {"created_by_id", "updated_by_id"}.issubset(columns)

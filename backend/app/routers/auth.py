@@ -11,9 +11,11 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import security
 from app.core.blacklist import blacklist_token, is_token_blacklisted
@@ -23,31 +25,27 @@ from app.core.token_store import (
     is_refresh_token_valid,
     store_refresh_token,
 )
-from app.crud.crud_user import user_crud
+from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.token import Token, TokenPair
 from app.schemas.user import UserPublic
-from app.services.user_service import to_user_public
+from app.services.errors import ExternalServiceError
+from app.services.user_service import get_by_email as user_get_by_email, to_user_public
 
 logger = logging.getLogger("fitflow.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-if TYPE_CHECKING:
-    from fastapi.security import OAuth2PasswordRequestForm
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from app.db.models.user import User
-
-# ruff:noqa: UP037
 @router.post("/token", response_model=TokenPair, status_code=status.HTTP_200_OK)
 async def login_for_tokens(
     *,
-    form_data: Annotated["OAuth2PasswordRequestForm", Depends()],
-    db: Annotated["AsyncSession", Depends(get_async_session)],
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> TokenPair:
     """Autentica al usuario y devuelve Access + Refresh Tokens."""
     try:
-        user = await user_crud.get_by_email(db=db, email=form_data.username)
+        user = await user_get_by_email(db=db, email=form_data.username)
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("DB error on get_by_email during login")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
@@ -65,6 +63,8 @@ async def login_for_tokens(
 
     try:
         store_refresh_token(str(user.id), refresh_token)
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to store refresh token for user_id=%s", user.id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
@@ -79,7 +79,11 @@ async def refresh_access_token(
     refresh_token: str,
 ) -> Token:
     """Renueva el Access Token usando un Refresh Token válido."""
-    if is_token_blacklisted(refresh_token):
+    try:
+        blacklisted = is_token_blacklisted(refresh_token)
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    if blacklisted:
         logger.warning("Attempt to refresh with blacklisted token")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token invalidado.")
 
@@ -88,7 +92,11 @@ async def refresh_access_token(
         logger.warning("Invalid or expired refresh token provided")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido o expirado.")
 
-    if not is_refresh_token_valid(refresh_token):
+    try:
+        registered = is_refresh_token_valid(refresh_token)
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    if not registered:
         logger.warning("Refresh token not registered in store")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token no registrado.")
 
@@ -97,11 +105,11 @@ async def refresh_access_token(
     return Token(access_token=access_token)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def logout(
     *,
     refresh_token: str,
-    current_user: Annotated["User", Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     """Logout real: invalida refresh token en Redis + blacklist.
 
@@ -119,6 +127,8 @@ async def logout(
     try:
         delete_refresh_token(refresh_token)
         blacklist_token(refresh_token)
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Error invalidating refresh token for user=%s", current_user.id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
@@ -129,7 +139,7 @@ async def logout(
 @router.get("/me", response_model=UserPublic, status_code=status.HTTP_200_OK)
 async def get_me(
     *,
-    current_user: Annotated["User", Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> UserPublic:
     """Devuelve información del usuario autenticado."""
     try:

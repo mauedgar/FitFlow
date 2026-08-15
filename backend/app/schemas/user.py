@@ -18,7 +18,7 @@ from uuid import UUID  # noqa: TC003
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from app.db.models.user import UserRole
+from app.core.enums import UserRole
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -62,7 +62,7 @@ class UserUpdate(BaseModel):
 # 4. Esquema privado (operativo)
 # --------------------------------------------------------------------------- #
 
-class User(UserBase):
+class UserInternal(UserBase):
     """Esquema privado del usuario.
 
     Incluye:

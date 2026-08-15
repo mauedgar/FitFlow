@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app.core.security import decode_token
-from app.crud.crud_user import user_crud
+from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
 from app.schemas.user import UserPublic

@@ -8,37 +8,29 @@ Responsabilidades:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from app.core.enums import ClassSessionStatus, MembershipPlan, MembershipStatus
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.enums import (
+    BookingStatus,
+    ClassSessionStatus,
+    MembershipPlan,
+    MembershipStatus,
+)
+from app.db.models import ClassSession
 
 # Import explícito de schemas que usamos como tipos de retorno
-from app.schemas.booking import BookingCreateInternal, BookingPublic, BookingStatus
+from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingPublic
+from app.services.errors import BusinessValidationError, ConflictError
 
 if TYPE_CHECKING:
     from app.db.models import Booking, ClassSchedule, ClassSession, Membership
 
 # ruff: noqa: UP037
-# -------------------------
-# Excepciones de dominio
-# -------------------------
-class BookingError(Exception):
-    """Base para errores de booking (dominio)."""
-
-
-class NotFoundError(BookingError):
-    """Recurso no encontrado."""
-
-
-class BusinessValidationError(BookingError):
-    """Validación de negocio fallida."""
-
-
-class ConflictError(BookingError):
-    """Conflicto (por ejemplo duplicado u overbooking)."""
-
-
 # --------------------------------------------------------------------------- #
 # 1. Transformación automática: Booking -> BookingPublic
 # --------------------------------------------------------------------------- #
@@ -62,14 +54,14 @@ def to_booking_public(booking: "Booking") -> BookingPublic:
 # --------------------------------------------------------------------------- #
 def validate_session_active(session: "ClassSession") -> None:
     """La sesión debe estar activa."""
-    if session.status != ClassSessionStatus.scheduled: # pyright: ignore[reportGeneralTypeIssues]
+    if session.status not in {ClassSessionStatus.scheduled, ClassSessionStatus.open}:
         msg = "La sesión no está activa o fue cancelada."
         raise BusinessValidationError(msg)
 
 
 def validate_session_future(session: "ClassSession") -> None:
     """La sesión debe ser futura."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     if session.starts_at <= now: # pyright: ignore[reportGeneralTypeIssues]
         msg = "La sesión ya ocurrió."
         raise BusinessValidationError(msg)
@@ -170,16 +162,15 @@ def to_booking_internal(client_id: str, session: "ClassSession", status: Booking
     return BookingCreateInternal(
         client_id=client_id,  # pyright: ignore[reportArgumentType]
         class_session_id=session.id,  # pyright: ignore[reportArgumentType]
-        created_at=datetime.now(tz=timezone.utc),
+        created_at=datetime.now(tz=UTC),
         status=status,
     )
 
 
 def validate_booking_creation(session: "ClassSession", membership: "Membership | None") -> None:
     """Valida si una reserva puede ser creada en una sesión."""
-    if session.status != ClassSessionStatus.scheduled: # pyright: ignore[reportGeneralTypeIssues]
-        msg = "La sesión no está activa o fue cancelada."
-        raise BusinessValidationError(msg)
+    validate_session_active(session)
+    validate_session_future(session)
 
     if session.available_spots <= 0:
         msg_0 = "No hay lugares disponibles para esta sesión."
@@ -188,3 +179,41 @@ def validate_booking_creation(session: "ClassSession", membership: "Membership |
     if membership is None or membership.status != MembershipStatus.active: # pyright: ignore[reportGeneralTypeIssues]
         msg_1 = "Necesitas una membresía activa para reservar."
         raise BusinessValidationError(msg_1)
+
+
+async def resolve_booking_session(db: AsyncSession, booking_in: BookingCreate) -> ClassSession:
+    """Resolve a request identifier to a future session that may be reserved."""
+    options = [
+        selectinload(ClassSession.class_schedule),
+        selectinload(ClassSession.bookings),
+    ]
+    if booking_in.class_session_id is not None:
+        stmt = select(ClassSession).where(ClassSession.id == booking_in.class_session_id)
+    else:
+        stmt = (
+            select(ClassSession)
+            .where(
+                ClassSession.class_schedule_id == booking_in.class_schedule_id,
+                ClassSession.starts_at > datetime.now(UTC),
+                ClassSession.status.in_([ClassSessionStatus.scheduled, ClassSessionStatus.open]),
+                ClassSession.active.is_(True),
+                ClassSession.deleted_at.is_(None),
+            )
+            .order_by(ClassSession.starts_at)
+            .limit(1)
+        )
+    session = (await db.execute(stmt.options(*options))).scalar_one_or_none()
+    if session is None:
+        msg = "No existe una sesión futura reservable para el identificador indicado."
+        raise BusinessValidationError(msg)
+    return session
+
+
+def validate_booking_cancellation(booking: "Booking") -> None:
+    """Keep booking history immutable after attendance is recorded."""
+    if booking.status == BookingStatus.cancelled:
+        msg = "La reserva ya fue cancelada."
+        raise ConflictError(msg)
+    if booking.status in {BookingStatus.attended, BookingStatus.no_show}:
+        msg_0 = "Una reserva con asistencia registrada no puede cancelarse."
+        raise BusinessValidationError(msg_0)

@@ -67,33 +67,7 @@ class ClassSessionUpdate(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# 4. Esquema privado (operativo interno)
-# --------------------------------------------------------------------------- #
-
-class ClassSession(ClassSessionBase):
-    """Esquema completo de una sesión (privado).
-
-    Incluye:
-        • relación con ClassSchedule
-        • relación con Bookings
-        • campos calculados de disponibilidad.
-    """
-
-    id: UUID
-    class_schedule_id: UUID
-
-    class_schedule: ClassSchedulePublic
-    bookings: list[BookingPublic] = Field(default_factory=list)
-
-    current_bookings_count: int = 0
-    available_spots: int = 0
-    capacity_snapshot: int
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# --------------------------------------------------------------------------- #
-# 5. Esquema público (frontend)
+# 4. Esquema público (frontend)
 # --------------------------------------------------------------------------- #
 
 class ClassSessionPublic(ClassSessionBase):

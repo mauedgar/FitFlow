@@ -59,9 +59,9 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
         active: bool | None = True,
         search: str | None = None,
         teacher_id: UUID | None = None,
-        day_of_week: int | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
+        class_id: UUID | None = None,
     ) -> list[GymClass]:
         """Obtiene una lista filtrada de clases del gimnasio según criterios avanzados."""
         stmt = select(GymClass).where(
@@ -85,14 +85,11 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
             )
 
         # Filtros que implican JOIN con ClassSchedule
-        if teacher_id or day_of_week is not None or date_from or date_to:
+        if teacher_id or date_from or date_to:
             stmt = stmt.join(ClassSchedule)
 
             if teacher_id:
                 stmt = stmt.where(ClassSchedule.teacher_id == teacher_id)
-
-            if day_of_week is not None:
-                stmt = stmt.where(ClassSchedule.days_of_week.contains([day_of_week]))
 
             if date_from:
                 stmt = stmt.where(ClassSchedule.start_date >= date_from)

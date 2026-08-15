@@ -86,9 +86,12 @@ class AllowedPlan(StrEnum):
     """Planes de membresía habilitados para una oferta recurrente.
 
     Este enum permite restringir qué tipo de cliente puede reservar
-    las sesiones generadas a partir de este horario.
+    las sesiones generadas a partir de este horario. ``gym_only`` permite
+    identificar horarios exclusivos de uso libre de gimnasio; no es
+    equivalente a ``classes``.
     """
 
+    gym_only = "gym_only"
     classes = "classes"
     premium = "premium"
     personalized = "personalized"

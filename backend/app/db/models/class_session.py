@@ -17,14 +17,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.db.base_class import Base
-from app.db.mixins import ActiveMixin, TimestampMixin
+from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 from app.db.models.booking import Booking
 
 if TYPE_CHECKING:
     from app.db.models.class_schedule import ClassSchedule
 
 
-class ClassSession(Base, TimestampMixin, ActiveMixin):
+class ClassSession(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     """Ocurrencia concreta y reservable de una actividad en una fecha y hora específicas.
 
     Esta entidad se genera a partir de un ClassSchedule recurrente y representa
@@ -36,7 +36,7 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
 
     # Identificador único de la sesión concreta.
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
 
     # Referencia al horario recurrente que originó esta sesión.
@@ -48,7 +48,7 @@ class ClassSession(Base, TimestampMixin, ActiveMixin):
 
     # Fecha y hora exacta de inicio de la sesión.
     starts_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
+        DateTime(timezone=True), nullable=False, index=True,
     )
 
     # Fecha y hora exacta de finalización de la sesión.

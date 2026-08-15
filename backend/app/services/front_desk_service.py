@@ -1,178 +1,213 @@
-"""Servicios del módulo Front Desk.
-
-Orquesta:
-• sesiones del día
-• capacidad
-• reservas
-• clases activas
-• horarios por clase
-"""
+"""Business operations and typed views for the Front Desk module."""
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import TYPE_CHECKING
-from zoneinfo import ZoneInfo
+from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.interfaces import ORMOption
 
+from app.core.enums import BookingStatus, ClassSessionStatus
+from app.core.timezone import LOCAL_TZ
 from app.crud.crud_class_schedule import class_schedule
-from app.crud.crud_class_session import class_session
 from app.crud.crud_gym_class import gym_class
-from app.db.models import ClassSchedule, ClassSession
+from app.db.models import Booking, ClassSchedule, ClassSession, Client
 from app.schemas.front_desk import (
     FrontDeskBookingView,
+    FrontDeskClassView,
     FrontDeskDayView,
     FrontDeskSessionView,
     SessionCapacity,
 )
+from app.services.errors import BusinessValidationError, ConflictError, NotFoundError
 
-if TYPE_CHECKING:
-    from uuid import UUID
 
-    from sqlalchemy.ext.asyncio import AsyncSession
+def _session_options() -> list[ORMOption]:
+    """Load every relationship required by Front Desk views explicitly."""
+    return [
+        selectinload(ClassSession.class_schedule).selectinload(ClassSchedule.gym_class),
+        selectinload(ClassSession.class_schedule).selectinload(ClassSchedule.teacher),
+        selectinload(ClassSession.bookings).selectinload(Booking.client).selectinload(Client.user),
+    ]
 
-# --------------------------------------------------------------------------- #
-# SESIONES DEL DÍA
-# --------------------------------------------------------------------------- #
 
-async def get_sessions_today(db: AsyncSession) -> FrontDeskDayView:
-    """Devuelve todas las sesiones del día actual en formato FrontDesk."""
-    tz = ZoneInfo("America/Argentina/Buenos_Aires")
-    today = datetime.now(tz).date()
-
-    start_dt = datetime.combine(today, datetime.min.time(), tzinfo=tz)
-    end_dt = datetime.combine(today, datetime.max.time(), tzinfo=tz)
-
+async def _get_session(db: AsyncSession, session_id: UUID) -> ClassSession:
     stmt = (
         select(ClassSession)
-        .where(ClassSession.starts_at >= start_dt)
-        .where(ClassSession.starts_at <= end_dt)
-        .options(
-            selectinload(ClassSession.class_schedule)
-            .selectinload(ClassSchedule.gym_class),
-            selectinload(ClassSession.class_schedule)
-            .selectinload(ClassSchedule.teacher),
-            selectinload(ClassSession.bookings)
-            .selectinload("client") # pyright: ignore[reportArgumentType]
-            .selectinload("client.user"), # pyright: ignore[reportArgumentType]
+        .where(
+            ClassSession.id == session_id,
+            ClassSession.active.is_(True),
+            ClassSession.deleted_at.is_(None),
         )
+        .options(*_session_options())
+    )
+    session = (await db.execute(stmt)).scalar_one_or_none()
+    if session is None:
+        msg = "ClassSession no encontrada."
+        raise NotFoundError(msg)
+    return session
+
+
+async def get_sessions_today(
+    db: AsyncSession,
+    *,
+    teacher_id: UUID | None = None,
+    gym_class_id: UUID | None = None,
+) -> FrontDeskDayView:
+    """Return today's operational sessions in the configured local timezone."""
+    today = datetime.now(LOCAL_TZ).date()
+    start = datetime.combine(today, datetime.min.time(), tzinfo=LOCAL_TZ).astimezone(UTC)
+    end = datetime.combine(today, datetime.max.time(), tzinfo=LOCAL_TZ).astimezone(UTC)
+    stmt = (
+        select(ClassSession)
+        .join(ClassSession.class_schedule)
+        .where(
+            ClassSession.starts_at >= start,
+            ClassSession.starts_at <= end,
+            ClassSession.active.is_(True),
+            ClassSession.deleted_at.is_(None),
+        )
+        .options(*_session_options())
         .order_by(ClassSession.starts_at)
     )
+    if teacher_id is not None:
+        stmt = stmt.where(ClassSchedule.teacher_id == teacher_id)
+    if gym_class_id is not None:
+        stmt = stmt.where(ClassSchedule.gym_class_id == gym_class_id)
 
-    res = await db.execute(stmt)
-    sessions = res.scalars().unique().all()
-
-    views = [to_frontdesk_session_view(s) for s in sessions]
-
-    return FrontDeskDayView(date=today, sessions=views)
+    sessions = (await db.execute(stmt)).scalars().unique().all()
+    return FrontDeskDayView(date=today, sessions=[to_frontdesk_session_view(item) for item in sessions])
 
 
-# --------------------------------------------------------------------------- #
-# CAPACIDAD DISPONIBLE
-# --------------------------------------------------------------------------- #
+async def get_session_bookings(db: AsyncSession, session_id: UUID) -> list[FrontDeskBookingView]:
+    """Return operational booking views for one session."""
+    session = await _get_session(db, session_id)
+    return [to_frontdesk_booking_view(booking) for booking in session.bookings]
 
-async def get_session_capacity(db: AsyncSession, session_id: UUID) -> SessionCapacity | None:
-    """Devuelve la capacidad disponible de una sesión."""
-    session = await class_session.get(db, obj_id=session_id, include_relations=True)
-    if not session:
-        return None
 
+async def get_session_capacity(db: AsyncSession, session_id: UUID) -> SessionCapacity:
+    """Return derived capacity without mutating a hybrid property."""
+    session = await _get_session(db, session_id)
     return SessionCapacity(
-        session_id=session.id, # pyright: ignore[reportArgumentType]
-        capacity=session.capacity_snapshot, # pyright: ignore[reportArgumentType]
+        session_id=session.id,
+        capacity=session.capacity_snapshot,
         used=session.current_bookings_count,
         available=session.available_spots,
     )
 
 
-# --------------------------------------------------------------------------- #
-# CANCELAR SESIÓN
-# --------------------------------------------------------------------------- #
-
-async def cancel_session(db: AsyncSession, session_id: UUID) -> ClassSession | None:
-    """Cancela una sesión (status = cancelled)."""
-    session = await class_session.get(db, obj_id=session_id)
-    if not session:
-        return None
-
-    return await class_session.update(
-        db=db,
-        db_obj=session,
-        obj_in={"status": "cancelled"},
-    )
+async def cancel_session(db: AsyncSession, session_id: UUID) -> FrontDeskSessionView:
+    """Cancel an operational session while preserving its bookings."""
+    session = await _get_session(db, session_id)
+    if session.status == ClassSessionStatus.cancelled:
+        msg = "La sesión ya fue cancelada."
+        raise ConflictError(msg)
+    if session.status == ClassSessionStatus.completed:
+        msg_0 = "Una sesión completada no puede cancelarse."
+        raise BusinessValidationError(msg_0)
+    session.status = ClassSessionStatus.cancelled
+    await db.commit()
+    return to_frontdesk_session_view(await _get_session(db, session_id))
 
 
-# --------------------------------------------------------------------------- #
-# RESERVAS DE UNA SESIÓN
-# --------------------------------------------------------------------------- #
-
-async def get_session_bookings(db: AsyncSession, session_id: UUID) -> list[FrontDeskBookingView] | None:
-    """Devuelve todas las reservas de una sesión en formato FrontDesk."""
-    session = await class_session.get(db, obj_id=session_id, include_relations=True)
-    if not session:
-        return None
-
-    return [
-        FrontDeskBookingView(
-            id=b.id, # pyright: ignore[reportArgumentType]
-            client_id=b.client_id, # pyright: ignore[reportArgumentType]
-            client_name=b.client.full_name, # pyright: ignore[reportAttributeAccessIssue]
-            client_email=b.client.user.email, # pyright: ignore[reportArgumentType]
-            status=b.status, # pyright: ignore[reportArgumentType]
+async def check_in_booking(
+    db: AsyncSession,
+    *,
+    session_id: UUID,
+    booking_id: UUID,
+) -> FrontDeskBookingView:
+    """Record a single check-in through the confirmed-to-attended transition."""
+    stmt = (
+        select(Booking)
+        .where(Booking.id == booking_id, Booking.class_session_id == session_id)
+        .options(
+            selectinload(Booking.client).selectinload(Client.user),
+            selectinload(Booking.class_session),
         )
-        for b in session.bookings
+        .with_for_update()
+    )
+    booking = (await db.execute(stmt)).scalar_one_or_none()
+    if booking is None:
+        msg = "Reserva no encontrada para la sesión indicada."
+        raise NotFoundError(msg)
+    if booking.status != BookingStatus.confirmed:
+        msg_0 = "Solo una reserva confirmada puede registrar check-in."
+        raise ConflictError(msg_0)
+    if booking.class_session.status not in {ClassSessionStatus.scheduled, ClassSessionStatus.open}:
+        msg_1 = "La sesión no admite check-in."
+        raise BusinessValidationError(msg_1)
+
+    booking.status = BookingStatus.attended
+    booking.checked_in_at = datetime.now(UTC)
+    await db.commit()
+    refreshed = (
+        await db.execute(
+            select(Booking)
+            .where(Booking.id == booking_id)
+            .options(selectinload(Booking.client).selectinload(Client.user)),
+        )
+    ).scalar_one()
+    return to_frontdesk_booking_view(refreshed)
+
+
+async def get_active_classes(db: AsyncSession) -> list[FrontDeskClassView]:
+    """Return active catalog items using the Front Desk contract."""
+    classes = await gym_class.get_multi_filtered(db=db, active=True)
+    return [
+        FrontDeskClassView(
+            id=item.id,
+            name=item.name,
+            difficulty=item.difficulty,
+            activity_type=item.activity_type,
+        )
+        for item in classes
     ]
 
 
-# --------------------------------------------------------------------------- #
-# CLASES ACTIVAS
-# --------------------------------------------------------------------------- #
-
-async def get_active_classes(db: AsyncSession) -> list:
-    """Devuelve todas las clases activas."""
-    return await gym_class.get_multi_filtered(db=db, active=True)
-
-
-# --------------------------------------------------------------------------- #
-# AGENDA SEMANAL POR CLASE
-# --------------------------------------------------------------------------- #
-
 async def get_schedule_by_class(db: AsyncSession, class_id: UUID) -> list[ClassSchedule]:
-    """Devuelve los horarios semanales de una clase."""
-    return await class_schedule.get_multi_filtered(db=db, gym_class_id=class_id)
+    """Return active schedules; their public projection belongs to the router contract."""
+    return await class_schedule.get_multi_filtered(
+        db=db,
+        gym_class_id=class_id,
+        include_relations=True,
+    )
 
 
-# --------------------------------------------------------------------------- #
-# CONSTRUCTOR DE VISTA
-# --------------------------------------------------------------------------- #
+def to_frontdesk_booking_view(booking: Booking) -> FrontDeskBookingView:
+    """Build a compact operational booking projection."""
+    return FrontDeskBookingView(
+        id=booking.id,
+        client_id=booking.client_id,
+        client_name=f"{booking.client.first_name} {booking.client.last_name}",
+        client_email=booking.client.user.email,
+        status=booking.status,
+    )
+
 
 def to_frontdesk_session_view(session: ClassSession) -> FrontDeskSessionView:
-    """Construye la vista operativa de una sesión."""
+    """Build a compact operational session projection from loaded relations."""
     schedule = session.class_schedule
     gym_class = schedule.gym_class
     teacher = schedule.teacher
-
+    now = datetime.now(UTC)
     return FrontDeskSessionView(
-        id=session.id, # pyright: ignore[reportArgumentType]
-        class_schedule_id=schedule.id, # pyright: ignore[reportArgumentType]
-        gym_class_id=gym_class.id, # pyright: ignore[reportArgumentType]
-        teacher_id=teacher.id, # pyright: ignore[reportArgumentType]
-
-        starts_at=session.starts_at, # pyright: ignore[reportArgumentType]
-        ends_at=session.ends_at, # pyright: ignore[reportArgumentType]
-        status=session.status, # pyright: ignore[reportArgumentType]
-
-        gym_class_name=gym_class.name, # pyright: ignore[reportArgumentType]
+        id=session.id,
+        class_schedule_id=schedule.id,
+        gym_class_id=gym_class.id,
+        teacher_id=teacher.id,
+        starts_at=session.starts_at,
+        ends_at=session.ends_at,
+        status=session.status,
+        gym_class_name=gym_class.name,
         teacher_full_name=teacher.full_name,
-
-        capacity_snapshot=session.capacity_snapshot, # pyright: ignore[reportArgumentType]
+        capacity_snapshot=session.capacity_snapshot,
         current_bookings_count=session.current_bookings_count,
         available_spots=session.available_spots,
-
-        is_live=session.starts_at <= datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")) <= session.ends_at, # pyright: ignore[reportArgumentType]
-        is_upcoming=session.starts_at > datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")), # pyright: ignore[reportArgumentType]
+        is_live=session.starts_at <= now <= session.ends_at,
+        is_upcoming=session.starts_at > now,
         is_full=session.available_spots == 0,
         is_empty=session.current_bookings_count == 0,
     )

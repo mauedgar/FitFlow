@@ -28,12 +28,26 @@ services:
       DEBUG: "false"
       DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@postgres_test:5432/fitflow_test
       SECRET_KEY: fitflow-test-only-secret-key
+      REDIS_URL: redis://redis_test:6379/0
       MEDIA_DIR: /tmp/fitflow-media
       PYTHONDONTWRITEBYTECODE: "1"
       PYTEST_ADDOPTS: "-p no:cacheprovider --basetemp=/tmp/pytest"
     depends_on:
       postgres_test:
         condition: service_healthy
+      redis_test:
+        condition: service_healthy
+    networks:
+      - test_network
+
+  redis_test:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
     networks:
       - test_network
 

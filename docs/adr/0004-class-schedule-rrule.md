@@ -1,6 +1,6 @@
 # ADR 0004: RRULE como fuente unica de recurrencia de ClassSchedule
 
-- **Estado:** Accepted / Pending Implementation
+- **Estado:** Implemented
 - **Fecha:** 2026-08-12
 
 ## Contexto
@@ -11,7 +11,14 @@ Documentacion anterior trato RRULE como si ya estuviera cerrado; el estado actua
 
 ## Decision
 
-El target de `ClassSchedule` usa **RRULE como unica fuente de recurrencia**. No se conservara un segundo mecanismo equivalente como verdad paralela una vez completada la migracion.
+`ClassSchedule` usa **RRULE como única fuente de recurrencia**. El valor es una
+única línea RFC 5545 con prefijo `RRULE:` y sin `DTSTART`; `start_date` y
+`start_time` son el ancla local en `LOCAL_TZ`. La migración convierte y elimina
+`days_of_week`.
+
+La creación o actualización de un schedule completa solo ocurrencias futuras
+faltantes dentro de 15 días. No modifica ni elimina sesiones existentes,
+Bookings ni `capacity_snapshot`; una sesión obsoleta se cancela explícitamente.
 
 ## Responsabilidades
 

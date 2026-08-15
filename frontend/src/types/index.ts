@@ -105,7 +105,7 @@ export interface GymClassCreatePayload {
 // --- ClassSchedule ---
 // Datos base de una oferta de horario recurrente
 export interface ClassScheduleBase {
-  days_of_week: number[]; // Array de números (0=Lunes, 6=Domingo)
+  rrule: string;          // RFC 5545, sin DTSTART
   start_time: string;     // String "HH:MM:SS"
   duration_minutes: string;       // String "HH:MM:SS"
   capacity: number;

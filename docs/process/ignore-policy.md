@@ -4,7 +4,6 @@
 
 `.gitignore` decide que artefactos locales no se versionan. No es una frontera de seguridad para un agente.
 
-La suite incluye `.gitignore.fitflow-v3-additions` para **fusionar** con el `.gitignore` real, porque reemplazarlo sin ver reglas existentes podria perder decisiones del proyecto.
 
 Exclusiones criticas:
 - `backend/.venv_backend/`

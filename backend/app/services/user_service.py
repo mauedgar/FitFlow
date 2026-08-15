@@ -12,13 +12,16 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.crud.crud_user import user as user_crud
+from app.schemas.user import UserPublic, UserWithProfile, UserWithStats
 from app.services.client_service import (
     get_client_total_bookings,
     get_client_upcoming_bookings,
     to_client_public,
 )
 from app.services.teacher_service import to_teacher_public
-from app.schemas.user import UserPublic, UserWithProfile, UserWithStats
 
 if TYPE_CHECKING:
     from app.db.models import User
@@ -87,3 +90,15 @@ def to_user_with_stats(user: User) -> UserWithStats:
         upcoming_bookings=upcoming_bookings,
         total_classes_taught=total_classes_taught,
     )
+
+
+async def get_by_email(
+    email: str, db: "AsyncSession | None" = None, include_relations: bool = False,
+) -> User | None:
+  if db is None:
+    # Handle the case where db session is not provided, or raise an error/get a session
+    msg = "A database session 'db' is required."
+    raise ValueError(msg)
+  return await user_crud.get_by_email(
+      db, email=email, include_relations=include_relations,
+  )

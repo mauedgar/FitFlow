@@ -1,0 +1,17 @@
+.git
+.venv
+.venv_backend
+node_modules
+__pycache__
+.pytest_cache
+.ruff_cache
+dist
+build
+coverage
+*.log
+*.sqlite
+*.db
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+.venv_tools

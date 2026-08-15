@@ -35,7 +35,7 @@ Ejemplo:
 
 ## Ejecucion
 
-Desde `backend/`:
+Dentro del contenedor `backend_test`:
 
 ```text
 python -m pytest
@@ -46,6 +46,13 @@ python -m pytest -m "integration or api"
 
 Desde root usar los wrappers en `scripts/quality/`.
 
+Los tests marcados como `integration`, `api` o `concurrency` deben ejecutarse
+con `DATABASE_URL` apuntando a `fitflow_test`. La suite de integración falla
+antes de abrir una conexión cuando el nombre de base configurado es otro.
+
 ## Estado
 
-El smoke de harness incluido prueba que pytest recolecta/ejecuta. NO demuestra que FitFlow este cubierto. La task FF-LOCAL-001 debe conectar fixtures reales y agregar tests significativos.
+El smoke verifica Python y la carga del registro ORM. La cobertura inicial de
+Booking comprueba cancelación/re-reserva, preservación de historia ante soft
+delete de ClassSession y protección concurrente del último cupo. Esto no implica
+cobertura completa del backend ni startup HTTP completo.

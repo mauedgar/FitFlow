@@ -19,7 +19,7 @@ from pydantic import ValidationError
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.core.security import decode_token
-from app.crud.crud_user import user_crud
+from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
 from app.schemas.user import UserPublic  # noqa: TC001

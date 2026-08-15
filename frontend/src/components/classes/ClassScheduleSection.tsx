@@ -109,7 +109,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   const teacher = classSchedule.teacher;
   const startTime = classSchedule.start_time?.substring(0, 5) ?? '??:??';
   const endTime = classSchedule.duration_minutes?.substring(0, 5) ?? '??:??';
-  const days = getDaysOfWeekString(classSchedule.days_of_week);
+  const days = classSchedule.rrule;
 
   if (!teacher) {
     return <Alert status="warning" my={4}><AlertIcon />Falta información del instructor.</Alert>;

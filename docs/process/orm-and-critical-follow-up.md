@@ -14,6 +14,10 @@ Este documento no redefine el dominio ni autoriza cambios de esquema. Ordena el 
 
 ### FF-FOLLOW-01 — Eliminar el borrado físico alcanzable desde Client
 
+**Resuelto en FF-LOCAL-009.** `DELETE /clients/{client_id}` dejó de
+desasociar `User.person_profile`; aplica la baja conservativa del CRUD y no
+activa `delete-orphan` por desasociación.
+
 `DELETE /clients/{client_id}` llama a `unlink_user_profile()`, que asigna `user.person_profile = None`. La relación conserva `cascade="all, delete-orphan"`; por lo tanto, la desasociación puede eliminar físicamente `Person`/`Client` y alcanzar membresías o reservas mediante las cascades existentes.
 
 Política esperada: desactivar Client, conservar Membership y Booking, y mantener el vínculo histórico necesario. No cambiar cascades ORM ni FK `ON DELETE` hasta aprobar una política y un ADR específico.
@@ -49,13 +53,18 @@ Preservar por ahora las cascades y reglas `ON DELETE` existentes. Crear un ADR q
 
 Después del ADR, diseñar migraciones forward-only y pruebas de conservación. Alembic no debe proponer cambios de FK mientras la política siga pendiente.
 
-### FF-FOLLOW-04 — Sustituir DELETE de ClassSession por transición de estado
+### FF-FOLLOW-04 — Soft delete de ClassSession
 
-`DELETE /class_sessions/{session_id}` usa el soft delete genérico, pero `ClassSession` no implementa `SoftDeleteMixin`. La ruta no expresa la política funcional y asigna atributos que no forman parte del mapping persistente.
-
-Unificarla con la transición a `cancelled`, definir las condiciones permitidas y conservar Bookings.
+**Resuelto en SCRUM-32.** `ClassSession` implementa `SoftDeleteMixin` y la
+migración forward-only agrega `deleted_at`. `DELETE /class_sessions/{session_id}`
+usa el soft delete genérico: desactiva la sesión y conserva sus Bookings. La
+cancelación operativa sigue siendo una transición explícita a `cancelled`.
 
 ### FF-FOLLOW-05 — Revisar endpoints de baja con validaciones defectuosas
+
+**Resuelto parcialmente en FF-LOCAL-009.** GymClass y Membership validan la
+instancia obtenida; Membership ahora se cancela por estado. Teacher y
+ClassSchedule conservan soft delete y requieren cobertura HTTP en FF-LOCAL-010.
 
 Los endpoints de GymClass y Membership recuperan una instancia en una variable, pero validan el objeto CRUD en lugar del resultado. Esto puede ocultar un `not found` y pasar valores nulos o incorrectos a `remove()`.
 
@@ -67,7 +76,8 @@ Revisar también Teacher y ClassSchedule para uniformar autorización, respuesta
 
 Implementar el ADR de RRULE como cambio funcional separado: columna nueva, validación, backfill, actualización de services/schemas y retiro de `days_of_week` solo cuando la transición esté completa.
 
-No incorporar todavía `created_by_id` ni `updated_by_id`; la auditoría por actor continúa como decisión pendiente.
+La auditoría mínima de actor se decidió en ADR 0010 y se limita a
+`created_by_id`/`updated_by_id` de ClassSchedule.
 
 ### FF-FOLLOW-07 — Historial de Membership
 
@@ -102,7 +112,7 @@ Las relaciones ORM usan `lazy="raise"`. Auditar routers, services y CRUD para as
 
 1. FF-FOLLOW-01 y FF-FOLLOW-02.
 2. ADR de ciclo de vida (FF-FOLLOW-03).
-3. FF-FOLLOW-04 y FF-FOLLOW-05.
+3. FF-FOLLOW-05.
 4. FF-FOLLOW-10 y FF-FOLLOW-11.
 5. RRULE, historial de Membership y ajustes de integridad.
 6. Estrategia de baseline Alembic.

@@ -11,42 +11,40 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.crud import crud_client as crud
 from app.core.deps import (
     require_admin,
     require_admin_client_or_self,
     require_admin_or_self_guard,
 )
-from app.crud.crud_user import user_crud
+from app.core.enums import UserRole
+from app.crud.crud_client import client
+from app.crud.crud_user import user as user_crud
+from app.db.models.user import User
 from app.db.session import get_async_session
-from app.db.models.user import User, UserRole
-from app.services.client_service import (
-    to_client_public,
-    to_client_with_activity,
-    to_client_with_bookings,
-    to_client_with_membership,
-    to_client_with_stats,
-    unlink_user_profile,
-)
 from app.schemas.client import (
-    Client,
     ClientCreate,
     ClientPublic,
     ClientUpdate,
     ClientWithActivity,
     ClientWithBookings,
     ClientWithMembership,
+    ClientWithRelations,
     ClientWithStats,
 )
+from app.services.client_service import (
+    to_client_public,
+    to_client_with_activity,
+    to_client_with_bookings,
+    to_client_with_membership,
+    to_client_with_stats,
+)
 
-if TYPE_CHECKING:
-    from uuid import UUID
-
-    from sqlalchemy.ext.asyncio import AsyncSession
 # ruff: noqa: ARG001
 
 router = APIRouter(prefix="/clients", tags=["clients"])
@@ -55,14 +53,14 @@ router = APIRouter(prefix="/clients", tags=["clients"])
 # --------------------------------------------------------------------------- #
 # Crear Client para un User existente
 # --------------------------------------------------------------------------- #
-@router.post("/{user_id}", response_model=Client, status_code=status.HTTP_201_CREATED)
+@router.post("/{user_id}", response_model=ClientWithRelations, status_code=status.HTTP_201_CREATED)
 async def create_client_for_user(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user_id: UUID,
     client_in: ClientCreate,
     current_user: Annotated[User, Depends(require_admin)],
-) -> Client:
+) -> ClientWithRelations:
     """Crea un perfil de cliente para un usuario existente."""
     user = await user_crud.get(db=db, obj_id=user_id)
     if not user:
@@ -74,8 +72,8 @@ async def create_client_for_user(
     if user.role != UserRole.client: # pyright: ignore[reportGeneralTypeIssues]
         raise HTTPException(400, "El usuario no tiene rol CLIENT.")
 
-    client = await crud.client.create_with_user(db=db, obj_in=client_in, user=user)
-    return Client.model_validate(client)
+    client_ = await client.create_with_user(db=db, obj_in=client_in, user=user)
+    return ClientWithRelations.model_validate(client_)
 
 
 # --------------------------------------------------------------------------- #
@@ -90,26 +88,26 @@ async def read_clients(
     current_user: Annotated[User, Depends(require_admin)],
 ) -> list[ClientPublic]:
     """Lista clientes en versión pública (admin)."""
-    clients = await crud.client.get_multi(db=db, skip=skip, limit=limit)
+    clients = await client.get_multi(db=db, skip=skip, limit=limit)
     return [to_client_public(c) for c in clients]
 
 
 # --------------------------------------------------------------------------- #
 # Obtener Client por ID (privado)
 # --------------------------------------------------------------------------- #
-@router.get("/{client_id}", response_model=Client)
+@router.get("/{client_id}", response_model=ClientWithRelations)
 async def read_client_by_id(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     client_id: UUID,
     current_user: Annotated[User, Depends(require_admin_or_self_guard)],
-) -> Client:
+) -> ClientWithRelations:
     """Obtiene detalles privados de un cliente."""
-    client = await crud.client.get(db=db, obj_id=client_id)
-    if not client:
+    client_ = await client.get(db=db, obj_id=client_id)
+    if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
-    return Client.model_validate(client)
+    return ClientWithRelations.model_validate(client_)
 
 
 # --------------------------------------------------------------------------- #
@@ -122,11 +120,11 @@ async def read_my_profile(
     current_user: Annotated[User, Depends(require_admin_client_or_self)],
 ) -> ClientPublic:
     """Devuelve el perfil público del cliente actual."""
-    client = await crud.client.get_by_user_id(db=db, user_id=current_user.id) # pyright: ignore[reportArgumentType]
-    if not client:
+    client_ = await client.get_by_user_id(db=db, user_id=current_user.id) # pyright: ignore[reportArgumentType]
+    if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
-    return to_client_public(client)
+    return to_client_public(client_)
 
 
 # --------------------------------------------------------------------------- #
@@ -139,15 +137,15 @@ async def read_my_bookings(
     current_user: Annotated[User, Depends(require_admin_client_or_self)],
 ) -> ClientWithBookings:
     """Devuelve el perfil del cliente con sus reservas públicas."""
-    client = await crud.client.get_by_user_id(
+    client_ = await client.get_by_user_id(
         db=db,
         user_id=current_user.id, # pyright: ignore[reportArgumentType]
         include_relations=True,
     )
-    if not client:
+    if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
-    return to_client_with_bookings(client)
+    return to_client_with_bookings(client_)
 
 
 # --------------------------------------------------------------------------- #
@@ -160,15 +158,15 @@ async def read_my_membership(
     current_user: Annotated[User, Depends(require_admin_client_or_self)],
 ) -> ClientWithMembership:
     """Devuelve el perfil del cliente con su membresía activa."""
-    client = await crud.client.get_by_user_id(
+    client_ = await client.get_by_user_id(
         db=db,
         user_id=current_user.id, # pyright: ignore[reportArgumentType]
         include_relations=True,
     )
-    if not client:
+    if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
-    return to_client_with_membership(client)
+    return to_client_with_membership(client_)
 
 
 # --------------------------------------------------------------------------- #
@@ -181,15 +179,15 @@ async def read_my_stats(
     current_user: Annotated[User, Depends(require_admin_client_or_self)],
 ) -> ClientWithStats:
     """Devuelve estadísticas básicas del cliente."""
-    client = await crud.client.get_by_user_id(
+    client_ = await client.get_by_user_id(
         db=db,
         user_id=current_user.id, # pyright: ignore[reportArgumentType]
         include_relations=True,
     )
-    if not client:
+    if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
-    return to_client_with_stats(client)
+    return to_client_with_stats(client_)
 
 
 # --------------------------------------------------------------------------- #
@@ -202,35 +200,35 @@ async def read_my_activity(
     current_user: Annotated[User, Depends(require_admin_client_or_self)],
 ) -> ClientWithActivity:
     """Devuelve la actividad completa del cliente."""
-    client = await crud.client.get_by_user_id(
+    client_ = await client.get_by_user_id(
         db=db,
         user_id=current_user.id, # pyright: ignore[reportArgumentType]
         include_relations=True,
     )
-    if not client:
+    if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
-    return to_client_with_activity(client)
+    return to_client_with_activity(client_)
 
 
 # --------------------------------------------------------------------------- #
 # Actualizar Client
 # --------------------------------------------------------------------------- #
-@router.put("/{client_id}", response_model=Client)
+@router.put("/{client_id}", response_model=ClientWithRelations)
 async def update_client(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     client_id: UUID,
     client_in: ClientUpdate,
     current_user: Annotated[User, Depends(require_admin_client_or_self)],
-) -> Client:
+) -> ClientWithRelations:
     """Actualiza el perfil privado del cliente."""
-    client = await crud.client.get(db=db, obj_id=client_id)
-    if not client:
+    client_ = await client.get(db=db, obj_id=client_id)
+    if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
-    updated = await crud.client.update(db=db, db_obj=client, obj_in=client_in)
-    return Client.model_validate(updated)
+    updated = await client.update(db=db, db_obj=client_, obj_in=client_in)
+    return ClientWithRelations.model_validate(updated)
 
 
 # --------------------------------------------------------------------------- #
@@ -244,11 +242,10 @@ async def delete_client(
     current_user: Annotated[User, Depends(require_admin)],
 ) -> dict[str, str]:
     """Elimina un perfil de cliente y desasocia el perfil Person del User."""
-    client = await crud.client.get(db=db, obj_id=client_id)
-    if not client:
+    client_ = await client.get(db=db, obj_id=client_id)
+    if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
-    await unlink_user_profile(db=db, client=client)
-    await crud.client.remove(db=db, db_obj=client)
+    await client.remove(db=db, db_obj=client_)
 
-    return {"message": "Perfil de cliente eliminado exitosamente."}
+    return {"message": "Perfil de cliente desactivado exitosamente."}

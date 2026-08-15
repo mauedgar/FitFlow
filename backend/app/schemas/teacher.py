@@ -50,7 +50,7 @@ class TeacherUpdate(PersonUpdate):
 # 2. Esquema privado (solo admin/self)
 # --------------------------------------------------------------------------- #
 
-class Teacher(TeacherBase):
+class TeacherWithRelations(TeacherBase):
     """Perfil completo del profesor.
 
     Incluye:
@@ -123,7 +123,7 @@ class TeacherWithSchedules(TeacherPublic):
         • Ideal para vistas operativas y paneles administrativos.
     """
 
-    schedules: list[ClassSchedulePublic] = Field(default_factory=list)
+    schedules: list[ClassSchedulePublic] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

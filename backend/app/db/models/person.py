@@ -27,7 +27,7 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
 
     # Identificador único de la persona.
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4,
     )
 
     # Nombre de pila de la persona.
@@ -38,7 +38,7 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
 
     # Número de documento identificatorio personal (DNI, cédula, pasaporte, etc.).
     document_number: Mapped[str | None] = mapped_column(
-        String, unique=True, index=True, nullable=True
+        String, unique=True, index=True, nullable=True,
     )
 
     # Domicilio o dirección declarada.

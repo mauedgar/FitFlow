@@ -10,10 +10,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import require_admin, require_admin_or_front_desk
@@ -24,6 +26,7 @@ from app.crud.crud_class_session import class_session
 from app.db.session import get_async_session
 from app.db.models.class_schedule import ClassSchedule
 from app.db.models.class_session import ClassSession
+from app.db.models.user import User
 from app.services.class_session_service import (
     to_class_session_response,
     update_session_availability,
@@ -34,13 +37,6 @@ from app.schemas.class_session import (
     ClassSessionUpdate,
 )
 from app.schemas.front_desk import SessionCapacity
-
-if TYPE_CHECKING:
-    from uuid import UUID
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from app.db.models.user import User
 
 router = APIRouter(prefix="/class-sessions", tags=["class-sessions"])
 
