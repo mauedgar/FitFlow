@@ -1,7 +1,7 @@
 ---
 id: FF-LOCAL-010
 title: Front Desk y contratos HTTP del MVP
-status: Review
+status: Done
 priority: High
 area: backend
 execution_lane: codex

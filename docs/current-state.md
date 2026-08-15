@@ -1,7 +1,7 @@
 # Estado actual de FitFlow
 
 **Snapshot documental:** 2026-08-15
-**Milestone:** Sprint 6.8 - consolidacion en Review
+**Milestone:** Sprint 6.8 - consolidado en Done
 **Objetivo:** preservar un baseline ejecutable y preparar el cierre del MVP.
 
 ## Estado general
@@ -57,8 +57,9 @@ suite integral del MVP quedan como deuda explicita.
 ## Documentacion y workflow
 
 `.ai/tasks/` contiene el contrato y resultado de cada feature flag. FF-LOCAL-009
-y FF-LOCAL-010 estan en `Review`; sus cambios deben revisarse antes de marcarse
-`Done`. `AGENTS.md`, ADRs y documentos de dominio siguen siendo la guia activa.
+y FF-LOCAL-010 estan en `Done`. La cobertura HTTP integral del MVP permanece
+explicitamente fuera de alcance. `AGENTS.md`, ADRs y documentos de dominio
+siguen siendo la guia activa.
 
 No se declara implementado RBAC granular: `Role`, `Permission` y
 `role_permissions` permanecen aislados como drafts. `UserRole` es el mecanismo

@@ -1,6 +1,6 @@
 ---
 id: FF-LOCAL-010
-status: Review
+status: Done
 area: backend
 execution_lane: codex
 type: feature
@@ -47,5 +47,5 @@ type: feature
 
 ## Cierre
 
-FF-LOCAL-010 queda en `Review` con las dos tareas implementadas arriba. No se
+FF-LOCAL-010 queda en `Done` con las dos tareas implementadas arriba. No se
 crea una task adicional ni se afirma cobertura HTTP integral no ejecutada.

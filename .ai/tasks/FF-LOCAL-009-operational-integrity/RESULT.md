@@ -1,12 +1,12 @@
 ---
 id: FF-LOCAL-009
-status: Review
+status: Done
 area: backend
 execution_lane: codex
 type: feature
 ---
 
-# Resultado parcial
+# Resultado final
 
 ## Implementado
 

@@ -1,4 +1,8 @@
+FROM ghcr.io/astral-sh/uv:latest AS uv
+
 FROM python:3.11-slim
+
+COPY --from=uv /uv /uvx /usr/local/bin/
 
 RUN apt-get update \
     && apt-get install --no-install-recommends -y libatomic1 \
@@ -7,7 +11,7 @@ RUN apt-get update \
 WORKDIR /app/backend
 
 COPY backend/requirements_backend.txt backend/requirements_test.txt ./
-RUN uv pip install --no-cache-dir --upgrade -r requirements_test.txt
+RUN uv pip install --system --no-cache-dir --upgrade -r requirements_test.txt
 
 COPY backend/__init__.py ./
 COPY backend/app ./app

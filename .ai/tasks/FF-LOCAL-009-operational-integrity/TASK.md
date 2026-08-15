@@ -1,7 +1,7 @@
 ---
 id: FF-LOCAL-009
 title: Integridad operativa y preservacion historica
-status: Review
+status: Done
 priority: High
 area: backend
 execution_lane: codex
