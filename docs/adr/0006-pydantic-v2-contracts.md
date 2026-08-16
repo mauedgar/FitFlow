@@ -1,3 +1,9 @@
+---
+document_id: FF-ADR-0006
+status: accepted
+machine_context: true
+---
+
 # ADR 0006: Pydantic v2 como capa de contratos
 
 - **Estado:** Accepted

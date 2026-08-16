@@ -1,3 +1,9 @@
+---
+document_id: FF-ADR-0003
+status: accepted
+machine_context: true
+---
+
 # ADR 0003: Monolito modular como arquitectura objetivo
 
 - **Estado:** Accepted / Pending Implementation

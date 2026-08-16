@@ -1,3 +1,9 @@
+---
+document_id: FF-ADR-0001
+status: accepted
+machine_context: true
+---
+
 # ADR 0001: Eleccion de Chakra UI
 
 - **Estado:** Accepted

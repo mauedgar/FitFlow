@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/decision-request.schema.json",
+  "title": "FitFlow Decision Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "status", "created_at", "baseline_revision", "working_tree_fingerprint", "author_role", "decision_owner", "question", "evidence", "options", "recommendation", "unblock_condition"],
+  "properties": {
+    "artifact": {"const": "DECISION_REQUEST"},
+    "schema_version": {"const": "fitflow-decision-request/v1"},
+    "task_id": {"type": "string", "minLength": 3},
+    "run_id": {"type": "string", "minLength": 3},
+    "status": {"const": "BLOCKED"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "baseline_revision": {"type": "string", "minLength": 1},
+    "working_tree_fingerprint": {"type": "string", "pattern": "^sha256:.+$"},
+    "author_role": {"type": "string", "minLength": 1},
+    "decision_owner": {"const": "human"},
+    "question": {"type": "string", "minLength": 5},
+    "evidence": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["reference", "fact"], "properties": {"reference": {"type": "string"}, "fact": {"type": "string"}}, "additionalProperties": false}},
+    "options": {"type": "array", "minItems": 2, "items": {"type": "object", "required": ["id", "impact", "risk", "reversible"], "properties": {"id": {"type": "string"}, "impact": {"type": "string"}, "risk": {"enum": ["low", "medium", "high"]}, "reversible": {"type": "boolean"}}, "additionalProperties": false}},
+    "recommendation": {"type": "string", "minLength": 3},
+    "unblock_condition": {"type": "string", "minLength": 3}
+  }
+}

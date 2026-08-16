@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/validation.schema.json",
+  "title": "FitFlow Validation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "created_at", "author_role", "baseline_revision", "working_tree_fingerprint", "status", "gates", "failure_class", "next_state"],
+  "properties": {
+    "artifact": {"const": "VALIDATION"},
+    "schema_version": {"const": "fitflow-validation/v1"},
+    "task_id": {"type": "string", "minLength": 3},
+    "run_id": {"type": "string", "minLength": 3},
+    "created_at": {"type": "string", "format": "date-time"},
+    "author_role": {"const": "validator"},
+    "baseline_revision": {"type": "string", "minLength": 1},
+    "working_tree_fingerprint": {"type": "string", "pattern": "^sha256:.+$"},
+    "status": {"enum": ["PASS", "FAIL", "NOT_RUN", "UNAVAILABLE", "BLOCKED", "N/A"]},
+    "gates": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["id", "cwd", "command", "exit_code", "duration_ms", "status", "scope", "output_summary"], "properties": {"id": {"type": "string"}, "cwd": {"type": "string"}, "command": {"type": "string"}, "exit_code": {"type": ["integer", "null"]}, "duration_ms": {"type": "integer", "minimum": 0}, "status": {"enum": ["PASS", "FAIL", "NOT_RUN", "UNAVAILABLE", "BLOCKED", "N/A"]}, "scope": {"type": "string"}, "output_summary": {"type": "string"}}}},
+    "failure_class": {"enum": ["none", "implementation", "environment", "baseline", "policy"]},
+    "next_state": {"enum": ["PENDING_ACCEPTANCE", "EXECUTE", "EXPLORE", "PLAN", "BLOCKED"]}
+  }
+}

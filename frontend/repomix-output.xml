@@ -1,0 +1,4657 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+public/
+  vite.svg
+src/
+  assets/
+    react.svg
+  components/
+    admin/
+      layout/
+        AdminLayout.tsx
+        AdminNavBar.tsx
+        AdminSidebar.tsx
+    auth/
+      ProtectedRoute.tsx
+      RedirectIfAdmin.tsx
+      RootAuthGuard.tsx
+    classes/
+      ClassCard.tsx
+      ClassDetailModal.tsx
+      ClassDetailView.tsx
+      ClassList.tsx
+      ClassScheduleSection.tsx
+      ClassSessionCard.tsx
+    common/
+      ErrorDisplay.tsx
+      LoadingSpinner.tsx
+    dashboard/
+      BookingCard.tsx
+      DocumentReminder.tsx
+      NotificationPanel.tsx
+      PaymentReminder.tsx
+      UpcomingEvents.tsx
+      WeeklyCalendar.tsx
+    Footer/
+      Footer.tsx
+    landing/
+      ActivitiesSection.tsx
+      InfiniteCarousel.tsx
+    layout/
+      Layout.tsx
+      Navbar.tsx
+  context/
+    AuthContext.tsx
+    AuthProvider.tsx
+    useAuth.tsx
+  pages/
+    admin/
+      AdminDashboardPage.tsx
+      ClientsPage.tsx
+      CrudClassesPage.tsx
+      TeachersPage.tsx
+    AboutPage.tsx
+    AdminPage.tsx
+    ClassDetailPage.tsx
+    ClassesPage.tsx
+    HomePage.tsx
+    JoinUsPage.tsx
+    LandingPage.tsx
+    LoginPage.tsx
+    NotFoundPage.tsx
+    NutritionPage.tsx
+    PlansPage.tsx
+    RegisterPage.tsx
+  routes/
+    AppRouter.tsx
+  services/
+    api.ts
+    classService.ts
+    teacherService.ts
+  types/
+    index.ts
+  utils/
+    formatters.ts
+  App.css
+  App.tsx
+  index.css
+  main.tsx
+  vite-env.d.ts
+.gitignore
+eslint.config.js
+index.html
+package.json
+README.md
+requirements_frontend.txt
+tsconfig.app.json
+tsconfig.json
+tsconfig.node.json
+vite.config.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="public/vite.svg">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>
+</file>
+
+<file path="src/assets/react.svg">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
+</file>
+
+<file path="src/components/admin/layout/AdminLayout.tsx">
+import { Box, Flex, useBreakpointValue } from '@chakra-ui/react';
+import { Outlet } from 'react-router-dom';
+import AdminSideBar from './AdminSidebar';
+import AdminNavBar from './AdminNavBar';
+
+const AdminLayout = () => {
+  const sidebarWidth = '250px';
+  const showSidebar = useBreakpointValue({ base: false, md: true });
+
+  return (
+    <Flex minH="100vh" bg="gray.50">
+      {/* SIDEBAR - Solo en pantallas medianas y grandes */}
+      {showSidebar && (
+        <Box
+          as="aside"
+          w={sidebarWidth}
+          minH="100vh"
+          bg="gray.800"
+          color="white"
+          position="fixed"
+          left="0"
+          top="0"
+          zIndex="1000"
+        >
+          <AdminSideBar />
+        </Box>
+      )}
+
+      {/* CONTENIDO PRINCIPAL */}
+      <Box
+        flex="1"
+        ml={showSidebar ? sidebarWidth : '0'}
+        transition="margin-left 0.2s"
+      >
+        {/* NAVBAR */}
+        <AdminNavBar />
+
+        {/* ÁREA DE CONTENIDO */}
+        <Box as="main" p={{ base: 4, md: 8 }} minH="calc(100vh - 64px)">
+          <Outlet />
+        </Box>
+      </Box>
+    </Flex>
+  );
+};
+
+export default AdminLayout;
+</file>
+
+<file path="src/components/admin/layout/AdminNavBar.tsx">
+import {
+  Avatar,
+  Button,
+  Flex,
+  HStack,
+  Icon,
+  Menu,
+  MenuButton,
+  MenuDivider,
+  MenuItem,
+  MenuList,
+  Spacer,
+  Text,
+} from '@chakra-ui/react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../context/useAuth';
+import {
+  FiHome,
+  FiUsers,
+  FiLogOut,
+  FiBriefcase,
+  FiClipboard,
+  FiBookOpen,
+  FiBarChart2,
+  FiCalendar,
+  FiSettings,
+  FiDollarSign,
+} from 'react-icons/fi';
+import { ChevronDownIcon } from '@chakra-ui/icons';
+
+// Configuración de menús para fácil mantenimiento y escalabilidad
+const adminMenus = [
+  {
+    label: "Clientes",
+    icon: FiUsers,
+    subitems: [
+      { label: "Ver Clientes", to: "/admin/clients", icon: FiUsers },
+      { label: "Agregar Cliente", to: "/admin/clients/create", icon: FiUsers },
+      { label: "Membresías", to: "/admin/clients/memberships", icon: FiUsers },
+    ]
+  },
+  {
+    label: "Profesores",
+    icon: FiBriefcase,
+    subitems: [
+      { label: "Ver Profesores", to: "/admin/teachers", icon: FiBriefcase },
+      { label: "Agregar Profesor", to: "/admin/teachers/create", icon: FiBriefcase },
+      { label: "Horarios", to: "/admin/teachers/schedules", icon: FiBriefcase },
+    ]
+  },
+  {
+    label: "Clases",
+    icon: FiClipboard,
+    subitems: [
+      { label: "Gestionar Clases", to: "/admin/classes", icon: FiClipboard },
+      { label: "Crear Nueva Clase", to: "/admin/classes/create", icon: FiClipboard },
+      { label: "Programar Horarios", to: "/admin/classes/schedules", icon: FiClipboard },
+    ]
+  },
+  {
+    label: "Reservas",
+    icon: FiBookOpen,
+    subitems: [
+      { label: "Ver Reservas", to: "/admin/bookings", icon: FiBookOpen },
+      { label: "Lista de Espera", to: "/admin/bookings/waitlist", icon: FiBookOpen },
+      { label: "Cancelaciones", to: "/admin/bookings/cancelled", icon: FiBookOpen },
+    ]
+  },
+  {
+    label: "Informes",
+    icon: FiBarChart2,
+    subitems: [
+      { label: "Alumnos por Clase", to: "/admin/reports/attendance", icon: FiBarChart2 },
+      { label: "Clases Populares", to: "/admin/reports/popular-classes", icon: FiBarChart2 },
+      { label: "Ingresos Mensuales", to: "/admin/reports/revenue", icon: FiBarChart2 },
+      { label: "Ocupación de Horarios", to: "/admin/reports/schedule-usage", icon: FiBarChart2 },
+    ]
+  },
+  {
+    label: "Calendario",
+    icon: FiCalendar,
+    subitems: [
+      { label: "Vista Semanal", to: "/admin/calendar/weekly", icon: FiCalendar },
+      { label: "Vista Mensual", to: "/admin/calendar/monthly", icon: FiCalendar },
+      { label: "Eventos Especiales", to: "/admin/calendar/events", icon: FiCalendar },
+    ]
+  },
+  {
+    label: "Herramientas",
+    icon: FiSettings,
+    subitems: [
+      { label: "Envío Masivo Email", to: "/admin/tools/bulk-email", icon: FiSettings },
+      { label: "Check-in Manual", to: "/admin/tools/manual-checkin", icon: FiSettings },
+      { label: "Backup de Datos", to: "/admin/tools/backup", icon: FiSettings },
+      { label: "Configuración", to: "/admin/tools/settings", icon: FiSettings },
+    ]
+  },
+  {
+    label: "Facturación",
+    icon: FiDollarSign,
+    subitems: [
+      { label: "Ver Facturas", to: "/admin/billing/invoices", icon: FiDollarSign },
+      { label: "Pagos Pendientes", to: "/admin/billing/pending", icon: FiDollarSign },
+      { label: "Descuentos", to: "/admin/billing/discounts", icon: FiDollarSign },
+    ]
+  },
+];
+
+const AdminNavBar: React.FC = () => {
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  return (
+    <Flex
+      as="header"
+      align="center"
+      justify="space-between"
+      w="100%"
+      px="4"
+      py="2"
+      bg="white"
+      borderBottomWidth="1px"
+      borderColor="gray.200"
+      h="64px"
+      boxShadow="sm"
+    >
+      {/* DASHBOARD BUTTON */}
+      <Button
+        as={RouterLink}
+        to="/admin"
+        leftIcon={<Icon as={FiHome} />}
+        variant="ghost"
+        colorScheme="teal"
+        size="md"
+      >
+        Dashboard
+      </Button>
+
+      <Spacer />
+
+      {/* MENÚS CRUD Y GESTIÓN */}
+      <HStack spacing="2" overflowX="auto">
+        {adminMenus.map((menu) => (
+          <Menu key={menu.label}>
+            <MenuButton
+              as={Button}
+              rightIcon={<ChevronDownIcon />}
+              variant="ghost"
+              size="sm"
+              minW="max-content"
+            >
+              <HStack spacing="1">
+                <Icon as={menu.icon} />
+                <Text>{menu.label}</Text>
+              </HStack>
+            </MenuButton>
+            <MenuList>
+              {menu.subitems.map((item) => (
+                <MenuItem
+                  key={item.to}
+                  as={RouterLink}
+                  to={item.to}
+                  icon={<Icon as={item.icon} />}
+                >
+                  {item.label}
+                </MenuItem>
+              ))}
+            </MenuList>
+          </Menu>
+        ))}
+      </HStack>
+
+      <Spacer />
+
+      {/* PERFIL Y LOGOUT */}
+      <Menu>
+        <MenuButton as={Button} variant="ghost" p={2} rounded="full">
+          <HStack spacing="2">
+            <Avatar size="sm" name={currentUser?.email || 'Admin'} />
+            <Text display={{ base: 'none', lg: 'block' }} fontSize="sm" fontWeight="medium">
+              {currentUser?.email || 'Administrador'}
+            </Text>
+            <ChevronDownIcon />
+          </HStack>
+        </MenuButton>
+        <MenuList>
+          <MenuItem as={RouterLink} to="/admin/profile">
+            Mi Perfil
+          </MenuItem>
+          <MenuItem as={RouterLink} to="/admin/settings">
+            Configuración
+          </MenuItem>
+          <MenuDivider />
+          <MenuItem
+            onClick={handleLogout}
+            color="red.500"
+            icon={<Icon as={FiLogOut} />}
+          >
+            Cerrar Sesión
+          </MenuItem>
+        </MenuList>
+      </Menu>
+    </Flex>
+  );
+};
+
+export default AdminNavBar;
+</file>
+
+<file path="src/components/admin/layout/AdminSidebar.tsx">
+import { Box, VStack, Heading, Divider, Icon, HStack, Text } from '@chakra-ui/react';
+import { NavLink as RouterNavLink } from 'react-router-dom';
+import {
+  FiHome,
+  FiUsers,
+  FiBriefcase,
+  FiClipboard,
+  FiBookOpen,
+  FiBarChart2,
+  FiCalendar,
+  FiSettings,
+  FiDollarSign,
+} from 'react-icons/fi';
+
+
+// Estructura de navegación del sidebar
+const sidebarLinks = [
+  { label: 'Dashboard', to: '/admin', icon: FiHome, end: true },
+  { label: 'Clientes', to: '/admin/clients', icon: FiUsers },
+  { label: 'Profesores', to: '/admin/teachers', icon: FiBriefcase },
+  { label: 'Clases', to: '/admin/classes', icon: FiClipboard },
+  { label: 'Reservas', to: '/admin/bookings', icon: FiBookOpen },
+  { separator: true },
+  { label: 'Informes', to: '/admin/reports', icon: FiBarChart2 },
+  { label: 'Calendario', to: '/admin/calendar', icon: FiCalendar },
+  { separator: true },
+  { label: 'Herramientas', to: '/admin/tools', icon: FiSettings },
+  { label: 'Facturación', to: '/admin/billing', icon: FiDollarSign },
+];
+
+const AdminSideBar = () => {
+  const activeLinkStyle = {
+    backgroundColor: '#319795', // teal.600
+    color: 'white',
+    fontWeight: 'bold',
+  };
+
+  return (
+    <Box
+      as="nav"
+      bg="gray.800"
+      color="white"
+      w={{ base: 'full', md: '250px' }}
+      h="full"
+      p={4}
+    >
+      <Heading size="md" mb={6} color="teal.300">
+        FitFlow Admin
+      </Heading>
+
+      <VStack align="stretch" spacing={1}>
+        {sidebarLinks.map((link, index) => {
+          // Renderizar separador
+          if (link.separator) {
+            return <Divider key={`separator-${index}`} my={3} borderColor="gray.600" />;
+          }
+
+          return (
+            <Box
+              key={link.to!}
+              as={RouterNavLink}
+              to={link.to!}
+              end={link.end}
+              style={({ isActive }: { isActive: boolean }) =>
+                isActive ? activeLinkStyle : undefined
+              }
+              p={3}
+              borderRadius="md"
+              _hover={{ bg: 'gray.700' }}
+              transition="all 0.2s"
+            >
+              <HStack spacing={3}>
+                <Icon as={link.icon} />
+                <Text fontSize="sm" fontWeight="medium">
+                  {link.label}
+                </Text>
+              </HStack>
+            </Box>
+          );
+        })}
+      </VStack>
+    </Box>
+  );
+};
+
+export default AdminSideBar;
+</file>
+
+<file path="src/components/auth/ProtectedRoute.tsx">
+// src/components/auth/ProtectedRoute.tsx (Refactorizado)
+
+import React from 'react'; // Es buena práctica importar React explícitamente
+import { Navigate, Outlet } from 'react-router-dom';
+import { Spinner, Center, Text } from '@chakra-ui/react'; // Añadimos Text para mensajes
+import { useAuth } from '../../context/useAuth'; // ⭐ Importamos directamente AuthContext
+import { UserRole } from '../../types'; // ⭐ Importamos UserRole de tus types/index.ts
+
+// 1. Definimos las props que el componente espera recibir
+interface ProtectedRouteProps {
+  allowedRoles: UserRole[]; // Un array de roles permitidos
+  redirectTo?: string;      // Opcional: la ruta a redirigir si no está autorizado
+}
+
+// 2. Usamos las props en la definición del componente
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, redirectTo = "/login" }) => {
+  // ⭐ Usamos las nuevas propiedades del AuthContext
+  const { isAuthenticated, userRole, isLoadingAuth } = useAuth();
+
+  // 3. Manejar el estado de carga inicial de la autenticación
+  if (isLoadingAuth) {
+    return (
+      <Center height="100vh" flexDirection="column" p={4}>
+        <Spinner size="xl" color="teal.500" thickness="4px" speed="0.65s" emptyColor="gray.200" mb={4} />
+        <Text fontSize="lg" color="gray.600">Cargando perfil de usuario...</Text>
+      </Center>
+    );
+  }
+
+  // 4. Verificar si el usuario está autenticado
+  if (!isAuthenticated) {
+    // Si no está autenticado, redirigimos a la página de login (o la ruta especificada)
+    return <Navigate to={redirectTo} replace />;
+  }
+
+  // 5. Si está autenticado, verificar si tiene un rol permitido
+  //    Comparamos el rol del usuario con los roles permitidos
+  //    `userRole` del AuthContext ya es de tipo `UserRole | null`, así que el includes es seguro si no es null
+  if (userRole === null || !allowedRoles.includes(userRole)) {
+    // Si el rol no está permitido, redirigimos. Podrías redirigir a una página de "Acceso Denegado"
+    // en lugar de login si ya está logueado pero con un rol incorrecto.
+    // Por ahora, para simplificar, sigue redirigiendo a login, pero idealmente sería algo como '/unauthorized'.
+    return <Navigate to={'/'} replace />; 
+  }
+
+  // 6. Si la autenticación y autorización son exitosas, renderizamos el <Outlet />
+  //    React Router se encargará de poner la página correcta aquí.
+  return <Outlet />;
+};
+
+export default ProtectedRoute;
+</file>
+
+<file path="src/components/auth/RedirectIfAdmin.tsx">
+// src/components/auth/RedirectIfAdmin.tsx (Refactorizado)
+
+import React from 'react'; // Es buena práctica importar React explícitamente
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../../context/useAuth'; // ⭐ Importamos de tu AuthContext completo
+import { UserRole } from '../../types'; // ⭐ Importamos UserRole de tus types/index.ts
+
+interface RedirectIfAdminProps {
+  children: React.ReactNode; // ⭐ Usamos React.ReactNode para mayor flexibilidad
+}
+
+const RedirectIfAdmin: React.FC<RedirectIfAdminProps> = ({ children }) => {
+  // ⭐ Usamos las nuevas propiedades de tu AuthContext
+  const { isAuthenticated, userRole, isLoadingAuth } = useAuth();
+
+  // 1. Mientras se verifica el estado de autenticación inicial, mostramos un spinner o null.
+  //    Esto es importante para evitar un parpadeo o una redirección incorrecta.
+  if (isLoadingAuth) {
+    // Si este componente se usa en un contexto donde el spinner ya está en un nivel superior (ej. RootAuthGuard),
+    // podrías devolver 'null' para no duplicar spinners. Si es un punto de entrada independiente,
+    // un spinner completo es mejor. Aquí usaré null ya que HomePage suele estar después de RootAuthGuard.
+    return null; 
+  }
+
+  // 2. Si el usuario está autenticado Y es un administrador, lo redirigimos a su dashboard.
+  //    Es importante verificar `isAuthenticated` para asegurarnos de que `userRole` es fiable.
+  if (isAuthenticated && userRole === UserRole.ADMIN) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // 3. Si el usuario no es un administrador (o no está autenticado en absoluto),
+  //    renderizamos el contenido hijo.
+  //    Nota: Si no está autenticado, el `ProtectedRoute` (o `RootAuthGuard`) que envuelve esta ruta
+  //    ya debería haberlo redirigido al `/login`. Este componente se enfoca
+  //    específicamente en redirigir a los *admins* fuera de rutas "no-admin".
+  return <>{children}</>; // Usamos un fragmento para envolver children si es necesario.
+};
+
+export default RedirectIfAdmin;
+</file>
+
+<file path="src/components/auth/RootAuthGuard.tsx">
+// src/components/auth/RootAuthGuard.tsx (Refactorizado)
+
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { Spinner, Center, Text } from '@chakra-ui/react'; // Añadimos Text para mejor UX
+import { useAuth } from '../../context/useAuth'; // ⭐ Importamos de tu AuthContext completo
+import LandingPage from '../../pages/LandingPage'; // Importamos la página a renderizar por defecto
+import { UserRole } from '../../types';
+
+const RootAuthGuard: React.FC = () => {
+  // ⭐ Usamos las nuevas propiedades de tu AuthContext
+  const { isAuthenticated, userRole, isLoadingAuth } = useAuth();
+
+  // 1. Mientras se verifica el estado de autenticación inicial, mostramos un spinner.
+  //    Esto evita cualquier parpadeo indeseado antes de que el AuthContext se rehidrate.
+  if (isLoadingAuth) {
+    return (
+      <Center height="100vh" flexDirection="column" p={4}>
+        <Spinner size="xl" color="teal.500" thickness="4px" speed="0.65s" emptyColor="gray.200" mb={4} />
+        <Text fontSize="lg" color="gray.600">Verificando sesión...</Text>
+      </Center>
+    );
+  }
+  // 2. Si el usuario está autenticado, decidimos a dónde enviarlo basado en su rol.
+  if (isAuthenticated && userRole !== null) { // Aseguramos que hay un rol para la redirección
+    if (userRole === UserRole.ADMIN) {
+      return <Navigate to="/admin" replace />;
+    }
+    // Si es 'client' o 'trainer' (o cualquier otro rol futuro que tenga un home específico)
+    // El rol 'trainer' también podría ir a '/home' o a un '/trainer-dashboard'
+    return <Navigate to="/home" replace />; // 'home' suele ser la página principal para usuarios logueados
+  }
+  
+  // 3. Si no está autenticado (isAuthenticated es false), renderizamos la LandingPage.
+  //    No hay necesidad de verificar 'userRole' aquí porque 'isAuthenticated' ya lo descarta.
+  return <LandingPage />;
+};
+
+export default RootAuthGuard;
+</file>
+
+<file path="src/components/classes/ClassCard.tsx">
+import React from 'react';
+import {
+  Card,
+  CardHeader,
+  CardBody,
+  CardFooter,
+  Heading,
+  Text,
+  Flex,
+  Badge,
+  VStack,
+  HStack,
+  Icon,
+  StackDivider,
+  Image, // Importamos Image para el fondo visual
+} from '@chakra-ui/react';
+import { FaCalendarAlt, FaClock } from 'react-icons/fa';
+import { type GymClass } from '../../types'; // Asumo que esta es la ruta correcta
+
+interface ClassCardProps {
+  gymClass: GymClass; // Renombrado para mayor claridad (gymClass vs classInfo)
+  onClick?: () => void; // Prop opcional para manejar el click en la Fase 2
+}
+
+// --- Helpers de Presentación ---
+// Abstraemos la lógica de formato para mantener el JSX limpio.
+
+const difficultyColorScheme: Record<string, string> = {
+  Principante: 'green',
+  Intermedio: 'orange',
+  Avanzado: 'red',
+};
+
+// --- Componente Principal ---
+
+const ClassCard: React.FC<ClassCardProps> = ({ gymClass, onClick }) => {
+  const { name, description, difficulty, duration_minutes } = gymClass;
+
+  return (
+    // 1. Usamos el componente <Card> semántico. Viene con estilos base.
+    <Card
+      direction="column"
+      overflow="hidden"
+      variant="outline" // Un estilo sutil
+      transition="all 0.2s ease-in-out"
+      _hover={{
+        transform: 'scale(1.02)', // Un efecto de zoom sutil
+        boxShadow: 'xl',
+        cursor: onClick ? 'pointer' : 'default',
+      }}
+      onClick={onClick}
+      size="md"
+    >
+      {/* 2. Añadimos una imagen como pediste, que mejora mucho el atractivo visual */}
+      <Image
+        objectFit="cover"
+        maxH="150px"
+        src={`https://picsum.photos/400/200/?fitness,${name}`}
+        alt={`Imagen de la clase ${name}`}
+      />
+
+      {/* 3. <CardHeader> para el título y metadatos principales. */}
+      <CardHeader>
+        <Flex justify="space-between" align="center" gap={4}>
+          <Heading size="md" noOfLines={2}>
+            {name}
+          </Heading>
+          <Badge
+            flexShrink={0} // Evita que el badge se encoja si el título es largo
+            colorScheme={difficultyColorScheme[difficulty] || 'gray'}
+            variant="solid" // Un estilo más prominente
+            borderRadius="full"
+            px={3}
+          >
+            {difficulty}
+          </Badge>
+        </Flex>
+      </CardHeader>
+
+      {/* 4. <CardBody> para el contenido principal, como la descripción. */}
+      <CardBody py={0}>
+        <Text fontSize="sm" color="gray.600" noOfLines={3}>
+          {description}
+        </Text>
+      </CardBody>
+
+      {/* 5. <CardFooter> para información secundaria y acciones. */}
+      <CardFooter>
+        <VStack
+          divider={<StackDivider borderColor="gray.200" />} // ¡Un separador elegante!
+          spacing={3}
+          align="stretch"
+          w="100%"
+        >
+          <HStack color="gray.700">
+            <Icon as={FaClock} w={4} h={4} />
+            <Text fontSize="sm" fontWeight="medium">Duración: {duration_minutes ?? 'N/A'} min</Text>
+          </HStack>
+          <HStack color="gray.700">
+            <Icon as={FaCalendarAlt} w={4} h={4} />
+            <Text fontSize="sm" fontWeight="medium">Multiples horarios disponibles</Text>
+          </HStack>
+        </VStack>
+      </CardFooter>
+    </Card>
+  );
+};
+
+export default ClassCard;
+</file>
+
+<file path="src/components/classes/ClassDetailModal.tsx">
+import React from 'react';
+import {
+  Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton,
+} from '@chakra-ui/react';
+import { useQuery } from '@tanstack/react-query'; // ¡El protagonista!
+import classService  from '../../services/classService';
+import ClassDetailView  from './ClassDetailView';
+import LoadingSpinner from '../common/LoadingSpinner';
+import ErrorDisplay from '../common/ErrorDisplay';
+
+interface ClassDetailModalProps {
+  classId: string | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ classId, isOpen, onClose }) => {
+  // --- TANSTACK QUERY EN SU MÁXIMA EXPRESIÓN ---
+  const { data: gymClass, isLoading, isError, error } = useQuery({
+    // 1. Query Key Dinámica: La clave incluye el 'classId'. Esto significa que
+    // TanStack Query cacheará los detalles de cada clase individualmente. Si
+    // cierras y vuelves a abrir el modal de la misma clase, los datos serán
+    // instantáneos desde la caché.
+    queryKey: ['class', classId],
+
+    // 2. Función de Fetching: Solo se ejecutará si la query está "enabled".
+    queryFn: () => {
+      // Usamos '!' para decirle a TypeScript que, en este punto, sabemos que
+      // classId no será null, gracias a la opción 'enabled' de abajo.
+      return classService.getClassById(classId!);
+    },
+
+    // 3. LA MAGIA DE `enabled`: Esta es la opción más importante aquí. Le dice a
+    // TanStack Query: "NO ejecutes esta petición a menos que la condición sea
+    // verdadera". En este caso, la petición solo se disparará si `classId`
+    // tiene un valor (no es null o undefined).
+    enabled: !!classId,
+  });
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="3xl" scrollBehavior="inside">
+      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
+      <ModalContent>
+        <ModalHeader>{gymClass?.name || 'Cargando detalles...'}</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody pb={6}>
+          {/* Los booleanos de TanStack Query controlan la UI del modal */}
+          {isLoading && <LoadingSpinner />}
+          {isError && <ErrorDisplay message={error?.message || "No se pudieron cargar los detalles de la clase."} />}
+          {gymClass && <ClassDetailView gymClass={gymClass} onCloseModal={onClose} />} {/* PASAMOS onCloseModal */}
+        </ModalBody>
+      </ModalContent>
+    </Modal>
+  );
+};
+
+export default ClassDetailModal;
+</file>
+
+<file path="src/components/classes/ClassDetailView.tsx">
+import React from 'react';
+import {
+  Box, Heading, Text, Badge, VStack, HStack, Icon, Divider,
+  SimpleGrid
+} from '@chakra-ui/react';
+import { FaClock, FaTachometerAlt } from 'react-icons/fa';
+// 1. Asegúrate de importar el tipo de dato que vas a recibir.
+import { type GymClass, type ClassScheduleWithNextSession } from '../../types';
+import ClassScheduleSection from './ClassScheduleSection'; // Nuevo subcomponente
+
+
+// 2. DEFINE LA INTERFAZ DE PROPS: Este es el "manual de instrucciones".
+// Le dice a TypeScript que este componente DEBE recibir una prop llamada 'gymClass'
+// que sea del tipo 'GymClass'.
+interface ClassDetailViewProps {
+  gymClass: GymClass;
+  onCloseModal?: () => void; // Para cerrar el modal después de reservar, si es necesario
+}
+
+// 3. APLICA LA INTERFAZ AL COMPONENTE: Usa React.FC<TuInterfazDeProps>
+// y desestructura la prop 'gymClass' de los argumentos.
+export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass, onCloseModal }) => {  
+  return (
+    <VStack spacing={8} align="stretch">
+      <Box>
+        {/* Ahora puedes usar gymClass de forma segura, con autocompletado y type-checking */}
+        <Heading as="h1" size="2xl">{gymClass.name}</Heading>
+        <Text fontSize="xl" color="gray.500" mt={2}>{gymClass.description}</Text>
+      </Box>
+
+      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={10}>
+        <HStack>
+          <Icon as={FaTachometerAlt} w={6} h={6} color="teal.500" />
+          <Box>
+            <Text fontSize="sm" color="gray.500">Dificultad</Text>
+            <Badge colorScheme={gymClass.difficulty === "Principante" ? "green" : gymClass.difficulty === "Intermedio" ? "orange" : "red"} variant="solid" fontSize="md">{gymClass.difficulty}</Badge>
+          </Box>
+        </HStack>
+        <HStack>
+          <Icon as={FaClock} w={6} h={6} color="teal.500" />
+          <Box>
+            <Text fontSize="sm" color="gray.500">Duración</Text>
+            <Text fontSize="lg" fontWeight="bold">{gymClass.duration_minutes} min</Text>
+          </Box>
+        </HStack>
+      </SimpleGrid>
+
+      <Divider />
+
+      <Box>
+        <Heading as="h2" size="lg" mb={4}>Horarios y Reservas</Heading>
+        {gymClass.class_schedules && gymClass.class_schedules.length > 0 ? (
+          <VStack spacing={6} align="stretch">
+            {gymClass.class_schedules.map((schedule) => (
+              <ClassScheduleSection
+                key={schedule.id}
+                classSchedule={schedule as ClassScheduleWithNextSession}
+                gymClassName={gymClass.name} // Pasa el nombre para toasts
+                onCloseModal={onCloseModal}
+              />
+            ))}
+          </VStack>
+        ) : (
+          <Text>No hay horarios programados para esta clase.</Text>
+        )}
+      </Box>
+    </VStack>
+  );
+};
+
+// Si usas export default, asegúrate de que sea consistente.
+export default ClassDetailView;
+</file>
+
+<file path="src/components/classes/ClassList.tsx">
+import React from 'react';
+import { SimpleGrid } from '@chakra-ui/react';
+import { type GymClass } from '../../types';
+import ClassCard from './ClassCard';
+
+
+interface ClassListProps {
+  classes: GymClass[];
+  onClassSelect: (classId: string) => void; // Prop para notificar la selección
+}
+
+const ClassList: React.FC<ClassListProps> = ({ classes , onClassSelect}) => {    
+  return (
+    <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8} p={5}>
+      {classes.map((classItem) => (
+        <ClassCard key={classItem.id} gymClass={classItem} onClick={() => onClassSelect(classItem.id)}/>
+      ))}
+    </SimpleGrid>
+  );
+};
+
+export default ClassList;
+</file>
+
+<file path="src/components/classes/ClassScheduleSection.tsx">
+import React from 'react';
+import {
+  Box, Heading, Text, VStack, HStack, Icon,
+  Flex, Button, useToast, Alert, AlertIcon, Badge,
+} from '@chakra-ui/react';
+import { FaUserGraduate, FaCalendarWeek, FaHourglassHalf } from 'react-icons/fa';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import type { AxiosError } from 'axios';
+
+import {    
+  BookingStatus,
+  type BookingCreatePayload, 
+  type ClassScheduleWithNextSession 
+} from '../../types';
+import classService from '../../services/classService';
+import { useAuth } from '../../context/useAuth';
+import { getFormattedDate } from '../../utils/formatters';
+
+interface ClassScheduleSectionProps {
+  classSchedule: ClassScheduleWithNextSession;
+  gymClassName: string;
+  onCloseModal?: () => void;
+}
+
+const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
+  classSchedule,
+  gymClassName,
+  onCloseModal,
+}) => {
+  /* ------------------------------------------------------------------
+     1. Hooks esenciales
+  -------------------------------------------------------------------*/
+  const toast = useToast();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { isAuthenticated, isClient, userRole } = useAuth();
+
+  /* ------------------------------------------------------------------
+     2. Mutación para reservar (sin cambios)
+  -------------------------------------------------------------------*/
+  const bookScheduleMutation = useMutation({
+    mutationFn: (payload: BookingCreatePayload) => classService.createBooking(payload),
+    onSuccess: () => {
+      toast({
+        title: '¡Cupo reservado!',
+        description: `Has reservado tu cupo recurrente para ${gymClassName}. Revisa tu calendario.`,
+        status: 'success', duration: 5000, isClosable: true,
+      });
+      queryClient.invalidateQueries({ queryKey: ['myBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['gymClasses'] });
+      onCloseModal?.();
+    },
+    onError: (err: unknown) => {
+      const axiosErr = err as AxiosError<{ detail?: string }>;
+      const msg = axiosErr.response?.data?.detail || 'Error al procesar la reserva.';
+      toast({ title: 'No se pudo completar la reserva', description: msg, status: 'error', duration: 6000, isClosable: true });
+      if (axiosErr.response?.status === 401) navigate('/login');
+    },
+  });
+
+  /* ------------------------------------------------------------------
+     3. Lógica de UI para la Badge y el Botón (Nueva Estrategia)
+  -------------------------------------------------------------------*/
+  const nextSession = classSchedule?.next_upcoming_session;
+
+  const isAvailable = !!nextSession; 
+  const isFull = isAvailable ? nextSession.available_spots <= 0 : true;
+
+  // Pre-calculamos las propiedades de la Badge para un render más limpio
+  const getBadgeProps = () => {
+    if (!isAvailable) {
+      return { text: 'No disponible por ahora', colorScheme: 'gray' };
+    }
+    if (isFull) {
+      return { text: 'Próxima fecha sin cupos', colorScheme: 'red' };
+    }
+    
+    const nextDate = getFormattedDate(new Date(nextSession.starts_at));
+    const text = `Próximo inicio: ${nextDate}`;
+    
+    if (nextSession.available_spots <= 3) {
+      return { text, colorScheme: 'orange' };
+    }
+    return { text, colorScheme: 'green' };
+  };
+
+  const badgeProps = getBadgeProps();
+
+  // Lógica de deshabilitación del botón
+  const pendingMutation = bookScheduleMutation.isPending;
+  const buttonDisabled = pendingMutation || !isAuthenticated || !isClient || !isAvailable || isFull;
+  const buttonLabel = 'Reservar'; // Texto fijo
+
+  const handleBookClick = () => {
+    if (!isAuthenticated) { navigate('/login'); return; }
+    if (!isClient) {
+      toast({ title: 'Acción no permitida', description: 'Solo los clientes pueden reservar.', status: 'warning', duration: 3000, isClosable: true });
+      return;
+    }
+    bookScheduleMutation.mutate({ class_schedule_id: classSchedule.id, status: BookingStatus.CONFIRMED });
+  };
+
+  /* ------------------------------------------------------------------
+     4. Helpers y valores para el Render
+  -------------------------------------------------------------------*/
+  const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const getDaysOfWeekString = (days: number[] = []) => days.map((d) => dayNames[d] ?? '¿?').join(', ');
+  const teacher = classSchedule.teacher;
+  const startTime = classSchedule.start_time?.substring(0, 5) ?? '??:??';
+  const endTime = classSchedule.duration_minutes?.substring(0, 5) ?? '??:??';
+  const days = classSchedule.rrule;
+
+  if (!teacher) {
+    return <Alert status="warning" my={4}><AlertIcon />Falta información del instructor.</Alert>;
+  }
+
+  /* ------------------------------------------------------------------
+     5. Render final
+  -------------------------------------------------------------------*/
+  return (
+    <Box p={4} borderWidth="1px" borderRadius="lg" bg="white" shadow="sm">
+      <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }}>
+        {/* --- LADO IZQUIERDO: Información del Horario --- */}
+        <VStack align="stretch" spacing={2} mb={{ base: 4, md: 0 }}>
+          <Heading as="h4" size="sm">{gymClassName} – Horario Recurrente</Heading>
+          <HStack><Icon as={FaCalendarWeek} color="blue.500" /><Text fontWeight="medium">Días: {days}</Text></HStack>
+          <HStack><Icon as={FaHourglassHalf} color="blue.500" /><Text>Horario: {startTime} – {endTime} hs</Text></HStack>
+          <HStack><Icon as={FaUserGraduate} color="blue.500" /><Text>Instructor: {teacher.first_name ?? ''} {teacher.last_name ?? ''}</Text></HStack>
+        </VStack>
+
+        {/* --- LADO DERECHO: Acciones de Reserva --- */}
+        <VStack spacing={2} align={{ base: 'stretch', md: 'flex-end' }}>
+          {/* ⭐ NUEVA BADGE DE ESTADO */}
+          <Badge colorScheme={badgeProps.colorScheme} variant="subtle" px={3} py={1} borderRadius="md">
+            {badgeProps.text}
+          </Badge>
+
+          <Button
+            colorScheme="teal"
+            w={{ base: '100%', md: 'auto' }}
+            onClick={handleBookClick}
+            isDisabled={buttonDisabled}
+            isLoading={pendingMutation}
+          >
+            {buttonLabel}
+          </Button>
+
+          {isAuthenticated && !isClient && userRole && (
+            <Text fontSize="xs" color="gray.500" textAlign={{ base: 'center', md: 'right' }}>
+              Tu rol ({userRole}) no puede reservar.
+            </Text>
+          )}
+        </VStack>
+      </Flex>
+      
+      {/* --- SECCIÓN DE SESIONES FUTURAS (COMENTADA) --- */}
+      {/* 
+        <Divider my={4} />
+        TODO: Sprint X - Habilitar la vista de sesiones individuales futuras.
+              Esta sección requeriría una query separada para traer las ClassSession
+              generadas para este ClassSchedule.
+        <Heading as="h4" size="sm" mb={3}>
+          Próximas Sesiones Programadas
+        </Heading>
+        <Text fontSize="sm" color="gray.600">
+          Funcionalidad pendiente de implementación.
+        </Text>
+      */}
+    </Box>
+  );
+};
+
+export default ClassScheduleSection;
+</file>
+
+<file path="src/components/classes/ClassSessionCard.tsx">
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React from 'react';
+import {
+  Box, Text, Button, Badge, useToast, Flex, Spacer,
+} from '@chakra-ui/react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { type ClassSession, BookingStatus, type BookingCreatePayload } from '../../types';
+import classService from '../../services/classService';
+import { getFormattedDateTime } from '../../utils/formatters';
+import { useAuth } from '../../context/useAuth';
+import { useNavigate } from 'react-router-dom';
+import type { AxiosError } from 'axios';
+
+interface ClassSessionCardProps {
+  classSession: ClassSession;
+  onCloseModal?: () => void;
+}
+
+const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
+  classSession,
+  onCloseModal,
+}) => {
+  const toast     = useToast();
+  const navigate  = useNavigate();
+  const queryClient = useQueryClient();
+
+  /* ---------------------------------------------------- */
+  /* 1.  Datos de auth                                   */
+  /* ---------------------------------------------------- */
+  const { isAuthenticated, isClient, userBookings, isLoadingBookings, userRole } = useAuth();
+
+  const userAlreadyBooked = userBookings?.some(
+    (b) => b.class_session_id === classSession.id && b.status === BookingStatus.CONFIRMED,
+  );
+
+  /* ---------------------------------------------------- */
+  /* 2.  Mutación para reservar la sesión                 */
+  /* ---------------------------------------------------- */
+  const bookSessionMutation = useMutation({
+    mutationFn: (payload: BookingCreatePayload) => classService.createBooking(payload),
+    onSuccess: () => {
+      toast({
+        title: '¡Reserva confirmada!',
+        description: `Has reservado un cupo para ${classSession.class_schedule?.gym_class?.first_name ??'la clase'} el ${getFormattedDateTime(classSession.starts_at)}.`,
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+      // Re–frescar cache
+      queryClient.invalidateQueries({ queryKey: ['classSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['myBookings'] });
+      onCloseModal?.();
+    },
+    onError: (err: any) => {
+      /*  evitamos any → casteamos solo si es AxiosError  */
+      const axiosErr = err as AxiosError<any>;
+      const status   = axiosErr.response?.status;
+      const data      = axiosErr.response?.data;
+      const rawErrorMessage = JSON.stringify(data);
+      
+      toast({
+        title: 'Error de reserva',
+        description: rawErrorMessage,
+        status: 'error',
+        duration: 10000,
+        isClosable: true,
+      });
+
+      if (status === 401 || status === 403) navigate('/login');
+    },
+  });
+
+  const handleBookClick = () => {
+    if (!isAuthenticated) {
+      toast({
+        title: 'Inicia sesión',
+        description: 'Debes iniciar sesión para reservar una clase.',
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+      navigate('/login');
+      return;
+    }
+    if (!isClient) {
+      toast({
+        title: 'Permiso denegado',
+        description: 'Solo los clientes pueden reservar clases.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    /*  👈  enviamos el objeto esperado por la API  */
+    bookSessionMutation.mutate({ class_session_id: classSession.id,status: BookingStatus.CONFIRMED  });
+  };
+
+  /* ---------------------------------------------------- */
+  /* 3.  Estado del botón                                 */
+  /* ---------------------------------------------------- */
+  const isFull        = classSession.available_spots <= 0;
+  const isPast        = new Date(classSession.starts_at) < new Date();
+  const pendingReq    = bookSessionMutation.isPending || isLoadingBookings;
+
+  const buttonDisabled = isPast || isFull || userAlreadyBooked || pendingReq || !isAuthenticated || !isClient;
+
+  const buttonLabel = isPast
+    ? 'Sesión finalizada'
+    : userAlreadyBooked
+    ? 'Reservado'
+    : isFull
+    ? 'Lleno'
+    : 'Reservar Ahora';
+
+  /* ---------------------------------------------------- */
+  /* 4.  Render                                           */
+  /* ---------------------------------------------------- */
+  return (
+    <Box p={4} borderWidth="1px" borderRadius="md" bg="white" shadow="sm">
+      <Flex align="center" mb={2}>
+        <Text fontSize="md" fontWeight="bold">
+          {getFormattedDateTime(classSession.starts_at)}
+        </Text>
+        <Spacer />
+        {!isPast && (
+          <Badge
+            colorScheme={
+              isFull ? 'red' : classSession.available_spots <= 3 ? 'orange' : 'green'
+            }
+            fontSize="sm"
+          >
+            {isFull ? 'Lleno' : `${classSession.available_spots} cupos`}
+          </Badge>
+        )}
+      </Flex>
+
+      <Text fontSize="sm" color="gray.600" mb={4}>
+        Duración: {classSession.class_schedule.gym_class?.duration_minutes ?? 'N/A'} min
+      </Text>
+
+      <Button
+        colorScheme="teal"
+        size="sm"
+        w="100%"
+        onClick={handleBookClick}
+        isDisabled={buttonDisabled}
+        isLoading={pendingReq}
+      >
+        {buttonLabel}
+      </Button>
+
+      {!isAuthenticated && (
+        <Text fontSize="xs" color="gray.500" mt={1} textAlign="center">
+          Inicia sesión para reservar
+        </Text>
+      )}
+      {isAuthenticated && !isClient && userRole && (
+        <Text fontSize="xs" color="gray.500" mt={1} textAlign="center">
+          Tu rol ({userRole}) no puede reservar clases.
+        </Text>
+      )}
+    </Box>
+  );
+};
+
+export default ClassSessionCard;
+</file>
+
+<file path="src/components/common/ErrorDisplay.tsx">
+// src/components/common/ErrorDisplay.tsx (Modificado)
+import React from 'react';
+import { Alert, AlertIcon, AlertTitle, AlertDescription, VStack, Text, HStack } from '@chakra-ui/react';
+import { AxiosError } from 'axios'; // Asegúrate de importar AxiosError
+import { type FastAPIValidationError } from '../../types'; // O donde la definas
+
+interface ErrorDisplayProps {
+  // Ahora acepta el objeto de error real para extraer más detalles
+  error?: unknown;
+  message?: string; // Mensaje genérico de fallback si no se puede parsear el error
+}
+
+const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, message }) => {
+  let displayTitle = '¡Ocurrió un error!';
+  let displayMessage = message || 'Ha sucedido un problema inesperado.';
+  let detailMessage: string | null = null;
+  let statusCode: number | null = null;
+
+  if (error instanceof AxiosError) {
+    statusCode = error.response?.status || null;
+    displayTitle = `Error de la API (Código: ${statusCode || 'Desconocido'})`;
+
+    if (error.response?.data) {
+      // Intenta obtener el detalle del error de FastAPI
+      const errorData = error.response.data;
+      if (typeof errorData === 'object' && errorData !== null) {
+        if ('detail' in errorData) {
+          if (typeof errorData.detail === 'string') {
+            detailMessage = errorData.detail;
+          } else if (Array.isArray(errorData.detail)) {
+            // FastAPI a veces devuelve un array de errores de validación
+            detailMessage = errorData.detail.map((err: FastAPIValidationError) => 
+              `${err.loc.join('.')} - ${err.msg}`
+            ).join('; ');
+          } else {
+            detailMessage = JSON.stringify(errorData.detail); // Para otros formatos de detail
+          }
+        } else if ('message' in errorData) { // Algunas APIs usan 'message' en lugar de 'detail'
+          detailMessage = String(errorData.message);
+        } else {
+          detailMessage = JSON.stringify(errorData); // Fallback para mostrar todo el objeto
+        }
+      } else if (typeof errorData === 'string') {
+        detailMessage = errorData;
+      }
+    } else if (error.request) {
+      displayMessage = "No se recibió respuesta del servidor. Podría ser un problema de red o que el servidor no está corriendo.";
+    } else {
+      displayMessage = `Error al configurar la petición: ${error.message}`;
+    }
+  } else if (error instanceof Error) {
+    displayTitle = 'Error interno del cliente';
+    displayMessage = error.message;
+  }
+
+  // Si no se pudo obtener un detalle específico, usar el mensaje genérico
+  if (!detailMessage && message) {
+    detailMessage = message;
+  }
+  // Si sigue sin haber detalle, usar el mensaje de Axios si está disponible
+  if (!detailMessage && error instanceof AxiosError && error.message) {
+    detailMessage = error.message;
+  }
+
+
+  return (
+    <Alert status="error" variant="left-accent" flexDirection="column" alignItems="flex-start" justifyContent="center" textAlign="left" py={4} rounded="md" shadow="md">
+      <HStack>
+        <AlertIcon />
+        <AlertTitle mr={0}>{displayTitle}</AlertTitle>
+      </HStack>
+      <AlertDescription mt={2}>
+        <VStack align="flex-start" spacing={1}>
+          {displayMessage && <Text>{displayMessage}</Text>}
+          {detailMessage && <Text fontSize="sm" color="gray.600">Detalle: {detailMessage}</Text>}
+        </VStack>
+      </AlertDescription>
+    </Alert>
+  );
+};
+
+export default ErrorDisplay;
+</file>
+
+<file path="src/components/common/LoadingSpinner.tsx">
+import React from 'react';
+import { Box, Spinner, Text, VStack } from '@chakra-ui/react';
+
+const LoadingSpinner: React.FC = () => {
+  return (
+    <Box textAlign="center" py={10} px={6}>
+      <VStack spacing={4}>
+        <Spinner
+          thickness="4px"
+          speed="0.65s"
+          emptyColor="gray.200"
+          color="blue.500"
+          size="xl"
+        />
+        <Text fontSize="lg" color="gray.600">Cargando clases...</Text>
+      </VStack>
+    </Box>
+  );
+};
+
+export default LoadingSpinner;
+</file>
+
+<file path="src/components/dashboard/BookingCard.tsx">
+// src/components/dashboard/BookingCard.tsx
+import React from 'react';
+import { 
+  Box, Text, HStack, VStack, Icon, IconButton, useToast,
+  Flex, Stack, useBreakpointValue, Button
+} from '@chakra-ui/react';
+import { FiClock, FiX, FiUser, FiMapPin } from 'react-icons/fi';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import classService from '../../services/classService';
+import { getFormattedDateTime } from '../../utils/formatters';
+import type { Booking } from '../../types';
+
+interface BookingCardProps {
+  booking: Booking;
+  compact?: boolean;
+}
+
+const BookingCard: React.FC<BookingCardProps> = ({ booking, compact = false }) => {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const isMobile = useBreakpointValue({ base: true, md: false });
+  
+  // Extraer datos
+  const startDateTime = new Date(booking.class_session.starts_at);
+  const startTime = `${startDateTime.getHours().toString().padStart(2, '0')}:${startDateTime.getMinutes().toString().padStart(2, '0')}`;
+  const duration = booking.class_session.class_schedule?.gym_class?.duration_minutes || 60;
+  const className = booking.class_session.class_schedule?.gym_class?.first_name || 'Clase';
+  const teacherName = `${booking.class_session.class_schedule?.teacher.first_name} ${booking.class_session.class_schedule?.teacher.last_name}`.trim() || 'Instructor';
+  const endDateTime = new Date(startDateTime); 
+  endDateTime.setMinutes(startDateTime.getMinutes() + duration);
+  const endTime = `${endDateTime.getHours().toString().padStart(2, '0')}:${endDateTime.getMinutes().toString().padStart(2, '0')}`;
+
+  // Mutación para cancelar
+  const cancelMutation = useMutation({
+    mutationFn: () => classService.cancelBooking(booking.id),
+    onSuccess: () => {
+      toast({
+        title: 'Reserva cancelada',
+        status: 'success',
+        duration: 3000,
+      });
+      queryClient.invalidateQueries({ queryKey: ['myBookings'] });
+    },
+    onError: () => {
+      toast({
+        title: 'Error al cancelar',
+        description: 'No se pudo cancelar la reserva',
+        status: 'error',
+        duration: 3000,
+      });
+    }
+  });
+
+  // Versión compacta para calendario
+  if (compact) {
+    return (
+      <Box
+        bg="blue.50"
+        border="1px"
+        borderColor="blue.200"
+        borderRadius="md"
+        p={{ base: 2, md: 3 }}
+        fontSize={{ base: "xs", md: "sm" }}
+        position="relative"
+        _hover={{ bg: 'blue.100', cursor: 'pointer' }}
+        transition="all 0.2s"
+        onClick={() => {
+          if (isMobile) {
+            toast({
+              title: className,
+              description: `${startTime} - ${endTime} hs con ${teacherName}`,
+              status: 'info',
+              duration: 4000,
+              isClosable: true,
+            });
+          }
+        }}
+      >
+        <Text 
+          fontWeight="bold" 
+          color="blue.700" 
+          mb={1} 
+          noOfLines={1}
+          fontSize={{ base: "xs", md: "sm" }}
+        >
+          {className}
+        </Text>
+        <HStack justify="space-between">
+          <Text color="gray.600">{startTime} - {endTime} hs</Text>          
+          <Text color="gray.600"> {teacherName}</Text>
+        </HStack>
+      </Box>
+    );
+  }
+
+  // Versión completa
+  return (
+    <Box
+      p={{ base: 3, md: 4 }}
+      borderWidth="1px"
+      borderRadius="md"
+      bg="white"
+      shadow="sm"
+      _hover={{ shadow: 'md' }}
+      transition="all 0.2s"
+    >
+      <Stack
+        direction={{ base: 'column', md: 'row' }}
+        justify="space-between"
+        align={{ base: 'stretch', md: 'start' }}
+        spacing={{ base: 3, md: 4 }}
+      >
+        <VStack align="start" spacing={2} flex={1}>
+          <Text 
+            fontSize={{ base: "md", md: "lg" }} 
+            fontWeight="bold"
+            noOfLines={2}
+          >
+            {className}
+          </Text>
+          
+          <VStack align="start" spacing={1} w="100%">
+            <HStack fontSize={{ base: "sm", md: "md" }} color="gray.600">
+              <Icon as={FiUser} boxSize={{ base: 3, md: 4 }} />
+              <Text noOfLines={1}>{teacherName}</Text>
+            </HStack>
+            
+            <HStack fontSize={{ base: "sm", md: "md" }} color="gray.600">
+              <Icon as={FiClock} boxSize={{ base: 3, md: 4 }} />
+              <Text>{getFormattedDateTime(booking.class_session.starts_at)}</Text>
+            </HStack>
+            
+            <HStack fontSize={{ base: "sm", md: "md" }} color="gray.600">
+              <Icon as={FiMapPin} boxSize={{ base: 3, md: 4 }} />
+              <Text>Sala principal</Text>
+            </HStack>
+          </VStack>
+        </VStack>
+
+        <Flex 
+          direction={{ base: 'row', md: 'column' }}
+          justify={{ base: 'flex-end', md: 'start' }}
+          align={{ base: 'center', md: 'end' }}
+          gap={2}
+        >
+          {isMobile ? (
+            <Button
+              size="sm"
+              colorScheme="red"
+              variant="outline"
+              leftIcon={<FiX />}
+              onClick={() => cancelMutation.mutate()}
+              isLoading={cancelMutation.isPending}
+              minW="100px"
+            >
+              Cancelar
+            </Button>
+          ) : (
+            <IconButton
+              aria-label="Cancelar reserva"
+              icon={<FiX />}
+              size="sm"
+              colorScheme="red"
+              variant="ghost"
+              onClick={() => cancelMutation.mutate()}
+              isLoading={cancelMutation.isPending}
+            />
+          )}
+        </Flex>
+      </Stack>
+    </Box>
+  );
+};
+
+export default BookingCard;
+</file>
+
+<file path="src/components/dashboard/DocumentReminder.tsx">
+// src/components/dashboard/DocumentReminder.tsx
+import React from 'react';
+import { Alert, AlertIcon, AlertTitle, AlertDescription, Box } from '@chakra-ui/react';
+
+const DocumentReminder: React.FC = () => {
+  // Esto vendría de tu API
+  const hasMedicalCertificate = false;
+
+  if (hasMedicalCertificate) return null;
+
+  return (
+    <Alert status="info" borderRadius="md">
+      <AlertIcon />
+      <Box fontSize="sm">
+        <AlertTitle>Documentación</AlertTitle>
+        <AlertDescription>
+          Falta cargar revisión médica
+        </AlertDescription>
+      </Box>
+    </Alert>
+  );
+};
+
+export default DocumentReminder;
+</file>
+
+<file path="src/components/dashboard/NotificationPanel.tsx">
+// src/components/dashboard/NotificationPanel.tsx
+import React from 'react';
+import { 
+  Card, CardBody, VStack, Text, Progress, 
+  Skeleton, Alert, AlertIcon 
+} from '@chakra-ui/react';
+import { useAuth } from '../../context/useAuth';
+import { BookingStatus } from '../../types';
+
+const NotificationPanel: React.FC = () => {
+  const { userBookings = [], isLoadingBookings } = useAuth();
+  
+  // 🚀 Usar los datos que ya están en cache del AuthContext
+  // No hacer queries adicionales innecesarias
+  
+  const monthlyStats = React.useMemo(() => {
+    if (!userBookings) return { current: 0, limit: 10, percentage: 0 };
+    
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
+    const classesThisMonth = userBookings.filter(booking => {
+      const bookingDate = new Date(booking.class_session.starts_at);
+      return (
+        bookingDate.getMonth() === currentMonth &&
+        bookingDate.getFullYear() === currentYear &&
+        booking.status === BookingStatus.CONFIRMED
+      );
+    }).length;
+
+    const monthlyLimit = 10; // Esto vendría de tu API de perfil/plan
+    const percentage = Math.min((classesThisMonth / monthlyLimit) * 100, 100);
+    
+    return {
+      current: classesThisMonth,
+      limit: monthlyLimit,
+      percentage
+    };
+  }, [userBookings]);
+
+  if (isLoadingBookings) {
+    return (
+      <Card size="sm">
+        <CardBody>
+          <VStack spacing={3} align="stretch">
+            <Skeleton height="16px" />
+            <Skeleton height="8px" />
+            <Skeleton height="12px" />
+          </VStack>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  const { current, limit, percentage } = monthlyStats;
+  const isNearLimit = percentage > 80;
+  const colorScheme = isNearLimit ? "orange" : percentage > 60 ? "yellow" : "green";
+
+  return (
+    <Card size="sm">
+      <CardBody>
+        <VStack spacing={3} align="stretch">
+          <Text fontWeight="bold" fontSize="sm">Estado de Cuenta</Text>
+          
+          <Progress 
+            value={percentage} 
+            colorScheme={colorScheme} 
+            size="sm" 
+            borderRadius="full"
+            bg="gray.100"
+          />
+          
+          <Text fontSize="xs" color="gray.600">
+            {current} de {limit} clases utilizadas este mes
+          </Text>
+          
+          {isNearLimit && (
+            <Alert status="warning" size="sm" borderRadius="md">
+              <AlertIcon boxSize={3} />
+              <Text fontSize="xs">
+                Te quedan {limit - current} clases este mes
+              </Text>
+            </Alert>
+          )}
+        </VStack>
+      </CardBody>
+    </Card>
+  );
+};
+
+export default NotificationPanel;
+</file>
+
+<file path="src/components/dashboard/PaymentReminder.tsx">
+// src/components/dashboard/PaymentReminder.tsx
+import React from 'react';
+import { Alert, AlertIcon, AlertTitle, AlertDescription, Box } from '@chakra-ui/react';
+
+const PaymentReminder: React.FC = () => {
+  // Esto vendría de tu API
+  const daysUntilDue = 7;
+  const hasPaymentDue = daysUntilDue <= 7;
+
+  if (!hasPaymentDue) return null;
+
+  return (
+    <Alert status="warning" borderRadius="md">
+      <AlertIcon />
+      <Box fontSize="sm">
+        <AlertTitle>¡Cuota por vencer!</AlertTitle>
+        <AlertDescription>
+          Tu cuota vence en {daysUntilDue} días
+        </AlertDescription>
+      </Box>
+    </Alert>
+  );
+};
+
+export default PaymentReminder;
+</file>
+
+<file path="src/components/dashboard/UpcomingEvents.tsx">
+// src/components/dashboard/UpcomingEvents.tsx
+import React from 'react';
+import { 
+  Card, CardBody, VStack, Text, Divider, HStack, Icon, Box,
+  Skeleton, Alert, AlertIcon
+} from '@chakra-ui/react';
+import { FiClock, FiCalendar, FiTrendingUp } from 'react-icons/fi';
+
+// Tipo para eventos (esto vendría de tu API más adelante)
+interface Event {
+  id: number;
+  name: string;
+  date: string;
+  time: string;
+  type: 'tournament' | 'workshop' | 'special';
+}
+
+const UpcomingEvents: React.FC = () => {
+  // 🚀 TanStack Query para eventos futuros (por ahora mock data)
+  // const { data: events = [], isLoading } = useQuery({
+  //   queryKey: ['upcomingEvents'],
+  //   queryFn: () => classService.getUpcomingEvents(),
+  //   staleTime: 10 * 60 * 1000, // 10 minutos
+  // });
+
+  // Mock data por ahora
+  const isLoading = false;
+  const events: Event[] = [
+    { 
+      id: 1, 
+      name: 'Torneo CrossFit', 
+      date: '15 Oct', 
+      time: '18:00',
+      type: 'tournament'
+    },
+    { 
+      id: 2, 
+      name: 'Workshop Nutrición', 
+      date: '20 Oct', 
+      time: '10:00',
+      type: 'workshop'
+    },
+    { 
+      id: 3, 
+      name: 'Clase Especial Yoga', 
+      date: '25 Oct', 
+      time: '19:00',
+      type: 'special'
+    }
+  ];
+
+  const getEventIcon = (type: Event['type']) => {
+    switch (type) {
+      case 'tournament': return FiTrendingUp;
+      case 'workshop': return FiCalendar;
+      default: return FiClock;
+    }
+  };
+
+  const getEventColor = (type: Event['type']) => {
+    switch (type) {
+      case 'tournament': return 'orange.500';
+      case 'workshop': return 'green.500';
+      default: return 'blue.500';
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card size="sm">
+        <CardBody>
+          <VStack spacing={2} align="stretch">
+            <Skeleton height="20px" />
+            <Skeleton height="40px" />
+            <Skeleton height="40px" />
+          </VStack>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <Alert status="info" borderRadius="md">
+        <AlertIcon />
+        <Text fontSize="sm">No hay eventos próximos</Text>
+      </Alert>
+    );
+  }
+
+  return (
+    <Card size="sm">
+      <CardBody>
+        <VStack spacing={3} align="stretch">
+          <Text fontWeight="bold" fontSize="sm">Próximos Eventos</Text>
+          <Divider />
+          
+          <VStack spacing={3} align="stretch">
+            {events.slice(0, 3).map(event => ( // Solo mostrar 3 eventos
+              <HStack key={event.id} spacing={3}>
+                <Icon 
+                  as={getEventIcon(event.type)} 
+                  color={getEventColor(event.type)}
+                  boxSize={4}
+                />
+                <Box flex={1} fontSize="xs">
+                  <Text fontWeight="medium" noOfLines={1}>
+                    {event.name}
+                  </Text>
+                  <Text color="gray.500">
+                    {event.date} - {event.time}
+                  </Text>
+                </Box>
+              </HStack>
+            ))}
+          </VStack>
+        </VStack>
+      </CardBody>
+    </Card>
+  );
+};
+
+export default UpcomingEvents;
+</file>
+
+<file path="src/components/dashboard/WeeklyCalendar.tsx">
+// src/components/dashboard/WeeklyCalendar.tsx
+import React from 'react';
+import {
+  Table, Thead, Tbody, Tr, Th, Td,
+  VStack, Text, Box, useBreakpointValue,
+  Heading
+} from '@chakra-ui/react';
+import BookingCard from './BookingCard';
+import { getFormattedDate } from '../../utils/formatters';
+import type { Booking } from '../../types'; // ✅ Tipo específico, no any
+
+interface WeeklyCalendarProps {
+  weekDays: Date[];
+  bookings: Booking[]; // ✅ Tipo específico
+}
+
+const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ weekDays, bookings }) => {
+  const isMobile = useBreakpointValue({ base: true, md: false });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const getBookingsForDay = (day: Date): Booking[] => {
+    const dayStr = getFormattedDate(day);
+    return bookings.filter(booking => {
+      const bookingDate = getFormattedDate(booking.class_session.starts_at);
+      return bookingDate === dayStr;
+    }).sort((a, b) => 
+      new Date(a.class_session.starts_at).getTime() - 
+      new Date(b.class_session.starts_at).getTime()
+    );
+  };
+
+  const getDayName = (date: Date): string => {
+    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    return days[date.getDay()];
+  };
+
+  const isToday = (date: Date): boolean => {
+    const dateStr = getFormattedDate(date);
+    const todayStr = getFormattedDate(today);
+    return dateStr === todayStr;
+  };
+
+  // Vista móvil: lista vertical
+  if (isMobile) {
+    return (
+      <VStack spacing={4} align="stretch">
+        {weekDays.map(day => {
+          const dayBookings = getBookingsForDay(day);
+          const dayName = getDayName(day);
+          const isTodayFlag = isToday(day);
+          
+          return (
+            <Box key={day.toISOString()}>
+              <Heading 
+                size="sm" 
+                mb={2}
+                color={isTodayFlag ? 'blue.500' : 'gray.700'}
+              >
+                {dayName} {day.getDate()}
+                {isTodayFlag && <Text as="span" ml={2} fontSize="xs">(Hoy)</Text>}
+              </Heading>
+              
+              {dayBookings.length === 0 ? (
+                <Text fontSize="sm" color="gray.400" ml={4}>
+                  Sin clases
+                </Text>
+              ) : (
+                <VStack spacing={2} align="stretch" pl={2}>
+                  {dayBookings.map(booking => (
+                    <BookingCard 
+                      key={booking.id} 
+                      booking={booking} 
+                      compact={true}
+                    />
+                  ))}
+                </VStack>
+              )}
+            </Box>
+          );
+        })}
+      </VStack>
+    );
+  }
+
+  // Vista desktop: tabla
+  return (
+    <Table variant="simple" size="sm">
+      <Thead>
+        <Tr>
+          {weekDays.map(day => (
+            <Th key={day.toISOString()} textAlign="center" p={2}>
+              <VStack spacing={1}>
+                <Text fontSize="xs" color="gray.500">
+                  {getDayName(day)}
+                </Text>
+                <Text 
+                  fontSize="lg" 
+                  fontWeight="bold"
+                  color={isToday(day) ? 'blue.500' : 'gray.700'}
+                >
+                  {day.getDate()}
+                </Text>
+              </VStack>
+            </Th>
+          ))}
+        </Tr>
+      </Thead>
+      <Tbody>
+        <Tr>
+          {weekDays.map(day => {
+            const dayBookings = getBookingsForDay(day);
+            return (
+              <Td key={day.toISOString()} p={2} verticalAlign="top">
+                <VStack spacing={2} align="stretch" minH="120px">
+                  {dayBookings.length === 0 ? (
+                    <Text fontSize="xs" color="gray.400" textAlign="center">
+                      Sin clases
+                    </Text>
+                  ) : (
+                    dayBookings.map(booking => (
+                      <BookingCard 
+                        key={booking.id} 
+                        booking={booking} 
+                        compact={true}
+                      />
+                    ))
+                  )}
+                </VStack>
+              </Td>
+            );
+          })}
+        </Tr>
+      </Tbody>
+    </Table>
+  );
+};
+
+export default WeeklyCalendar;
+</file>
+
+<file path="src/components/Footer/Footer.tsx">
+import { Box, Text } from '@chakra-ui/react';
+
+export const Footer: React.FC =() => {
+  return (
+    <Box as="footer" bg="gray.700" color="gray.200" py={4} mt="auto">
+      <Text textAlign="center">
+        &copy; {new Date().getFullYear()} FitFlow. Todos los derechos reservados.
+      </Text>
+    </Box>
+  );
+};
+</file>
+
+<file path="src/components/landing/ActivitiesSection.tsx">
+import { Box, Grid, GridItem, Heading, Text, VStack, Image } from '@chakra-ui/react';
+
+const activitiesData = [
+    // ... (datos de las actividades que te proporcioné anteriormente)
+    {
+        title: 'Yoga & Meditación',
+        description: 'Encuentra tu centro y mejora tu flexibilidad en nuestras clases para todos los niveles.',
+        image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?q=80&w=1200'
+    },
+    {
+        title: 'CrossFit de Alta Intensidad',
+        description: 'Supera tus límites con entrenamientos funcionales y desafiantes.',
+        image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=1200'
+    },
+    {
+        title: 'Spinning Energético',
+        description: 'Quema calorías y fortalece tu sistema cardiovascular al ritmo de la mejor música.',
+        image: 'https://images.unsplash.com/photo-1594882645126-14020914d58d?q=80&w=1200'
+    },
+    {
+        title: 'Boxeo y Artes Marciales',
+        description: 'Aprende técnicas de defensa personal mientras mejoras tu condición física.',
+        image: 'https://images.unsplash.com/photo-1593352222389-68128b9df32a?q=80&w=1200'
+    },
+    {
+        title: 'Musculación y Pesas',
+        description: 'Desarrolla tu fuerza y tonifica tu cuerpo en nuestra completa área de pesas.',
+        image: 'https://images.unsplash.com/photo-1581009137042-c552e485697a?q=80&w=1200'
+    },
+];
+
+const ActivitiesSection = () => {
+  return (
+    <Box bg="gray.50" py={{ base: 16, md: 24 }}>
+      <Grid
+        templateColumns={{ base: '1fr', lg: '1fr 1.5fr' }}
+        gap={{ base: 8, lg: 16 }}
+        maxWidth="1280px"
+        mx="auto"
+        px={{ base: 4, md: 8 }}
+      >
+        <GridItem position={{ lg: 'sticky' }} top="100px" alignSelf="start" height="auto">
+          <VStack spacing={6} align="start" textAlign={{ base: "center", lg: "left" }}>
+            <Heading as="h2" size={{ base: '2xl', md: '3xl' }} color="gray.800">
+              Todas las actividades que buscas.
+            </Heading>
+            <Text fontSize="xl" color="gray.600">
+              Desde entrenamientos de alta intensidad hasta clases de relajación, en FitFlow tenemos algo para ti. Explora nuestras opciones y encuentra tu pasión.
+            </Text>
+          </VStack>
+        </GridItem>
+
+        <GridItem>
+          <VStack spacing={8}>
+            {activitiesData.map((activity, index) => (
+              <Box
+                key={index}
+                bg="white"
+                borderRadius="lg"
+                boxShadow="md"
+                overflow="hidden"
+                width="full"
+                transition="transform 0.2s, box-shadow 0.2s"
+                _hover={{ transform: 'scale(1.02)', boxShadow: 'xl' }}
+              >
+                <Image src={activity.image} alt={activity.title} objectFit="cover" height="250px" width="full" />
+                <Box p={6}>
+                  <Heading as="h3" size="lg" mb={2}>{activity.title}</Heading>
+                  <Text color="gray.600">{activity.description}</Text>
+                </Box>
+              </Box>
+            ))}
+          </VStack>
+        </GridItem>
+      </Grid>
+    </Box>
+  );
+};
+
+export default ActivitiesSection;
+</file>
+
+<file path="src/components/landing/InfiniteCarousel.tsx">
+import { useState, useEffect } from 'react';
+import { Box, Button, Flex, Heading, Text, VStack, HStack } from '@chakra-ui/react';
+import { Link as RouterLink } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Los mismos datos que ya teníamos
+const carouselSlides = [
+    {
+        image: 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1600',
+        title: 'Planes a Tu Medida',
+        subtitle: 'Encuentra la membresía perfecta para alcanzar tus objetivos.',
+        buttonText: 'Ver Planes',
+        link: '/plans',
+    },
+    {
+        image: 'https://images.unsplash.com/photo-1540496905036-5937c3624e5s?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1600',
+        title: 'Clases y Horarios Flexibles',
+        subtitle: 'Yoga, Spinning, CrossFit y más. Encuentra tu clase ideal.',
+        buttonText: 'Ver Horarios',
+        link: '/classes',
+    },
+    {
+        image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1600',
+        title: 'Súmate a Nuestro Equipo',
+        subtitle: 'Buscamos personas apasionadas por el fitness para crecer juntos.',
+        buttonText: 'Únete Ahora',
+        link: '/join-us',
+    },
+    {
+        image: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1600',
+        title: 'Nutrición Inteligente',
+        subtitle: 'Asesoramiento para complementar tu entrenamiento con la mejor alimentación.',
+        buttonText: 'Organiza tu Alimentación',
+        link: '/nutrition',
+    }
+];
+
+// 1. Definimos las variantes de animación para la transición
+const slideVariants = {
+  enter: {
+    opacity: 0,
+    x: '100vw',
+  },
+  center: {
+    zIndex: 1,
+    opacity: 1,
+    x: 0,
+  },
+  exit: {
+    zIndex: 0,
+    opacity: 0,
+    x: '-100vw',
+  },
+};
+
+const InfiniteCarousel = () => {
+  // 2. Estado para saber qué diapositiva está activa
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  // 3. useEffect para el cambio automático de diapositiva
+  useEffect(() => {
+    const slideInterval = setInterval(() => {
+      // Usamos el operador de módulo para volver al inicio
+      setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
+    }, 6000); // Cambia cada 6 segundos
+
+    // Limpiamos el intervalo cuando el componente se desmonta
+    return () => clearInterval(slideInterval);
+  }, []); // El array vacío asegura que esto solo se ejecute una vez
+
+  // Función para cambiar de diapositiva manualmente
+  const goToSlide = (slideIndex: number) => {
+    setCurrentSlide(slideIndex);
+  };
+
+  return (
+    <Box position="relative" width="full" height="calc(100vh - 64px)" overflow="hidden">
+      {/* 4. AnimatePresence es la clave para animar la salida de un componente */}
+      <AnimatePresence initial={false} mode="wait">
+        <motion.div
+          key={currentSlide} // La key es crucial para que AnimatePresence detecte el cambio
+          variants={slideVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{
+            x: { type: 'spring', stiffness: 300, damping: 30 },
+            opacity: { duration: 0.3 },
+          }}
+          style={{
+            position: 'absolute',
+            width: '100%',
+            height: '100%',
+          }}
+        >
+          <Flex
+            width="100%"
+            height="100%"
+            align="center"
+            justify="center"
+            bgImage={`url(${carouselSlides[currentSlide].image})`}
+            bgPosition="center"
+            bgSize="cover"
+          >
+            <Box position="absolute" top="0" left="0" right="0" bottom="0" bg="blackAlpha.600" />
+            <VStack
+              justify="center"
+              align="center"
+              color="white"
+              textAlign="center"
+              spacing={6}
+              position="relative"
+              px={4}
+              zIndex={2}
+            >
+              <Heading as="h1" size={{ base: '2xl', md: '4xl' }} textShadow="2px 2px 4px rgba(0,0,0,0.5)">
+                {carouselSlides[currentSlide].title}
+              </Heading>
+              <Text fontSize={{ base: 'lg', md: '2xl' }} maxWidth="700px" textShadow="1px 1px 3px rgba(0,0,0,0.5)">
+                {carouselSlides[currentSlide].subtitle}
+              </Text>
+              <Button as={RouterLink} to={carouselSlides[currentSlide].link} colorScheme="teal" size="lg" mt={4}>
+                {carouselSlides[currentSlide].buttonText}
+              </Button>
+            </VStack>
+          </Flex>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* 5. La "barra de desplazamiento" (puntos de navegación) */}
+      <HStack
+        justify="center"
+        spacing={4}
+        position="absolute"
+        bottom="40px"
+        width="full"
+        zIndex={3}
+      >
+        {carouselSlides.map((_, index) => (
+          <Box
+            key={index}
+            as="button"
+            width={currentSlide === index ? '24px' : '12px'} // El punto activo es más ancho
+            height="12px"
+            borderRadius="full"
+            bg={currentSlide === index ? 'teal.400' : 'whiteAlpha.600'}
+            onClick={() => goToSlide(index)}
+            transition="all 0.3s ease-in-out"
+          />
+        ))}
+      </HStack>
+    </Box>
+  );
+};
+
+export default InfiniteCarousel;
+</file>
+
+<file path="src/components/layout/Layout.tsx">
+import { Outlet } from 'react-router-dom';
+import { Box, Flex, PortalManager } from '@chakra-ui/react';
+import { Navbar } from './Navbar';
+import { Footer } from '../Footer/Footer';
+
+export const Layout: React.FC = () => {
+  return (
+    <Flex direction="column" minH="100vh" >
+      <PortalManager>
+        <Navbar />
+        <Box as="main" flex="1" width="100%">
+          {/* El contenido de cada página se renderizará aquí */}
+          <Outlet />
+        </Box>
+        <Footer />
+      </PortalManager>    
+    </Flex>
+  );
+};
+</file>
+
+<file path="src/components/layout/Navbar.tsx">
+import { 
+  Box, 
+  Flex, 
+  Heading, 
+  HStack, 
+  Link, 
+  IconButton, 
+  useDisclosure,
+  Drawer,
+  DrawerOverlay,
+  DrawerContent,
+  DrawerHeader,
+  DrawerBody,
+  VStack,
+  Spacer,
+  Button,
+  Container,
+  DrawerCloseButton
+} from '@chakra-ui/react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { HamburgerIcon } from '@chakra-ui/icons';
+import { useAuth } from '../../context/useAuth';
+
+export const Navbar = () => {
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const navigate = useNavigate();
+  //Obtenemos el rol y la función logout del contexto
+  const { userRole, logout } = useAuth();
+
+  // --- Handlers ---  
+
+  const handleDrawerNavigate = (path: string) => {
+    onClose(); // Cierra la UI primero
+    setTimeout(() => {
+      navigate(path); // Navega después de un pequeño retardo
+    }, 150);
+    };
+  const logoutUser = () => {
+    logout();
+    navigate('/login');
+  };
+  
+  return (
+    <Box bg="gray.800" color="white" width="100%" position="sticky" top="0" zIndex="sticky">
+      <Container maxW="container.xl" px={4}>
+        <Flex h={16} alignItems="center">
+          <Heading as={RouterLink} to="landing" size="md">
+            FitFlow
+          </Heading>
+
+          {/* ENLACES DE NAVEGACIÓN PARA DESKTOP */}
+          <HStack as='nav' spacing={5} ml={10} display={{ base: 'none', md: 'flex' }}>
+            <Link as={RouterLink} to="/">Inicio</Link>
+            {userRole === 'client' && (
+              <Link as={RouterLink} to="/home">
+                Mi Perfil
+              </Link>
+            )}
+            
+            <Link as={RouterLink} to="/classes">
+                Clases
+            </Link>            
+          </HStack>
+
+          <Spacer />
+
+          {/* 3. BOTONES DINÁMICOS PARA DESKTOP */}
+          <HStack spacing={4} display={{ base: 'none', md: 'flex' }}>
+            {userRole ? (
+              // Si el usuario está logueado, muestra el botón de Logout
+              <Button colorScheme="red" variant="solid" onClick={logoutUser}>
+                Cerrar Sesión
+              </Button>
+            ) : (
+              // Si no, muestra los botones de Login y Registro
+              <>
+                <Button as = {RouterLink} to='/login' colorScheme="teal" variant="solid"> 
+                  Iniciar Sesión
+                </Button>
+                <Button as = {RouterLink} to='/register' colorScheme="teal" variant="solid">
+                  Registrarse
+                </Button>
+              </>
+            )}
+          </HStack>
+
+          {/* BOTÓN DE MENÚ HAMBURGUESA PARA MÓVIL */}
+          <IconButton
+            size="md"
+            icon={<HamburgerIcon />}
+            aria-label="Open Menu"
+            display={{ base: 'flex', md: 'none' }}
+            onClick={onOpen}
+          />
+        </Flex>
+      </Container>
+
+      {/* MENÚ LATERAL (DRAWER) PARA MÓVIL */}
+      <Drawer placement="right" onClose={onClose} isOpen={isOpen}>
+        <DrawerOverlay />
+        <DrawerContent bg="gray.800" color="white">
+          <DrawerCloseButton />
+          <DrawerHeader borderBottomWidth="1px">Menú</DrawerHeader>
+          <DrawerBody>
+            <VStack spacing={4} align="stretch" mt={4}>
+              <Link onClick={() => handleDrawerNavigate('/')}>Inicio</Link>
+              {userRole === 'client' && (
+              <Link onClick={() => handleDrawerNavigate('/home')}>
+                Mi Perfil
+              </Link>
+              )}
+              <Link onClick={() => handleDrawerNavigate('/classes')}>Clases</Link>                            
+              <Spacer />
+
+              {/* 5. BOTONES DINÁMICOS PARA MÓVIL */}
+              {userRole ? (
+                // Si el usuario está logueado
+                <Button
+                  colorScheme="red"
+                  w="100%"
+                  onClick={() => {
+                    onClose(); // Primero cierra la UI
+                    setTimeout(logoutUser, 150); // Luego, con un retardo, ejecuta la lógica de la app
+                  }}
+                >
+                  Cerrar Sesión
+                </Button>
+              ) : (
+                // Si no está logueado
+                <>
+                  <Button colorScheme="teal" variant="solid" w="100%" onClick={() => handleDrawerNavigate('/login')}>
+                    Iniciar Sesión
+                  </Button>
+                  <Button colorScheme="teal" variant="outline" w="100%" onClick={() => handleDrawerNavigate('/register')}>
+                    Registrarse
+                  </Button>
+                </>
+              )}
+            </VStack>
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
+    </Box>
+  );
+};
+</file>
+
+<file path="src/context/AuthContext.tsx">
+import { createContext } from "react";
+import type { User, UserRole, Booking, Client } from "../types";
+
+// Debes mantener el tipo sincronizado con el value de tu provider
+export interface AuthContextType {
+  token: string | null;
+  currentUser: User | null;
+  currentClient: Client | null;
+  userRole: UserRole | null;
+  isAuthenticated: boolean;
+  isClient: boolean;
+  isTrainer: boolean;
+  isAdmin: boolean;
+  login: (accessToken: string) => void;
+  logout: () => void;
+  userBookings: Booking[] | undefined;
+  isLoadingBookings: boolean;
+  isLoadingAuth: boolean;
+}
+
+// Solo define y exporta el contexto (sin provider ni lógica de estado aquí)
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+</file>
+
+<file path="src/context/AuthProvider.tsx">
+import React, { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { jwtDecode } from "jwt-decode";
+import apiClient from "../services/api";
+import classService from "../services/classService";
+import { AuthContext } from "./AuthContext";
+import type { User, TokenPayload, UserRole, Booking, Client } from "../types";
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+// Componente Provider que maneja la lógica de autenticación y provee el contexto
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [token, setToken] = useState<string | null>(localStorage.getItem("access_token"));
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [currentClient, SetCurrentClient] = useState<Client | null> (null);
+  const queryClient = useQueryClient();
+
+  // Decodifica el accessToken y setea el usuario y rol
+  const decodeToken = useCallback((accessToken: string | null) => {
+    if (!accessToken) {
+      setCurrentUser(null);
+      setUserRole(null);
+      setIsLoadingAuth(false);
+      delete apiClient.defaults.headers.common["Authorization"];
+      return;
+    }
+    try {
+      const decoded: TokenPayload = jwtDecode(accessToken);
+      setCurrentUser({ email: decoded.sub!, role: decoded.role! });
+      setUserRole(decoded.role || null);
+      apiClient.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
+    } catch (error) {
+      // Manejo de error si el token está corrupto o expiró
+      console.error("Failed to decode token:", error);
+      localStorage.removeItem("access_token");
+      setToken(null);
+      setCurrentUser(null);
+      setUserRole(null);
+      delete apiClient.defaults.headers.common["Authorization"];
+    } finally {
+      setIsLoadingAuth(false);
+    }
+  }, []);
+
+  // Al montar, intenta rehidratar el token y usuario desde localStorage
+  useEffect(() => {
+    const storedToken = localStorage.getItem("access_token");
+    setToken(storedToken);
+    decodeToken(storedToken);
+    if (!storedToken) setIsLoadingAuth(false); // Si no hay token, termina la carga inicial
+  }, [decodeToken]);
+
+  // Login: guarda el token y decodifica
+  const login = (accessToken: string) => {
+    localStorage.setItem("access_token", accessToken);
+    setToken(accessToken);
+    decodeToken(accessToken);
+    queryClient.invalidateQueries({ queryKey: ["myBookings"] });
+    queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
+  };
+
+  // Logout: limpia todo el estado y la cache de queries
+  const logout = () => {
+    localStorage.removeItem("access_token");
+    setToken(null);
+    setCurrentUser(null);
+    setUserRole(null);
+    delete apiClient.defaults.headers.common["Authorization"];
+    queryClient.clear();
+  };
+
+  const isAuthenticated = !!token && !!currentUser;
+  const isClient = userRole === "client";
+  const isTrainer = userRole === "trainer";
+  const isAdmin = userRole === "admin";
+
+  // TanStack Query obtiene los bookings SOLO si está autenticado y es cliente
+  const { data: userBookings, isLoading: isLoadingBookings } = useQuery<Booking[]>({
+    queryKey: ["myBookings"],
+    queryFn: () => {
+    return classService.getMyBookings();
+    },    
+    enabled: isAuthenticated && isClient,
+  });
+
+  const value = {
+    token,
+    currentClient,
+    currentUser,
+    userRole,
+    isAuthenticated,
+    isClient,
+    isTrainer,
+    isAdmin,
+    login,
+    logout,
+    userBookings,
+    isLoadingBookings,
+    isLoadingAuth,
+  };
+
+  if (isLoadingAuth) {
+    // Puedes poner aquí tu spinner o Skeleton si lo prefieres
+    return null;
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+</file>
+
+<file path="src/context/useAuth.tsx">
+import { useContext } from "react";
+import { AuthContext } from "./AuthContext";
+
+// Hook especializado para consumir el AuthContext de forma segura
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+}
+</file>
+
+<file path="src/pages/admin/AdminDashboardPage.tsx">
+import { Box, Heading, Text } from '@chakra-ui/react';
+
+const AdminDashboardPage = () => {
+  return (
+    <Box>
+      <Heading as="h1" mb={4}>Bienvenido al Panel de Administración</Heading>
+      <Text>Selecciona una opción en el menú lateral para comenzar a gestionar el gimnasio.</Text>
+    </Box>
+  );
+};
+
+export default AdminDashboardPage;
+</file>
+
+<file path="src/pages/admin/ClientsPage.tsx">
+import {
+  Box,
+  Heading,
+  Button,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  IconButton,
+  HStack,
+  Badge,
+  VStack,
+  Text,
+  useToast
+} from '@chakra-ui/react';
+import { AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
+
+// Datos de ejemplo
+const clientsData = [
+  { id: 1, name: 'Juan Pérez', email: 'juan.perez@email.com', status: 'Activo' },
+  { id: 2, name: 'Ana Gómez', email: 'ana.gomez@email.com', status: 'Inactivo' },
+  { id: 3, name: 'Carlos Ruiz', email: 'carlos.ruiz@email.com', status: 'Activo' },
+];
+
+const ClientsPage = () => {
+  const toast = useToast();
+
+  const handleAdd = () => toast({ title: "Funcionalidad 'Añadir' no implementada.", status: 'info' });
+  const handleEdit = (id: number) => toast({ title: `Funcionalidad 'Editar' cliente ${id} no implementada.`, status: 'info' });
+  const handleDelete = (id: number) => toast({ title: `Funcionalidad 'Eliminar' cliente ${id} no implementada.`, status: 'warning' });
+
+  return (
+    <Box>
+      <HStack justifyContent="space-between" mb={6}>
+        <Heading as="h1" size="lg">Gestionar Clientes</Heading>
+        <Button leftIcon={<AddIcon />} colorScheme="teal" onClick={handleAdd}>
+          Añadir Cliente
+        </Button>
+      </HStack>
+
+      {/* --- VISTA DE TABLA PARA ESCRITORIO --- */}
+      <Box display={{ base: 'none', md: 'block' }} bg="white" borderRadius="md" boxShadow="md">
+        <Table variant="simple">
+          <Thead>
+            <Tr>
+              <Th>Nombre</Th>
+              <Th>Email</Th>
+              <Th>Estado</Th>
+              <Th>Acciones</Th>
+            </Tr>
+          </Thead>
+          <Tbody>
+            {clientsData.map((client) => (
+              <Tr key={client.id}>
+                <Td>{client.name}</Td>
+                <Td>{client.email}</Td>
+                <Td>
+                  <Badge colorScheme={client.status === 'Activo' ? 'green' : 'red'}>
+                    {client.status}
+                  </Badge>
+                </Td>
+                <Td>
+                  <HStack spacing={2}>
+                    <IconButton icon={<EditIcon />} aria-label="Editar cliente" size="sm" onClick={() => handleEdit(client.id)} />
+                    <IconButton icon={<DeleteIcon />} aria-label="Eliminar cliente" size="sm" colorScheme="red" onClick={() => handleDelete(client.id)} />
+                  </HStack>
+                </Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
+      </Box>
+
+      {/* --- VISTA DE TARJETAS PARA MÓVIL --- */}
+      <VStack spacing={4} display={{ base: 'block', md: 'none' }}>
+        {clientsData.map((client) => (
+          <Box key={client.id} p={4} bg="white" borderRadius="md" boxShadow="md" w="full">
+            <HStack justifyContent="space-between">
+              <Text fontWeight="bold">{client.name}</Text>
+              <Badge colorScheme={client.status === 'Activo' ? 'green' : 'red'}>
+                {client.status}
+              </Badge>
+            </HStack>
+            <Text fontSize="sm" color="gray.500">{client.email}</Text>
+            <HStack spacing={2} mt={4} justifyContent="flex-end">
+              <IconButton icon={<EditIcon />} aria-label="Editar cliente" size="sm" onClick={() => handleEdit(client.id)} />
+              <IconButton icon={<DeleteIcon />} aria-label="Eliminar cliente" size="sm" colorScheme="red" onClick={() => handleDelete(client.id)} />
+            </HStack>
+          </Box>
+        ))}
+      </VStack>
+    </Box>
+  );
+};
+
+export default ClientsPage;
+</file>
+
+<file path="src/pages/admin/CrudClassesPage.tsx">
+import {
+  Box,
+  Heading,
+  Button,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  IconButton,
+  HStack,
+  Badge,
+  VStack,
+  Text,
+  useToast
+} from '@chakra-ui/react';
+import { AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
+
+// Datos de ejemplo
+const clientsData = [
+  { id: 1, name: 'Juan Pérez', email: 'juan.perez@email.com', status: 'Activo' },
+  { id: 2, name: 'Ana Gómez', email: 'ana.gomez@email.com', status: 'Inactivo' },
+  { id: 3, name: 'Carlos Ruiz', email: 'carlos.ruiz@email.com', status: 'Activo' },
+];
+
+const ClassesPage = () => {
+  const toast = useToast();
+
+  const handleAdd = () => toast({ title: "Funcionalidad 'Añadir' no implementada.", status: 'info' });
+  const handleEdit = (id: number) => toast({ title: `Funcionalidad 'Editar' cliente ${id} no implementada.`, status: 'info' });
+  const handleDelete = (id: number) => toast({ title: `Funcionalidad 'Eliminar' cliente ${id} no implementada.`, status: 'warning' });
+
+  return (
+    <Box>
+      <HStack justifyContent="space-between" mb={6}>
+        <Heading as="h1" size="lg">Gestionar Clientes</Heading>
+        <Button leftIcon={<AddIcon />} colorScheme="teal" onClick={handleAdd}>
+          Añadir Cliente
+        </Button>
+      </HStack>
+
+      {/* --- VISTA DE TABLA PARA ESCRITORIO --- */}
+      <Box display={{ base: 'none', md: 'block' }} bg="white" borderRadius="md" boxShadow="md">
+        <Table variant="simple">
+          <Thead>
+            <Tr>
+              <Th>Nombre</Th>
+              <Th>Email</Th>
+              <Th>Estado</Th>
+              <Th>Acciones</Th>
+            </Tr>
+          </Thead>
+          <Tbody>
+            {clientsData.map((client) => (
+              <Tr key={client.id}>
+                <Td>{client.name}</Td>
+                <Td>{client.email}</Td>
+                <Td>
+                  <Badge colorScheme={client.status === 'Activo' ? 'green' : 'red'}>
+                    {client.status}
+                  </Badge>
+                </Td>
+                <Td>
+                  <HStack spacing={2}>
+                    <IconButton icon={<EditIcon />} aria-label="Editar cliente" size="sm" onClick={() => handleEdit(client.id)} />
+                    <IconButton icon={<DeleteIcon />} aria-label="Eliminar cliente" size="sm" colorScheme="red" onClick={() => handleDelete(client.id)} />
+                  </HStack>
+                </Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
+      </Box>
+
+      {/* --- VISTA DE TARJETAS PARA MÓVIL --- */}
+      <VStack spacing={4} display={{ base: 'block', md: 'none' }}>
+        {clientsData.map((client) => (
+          <Box key={client.id} p={4} bg="white" borderRadius="md" boxShadow="md" w="full">
+            <HStack justifyContent="space-between">
+              <Text fontWeight="bold">{client.name}</Text>
+              <Badge colorScheme={client.status === 'Activo' ? 'green' : 'red'}>
+                {client.status}
+              </Badge>
+            </HStack>
+            <Text fontSize="sm" color="gray.500">{client.email}</Text>
+            <HStack spacing={2} mt={4} justifyContent="flex-end">
+              <IconButton icon={<EditIcon />} aria-label="Editar cliente" size="sm" onClick={() => handleEdit(client.id)} />
+              <IconButton icon={<DeleteIcon />} aria-label="Eliminar cliente" size="sm" colorScheme="red" onClick={() => handleDelete(client.id)} />
+            </HStack>
+          </Box>
+        ))}
+      </VStack>
+    </Box>
+  );
+};
+
+export default ClassesPage;
+</file>
+
+<file path="src/pages/admin/TeachersPage.tsx">
+import {
+  Box,
+  Heading,
+  Button,
+  Table,
+  Thead,
+  Tbody,
+  Tr,
+  Th,
+  Td,
+  IconButton,
+  HStack,
+  Badge,
+  VStack,
+  Text,
+  useToast
+} from '@chakra-ui/react';
+import { AddIcon, EditIcon, DeleteIcon } from '@chakra-ui/icons';
+
+// Datos de ejemplo
+const clientsData = [
+  { id: 1, name: 'Juan Pérez', email: 'juan.perez@email.com', status: 'Activo' },
+  { id: 2, name: 'Ana Gómez', email: 'ana.gomez@email.com', status: 'Inactivo' },
+  { id: 3, name: 'Carlos Ruiz', email: 'carlos.ruiz@email.com', status: 'Activo' },
+];
+
+const TeachersPage = () => {
+  const toast = useToast();
+
+  const handleAdd = () => toast({ title: "Funcionalidad 'Añadir' no implementada.", status: 'info' });
+  const handleEdit = (id: number) => toast({ title: `Funcionalidad 'Editar' cliente ${id} no implementada.`, status: 'info' });
+  const handleDelete = (id: number) => toast({ title: `Funcionalidad 'Eliminar' cliente ${id} no implementada.`, status: 'warning' });
+
+  return (
+    <Box>
+      <HStack justifyContent="space-between" mb={6}>
+        <Heading as="h1" size="lg">Gestionar Clientes</Heading>
+        <Button leftIcon={<AddIcon />} colorScheme="teal" onClick={handleAdd}>
+          Añadir Cliente
+        </Button>
+      </HStack>
+
+      {/* --- VISTA DE TABLA PARA ESCRITORIO --- */}
+      <Box display={{ base: 'none', md: 'block' }} bg="white" borderRadius="md" boxShadow="md">
+        <Table variant="simple">
+          <Thead>
+            <Tr>
+              <Th>Nombre</Th>
+              <Th>Email</Th>
+              <Th>Estado</Th>
+              <Th>Acciones</Th>
+            </Tr>
+          </Thead>
+          <Tbody>
+            {clientsData.map((client) => (
+              <Tr key={client.id}>
+                <Td>{client.name}</Td>
+                <Td>{client.email}</Td>
+                <Td>
+                  <Badge colorScheme={client.status === 'Activo' ? 'green' : 'red'}>
+                    {client.status}
+                  </Badge>
+                </Td>
+                <Td>
+                  <HStack spacing={2}>
+                    <IconButton icon={<EditIcon />} aria-label="Editar cliente" size="sm" onClick={() => handleEdit(client.id)} />
+                    <IconButton icon={<DeleteIcon />} aria-label="Eliminar cliente" size="sm" colorScheme="red" onClick={() => handleDelete(client.id)} />
+                  </HStack>
+                </Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
+      </Box>
+
+      {/* --- VISTA DE TARJETAS PARA MÓVIL --- */}
+      <VStack spacing={4} display={{ base: 'block', md: 'none' }}>
+        {clientsData.map((client) => (
+          <Box key={client.id} p={4} bg="white" borderRadius="md" boxShadow="md" w="full">
+            <HStack justifyContent="space-between">
+              <Text fontWeight="bold">{client.name}</Text>
+              <Badge colorScheme={client.status === 'Activo' ? 'green' : 'red'}>
+                {client.status}
+              </Badge>
+            </HStack>
+            <Text fontSize="sm" color="gray.500">{client.email}</Text>
+            <HStack spacing={2} mt={4} justifyContent="flex-end">
+              <IconButton icon={<EditIcon />} aria-label="Editar cliente" size="sm" onClick={() => handleEdit(client.id)} />
+              <IconButton icon={<DeleteIcon />} aria-label="Eliminar cliente" size="sm" colorScheme="red" onClick={() => handleDelete(client.id)} />
+            </HStack>
+          </Box>
+        ))}
+      </VStack>
+    </Box>
+  );
+};
+
+export default TeachersPage;
+</file>
+
+<file path="src/pages/AboutPage.tsx">
+import { Heading, Text } from '@chakra-ui/react';
+
+const AboutPage: React.FC = () => {
+  return (
+    <>
+      <Heading>About Us</Heading>
+      <Text mt={4}>This is the about page. Learn more about our gym.</Text>
+    </>
+  );
+};
+
+export default AboutPage;
+</file>
+
+<file path="src/pages/AdminPage.tsx">
+
+</file>
+
+<file path="src/pages/ClassDetailPage.tsx">
+// Crea este nuevo archivo: src/pages/ClassDetailPage.tsx
+
+import React from 'react';
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Container, Box } from '@chakra-ui/react';
+import classService from '../services/classService';
+import ClassDetailView from '../components/classes/ClassDetailView'; // Importamos la "carrocería"
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import ErrorDisplay from '../components/common/ErrorDisplay';
+import { AxiosError } from 'axios';
+
+// Este es el componente CONTENEDOR ("inteligente")
+const ClassDetailPage: React.FC = () => {
+  // 1. Obtiene el ID de la URL (el "conductor" sabe a dónde ir)
+  const { classId } = useParams<{ classId: string }>();
+
+  // 2. Usa TanStack Query para obtener los datos (el "motor")
+  const { data: gymClass, isLoading, isError, error } = useQuery({
+    queryKey: ['class', classId],
+    queryFn: () => {
+      if (!classId) throw new Error("No class ID provided");
+      return classService.getClassById(classId);
+    },
+    enabled: !!classId,
+    retry: (failureCount, err) => {
+        if (err instanceof AxiosError && err.response?.status === 404) {
+            return false;
+        }
+        return failureCount < 3;
+    }
+  });
+
+  // 3. Decide qué mostrar basado en el estado de la petición
+  const renderContent = () => {
+    if (isLoading) return <LoadingSpinner />;
+
+    if (isError) {
+      return <ErrorDisplay error={error} />;
+    }
+    
+    // 4. Si hay datos, le pasa la información a la "carrocería" (ClassDetailView)
+    return gymClass ? <ClassDetailView gymClass={gymClass} /> : null;
+  };
+
+  return (
+    <Container maxW="container.lg" py={10}>
+      <Box>
+        {renderContent()}
+      </Box>
+    </Container>
+  );
+};
+
+export default ClassDetailPage;
+</file>
+
+<file path="src/pages/ClassesPage.tsx">
+import React, { useState } from 'react';
+import { Container, Heading, Box } from '@chakra-ui/react';
+import { useQuery } from '@tanstack/react-query'; // 1. Importamos useQuery
+import classService from '../services/classService';
+import ClassList from '../components/classes/ClassList';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import ErrorDisplay from '../components/common/ErrorDisplay';
+import ClassDetailModal from '../components/classes/ClassDetailModal';// El nuevo modal
+
+const ClassesPage: React.FC = () => {
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+
+  // 2. Reemplazamos todos los useState y el useEffect con esta única línea
+  const { 
+    data: classes, // Renombramos 'data' a 'classes' para mayor claridad
+    isLoading, 
+    isError, 
+    error 
+  } = useQuery({
+    queryKey: ['classes'], // Una clave única para identificar esta petición
+    queryFn: classService.getAllClasses, // La función que devuelve la promesa
+  });
+  // Funciones para abrir y cerrar el modal, que se pasarán como props
+  const handleClassSelect = (classId: string) => setSelectedClassId(classId);
+  const handleCloseModal = () => setSelectedClassId(null);
+  // 3. Tu lógica de renderizado ahora es aún más limpia
+  const renderContent = () => {
+    if (isLoading) return <LoadingSpinner />;
+    // isError es un booleano que nos dice si 'error' tiene un valor
+    if (isError) {
+      return <ErrorDisplay error={error} />;
+    }
+    if (!classes || classes.length === 0) {
+      return <Heading as="h3" size="md">No hay clases disponibles.</Heading>;
+    }    
+    // Pasamos la función para manejar la selección a la lista
+    return <ClassList classes={classes} onClassSelect={handleClassSelect}/>;
+  };
+
+  return (
+    <Container maxW="container.xl" py={10}>
+      <Heading as="h1" size="2xl" mb={8} textAlign="center" color="gray.700">
+        Nuestro Catálogo de Clases
+      </Heading>
+      <Box>
+        {renderContent()}
+      </Box>
+      {/* El Modal se renderiza aquí, pero solo se mostrará si tiene un classId.
+        Su estado `isOpen` y su `classId` son controlados por esta página. */}
+      <ClassDetailModal
+        classId={selectedClassId}
+        isOpen={selectedClassId !== null}
+        onClose={handleCloseModal}
+      />
+    </Container>
+  );
+};
+
+export default ClassesPage;
+</file>
+
+<file path="src/pages/HomePage.tsx">
+// src/pages/HomePage.tsx (VERSION SIMPLIFICADA)
+import React from 'react';
+import {
+  Box, Container, Heading, Text, Grid, GridItem, Card, CardBody,
+  VStack, HStack, Button, Badge, Icon, Skeleton
+} from '@chakra-ui/react';
+import { FiCalendar, FiCreditCard } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/useAuth';
+import { BookingStatus, type Booking } from '../types';
+
+// Componentes del dashboard
+import WeeklyCalendar from '../components/dashboard/WeeklyCalendar';
+import NotificationPanel from '../components/dashboard/NotificationPanel';
+import PaymentReminder from '../components/dashboard/PaymentReminder';
+import DocumentReminder from '../components/dashboard/DocumentReminder';
+import UpcomingEvents from '../components/dashboard/UpcomingEvents';
+
+const HomePage = () => {
+  const navigate = useNavigate();
+  const { 
+    currentUser, 
+    userBookings = [], 
+    isLoadingBookings
+  } = useAuth();
+
+  const weekDays = React.useMemo(() => {
+    const today = new Date(); 
+    // const debugToday = new Date('2025-09-12T10:00:00-03:00'); // <--- DESCOMENTA Y USA ESTO PARA PROBAR CON 2025
+    // const today = debugToday; // <--- Y USA ESTA LINEA EN LUGAR DE LA DE ARRIBA PARA 'today'
+
+    console.log("Fecha 'today' usada para weekDays:", today.toISOString()); // <-- ¡MANTEN ESTE LOG!
+
+    const startOfWeek = new Date(today);
+    // Ajusta para llegar al lunes de la semana actual. (Maneja el caso de domingo como 0)
+    startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); 
+    startOfWeek.setHours(0, 0, 0, 0); // <-- CLAVE: Asegura que el Lunes inicial esté en 00:00:00 local
+
+    return Array.from({ length: 5 }, (_, i) => {
+      const day = new Date(startOfWeek); // Crea una copia a partir del Lunes 00:00:00 local
+      day.setDate(startOfWeek.getDate() + i); // Añade los días restantes
+      // No necesitas day.setHours(0,0,0,0) aquí, ya que startOfWeek ya está en 00:00:00
+      return day;
+    });
+  }, [/* Si usas debugToday, ponlo aquí. Si usas new Date(), déjalo vacío. */]);
+  const thisWeekBookings = React.useMemo(() => {
+    console.log('--- Starting thisWeekBookings calculation (Timezone Corrected) ---');
+    console.log('Total userBookings:', userBookings.length);
+    console.log("Fecha 'today' usada para weekDays (confirmación):", (new Date()).toISOString()); // Mantén este para verificar que no cambie
+
+    if (!weekDays || weekDays.length === 0) {
+      console.log('weekDays is not ready.');
+      return [];
+    }
+
+    // Asegúrate de que weekDays[0] y weekDays[4] ya estén en 00:00:00 local
+    // (Esto debería estar resuelto por el `setHours(0,0,0,0)` en la generación de weekDays)
+    
+    const weekStartLocal = weekDays[0]; 
+    const weekEndLocalCandidate = weekDays[4];
+    const weekEndLocal = new Date(weekEndLocalCandidate); 
+    weekEndLocal.setHours(23, 59, 59, 999); 
+
+    const weekStartTimeMs = weekStartLocal.getTime(); 
+    const weekEndTimeMs = weekEndLocal.getTime();
+
+    console.log(`  Calculated local week range:`);
+    console.log(`    Start (local): ${weekStartLocal.toLocaleString()} (ms: ${weekStartTimeMs})`);
+    console.log(`    End (local):   ${weekEndLocal.toLocaleString()} (ms: ${weekEndTimeMs})`);
+
+
+    const filteredBookings = userBookings.filter((booking: Booking) => {    
+
+      if (booking.status !== BookingStatus.CONFIRMED) {
+        return false;
+      }
+      
+      const bookingDate = new Date(booking.class_session.starts_at);
+      const bookingTimeMs = bookingDate.getTime();
+
+      const isInRange = bookingTimeMs >= weekStartTimeMs && bookingTimeMs <= weekEndTimeMs;      
+
+      return isInRange;
+    });
+    return filteredBookings;
+  }, [userBookings, weekDays]); // Dependencias correctas
+
+  return (
+    <Container maxW="container.xl" py={6}>
+      <VStack spacing={6} align="stretch">
+        <Box>
+          <Heading size="lg" mb={2}>Mi Dashboard</Heading>
+          <Text color="gray.600">
+            Bienvenido de vuelta, {currentUser?.id|| 'Cliente'}
+          </Text>
+        </Box>
+
+        <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={6}>
+          <GridItem>
+            <VStack spacing={6} align="stretch">
+              <Card>
+                <CardBody>
+                  <HStack justify="space-between" mb={4}>
+                    <Heading size="md" display="flex" alignItems="center">
+                      <Icon as={FiCalendar} mr={2} />
+                      Mis Clases de la Semana
+                    </Heading>
+                    <Badge colorScheme="blue" fontSize="sm" px={2} py={1}>
+                      {thisWeekBookings.length} {thisWeekBookings.length === 1 ? 'clase' : 'clases'}
+                    </Badge>
+                  </HStack>
+
+                  {isLoadingBookings ? (
+                    <VStack spacing={3}>
+                      <Skeleton height="40px" />
+                      <Skeleton height="120px" />
+                    </VStack>
+                  ) : (
+                    <WeeklyCalendar 
+                      weekDays={weekDays} 
+                      bookings={thisWeekBookings}
+                    />
+                  )}
+                </CardBody>
+              </Card>
+
+              <HStack spacing={4}>
+                <Button 
+                  size="lg" 
+                  colorScheme="blue" 
+                  leftIcon={<FiCalendar />}
+                  onClick={() => navigate('/classes')}
+                  flex={1}
+                >
+                  Ver Todas las Clases
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="outline" 
+                  leftIcon={<FiCreditCard />}
+                  onClick={() => navigate('/payments')}
+                  flex={1}
+                  isDisabled
+                >
+                  Ver Pagos
+                </Button>
+              </HStack>
+            </VStack>
+          </GridItem>
+
+          <GridItem>
+            <VStack spacing={4} align="stretch">
+              <Heading size="md">Notificaciones</Heading>
+              <NotificationPanel />
+              <PaymentReminder />
+              <DocumentReminder />
+              <UpcomingEvents />
+            </VStack>
+          </GridItem>
+        </Grid>
+      </VStack>
+    </Container>
+  );
+};
+
+export default HomePage;
+</file>
+
+<file path="src/pages/JoinUsPage.tsx">
+import { Heading, Text } from '@chakra-ui/react';
+
+const JoinUsPage: React.FC = () => {
+  return (
+    <>
+      <Heading>About Us</Heading>
+      <Text mt={4}>This is the about page. Learn more about our gym.</Text>
+    </>
+  );
+};
+
+export default JoinUsPage;
+</file>
+
+<file path="src/pages/LandingPage.tsx">
+import { Box } from '@chakra-ui/react';
+import InfiniteCarousel from '../components/landing/InfiniteCarousel';
+import ActivitiesSection from '../components/landing/ActivitiesSection';
+
+const LandingPage = () => {
+  return (
+    <Box>
+      <InfiniteCarousel />
+      <ActivitiesSection />
+    </Box>
+  );
+};
+
+export default LandingPage;
+</file>
+
+<file path="src/pages/LoginPage.tsx">
+import React, { useState } from 'react';
+import {
+  Box,
+  Button,
+  FormControl,
+  FormLabel,
+  Heading,
+  Input,
+  VStack,
+  Text,
+  Link,
+  useToast,
+  Container
+} from '@chakra-ui/react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useMutation } from '@tanstack/react-query'; // ⭐ Importamos useMutation
+import { useAuth } from '../context/useAuth'; // ⭐ Importamos el contexto de Auth
+import classService from '../services/classService'; // ⭐ Usaremos classService para el login
+import { UserRole, type FastAPIAuthErrorResponse, type TokenResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
+import { AxiosError } from 'axios'; // ⭐ Para un manejo de errores más específico
+import { type TokenPayload } from '../types';
+import {jwtDecode} from 'jwt-decode'
+
+
+const LoginPage = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  
+  const { login } = useAuth(); // ⭐ Obtenemos la función login, y el estado del usuario/rol
+  const navigate = useNavigate();
+  const toast = useToast();
+
+  // ⭐ 1. Definimos la mutación de login
+  const loginMutation = useMutation<TokenResponse, AxiosError, { username: string; password: string }>({
+    // La función que ejecuta la llamada a la API
+    mutationFn: (credentials) => classService.login(credentials),
+    
+    // Callback que se ejecuta si la mutación es exitosa
+    onSuccess: (data) => {
+      // Llamamos a la función login del AuthContext, pasando solo el token
+      // El AuthContext ya se encarga de decodificar y establecer el rol
+      login(data.access_token);      
+      toast({
+        title: "Inicio de sesión exitoso",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+
+      // ⭐ 2. Redirección basada en el rol, que ahora se obtiene del AuthContext
+      // Esperamos que currentUser y userRole ya estén actualizados después de 'login(data.access_token)'
+      // Si necesitas una redirección inmediata basada en el token, podrías decodificar aquí
+      // pero el patrón ideal es que AuthContext lo maneje y tú reaccione a ello.
+      // Para una redirección más segura, esperemos al siguiente ciclo de render o a que AuthContext actualice.
+      // Por simplicidad, usaremos el userRole actualizado por el AuthContext
+      // Decodificas YA el role antes de depender del contexto
+      const payload = jwtDecode<TokenPayload>(data.access_token)      
+      if (payload.role === UserRole.ADMIN) {
+        navigate('/admin');
+      } else {
+        navigate('/home'); // O '/home' según tu estructura
+      }
+    },
+    
+    // Callback que se ejecuta si la mutación falla
+    onError: (error) => {
+      let errorMessage = "Ocurrió un error inesperado al iniciar sesión.";
+      if (error.response?.data) {
+        // Intentamos castear a un tipo de error de autenticación específico
+        const errorData = error.response.data as FastAPIAuthErrorResponse; 
+
+        if (errorData.detail) { // Ahora TypeScript sabe que 'detail' puede existir
+          errorMessage = errorData.detail;
+        } else {
+          // Si el detalle no es un string (ej. un objeto de errores de validación, aunque raro para login)
+          // Puedes intentar un casteo más general si tu API devuelve diferentes formatos
+          errorMessage = JSON.stringify(error.response.data);
+        }
+      } else if (error.message === "Network Error") {
+        errorMessage = "Error de red. Asegúrate de que el servidor está corriendo.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast({
+        title: "Error al iniciar sesión",
+        description: errorMessage,
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      console.error('Error de login:', error);
+    },
+  });
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    // ⭐ 3. Disparamos la mutación con las credenciales
+    loginMutation.mutate({ username: email, password });    
+  };
+  
+  return (
+    <Container maxW="container.sm" py={10}>
+      <VStack spacing={8}>
+        <Heading>Iniciar Sesión</Heading>
+        
+        {/* ⭐ El estado de carga lo gestiona directamente la mutación */}
+        <Box as="form" onSubmit={handleSubmit} w="100%">
+          <VStack spacing={4}>
+            <FormControl isRequired>
+              <FormLabel>Email</FormLabel>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tu@email.com"
+                autoComplete='email'
+                isDisabled={loginMutation.isPending} // Deshabilitar mientras carga
+              />
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel>Contraseña</FormLabel>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="********"
+                autoComplete="current-password"
+                isDisabled={loginMutation.isPending} // Deshabilitar mientras carga
+              />
+            </FormControl>
+
+            <Button
+              type="submit"
+              colorScheme="teal"
+              w="100%"
+              isLoading={loginMutation.isPending} // ⭐ Mostrar spinner mientras carga
+              isDisabled={loginMutation.isPending} // Deshabilitar para evitar múltiples envíos
+            >
+              Ingresar
+            </Button>
+          </VStack>
+        </Box>
+
+        <Text>
+          ¿No tienes cuenta?{' '}
+          <Link as={RouterLink} to="/register" color="teal.500">
+            Regístrate aquí
+          </Link>
+        </Text>
+      </VStack>
+    </Container>
+  );
+};
+
+export default LoginPage;
+</file>
+
+<file path="src/pages/NotFoundPage.tsx">
+import { Heading, Text, Button } from '@chakra-ui/react';
+import { Link } from 'react-router-dom';
+
+
+const NotFoundPage: React.FC = () => {
+  return (
+    <>
+      <Heading>404</Heading>
+      <Text mt={4}>Pagina no encontrada</Text>
+      <Button as={Link} to="/" colorScheme="teal" mt={4}>
+         Volver al inicio
+        </Button>
+    </>
+  );
+};
+
+export default NotFoundPage;
+</file>
+
+<file path="src/pages/NutritionPage.tsx">
+import { Heading, Text } from '@chakra-ui/react';
+
+const NutritionPage: React.FC = () => {
+  return (
+    <>
+      <Heading>About Us</Heading>
+      <Text mt={4}>This is the about page. Learn more about our gym.</Text>
+    </>
+  );
+};
+
+export default NutritionPage;
+</file>
+
+<file path="src/pages/PlansPage.tsx">
+import { Heading, Text } from '@chakra-ui/react';
+
+const PlansPage: React.FC = () => {
+  return (
+    <>
+      <Heading>About Us</Heading>
+      <Text mt={4}>This is the about page. Learn more about our gym.</Text>
+    </>
+  );
+};
+
+export default PlansPage;
+</file>
+
+<file path="src/pages/RegisterPage.tsx">
+import React, { useState } from 'react';
+import {
+  Box,
+  Button,
+  Flex,
+  FormControl,
+  FormLabel,
+  Heading,
+  Input,
+  VStack,
+  Text,
+  Link,
+  useToast
+} from '@chakra-ui/react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { registerUser } from '../services/api';
+
+const RegisterPage = () => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // ⭐ 2. Añadimos estado de carga
+  const navigate = useNavigate();
+  const toast = useToast();
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoading(true); // Empezamos la carga
+
+    if (password !== confirmPassword) {
+      toast({
+        title: "Error de validación",
+        description: "Las contraseñas no coinciden.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      setIsLoading(false); // Detenemos la carga si hay error de validación
+
+      return;
+    }
+    try {
+      await registerUser(name, email, password);
+
+      toast({
+        title: "Cuenta creada.",
+        description: "¡Registro exitoso! Ahora puedes iniciar sesión.",
+        status: "success",
+        duration: 3000,
+        isClosable: true,
+      });
+      console.log('Datos de Registro:', { name, email, password });  
+      navigate('/login'); // Redirigimos al login tras el éxito
+
+    } catch (error) {
+      // Mostramos el error que nos llega desde el servicio de API
+      toast({
+        title: "Error en el registro",
+        description: error instanceof Error ? error.message : "Ocurrió un error inesperado.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false); // ⭐ 5. Detenemos la carga en cualquier caso (éxito o error)
+    }
+  };      
+
+  return (
+    <Flex minHeight="calc(100vh - 128px)" align="center" justify="center" bg="gray.50">
+      <Box
+        as="form" // El Box ahora es el formulario
+        onSubmit={handleSubmit} // El handler se aplica aquí
+        borderWidth={1}
+        px={8}
+        py={10}
+        borderRadius="lg"
+        boxShadow="lg"
+        bg="white"
+        width={{ base: '90%', sm: '450px' }}
+      >
+        {/* El VStack ahora solo se encarga del layout vertical */}
+        <VStack spacing={6}> 
+          <Heading as="h1" size="xl" textAlign="center" color="gray.700">
+            Crear Cuenta
+          </Heading>
+
+          <FormControl isRequired>
+            <FormLabel>Nombre</FormLabel>
+            <Input
+              type="text"
+              placeholder="Ingresa tu nombre"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FormControl>
+
+          <FormControl isRequired>
+            <FormLabel>Email</FormLabel>
+            <Input
+              type="email"
+              placeholder="tu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </FormControl>
+
+          <FormControl isRequired>
+            <FormLabel>Contraseña</FormLabel>
+            <Input
+              type="password"
+              placeholder="********"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </FormControl>
+
+          <FormControl isRequired>
+            <FormLabel>Confirmar Contraseña</FormLabel>
+            <Input
+              type="password"
+              placeholder="********"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </FormControl>
+
+          <Button type="submit" colorScheme="teal" width="full" size="lg" isLoading={isLoading}>
+            Registrarse
+          </Button>
+
+          <Text mt={4} textAlign="center">
+            ¿Ya tienes una cuenta?{' '}
+            <Link as={RouterLink} to="/login" color="teal.500" fontWeight="bold">
+              Inicia Sesión
+            </Link>
+          </Text>
+        </VStack>
+      </Box>
+    </Flex>
+  );
+};
+
+export default RegisterPage;
+</file>
+
+<file path="src/routes/AppRouter.tsx">
+import { Routes, Route } from 'react-router-dom';
+import { Layout } from '../components/layout/Layout';
+import { Spinner, Center } from '@chakra-ui/react';
+import React, { Suspense } from 'react';
+import { UserRole } from '../types'; // ⭐ Importamos UserRole de tus types/index.ts
+
+{/* Componentes lazy loading */}
+const HomePage = React.lazy(() => import('../pages/HomePage'));
+const AboutPage = React.lazy(() => import('../pages/AboutPage'));
+const NotFoundPage = React.lazy(() => import('../pages/NotFoundPage'));
+const LandingPage = React.lazy(() => import('../pages/LandingPage'));
+const LoginPage = React.lazy(() => import('../pages/LoginPage'));
+const RegisterPage = React.lazy(() => import('../pages/RegisterPage'));
+const PlansPage = React.lazy(() => import('../pages/PlansPage'));
+const ClassesPage = React.lazy(() => import('../pages/ClassesPage'));
+const JoinUsPage = React.lazy(() => import('../pages/JoinUsPage'));
+const NutritionPage = React.lazy(() => import('../pages/NutritionPage'));
+const AdminLayout = React.lazy(() => import('../components/admin/layout/AdminLayout'));
+const ProtectedRoute = React.lazy(() => import('../components/auth/ProtectedRoute'));
+const AdminDashboardPage = React.lazy(() => import('../pages/admin/AdminDashboardPage'));
+const ClientsPage = React.lazy(() => import('../pages/admin/ClientsPage'));
+const TeachersPage = React.lazy(() => import('../pages/admin/TeachersPage'));
+const CrudClassesPage = React.lazy(() => import('../pages/admin/CrudClassesPage'));
+const RootAuthGuard = React.lazy(() => import('../components/auth/RootAuthGuard'));
+const ClassDetailPage = React.lazy(() => import('../pages/ClassDetailPage'));
+
+
+
+const PageLoader: React.FC = () => (
+  <Center h="100vh">
+    <Spinner size="xl" />
+  </Center>
+);
+
+export const AppRouter: React.FC = () => {
+  return (
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        {/* Rutas públicas y de usuario general, envueltas en el Layout */}
+        <Route path="/" element={<Layout />}>
+          <Route index element={<RootAuthGuard />} />
+          <Route path="landing" element={<LandingPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
+          <Route path="about" element={<AboutPage />} />          
+          <Route path="plans" element={<PlansPage />} />
+          <Route path="classes" element={<ClassesPage />} />
+          <Route path="classes/:classId" element={<ClassDetailPage />} />
+          <Route path="join-us" element={<JoinUsPage />} />
+          <Route path="nutrition" element={<NutritionPage />} />
+          <Route element={<ProtectedRoute allowedRoles={[UserRole.CLIENT, UserRole.TRAINER]} />}>
+            <Route path="home" element={<HomePage />} />
+            {/* Si tuvieras más rutas para clientes, irían aquí */}
+            {/* <Route path="my-profile" element={<ProfilePage />} /> */}
+          </Route>
+          {/* Esta ruta se renderiza si ninguna de las anteriores coincide */}
+          <Route path="*" element={<NotFoundPage/>}/>
+          {/* Agrega aquí todas tus rutas futuras */}
+        </Route>
+        <Route element={<ProtectedRoute allowedRoles={[UserRole.ADMIN]} />}>
+          {/* Todas las rutas anidadas aquí usarán el AdminLayout */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="clients" element={<ClientsPage />} />
+            <Route path="teachers" element={<TeachersPage />} />
+            <Route path="CruClasses" element={<CrudClassesPage />} />
+            {/* Si un admin va a /admin/ruta-inexistente, puedes mostrar un NotFound específico */}
+            <Route path="*" element={<NotFoundPage />} /> 
+          </Route>
+        </Route>
+        <Route path="*" element={<NotFoundPage/>}/>
+      </Routes>
+    </Suspense>
+
+  );
+};
+</file>
+
+<file path="src/services/api.ts">
+// src/services/api.ts
+import axios from 'axios';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+
+// 1. Creamos una instancia de Axios con configuración base
+const apiClient = axios.create({
+  baseURL: API_BASE_URL, // La URL base de tu backend FastAPI
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// 2. Definimos la función de login
+// Nota: Le cambiamos el nombre a loginUser para evitar confusión con el login del AuthContext
+export const loginUser = async (email: string, password: string) => {
+  // FastAPI con OAuth2PasswordRequestForm espera datos de formulario, no JSON.
+  // Usamos URLSearchParams para formatear los datos correctamente.
+  const formData = new URLSearchParams();
+  formData.append('username', email); // 'username' es el campo que espera FastAPI
+  formData.append('password', password);
+
+  try {
+    const response = await apiClient.post('/login/token', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+    // La respuesta de FastAPI contiene { access_token: "...", token_type: "bearer" }
+    return response.data; 
+  } catch (error) {
+    // Si Axios recibe un error (ej. 401 Unauthorized), lo lanzará.
+    // Lo personalizamos para que sea más claro.
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.detail || 'Error al iniciar sesión');
+    }
+    throw new Error('Ocurrió un error de red inesperado.');
+  }
+};
+
+// Aquí añadiremos más funciones en el futuro (ej. registerUser)
+export const registerUser = async (fullName: string, email: string, password: string) => {
+  // El backend espera un campo 'full_name', así que mapeamos 'fullName' a él.
+  const payload = {
+    full_name: fullName,
+    email: email,
+    password: password,
+  };
+
+  try {
+    // A diferencia del login, el registro sí espera un JSON normal.
+    const response = await apiClient.post('/users/register', payload);
+    return response.data; // Devuelve los datos del usuario creado (sin la contraseña)
+  } catch (error) {
+    // Manejo de errores robusto, igual que en el login
+    if (axios.isAxiosError(error) && error.response) {
+      // El backend devuelve un error 400 si el email ya existe.
+      // Extraemos el mensaje de 'detail'.
+      throw new Error(error.response.data.detail || 'Error al registrar la cuenta.');
+    }
+    throw new Error('Ocurrió un error de red inesperado.');
+  }
+};
+
+
+export default apiClient;
+</file>
+
+<file path="src/services/classService.ts">
+// src/services/classService.ts
+import apiClient from './api';
+
+import {
+  type GymClass,
+  type GymClassCreatePayload,
+  type ClassScheduleInResponse,
+  type ClassSession,
+  type Booking,
+  type BookingCreatePayload,
+  type TokenResponse
+} from '../types';
+
+interface LoginPayload {
+  username: string;
+  password: string;
+}
+
+const classService = {
+  // --- Autenticación ---
+  async login(payload: LoginPayload): Promise<TokenResponse> {
+    try {
+      const formData = new URLSearchParams();
+      formData.append('username', payload.username);
+      formData.append('password', payload.password);
+
+      const response = await apiClient.post<TokenResponse>('/login/token', formData, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error al hacer login:', error);
+      throw error;
+      // throw new Error('No se pudo iniciar sesión');
+    }
+  },
+
+  // --- GymClass Endpoints ---
+  async getAllClasses(): Promise<GymClass[]> {
+    try {
+      const response = await apiClient.get<GymClass[]>('/gym-classes/');
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener la lista de clases:', error);
+      throw error;
+      // throw new Error('No se pudieron cargar las clases');
+    }
+  },
+
+  async getClassById(id: string): Promise<GymClass> {
+    try {
+      const response = await apiClient.get<GymClass>(`/gym-classes/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error al obtener la clase con ID ${id}:`, error);
+      throw error;
+      // throw new Error('No se pudo cargar la clase');
+    }
+  },
+
+  async createClass(payload: GymClassCreatePayload): Promise<GymClass> {
+    try {
+      const response = await apiClient.post<GymClass>('/gym-classes/', payload);
+      return response.data;
+    } catch (error) {
+      console.error('Error al crear la clase:', error);
+      throw error;
+      // throw new Error('No se pudo crear la clase');
+    }
+  },
+
+  // --- ClassSchedule Endpoints ---
+  async getAllClassSchedules(gymClassId?: string): Promise<ClassScheduleInResponse[]> {
+    try {
+      const params = gymClassId ? { gym_class_id: gymClassId } : {};
+      const response = await apiClient.get<ClassScheduleInResponse[]>('/class-schedules/', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener los horarios de clases:', error);
+      throw error;
+    }
+  },
+
+  async getClassScheduleById(id: string): Promise<ClassScheduleInResponse> {
+    try {
+      const response = await apiClient.get<ClassScheduleInResponse>(`/class-schedules/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error al obtener el horario de clase con ID ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // --- ClassSession Endpoints ---
+  async getClassSessions(
+    classScheduleId: string,
+    fromDate: string,
+    toDate: string,
+    includeCancelled: boolean = false
+  ): Promise<ClassSession[]> {
+    try {
+      const response = await apiClient.get<ClassSession[]>('/class-sessions/', {
+        params: {
+          class_schedule_id: classScheduleId,
+          from_date: fromDate,
+          to_date: toDate,
+          include_cancelled: includeCancelled,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener las sesiones de clase:', error);
+      throw error;
+    }
+  },
+
+  async getClassSessionById(id: string): Promise<ClassSession> {
+    try {
+      const response = await apiClient.get<ClassSession>(`/class-sessions/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error al obtener la sesión de clase con ID ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // --- Booking Endpoints ---
+  async createBooking(payload: BookingCreatePayload): Promise<Booking> {
+    try {
+      const response = await apiClient.post<Booking>('/bookings/', payload);
+      return response.data;
+    } catch (error) {
+      console.error('Error al crear la reserva:', error);
+      throw error;
+    }
+  },
+
+  async getMyBookings(): Promise<Booking[]> {
+    try {      
+      const response = await apiClient.get<Booking[]>('/bookings/me');
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener tus reservas:', error);
+      throw error;
+    }
+  },
+
+  async cancelBooking(bookingId: string): Promise<void> {
+    try {
+      await apiClient.delete(`/bookings/${bookingId}`);
+    } catch (error) {
+      console.error(`Error al cancelar la reserva con ID ${bookingId}:`, error);
+      throw error;
+    }
+  },
+};
+
+export default classService;
+</file>
+
+<file path="src/services/teacherService.ts">
+import apiClient from './api';
+import { type TeacherProfile, type TeacherCreatePayload } from '../types';
+
+/**
+ * Obtiene la lista de todos los perfiles de profesores.
+ */
+const getAllTeachers = async (): Promise<TeacherProfile[]> => {
+  try {
+    const response = await apiClient.get<TeacherProfile[]>('/teachers/');
+    return response.data;
+  } catch (error) {
+    console.error('Error al obtener la lista de profesores:', error);
+    throw new Error('No se pudieron cargar los profesores.');
+  }
+};
+
+/**
+ * Obtiene el perfil de un profesor específico por su ID.
+ * @param teacherId - El UUID del profesor a obtener.
+ */
+const getTeacherById = async (teacherId: string): Promise<TeacherProfile> => {
+  try {
+    const response = await apiClient.get<TeacherProfile>(`/teachers/${teacherId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error al obtener el profesor con ID ${teacherId}:`, error);
+    throw new Error('No se pudo cargar el perfil del profesor.');
+  }
+};
+
+/**
+ * Crea un nuevo perfil de profesor para un usuario existente.
+ * @param userId - El UUID del usuario al que se le creará el perfil.
+ * @param payload - Los datos del perfil del profesor.
+ */
+const createTeacherProfile = async (userId: string, payload: TeacherCreatePayload): Promise<TeacherProfile> => {
+  try {
+    const response = await apiClient.post<TeacherProfile>(`/teachers/${userId}`, payload);
+    return response.data;
+  } catch (error) {
+    console.error(`Error al crear el perfil de profesor para el usuario ${userId}:`, error);
+    throw new Error('No se pudo crear el perfil del profesor.');
+  }
+};
+
+const teacherService = {
+  getAllTeachers,
+  getTeacherById,
+  createTeacherProfile,
+};
+
+export default teacherService;
+</file>
+
+<file path="src/types/index.ts">
+// src/types/index.ts (Refactorizado y Completo)
+
+// --- Enums ---
+export enum UserRole {
+  ADMIN = "admin",
+  TRAINER = "trainer",
+  CLIENT = "client",
+}
+
+export enum DifficultyLevel {
+  BEGINNER = "beginner",
+  INTERMEDIATE = "intermediate",
+  ADVANCED = "advanced",
+}
+
+export enum BookingStatus {
+  CONFIRMED = "CONFIRMED",
+  CANCELLED = "CANCELLED",
+  PENDING = "PENDING",
+}
+
+// --- Schemas Base --- (si se usan en el frontend para herencia de Pydantic)
+// Aunque en TypeScript no se "hereda" igual, puedes usar interfaces base.
+export interface PersonBase {
+  first_name: string;
+  last_name: string;
+  passport?: string;
+  address?: string;
+  medical_fit_url?: string;
+  profile_image_url?: string;
+}
+
+// --- User ---
+// El usuario autenticado, con la información del token y su rol.
+export interface User {
+  id?: string; // Puede no estar en el token, se obtiene de otro endpoint
+  email: string;
+  role: UserRole;
+  active?: boolean;
+  // Otros campos del User si los necesitas en el frontend y los obtienes
+}
+
+// --- Token Payloads ---
+export interface TokenPayload {
+  sub: string;      // Email del usuario (subject)
+  role: UserRole; // Rol del usuario
+  exp: number;      // Expiración del token (timestamp)
+}
+
+export interface TokenResponse { // Para la respuesta del endpoint /login/token
+  access_token: string;
+  token_type: string;
+}
+
+// --- Teacher ---
+// Esquema ligero para cuando un Teacher es anidado en otra respuesta (ej. ClassSchedule)
+export interface TeacherInResponse extends PersonBase {
+  id: string;
+  bio?: string;
+  cuil?: string;
+  // Si en el backend, TeacherInClassScheduleResponse no incluye first_name, last_name, etc.
+  // entonces esta interfaz debería ser más minimalista.
+}
+
+// Esquema completo para un Teacher (ej. en un endpoint GET /teachers/{id})
+export interface Teacher extends TeacherInResponse {
+  // Aquí irían las relaciones si se cargan completas, ej.
+  class_schedules: ClassScheduleInResponse[];
+}
+
+// --- GymClass ---
+// Esquema ligero para cuando GymClass es anidado en otra respuesta (ej. ClassSchedule)
+export interface GymClassInResponse {
+  id: string;
+  first_name: string;
+  description: string;
+  duration_minutes: number;
+  difficulty: DifficultyLevel;
+  default_capacity: number;
+}
+
+// Esquema completo para una GymClass (ej. en un endpoint GET /gym_classes/{id})
+export interface GymClass {
+  id: string;
+  first_name: string;
+  description: string;
+  duration_minutes: number;
+  difficulty: DifficultyLevel;
+  default_capacity: number;
+  // La clave aquí es que ahora las relaciones de horario y profesor van via ClassSchedule
+  class_schedules: ClassScheduleInResponse[]; // Lista de ofertas de horarios recurrentes
+  teachers?: TeacherInResponse[]; // Si aún mantienes una relación directa en el backend para otros fines
+}
+
+// Representa los datos necesarios para crear una nueva clase (sin profesores directamente)
+export interface GymClassCreatePayload {
+  first_name: string;
+  description: string;
+  duration_minutes: number;
+  difficulty: DifficultyLevel;
+  default_capacity: number; // Nuevo campo
+}
+
+
+// --- ClassSchedule ---
+// Datos base de una oferta de horario recurrente
+export interface ClassScheduleBase {
+  rrule: string;          // RFC 5545, sin DTSTART
+  start_time: string;     // String "HH:MM:SS"
+  duration_minutes: string;       // String "HH:MM:SS"
+  capacity: number;
+  start_date: string;     // String "YYYY-MM-DD"
+  end_date?: string;      // String "YYYY-MM-DD"
+}
+
+// Esquema de respuesta completo para una ClassSchedule
+export interface ClassScheduleInResponse extends ClassScheduleBase {
+  id: string;
+  gym_class_id: string;
+  teacher_id: string;
+  gym_class: GymClassInResponse;      // Objeto GymClass anidado (versión ligera)
+  teacher: TeacherInResponse;         // Objeto Teacher anidado (versión ligera)
+  // future_sessions?: ClassSessionInResponse[]; // Puede ser cargado por separado
+}
+export interface ClassScheduleWithNextSession extends ClassScheduleInResponse {
+  next_upcoming_session: {
+    starts_at: string;
+    available_spots: number;
+  } | null;
+}
+
+// --- ClassSession ---
+// Datos base de una sesión de clase específica
+export interface ClassSessionBase {
+  starts_at: string; // ISO String de fecha y hora
+  ends_at: string;   // ISO String de fecha y hora
+  status: boolean;
+}
+
+// Esquema de respuesta completo para una ClassSession
+export interface ClassSession extends ClassSessionBase {
+  id: string;
+  class_schedule_id: string;
+  class_schedule: ClassScheduleInResponse; // Objeto ClassSchedule anidado
+  bookings: BookingInClassSessionResponse[]; // Lista de bookings para esta sesión
+  current_bookings_count: number; // Campo calculado en el backend
+  available_spots: number;        // Campo calculado en el backend
+  is_booked_by_current_user?: boolean; // Campo auxiliar para el frontend
+}
+
+// Esquema ligero para cuando ClassSession es anidada (ej. en Booking)
+export interface ClassSessionInBookingResponse extends ClassSessionBase {
+  id: string;
+  class_schedule_id: string; // Mantener el ID para referencia
+  // Puedes incluir más campos si necesitas detalles de la sesión dentro de la reserva
+  class_schedule: { // Aquí puedes poner una versión aún más ligera de ClassSchedule si solo necesitas nombre de clase/profesor
+    gym_class: { first_name: string; duration_minutes: number; };
+    teacher: { first_name: string; last_name: string; };
+  };
+}
+
+// --- Booking ---
+// Datos base de una reserva
+export interface BookingBase {
+  status: BookingStatus;
+}
+
+// Esquema de respuesta para una reserva (ej. para la lista de mis reservas)
+export interface Booking extends BookingBase {
+  id: string;
+  client_id: string;
+  class_session_id: string;
+  created_at: string; // ISO String
+  // Objetos anidados para mostrar detalles de la sesión y cliente
+  client: ClientInBookingResponse;
+  class_session: ClassSessionInBookingResponse; // Usar la versión ligera o completa según necesidad
+}
+
+// Esquema ligero para cuando Booking es anidado (ej. en ClassSession o Client)
+export interface BookingInClassSessionResponse extends BookingBase {
+  id: string;
+  client_id: string;
+  created_at: string;
+}
+
+
+// --- Client ---
+// Esquema ligero para cuando Client es anidado (ej. en Booking)
+export interface ClientInBookingResponse extends PersonBase {
+  id: string;
+}
+
+// Esquema completo para un Client
+export interface Client extends PersonBase {
+  id: string;
+  user_id: string;
+  // bookings: BookingInClientResponse[]; // Si quieres cargar las reservas aquí
+}
+
+// --- Payload para crear una reserva ---
+export interface BookingCreatePayload {
+  class_session_id?: string;
+  class_schedule_id?: string;
+  status: BookingStatus;
+}
+
+export interface FastAPIValidationError {
+  loc: (string | number)[]; // Puede ser ['body', 'field_name'] o ['query', 0, 'sub_field']
+  msg: string;
+  type: string;
+}
+export interface FastAPIErrorResponse {
+  detail: string | Array<{ loc: (string | number)[], msg: string, type: string }>;
+}
+// También puedes querer una interfaz para un error 401 si tu backend lo devuelve diferente
+export interface FastAPIAuthErrorResponse {
+  detail: string; // Para errores como "Email o contraseña incorrectos"
+}
+</file>
+
+<file path="src/utils/formatters.ts">
+// src/utils/formatters.ts (NUEVO)
+
+/**
+ * Formatea una fecha a 'YYYY-MM-DD'.
+ * @param date - Objeto Date o string de fecha.
+ * @returns string en formato 'YYYY-MM-DD'.
+ */
+export const getFormattedDate = (date: Date | string): string => {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+/**
+ * Formatea un string de fecha/hora ISO a 'DD/MM/YYYY HH:MM'.
+ * @param datetimeString - String de fecha/hora ISO (ej. "2023-11-06T19:00:00Z").
+ * @returns string en formato 'DD/MM/YYYY HH:MM'.
+ */
+export const getFormattedDateTime = (datetimeString: string): string => {
+  const d = new Date(datetimeString);
+  return d.toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+/**
+ * Formatea un string de hora a 'HH:MM'.
+ * @param timeString - String de hora (ej. "19:00:00").
+ * @returns string en formato 'HH:MM'.
+ */
+export const getFormattedTime = (timeString: string): string => {
+  // Asume que el string ya está en formato HH:MM:SS y toma solo las primeras 5.
+  return timeString.substring(0, 5);
+};
+</file>
+
+<file path="src/App.css">
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+</file>
+
+<file path="src/App.tsx">
+import { BrowserRouter} from 'react-router-dom';
+import { AppRouter } from './routes/AppRouter.tsx';
+
+const App: React.FC = () => {
+  return (
+      <BrowserRouter future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true 
+      }}>        
+        <AppRouter/>
+      </BrowserRouter>
+  );
+}
+
+export default App;
+</file>
+
+<file path="src/index.css">
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+</file>
+
+<file path="src/main.tsx">
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { ChakraProvider } from '@chakra-ui/react';
+import App from './App';
+import { AuthProvider } from './context/AuthProvider'; // Importamos nuestro proveedor
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'; // Importa
+
+const queryClient = new QueryClient();
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <ChakraProvider>
+          <AuthProvider> {/* Envolvemos la App */}
+            <App />
+          </AuthProvider>      
+      </ChakraProvider>
+    </QueryClientProvider>
+  </React.StrictMode>
+);
+</file>
+
+<file path="src/vite-env.d.ts">
+/// <reference types="vite/client" />
+</file>
+
+<file path=".gitignore">
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.venv*
+.venv_sourcetrail
+.venv_tools
+.venv_backend/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+dist/
+build/
+.vscode/
+.idea/
+</file>
+
+<file path="eslint.config.js">
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
+import { globalIgnores } from 'eslint/config'
+
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+      reactHooks.configs['recommended-latest'],
+      reactRefresh.configs.vite,
+    ],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+    },
+  },
+])
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FitFlow Gym</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="package.json">
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@chakra-ui/icons": "^2.2.4",
+    "@chakra-ui/react": "^2.8.2",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@tanstack/react-query": "^5.86.0",
+    "axios": "^1.11.0",
+    "framer-motion": "^11.18.2",
+    "jwt-decode": "^4.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^6.30.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.0",
+    "eslint": "^9.33.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.3.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.39.1",
+    "vite": "^7.1.2"
+  }
+}
+</file>
+
+<file path="README.md">
+# React + TypeScript + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      ...tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      ...tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      ...tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+</file>
+
+<file path="requirements_frontend.txt">
+alembic==1.16.4
+annotated-types==0.7.0
+anyio==4.10.0
+cffi==1.17.1
+click==8.2.1
+colorama==0.4.6
+cryptography==45.0.6
+dnspython==2.7.0
+ecdsa==0.19.1
+email-validator==2.3.0
+fastapi==0.116.1
+greenlet==3.2.4
+h11==0.16.0
+idna==3.10
+Mako==1.3.10
+MarkupSafe==3.0.2
+psycopg2-binary==2.9.10
+pyasn1==0.6.1
+pycparser==2.22
+pydantic==2.11.7
+pydantic-settings==2.10.1
+pydantic_core==2.33.2
+python-dotenv==1.1.1
+python-jose==3.5.0
+python-multipart==0.0.20
+rsa==4.9.1
+six==1.17.0
+sniffio==1.3.1
+SQLAlchemy==2.0.43
+starlette==0.47.2
+typing-inspection==0.4.1
+typing_extensions==4.14.1
+uvicorn==0.35.0
+passlib[bcrypt]>=1.7.4
+</file>
+
+<file path="tsconfig.app.json">
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    //"erasableSyntaxOnly": false,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["src"]
+}
+</file>
+
+<file path="tsconfig.json">
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
+</file>
+
+<file path="tsconfig.node.json">
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+</file>
+
+<file path="vite.config.ts">
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+})
+</file>
+
+</files>

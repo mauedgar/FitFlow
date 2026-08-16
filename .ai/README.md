@@ -1,25 +1,8 @@
-# .ai - Area operativa de tareas
+# Contratos de operación IA
 
-Esta carpeta no contiene arquitectura del producto. Contiene contratos y resultados de ejecucion.
+`config/` define políticas neutrales; `prompts/` define roles; `contracts/`
+valida intercambio; `templates/` materializa fichas; `tasks/` contiene el
+backlog ejecutable.
 
-## Estructura
-
-```text
-.ai/
-├── README.md
-├── templates/
-├── tasks/
-├── prompts/
-└── local/
-```
-
-- `templates/`: formatos estables.
-- `tasks/`: tareas que necesitan artefactos en repo.
-- `prompts/`: prompts reutilizables de configuracion/investigacion.
-- `local/`: transcripts, logs, dumps y pruebas temporales. Debe ignorarse en Git y en contexto de agentes.
-
-## Regla
-
-Una task pertenece a FitFlow, no a Codex ni Aider. Las lanes pueden tener notas separadas, pero el `RESULT.md` aceptado es unico.
-
-El proceso completo vive en `docs/process/task-lifecycle-and-reporting.md`.
+La configuración propietaria de Codebase se genera mediante un adaptador. Estos
+archivos no deben contener API keys, tokens, endpoints privados ni secretos.

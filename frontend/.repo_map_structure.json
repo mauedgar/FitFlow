@@ -1,0 +1,1443 @@
+[
+    {
+        "name": ".gitignore",
+        "path": "../frontend\\.gitignore",
+        "level": 0,
+        "type": "file",
+        "language": null
+    },
+    {
+        "name": "README.md",
+        "path": "../frontend\\README.md",
+        "level": 0,
+        "type": "file",
+        "language": "Markdown",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "12fb6aef14b0f93d7bd8f61f2aacfcaf4624ebda25249b4339afc0b7ae1dd7a1"
+    },
+    {
+        "name": "eslint.config.js",
+        "path": "../frontend\\eslint.config.js",
+        "level": 0,
+        "type": "file",
+        "language": "JavaScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "7a39f6bf29b2b84a243df3330c218b9688114594081bd1280a32ffaa4766d023"
+    },
+    {
+        "name": "index.html",
+        "path": "../frontend\\index.html",
+        "level": 0,
+        "type": "file",
+        "language": "HTML",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "ce39dae18892e8656bd89abdd814d6ca985dd118b6e2e90215239025a768ef20"
+    },
+    {
+        "name": "package-lock.json",
+        "path": "../frontend\\package-lock.json",
+        "level": 0,
+        "type": "file",
+        "language": "JSON",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "cb50aef4f625f39b839dcc8957a01ae063d78f1ec4afc1cb0a795fab1ee2b12d"
+    },
+    {
+        "name": "package.json",
+        "path": "../frontend\\package.json",
+        "level": 0,
+        "type": "file",
+        "language": "JSON",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "f968bc4616a7cf8f4bb7750828d13d05765284626a19ca770b7289f162a75965"
+    },
+    {
+        "name": "repomix-output.xml",
+        "path": "../frontend\\repomix-output.xml",
+        "level": 0,
+        "type": "file",
+        "language": "XML",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "d5ca1a4a6663e79e34baa7d491f68257510977bd58515c38250feec1c483a9d6"
+    },
+    {
+        "name": "requirements_frontend.txt",
+        "path": "../frontend\\requirements_frontend.txt",
+        "level": 0,
+        "type": "file",
+        "language": "Text",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "b23187f43f02bfdde9eb35be90e83633a90e74bfa530cca8c48682f7df72c1f4"
+    },
+    {
+        "name": "tsconfig.app.json",
+        "path": "../frontend\\tsconfig.app.json",
+        "level": 0,
+        "type": "file",
+        "language": "JSON",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "d2107f9d7d6646189f9ad6eebabe5aa52ee1c59b2e241c128d8b452787e799c3"
+    },
+    {
+        "name": "tsconfig.json",
+        "path": "../frontend\\tsconfig.json",
+        "level": 0,
+        "type": "file",
+        "language": "JSON",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "770b4140bbb581e2dfd9ea9946ffc9c75a1d86ba7d2db5f77c83e37cbdf9d808"
+    },
+    {
+        "name": "tsconfig.node.json",
+        "path": "../frontend\\tsconfig.node.json",
+        "level": 0,
+        "type": "file",
+        "language": "JSON",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "dbece770acebd1448ab84fbdae194dc23670ee2e91ebcb1b534cace99cd0bea6"
+    },
+    {
+        "name": "vite.config.ts",
+        "path": "../frontend\\vite.config.ts",
+        "level": 0,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "https://vite.dev/config/",
+        "hash": "4d36db3522a7b2dd10e0936e1004373c7ee65f10f7cd7920cd76410459c15a45"
+    },
+    {
+        "name": "public",
+        "path": "../frontend\\public",
+        "level": 0,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "vite.svg",
+        "path": "../frontend\\public\\vite.svg",
+        "level": 1,
+        "type": "file",
+        "language": "Image",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "4a748afd443918bb16591c834c401dae33e87861ab5dbad0811c3a3b4a9214fb"
+    },
+    {
+        "name": "src",
+        "path": "../frontend\\src",
+        "level": 0,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "App.css",
+        "path": "../frontend\\src\\App.css",
+        "level": 1,
+        "type": "file",
+        "language": "CSS",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "a0715e0a09edbd0fbde65816a75e0fa0fc8b314c5260c0768c19bf3aac22621a"
+    },
+    {
+        "name": "App.tsx",
+        "path": "../frontend\\src\\App.tsx",
+        "level": 1,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "./routes/AppRouter.tsx"
+        ],
+        "description": "",
+        "hash": "6c534979e654c7b6d6b17a7a6ac059a117bb50ca44237d6ec01c8e5751b9cf97"
+    },
+    {
+        "name": "index.css",
+        "path": "../frontend\\src\\index.css",
+        "level": 1,
+        "type": "file",
+        "language": "CSS",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "bdba2919116e9b72ac06558f88371dc4c80fb0196da6403d239e0fb085250892"
+    },
+    {
+        "name": "main.tsx",
+        "path": "../frontend\\src\\main.tsx",
+        "level": 1,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "queryClient"
+        ],
+        "imports": [
+            "react",
+            "./App",
+            "./context/AuthProvider"
+        ],
+        "description": "",
+        "hash": "6070758ec558704db2b04780911ad7e98d3bdfe24f17af8bb4b8165ed1047695"
+    },
+    {
+        "name": "vite-env.d.ts",
+        "path": "../frontend\\src\\vite-env.d.ts",
+        "level": 1,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "/ <reference types=\"vite/client\" />",
+        "hash": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5"
+    },
+    {
+        "name": "assets",
+        "path": "../frontend\\src\\assets",
+        "level": 1,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "react.svg",
+        "path": "../frontend\\src\\assets\\react.svg",
+        "level": 2,
+        "type": "file",
+        "language": "Image",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "35ef61ed53b323ae94a16a8ec659b3d0af3880698791133f23b084085ab1c2e5"
+    },
+    {
+        "name": "components",
+        "path": "../frontend\\src\\components",
+        "level": 1,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "admin",
+        "path": "../frontend\\src\\components\\admin",
+        "level": 2,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "layout",
+        "path": "../frontend\\src\\components\\admin\\layout",
+        "level": 3,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "AdminLayout.tsx",
+        "path": "../frontend\\src\\components\\admin\\layout\\AdminLayout.tsx",
+        "level": 4,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "AdminLayout",
+            "sidebarWidth",
+            "showSidebar"
+        ],
+        "imports": [
+            "./AdminSidebar",
+            "./AdminNavBar"
+        ],
+        "description": "",
+        "hash": "5a9927e516f7017527cc6d49b667dbaa7bca91a0b259c4ebfab13de5145d0d0f"
+    },
+    {
+        "name": "AdminNavBar.tsx",
+        "path": "../frontend\\src\\components\\admin\\layout\\AdminNavBar.tsx",
+        "level": 4,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "adminMenus",
+            "navigate",
+            "handleLogout"
+        ],
+        "imports": [
+            "../../../context/useAuth"
+        ],
+        "description": "Configuraci\u00f3n de men\u00fas para f\u00e1cil mantenimiento y escalabilidad",
+        "hash": "11350212f0089f24c56cd6d8ebccc05c428c63e719a5739c9af85b89b163f9e1"
+    },
+    {
+        "name": "AdminSidebar.tsx",
+        "path": "../frontend\\src\\components\\admin\\layout\\AdminSidebar.tsx",
+        "level": 4,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "sidebarLinks",
+            "AdminSideBar",
+            "activeLinkStyle"
+        ],
+        "imports": [],
+        "description": "Estructura de navegaci\u00f3n del sidebar Renderizar separador",
+        "hash": "30e9921c8c39ccd8413f4a96db87c3fcd554ceccef1df485a8cda57c24b0955f"
+    },
+    {
+        "name": "auth",
+        "path": "../frontend\\src\\components\\auth",
+        "level": 2,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "ProtectedRoute.tsx",
+        "path": "../frontend\\src\\components\\auth\\ProtectedRoute.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "react",
+            "../../context/useAuth",
+            "../../types"
+        ],
+        "description": "src/components/auth/ProtectedRoute.tsx (Refactorizado) 1. Definimos las props que el componente espera recibir 2. Usamos las props en la definici\u00f3n del componente \u2b50 Usamos las nuevas propiedades del AuthContext 3. Manejar el estado de carga inicial de la autenticaci\u00f3n 4. Verificar si el usuario est\u00e1 autenticado Si no est\u00e1 autenticado, redirigimos a la p\u00e1gina de login (o la ruta especificada) 5. Si est\u00e1 autenticado, verificar si tiene un rol permitido Comparamos el rol del usuario con los roles permitidos `userRole` del AuthContext ya es de tipo `UserRole | null`, as\u00ed que el includes es seguro si no es null Si el rol no est\u00e1 permitido, redirigimos. Podr\u00edas redirigir a una p\u00e1gina de \"Acceso Denegado\" en lugar de login si ya est\u00e1 logueado pero con un rol incorrecto. Por ahora, para simplificar, sigue redirigiendo a login, pero idealmente ser\u00eda algo como '/unauthorized'. 6. Si la autenticaci\u00f3n y autorizaci\u00f3n son exitosas, renderizamos el <Outlet /> React Router se encargar\u00e1 de poner la p\u00e1gina correcta aqu\u00ed.",
+        "hash": "868e664a8851d130cfb3b8b65414b6d1a0aca6297d15afce444522762b3ea19d"
+    },
+    {
+        "name": "RedirectIfAdmin.tsx",
+        "path": "../frontend\\src\\components\\auth\\RedirectIfAdmin.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "react",
+            "../../context/useAuth",
+            "../../types"
+        ],
+        "description": "src/components/auth/RedirectIfAdmin.tsx (Refactorizado) \u2b50 Usamos las nuevas propiedades de tu AuthContext 1. Mientras se verifica el estado de autenticaci\u00f3n inicial, mostramos un spinner o null. Esto es importante para evitar un parpadeo o una redirecci\u00f3n incorrecta. Si este componente se usa en un contexto donde el spinner ya est\u00e1 en un nivel superior (ej. RootAuthGuard), podr\u00edas devolver 'null' para no duplicar spinners. Si es un punto de entrada independiente, un spinner completo es mejor. Aqu\u00ed usar\u00e9 null ya que HomePage suele estar despu\u00e9s de RootAuthGuard. 2. Si el usuario est\u00e1 autenticado Y es un administrador, lo redirigimos a su dashboard. Es importante verificar `isAuthenticated` para asegurarnos de que `userRole` es fiable. 3. Si el usuario no es un administrador (o no est\u00e1 autenticado en absoluto), renderizamos el contenido hijo. Nota: Si no est\u00e1 autenticado, el `ProtectedRoute` (o `RootAuthGuard`) que envuelve esta ruta ya deber\u00eda haberlo redirigido al `/login`. Este componente se enfoca espec\u00edficamente en redirigir a los *admins* fuera de rutas \"no-admin\".",
+        "hash": "a899fdaf2518bb241cc29f9897d5a891557e0d460750eb74ae9eec7de058349c"
+    },
+    {
+        "name": "RootAuthGuard.tsx",
+        "path": "../frontend\\src\\components\\auth\\RootAuthGuard.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "react",
+            "../../context/useAuth",
+            "../../pages/LandingPage",
+            "../../types"
+        ],
+        "description": "src/components/auth/RootAuthGuard.tsx (Refactorizado) \u2b50 Usamos las nuevas propiedades de tu AuthContext 1. Mientras se verifica el estado de autenticaci\u00f3n inicial, mostramos un spinner. Esto evita cualquier parpadeo indeseado antes de que el AuthContext se rehidrate. 2. Si el usuario est\u00e1 autenticado, decidimos a d\u00f3nde enviarlo basado en su rol. Si es 'client' o 'trainer' (o cualquier otro rol futuro que tenga un home espec\u00edfico) El rol 'trainer' tambi\u00e9n podr\u00eda ir a '/home' o a un '/trainer-dashboard' 3. Si no est\u00e1 autenticado (isAuthenticated es false), renderizamos la LandingPage. No hay necesidad de verificar 'userRole' aqu\u00ed porque 'isAuthenticated' ya lo descarta.",
+        "hash": "cface027694935340fdb50f88af7ea13aa94ecd7767578a1d3713cf41160c4c7"
+    },
+    {
+        "name": "classes",
+        "path": "../frontend\\src\\components\\classes",
+        "level": 2,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "ClassCard.tsx",
+        "path": "../frontend\\src\\components\\classes\\ClassCard.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "react",
+            "../../types"
+        ],
+        "description": "--- Helpers de Presentaci\u00f3n --- Abstraemos la l\u00f3gica de formato para mantener el JSX limpio. --- Componente Principal --- 1. Usamos el componente <Card> sem\u00e1ntico. Viene con estilos base.",
+        "hash": "0cf87b4739522c2f919e7a65e053f83438bde855f005261edd5451037590cb9f"
+    },
+    {
+        "name": "ClassDetailModal.tsx",
+        "path": "../frontend\\src\\components\\classes\\ClassDetailModal.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "react",
+            "../../services/classService",
+            "./ClassDetailView",
+            "../common/LoadingSpinner",
+            "../common/ErrorDisplay"
+        ],
+        "description": "--- TANSTACK QUERY EN SU M\u00c1XIMA EXPRESI\u00d3N --- 1. Query Key Din\u00e1mica: La clave incluye el 'classId'. Esto significa que TanStack Query cachear\u00e1 los detalles de cada clase individualmente. Si cierras y vuelves a abrir el modal de la misma clase, los datos ser\u00e1n instant\u00e1neos desde la cach\u00e9. 2. Funci\u00f3n de Fetching: Solo se ejecutar\u00e1 si la query est\u00e1 \"enabled\". Usamos '!' para decirle a TypeScript que, en este punto, sabemos que classId no ser\u00e1 null, gracias a la opci\u00f3n 'enabled' de abajo. 3. LA MAGIA DE `enabled`: Esta es la opci\u00f3n m\u00e1s importante aqu\u00ed. Le dice a TanStack Query: \"NO ejecutes esta petici\u00f3n a menos que la condici\u00f3n sea verdadera\". En este caso, la petici\u00f3n solo se disparar\u00e1 si `classId` tiene un valor (no es null o undefined).",
+        "hash": "11875eb68d30d0f107fd64f4a44890e109ac37d64954ec790b7340bd33b22690"
+    },
+    {
+        "name": "ClassDetailView.tsx",
+        "path": "../frontend\\src\\components\\classes\\ClassDetailView.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "react",
+            "../../types",
+            "./ClassScheduleSection"
+        ],
+        "description": "1. Aseg\u00farate de importar el tipo de dato que vas a recibir. 2. DEFINE LA INTERFAZ DE PROPS: Este es el \"manual de instrucciones\". Le dice a TypeScript que este componente DEBE recibir una prop llamada 'gymClass' que sea del tipo 'GymClass'. 3. APLICA LA INTERFAZ AL COMPONENTE: Usa React.FC<TuInterfazDeProps> y desestructura la prop 'gymClass' de los argumentos. Si usas export default, aseg\u00farate de que sea consistente.",
+        "hash": "621754cb49bd4253f1c05b9bede3cd1965c202d287021a46f27372c53e201122"
+    },
+    {
+        "name": "ClassList.tsx",
+        "path": "../frontend\\src\\components\\classes\\ClassList.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "react",
+            "../../types",
+            "./ClassCard"
+        ],
+        "description": "",
+        "hash": "ad26b58004fabf684b2a50cb2ee216a9151914184a89613dc015efc01aacd578"
+    },
+    {
+        "name": "ClassScheduleSection.tsx",
+        "path": "../frontend\\src\\components\\classes\\ClassScheduleSection.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "toast",
+            "navigate",
+            "queryClient",
+            "bookScheduleMutation",
+            "axiosErr",
+            "msg",
+            "nextSession",
+            "isAvailable",
+            "isFull",
+            "getBadgeProps",
+            "nextDate",
+            "text",
+            "badgeProps",
+            "pendingMutation",
+            "buttonDisabled",
+            "buttonLabel",
+            "handleBookClick",
+            "dayNames",
+            "getDaysOfWeekString",
+            "teacher",
+            "startTime",
+            "endTime",
+            "days"
+        ],
+        "imports": [
+            "react",
+            "axios",
+            "../../services/classService",
+            "../../context/useAuth",
+            "../../utils/formatters"
+        ],
+        "description": "Pre-calculamos las propiedades de la Badge para un render m\u00e1s limpio L\u00f3gica de deshabilitaci\u00f3n del bot\u00f3n",
+        "hash": "07ed29b1d181049e8adc63869ee8acf736097f9157581a8f21b9c1e60574ed3f"
+    },
+    {
+        "name": "ClassSessionCard.tsx",
+        "path": "../frontend\\src\\components\\classes\\ClassSessionCard.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "toast",
+            "navigate",
+            "queryClient",
+            "userAlreadyBooked",
+            "bookSessionMutation",
+            "axiosErr",
+            "status",
+            "data",
+            "rawErrorMessage",
+            "handleBookClick",
+            "isFull",
+            "isPast",
+            "pendingReq",
+            "buttonDisabled",
+            "buttonLabel"
+        ],
+        "imports": [
+            "react",
+            "../../types",
+            "../../services/classService",
+            "../../utils/formatters",
+            "../../context/useAuth",
+            "axios"
+        ],
+        "description": "Re\u2013frescar cache",
+        "hash": "7d258a8f9fcf77b25c71659018a503cfacc1229c37a38d0e25a2ef064f06e19c"
+    },
+    {
+        "name": "common",
+        "path": "../frontend\\src\\components\\common",
+        "level": 2,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "ErrorDisplay.tsx",
+        "path": "../frontend\\src\\components\\common\\ErrorDisplay.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "errorData"
+        ],
+        "imports": [
+            "react",
+            "axios",
+            "../../types"
+        ],
+        "description": "src/components/common/ErrorDisplay.tsx (Modificado) Ahora acepta el objeto de error real para extraer m\u00e1s detalles Intenta obtener el detalle del error de FastAPI FastAPI a veces devuelve un array de errores de validaci\u00f3n Si no se pudo obtener un detalle espec\u00edfico, usar el mensaje gen\u00e9rico Si sigue sin haber detalle, usar el mensaje de Axios si est\u00e1 disponible",
+        "hash": "8c9619b66ba7dd934b8d19dbc053466f10dc0d1618f874a62e1138fd18f74541"
+    },
+    {
+        "name": "LoadingSpinner.tsx",
+        "path": "../frontend\\src\\components\\common\\LoadingSpinner.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "react"
+        ],
+        "description": "",
+        "hash": "d4800f0be2ae81efea1024f613d0bfaa3c8de13e482c219c3cdb917de86a3c17"
+    },
+    {
+        "name": "dashboard",
+        "path": "../frontend\\src\\components\\dashboard",
+        "level": 2,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "BookingCard.tsx",
+        "path": "../frontend\\src\\components\\dashboard\\BookingCard.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "toast",
+            "queryClient",
+            "isMobile",
+            "startDateTime",
+            "startTime",
+            "duration",
+            "className",
+            "teacherName",
+            "endDateTime",
+            "endTime",
+            "cancelMutation"
+        ],
+        "imports": [
+            "react",
+            "../../services/classService",
+            "../../utils/formatters",
+            "../../types"
+        ],
+        "description": "src/components/dashboard/BookingCard.tsx Extraer datos Mutaci\u00f3n para cancelar Versi\u00f3n compacta para calendario Versi\u00f3n completa",
+        "hash": "274be64616571a5098d1bcda89c8622791cf098b92fb81551dfb0f0fa7498420"
+    },
+    {
+        "name": "DocumentReminder.tsx",
+        "path": "../frontend\\src\\components\\dashboard\\DocumentReminder.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "hasMedicalCertificate"
+        ],
+        "imports": [
+            "react"
+        ],
+        "description": "src/components/dashboard/DocumentReminder.tsx Esto vendr\u00eda de tu API",
+        "hash": "8072906235f148a2c653fbebaaa1993c956991906011de76f6f4fdbfb35c17b0"
+    },
+    {
+        "name": "NotificationPanel.tsx",
+        "path": "../frontend\\src\\components\\dashboard\\NotificationPanel.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "monthlyStats",
+            "currentMonth",
+            "currentYear",
+            "classesThisMonth",
+            "bookingDate",
+            "monthlyLimit",
+            "percentage",
+            "isNearLimit",
+            "colorScheme"
+        ],
+        "imports": [
+            "react",
+            "../../context/useAuth",
+            "../../types"
+        ],
+        "description": "src/components/dashboard/NotificationPanel.tsx \ud83d\ude80 Usar los datos que ya est\u00e1n en cache del AuthContext No hacer queries adicionales innecesarias",
+        "hash": "c04c6248f955476136e5a8424b77d5fb3174145fa2f4151e80bcbcfaf45b431c"
+    },
+    {
+        "name": "PaymentReminder.tsx",
+        "path": "../frontend\\src\\components\\dashboard\\PaymentReminder.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "daysUntilDue",
+            "hasPaymentDue"
+        ],
+        "imports": [
+            "react"
+        ],
+        "description": "src/components/dashboard/PaymentReminder.tsx Esto vendr\u00eda de tu API",
+        "hash": "e3468e8d9b67fa08c96c53fb1861f25ea2d405eb38a71f1cc6e907a61e96f77d"
+    },
+    {
+        "name": "UpcomingEvents.tsx",
+        "path": "../frontend\\src\\components\\dashboard\\UpcomingEvents.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "isLoading",
+            "getEventIcon",
+            "getEventColor"
+        ],
+        "imports": [
+            "react"
+        ],
+        "description": "src/components/dashboard/UpcomingEvents.tsx Tipo para eventos (esto vendr\u00eda de tu API m\u00e1s adelante) \ud83d\ude80 TanStack Query para eventos futuros (por ahora mock data) const { data: events = [], isLoading } = useQuery({ queryKey: ['upcomingEvents'], queryFn: () => classService.getUpcomingEvents(), staleTime: 10 * 60 * 1000, // 10 minutos }); Mock data por ahora",
+        "hash": "9c0b9199c2d2c1e156b36b252b8cb2b0c6c70ff4d2215da78047fd9342d2d0f3"
+    },
+    {
+        "name": "WeeklyCalendar.tsx",
+        "path": "../frontend\\src\\components\\dashboard\\WeeklyCalendar.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "isMobile",
+            "today",
+            "getBookingsForDay",
+            "dayStr",
+            "bookingDate",
+            "getDayName",
+            "days",
+            "isToday",
+            "dateStr",
+            "todayStr",
+            "dayBookings",
+            "dayName",
+            "isTodayFlag",
+            "dayBookings"
+        ],
+        "imports": [
+            "react",
+            "./BookingCard",
+            "../../utils/formatters",
+            "../../types"
+        ],
+        "description": "src/components/dashboard/WeeklyCalendar.tsx Vista m\u00f3vil: lista vertical Vista desktop: tabla",
+        "hash": "69f4ad345daa6b583f48ac20a7de3e1e94b139a222f1101968ea0a1607ceb73f"
+    },
+    {
+        "name": "Footer",
+        "path": "../frontend\\src\\components\\Footer",
+        "level": 2,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "Footer.tsx",
+        "path": "../frontend\\src\\components\\Footer\\Footer.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "64d6cab5b43170df9ab960acefda5ea63cd9cd81900348472a419abb37ddda21"
+    },
+    {
+        "name": "landing",
+        "path": "../frontend\\src\\components\\landing",
+        "level": 2,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "ActivitiesSection.tsx",
+        "path": "../frontend\\src\\components\\landing\\ActivitiesSection.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "activitiesData",
+            "ActivitiesSection"
+        ],
+        "imports": [],
+        "description": "... (datos de las actividades que te proporcion\u00e9 anteriormente)",
+        "hash": "bbd4ad46620f0ff31b628bbc6bd1442ee74aa3c759bb080b2bb53c0a08097f6a"
+    },
+    {
+        "name": "InfiniteCarousel.tsx",
+        "path": "../frontend\\src\\components\\landing\\InfiniteCarousel.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "carouselSlides",
+            "slideVariants",
+            "InfiniteCarousel",
+            "slideInterval",
+            "goToSlide"
+        ],
+        "imports": [
+            "react"
+        ],
+        "description": "Los mismos datos que ya ten\u00edamos 1. Definimos las variantes de animaci\u00f3n para la transici\u00f3n 2. Estado para saber qu\u00e9 diapositiva est\u00e1 activa 3. useEffect para el cambio autom\u00e1tico de diapositiva Usamos el operador de m\u00f3dulo para volver al inicio Limpiamos el intervalo cuando el componente se desmonta Funci\u00f3n para cambiar de diapositiva manualmente",
+        "hash": "9eac57e364ffbb872abe3ec765ba4302cee07d5c37e641dc6a045eadbcbf5a96"
+    },
+    {
+        "name": "layout",
+        "path": "../frontend\\src\\components\\layout",
+        "level": 2,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "Layout.tsx",
+        "path": "../frontend\\src\\components\\layout\\Layout.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [
+            "./Navbar",
+            "../Footer/Footer"
+        ],
+        "description": "",
+        "hash": "ca4ab255281fae488205ce61158a7c31eaa54adb9f7627509d76f36a74e4fe13"
+    },
+    {
+        "name": "Navbar.tsx",
+        "path": "../frontend\\src\\components\\layout\\Navbar.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "Navbar",
+            "navigate",
+            "handleDrawerNavigate",
+            "logoutUser"
+        ],
+        "imports": [
+            "../../context/useAuth"
+        ],
+        "description": "Obtenemos el rol y la funci\u00f3n logout del contexto --- Handlers ---   Si el usuario est\u00e1 logueado, muestra el bot\u00f3n de Logout Si no, muestra los botones de Login y Registro Si el usuario est\u00e1 logueado Si no est\u00e1 logueado",
+        "hash": "4f875bd40bf76c308d904ad76768768f7eee12015b1c617976020100f858c89f"
+    },
+    {
+        "name": "context",
+        "path": "../frontend\\src\\context",
+        "level": 1,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "AuthContext.tsx",
+        "path": "../frontend\\src\\context\\AuthContext.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "AuthContext"
+        ],
+        "imports": [
+            "react",
+            "../types"
+        ],
+        "description": "Debes mantener el tipo sincronizado con el value de tu provider Solo define y exporta el contexto (sin provider ni l\u00f3gica de estado aqu\u00ed)",
+        "hash": "35e57e782e04cfa2a41b1d00888e7cd5b02638bc6df48d4ea3d91b4f95d24e11"
+    },
+    {
+        "name": "AuthProvider.tsx",
+        "path": "../frontend\\src\\context\\AuthProvider.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "queryClient",
+            "decodeToken",
+            "storedToken",
+            "login",
+            "logout",
+            "isAuthenticated",
+            "isClient",
+            "isTrainer",
+            "isAdmin",
+            "value"
+        ],
+        "imports": [
+            "react",
+            "../services/api",
+            "../services/classService",
+            "./AuthContext",
+            "../types"
+        ],
+        "description": "Componente Provider que maneja la l\u00f3gica de autenticaci\u00f3n y provee el contexto eslint-disable-next-line @typescript-eslint/no-unused-vars Decodifica el accessToken y setea el usuario y rol Manejo de error si el token est\u00e1 corrupto o expir\u00f3 Al montar, intenta rehidratar el token y usuario desde localStorage Login: guarda el token y decodifica Logout: limpia todo el estado y la cache de queries TanStack Query obtiene los bookings SOLO si est\u00e1 autenticado y es cliente Puedes poner aqu\u00ed tu spinner o Skeleton si lo prefieres",
+        "hash": "d42b76b6e939f66b0875589b91b8351288a822bc276e690086048e65e578d02f"
+    },
+    {
+        "name": "useAuth.tsx",
+        "path": "../frontend\\src\\context\\useAuth.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [
+            "useAuth"
+        ],
+        "constants": [
+            "context"
+        ],
+        "imports": [
+            "react",
+            "./AuthContext"
+        ],
+        "description": "Hook especializado para consumir el AuthContext de forma segura",
+        "hash": "bd3099aa88ad6dee940ff04b7fac82cf1b94ce10a41f58451da385e1d3bb0b82"
+    },
+    {
+        "name": "pages",
+        "path": "../frontend\\src\\pages",
+        "level": 1,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "AboutPage.tsx",
+        "path": "../frontend\\src\\pages\\AboutPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "471bb87524ecae3f46734151965ae8ef0bdf144d9a3e35bd2ea5905699e79931"
+    },
+    {
+        "name": "AdminPage.tsx",
+        "path": "../frontend\\src\\pages\\AdminPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+        "name": "ClassDetailPage.tsx",
+        "path": "../frontend\\src\\pages\\ClassDetailPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {
+            "ID": [
+                "getClassById",
+                "if",
+                "if",
+                "if",
+                "return",
+                "renderContent"
+            ]
+        },
+        "functions": [],
+        "constants": [
+            "renderContent"
+        ],
+        "imports": [
+            "react",
+            "../services/classService",
+            "../components/classes/ClassDetailView",
+            "../components/common/LoadingSpinner",
+            "../components/common/ErrorDisplay",
+            "axios"
+        ],
+        "description": "Crea este nuevo archivo: src/pages/ClassDetailPage.tsx Este es el componente CONTENEDOR (\"inteligente\") 1. Obtiene el ID de la URL (el \"conductor\" sabe a d\u00f3nde ir) 2. Usa TanStack Query para obtener los datos (el \"motor\") 3. Decide qu\u00e9 mostrar basado en el estado de la petici\u00f3n 4. Si hay datos, le pasa la informaci\u00f3n a la \"carrocer\u00eda\" (ClassDetailView)",
+        "hash": "4e5b567c57effc5b87322a3563832befa88ef3cf4fd3d1bf0d2bce33a4bc9de3"
+    },
+    {
+        "name": "ClassesPage.tsx",
+        "path": "../frontend\\src\\pages\\ClassesPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "handleClassSelect",
+            "handleCloseModal",
+            "renderContent"
+        ],
+        "imports": [
+            "react",
+            "../services/classService",
+            "../components/classes/ClassList",
+            "../components/common/LoadingSpinner",
+            "../components/common/ErrorDisplay",
+            "../components/classes/ClassDetailModal"
+        ],
+        "description": "2. Reemplazamos todos los useState y el useEffect con esta \u00fanica l\u00ednea Funciones para abrir y cerrar el modal, que se pasar\u00e1n como props 3. Tu l\u00f3gica de renderizado ahora es a\u00fan m\u00e1s limpia isError es un booleano que nos dice si 'error' tiene un valor Pasamos la funci\u00f3n para manejar la selecci\u00f3n a la lista",
+        "hash": "c77473c15f58807832d3c03853ee4618e9f11dfdf03d171154b9bdca703ff860"
+    },
+    {
+        "name": "HomePage.tsx",
+        "path": "../frontend\\src\\pages\\HomePage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "HomePage",
+            "navigate",
+            "weekDays",
+            "today",
+            "debugToday",
+            "today",
+            "startOfWeek",
+            "day",
+            "thisWeekBookings",
+            "weekStartLocal",
+            "weekEndLocalCandidate",
+            "weekEndLocal",
+            "weekStartTimeMs",
+            "weekEndTimeMs",
+            "filteredBookings",
+            "bookingDate",
+            "bookingTimeMs",
+            "isInRange"
+        ],
+        "imports": [
+            "react",
+            "../context/useAuth",
+            "../types",
+            "../components/dashboard/WeeklyCalendar",
+            "../components/dashboard/NotificationPanel",
+            "../components/dashboard/PaymentReminder",
+            "../components/dashboard/DocumentReminder",
+            "../components/dashboard/UpcomingEvents"
+        ],
+        "description": "src/pages/HomePage.tsx (VERSION SIMPLIFICADA) Componentes del dashboard const debugToday = new Date('2025-09-12T10:00:00-03:00'); // <--- DESCOMENTA Y USA ESTO PARA PROBAR CON 2025 const today = debugToday; // <--- Y USA ESTA LINEA EN LUGAR DE LA DE ARRIBA PARA 'today' Ajusta para llegar al lunes de la semana actual. (Maneja el caso de domingo como 0) No necesitas day.setHours(0,0,0,0) aqu\u00ed, ya que startOfWeek ya est\u00e1 en 00:00:00 Aseg\u00farate de que weekDays[0] y weekDays[4] ya est\u00e9n en 00:00:00 local (Esto deber\u00eda estar resuelto por el `setHours(0,0,0,0)` en la generaci\u00f3n de weekDays)",
+        "hash": "03e77331e5dcaed9c192d8151695eb8836c9ff233a7ca851a987e6d4592c7493"
+    },
+    {
+        "name": "JoinUsPage.tsx",
+        "path": "../frontend\\src\\pages\\JoinUsPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "5a4091da7694362fe3981cef477b85b0068a35551f123c12c105f2f8002f553d"
+    },
+    {
+        "name": "LandingPage.tsx",
+        "path": "../frontend\\src\\pages\\LandingPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "LandingPage"
+        ],
+        "imports": [
+            "../components/landing/InfiniteCarousel",
+            "../components/landing/ActivitiesSection"
+        ],
+        "description": "",
+        "hash": "5ae45eeba654e4cea18c7086fff451d8a8ff9c45611e19d30cd493fd6fe61e90"
+    },
+    {
+        "name": "LoginPage.tsx",
+        "path": "../frontend\\src\\pages\\LoginPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "LoginPage",
+            "navigate",
+            "toast",
+            "loginMutation",
+            "payload",
+            "errorData",
+            "handleSubmit"
+        ],
+        "imports": [
+            "react",
+            "../context/useAuth",
+            "../services/classService",
+            "../types",
+            "axios",
+            "../types"
+        ],
+        "description": "\u2b50 1. Definimos la mutaci\u00f3n de login La funci\u00f3n que ejecuta la llamada a la API Callback que se ejecuta si la mutaci\u00f3n es exitosa Llamamos a la funci\u00f3n login del AuthContext, pasando solo el token El AuthContext ya se encarga de decodificar y establecer el rol \u2b50 2. Redirecci\u00f3n basada en el rol, que ahora se obtiene del AuthContext Esperamos que currentUser y userRole ya est\u00e9n actualizados despu\u00e9s de 'login(data.access_token)' Si necesitas una redirecci\u00f3n inmediata basada en el token, podr\u00edas decodificar aqu\u00ed pero el patr\u00f3n ideal es que AuthContext lo maneje y t\u00fa reaccione a ello. Para una redirecci\u00f3n m\u00e1s segura, esperemos al siguiente ciclo de render o a que AuthContext actualice. Por simplicidad, usaremos el userRole actualizado por el AuthContext Decodificas YA el role antes de depender del contexto Callback que se ejecuta si la mutaci\u00f3n falla Intentamos castear a un tipo de error de autenticaci\u00f3n espec\u00edfico Si el detalle no es un string (ej. un objeto de errores de validaci\u00f3n, aunque raro para login) Puedes intentar un casteo m\u00e1s general si tu API devuelve diferentes formatos \u2b50 3. Disparamos la mutaci\u00f3n con las credenciales",
+        "hash": "775f0991641c81cb4697e006a958cb7ad0fac2d327a9da356b1dac07334c21d8"
+    },
+    {
+        "name": "NotFoundPage.tsx",
+        "path": "../frontend\\src\\pages\\NotFoundPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "fed5373d67f7420998f4ce8f26a40d94fae61febf16b5c32c719cad6877569c4"
+    },
+    {
+        "name": "NutritionPage.tsx",
+        "path": "../frontend\\src\\pages\\NutritionPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "dd76c034d9565156760bf8b063535abfd2876e9197489b73adcfc67b143c4355"
+    },
+    {
+        "name": "PlansPage.tsx",
+        "path": "../frontend\\src\\pages\\PlansPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "",
+        "hash": "9b9418fd95fb43ecad24450f0359d9a5904a3e7c98ef2aa7902c591a247775ea"
+    },
+    {
+        "name": "RegisterPage.tsx",
+        "path": "../frontend\\src\\pages\\RegisterPage.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "RegisterPage",
+            "navigate",
+            "toast",
+            "handleSubmit"
+        ],
+        "imports": [
+            "react",
+            "../services/api"
+        ],
+        "description": "Mostramos el error que nos llega desde el servicio de API",
+        "hash": "c48fc15db02aacaa761e7cd71c909f7b69d65b736ed92b66d534e826897dfe24"
+    },
+    {
+        "name": "admin",
+        "path": "../frontend\\src\\pages\\admin",
+        "level": 2,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "AdminDashboardPage.tsx",
+        "path": "../frontend\\src\\pages\\admin\\AdminDashboardPage.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "AdminDashboardPage"
+        ],
+        "imports": [],
+        "description": "",
+        "hash": "5c518735bfd8f96eb9bef4ac7351df39a5d0e63567228b857a37b59472847790"
+    },
+    {
+        "name": "ClientsPage.tsx",
+        "path": "../frontend\\src\\pages\\admin\\ClientsPage.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "clientsData",
+            "ClientsPage",
+            "toast",
+            "handleAdd",
+            "handleEdit",
+            "handleDelete"
+        ],
+        "imports": [],
+        "description": "Datos de ejemplo",
+        "hash": "03681b92a9d18e92750728ded8143f8c84135fa8a557a64f12fe2b64a9b3185b"
+    },
+    {
+        "name": "CrudClassesPage.tsx",
+        "path": "../frontend\\src\\pages\\admin\\CrudClassesPage.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "clientsData",
+            "ClassesPage",
+            "toast",
+            "handleAdd",
+            "handleEdit",
+            "handleDelete"
+        ],
+        "imports": [],
+        "description": "Datos de ejemplo",
+        "hash": "2231ae42910f1beaf97bf55014f4cad47f650ccfc77286d28b777241c6092581"
+    },
+    {
+        "name": "TeachersPage.tsx",
+        "path": "../frontend\\src\\pages\\admin\\TeachersPage.tsx",
+        "level": 3,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "clientsData",
+            "TeachersPage",
+            "toast",
+            "handleAdd",
+            "handleEdit",
+            "handleDelete"
+        ],
+        "imports": [],
+        "description": "Datos de ejemplo",
+        "hash": "f66b87c10349bcbc1020a39ffebf53d292157e4bcd18f79e0da27ffe6767f732"
+    },
+    {
+        "name": "routes",
+        "path": "../frontend\\src\\routes",
+        "level": 1,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "AppRouter.tsx",
+        "path": "../frontend\\src\\routes\\AppRouter.tsx",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "HomePage",
+            "AboutPage",
+            "NotFoundPage",
+            "LandingPage",
+            "LoginPage",
+            "RegisterPage",
+            "PlansPage",
+            "ClassesPage",
+            "JoinUsPage",
+            "NutritionPage",
+            "AdminLayout",
+            "ProtectedRoute",
+            "AdminDashboardPage",
+            "ClientsPage",
+            "TeachersPage",
+            "CrudClassesPage",
+            "RootAuthGuard",
+            "ClassDetailPage"
+        ],
+        "imports": [
+            "../components/layout/Layout",
+            "react",
+            "../types"
+        ],
+        "description": "",
+        "hash": "26647c40d784982e9d61913327a9d8abe7990c1815a974fd29ba52f0db9e9b71"
+    },
+    {
+        "name": "services",
+        "path": "../frontend\\src\\services",
+        "level": 1,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "api.ts",
+        "path": "../frontend\\src\\services\\api.ts",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "API_BASE_URL",
+            "apiClient",
+            "loginUser",
+            "formData",
+            "response",
+            "registerUser",
+            "payload",
+            "response"
+        ],
+        "imports": [
+            "axios"
+        ],
+        "description": "src/services/api.ts 1. Creamos una instancia de Axios con configuraci\u00f3n base 2. Definimos la funci\u00f3n de login Nota: Le cambiamos el nombre a loginUser para evitar confusi\u00f3n con el login del AuthContext FastAPI con OAuth2PasswordRequestForm espera datos de formulario, no JSON. Usamos URLSearchParams para formatear los datos correctamente. La respuesta de FastAPI contiene { access_token: \"...\", token_type: \"bearer\" } Si Axios recibe un error (ej. 401 Unauthorized), lo lanzar\u00e1. Lo personalizamos para que sea m\u00e1s claro. Aqu\u00ed a\u00f1adiremos m\u00e1s funciones en el futuro (ej. registerUser) El backend espera un campo 'full_name', as\u00ed que mapeamos 'fullName' a \u00e9l. A diferencia del login, el registro s\u00ed espera un JSON normal. Manejo de errores robusto, igual que en el login El backend devuelve un error 400 si el email ya existe. Extraemos el mensaje de 'detail'.",
+        "hash": "70e0ebfbbb3057293673cb751f561649a316a9f69706e6ddaacca97a5e9d577e"
+    },
+    {
+        "name": "classService.ts",
+        "path": "../frontend\\src\\services\\classService.ts",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "classService",
+            "formData",
+            "response",
+            "response",
+            "response",
+            "response",
+            "params",
+            "response",
+            "response",
+            "response",
+            "response",
+            "response",
+            "response"
+        ],
+        "imports": [
+            "./api"
+        ],
+        "description": "src/services/classService.ts --- Autenticaci\u00f3n --- throw new Error('No se pudo iniciar sesi\u00f3n'); --- GymClass Endpoints --- throw new Error('No se pudieron cargar las clases'); throw new Error('No se pudo cargar la clase'); throw new Error('No se pudo crear la clase'); --- ClassSchedule Endpoints --- --- ClassSession Endpoints --- --- Booking Endpoints ---",
+        "hash": "4412c5ade120ecd904da7c5bf6eb1032470abc171a9e8ef8f278328f43f8ab12"
+    },
+    {
+        "name": "teacherService.ts",
+        "path": "../frontend\\src\\services\\teacherService.ts",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "getAllTeachers",
+            "response",
+            "getTeacherById",
+            "response",
+            "createTeacherProfile",
+            "response",
+            "teacherService"
+        ],
+        "imports": [
+            "./api",
+            "../types"
+        ],
+        "description": "* Obtiene la lista de todos los perfiles de profesores.",
+        "hash": "35c81d0d382722cb3614ad8d5dbb65d3d6d8cac2df6a27f94ebb148956775f78"
+    },
+    {
+        "name": "types",
+        "path": "../frontend\\src\\types",
+        "level": 1,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "index.ts",
+        "path": "../frontend\\src\\types\\index.ts",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [],
+        "imports": [],
+        "description": "src/types/index.ts (Refactorizado y Completo) --- Enums --- --- Schemas Base --- (si se usan en el frontend para herencia de Pydantic) Aunque en TypeScript no se \"hereda\" igual, puedes usar interfaces base. --- User --- El usuario autenticado, con la informaci\u00f3n del token y su rol. Otros campos del User si los necesitas en el frontend y los obtienes --- Token Payloads --- --- Teacher --- Esquema ligero para cuando un Teacher es anidado en otra respuesta (ej. ClassSchedule) Si en el backend, TeacherInClassScheduleResponse no incluye first_name, last_name, etc. entonces esta interfaz deber\u00eda ser m\u00e1s minimalista. Esquema completo para un Teacher (ej. en un endpoint GET /teachers/{id}) Aqu\u00ed ir\u00edan las relaciones si se cargan completas, ej. --- GymClass --- Esquema ligero para cuando GymClass es anidado en otra respuesta (ej. ClassSchedule) Esquema completo para una GymClass (ej. en un endpoint GET /gym_classes/{id}) La clave aqu\u00ed es que ahora las relaciones de horario y profesor van via ClassSchedule Representa los datos necesarios para crear una nueva clase (sin profesores directamente) --- ClassSchedule --- Datos base de una oferta de horario recurrente Esquema de respuesta completo para una ClassSchedule future_sessions?: ClassSessionInResponse[]; // Puede ser cargado por separado --- ClassSession --- Datos base de una sesi\u00f3n de clase espec\u00edfica Esquema de respuesta completo para una ClassSession Esquema ligero para cuando ClassSession es anidada (ej. en Booking) Puedes incluir m\u00e1s campos si necesitas detalles de la sesi\u00f3n dentro de la reserva --- Booking --- Datos base de una reserva Esquema de respuesta para una reserva (ej. para la lista de mis reservas) Objetos anidados para mostrar detalles de la sesi\u00f3n y cliente Esquema ligero para cuando Booking es anidado (ej. en ClassSession o Client) --- Client --- Esquema ligero para cuando Client es anidado (ej. en Booking) Esquema completo para un Client bookings: BookingInClientResponse[]; // Si quieres cargar las reservas aqu\u00ed --- Payload para crear una reserva --- Tambi\u00e9n puedes querer una interfaz para un error 401 si tu backend lo devuelve diferente",
+        "hash": "35e30798b65ef29472a99bc570adc5049f05cceb514f2a173ab96d374d008d21"
+    },
+    {
+        "name": "utils",
+        "path": "../frontend\\src\\utils",
+        "level": 1,
+        "type": "directory",
+        "language": null
+    },
+    {
+        "name": "formatters.ts",
+        "path": "../frontend\\src\\utils\\formatters.ts",
+        "level": 2,
+        "type": "file",
+        "language": "TypeScript",
+        "classes": {},
+        "functions": [],
+        "constants": [
+            "getFormattedDate",
+            "d",
+            "year",
+            "month",
+            "day",
+            "getFormattedDateTime",
+            "d",
+            "getFormattedTime"
+        ],
+        "imports": [],
+        "description": "src/utils/formatters.ts (NUEVO) Asume que el string ya est\u00e1 en formato HH:MM:SS y toma solo las primeras 5.",
+        "hash": "2a9864c34590b683c68f7f131730d63da5e8a2b519f094ce76c15bab6797318f"
+    }
+]

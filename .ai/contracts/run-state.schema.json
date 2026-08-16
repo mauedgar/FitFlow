@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/run-state.schema.json",
+  "title": "FitFlow Run State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "run_id", "current_state", "next_state", "status", "reason", "required_artifacts", "blocked_by"],
+  "properties": {
+    "task_id": {"type": "string", "minLength": 3},
+    "run_id": {"type": "string", "minLength": 3},
+    "current_state": {"enum": ["BACKLOG", "READY", "PLAN", "EXPLORE", "EXECUTE", "REVIEW", "VALIDATE", "PENDING_ACCEPTANCE", "DONE", "BLOCKED", "BLOCKED_HIGH_RISK", "CANCELLED"]},
+    "next_state": {"enum": ["READY", "PLAN", "EXPLORE", "EXECUTE", "REVIEW", "VALIDATE", "PENDING_ACCEPTANCE", "DONE", "BLOCKED", "BLOCKED_HIGH_RISK", "CANCELLED"]},
+    "status": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+    "reason": {"type": "string", "minLength": 3},
+    "required_artifacts": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "blocked_by": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "role": {"type": ["string", "null"]},
+    "effective_model_id": {"type": ["string", "null"]},
+    "reasoning_level": {"enum": ["low", "medium", "high", null]}
+  }
+}

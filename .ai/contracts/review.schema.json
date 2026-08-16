@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/review.schema.json",
+  "title": "FitFlow Review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "status", "created_at", "baseline_revision", "working_tree_fingerprint", "author_role", "reviewed_run_id", "independent_execution", "decision", "findings", "acceptance_criteria", "next_state"],
+  "properties": {
+    "artifact": {"const": "REVIEW"},
+    "schema_version": {"const": "fitflow-review/v1"},
+    "task_id": {"type": "string", "minLength": 3},
+    "run_id": {"type": "string", "minLength": 3},
+    "status": {"enum": ["PASS", "FAIL", "BLOCKED"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "baseline_revision": {"type": "string", "minLength": 1},
+    "working_tree_fingerprint": {"type": "string", "pattern": "^sha256:.+$"},
+    "author_role": {"const": "reviewer"},
+    "reviewed_run_id": {"type": "string", "minLength": 3},
+    "independent_execution": {"const": true},
+    "decision": {"enum": ["PASS", "REQUEST_CONTEXT", "REQUEST_CHANGES", "REPLAN", "BLOCKED"]},
+    "findings": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "severity", "finding", "action"], "properties": {"id": {"type": "string"}, "severity": {"enum": ["critical", "major", "minor", "note"]}, "path": {"type": ["string", "null"]}, "start_line": {"type": ["integer", "null"], "minimum": 1}, "finding": {"type": "string", "minLength": 3}, "action": {"type": "string", "minLength": 1}}}},
+    "acceptance_criteria": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["id", "status", "evidence"], "properties": {"id": {"type": "string"}, "status": {"enum": ["PASS", "FAIL", "NOT_VERIFIED"]}, "evidence": {"type": "string"}}}},
+    "next_state": {"enum": ["VALIDATE", "EXPLORE", "EXECUTE", "PLAN", "BLOCKED"]}
+  }
+}

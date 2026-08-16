@@ -1,0 +1,31 @@
+{
+  "schema_version": "fitflow-context-package/v1",
+  "package_id": "CTX-EXAMPLE-001",
+  "task_id": "FF-EXAMPLE-001",
+  "run_id": "RUN-EXAMPLE-001",
+  "author_role": "explorer",
+  "scope": "backend",
+  "query": "Localizar el service y los tests de una regla de ejemplo.",
+  "freshness": "FRESH",
+  "baseline_revision": "NO_COMMIT",
+  "working_tree_fingerprint": "sha256:example",
+  "generated_at": "2026-08-16T00:00:00-03:00",
+  "token_budget": 8000,
+  "estimated_tokens": 420,
+  "budget_override_reason": null,
+  "evidence": [
+    {
+      "evidence_id": "E-001",
+      "path": "backend/app/services/example.py",
+      "symbol": "example",
+      "start_line": 1,
+      "end_line": 20,
+      "content_hash": "sha256:example",
+      "reason": "Implementación del caso de uso.",
+      "source": "direct"
+    }
+  ],
+  "relations": [],
+  "gaps": [],
+  "sources_manifest_hash": "sha256:example"
+}

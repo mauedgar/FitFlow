@@ -1,5 +1,0 @@
-# Copiar a la raiz del repositorio como .aider.conf.yml
-# solo si se desea fijar estos valores por proyecto.
-
-map-tokens: 1024
-map-refresh: auto

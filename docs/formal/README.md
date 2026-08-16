@@ -1,5 +1,13 @@
+---
+document_id: FF-FORMAL-INDEX-001
+status: reference
+machine_context: false
+indexing: excluded
+updated: 2026-08-16
+---
+
 # Documentos formales
 
-`FitFlow_BASELINE_Arquitectura_Operacion_IA_v3.docx` es una vista consolidada para consulta humana.
-
-Los Markdown canonicos siguen siendo mas faciles de mantener y referenciar por agentes. El DOCX resume; no crea una fuente de verdad paralela.
+Vistas DOCX/PDF para personas. Resumen decisiones ya promovidas; no crea una
+fuente paralela. Guardar explicaciones e informes en
+`docs/archive/source-material/` y mantener aquí solo un índice si fuera útil.

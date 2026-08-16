@@ -1,3 +1,9 @@
+---
+document_id: FF-ADR-0004
+status: accepted
+machine_context: true
+---
+
 # ADR 0004: RRULE como fuente unica de recurrencia de ClassSchedule
 
 - **Estado:** Implemented

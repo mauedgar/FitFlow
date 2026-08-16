@@ -1,0 +1,2569 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: **/node_modules/**, **/uvicorn-venv_backend/**
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+adr/
+  0001-ui-component-library-chakra-ui.md
+  0002-git-and-agent-workflow.md
+  0003-modular-monolith-target.md
+  0004-class-schedule-rrule.md
+  0005-atomic-booking-capacity.md
+  0006-pydantic-v2-contracts.md
+  0007-dual-ai-development-pipeline.md
+  0008-task-lifecycle-and-execution-lanes.md
+  0009-backend-testing-baseline.md
+  0010-lifecycle-preservation-and-schedule-actor-audit.md
+  README.md
+ai/
+  examples/
+    aider.conf.yml.example
+  aiderdesk-explorer-v1.md
+  codex-operating-guide.md
+  context-strategy.md
+  development-pipelines.md
+  indexer-pipeline.md
+  mcp-future.md
+  README.md
+archive/
+  historical/
+    README.md
+    Sprint_7_MVP_Operativo_legacy.docx
+  source-material/
+    architecture-explained.md
+    README.md
+    Sprint_6.8_original.docx
+  superseded/
+    FitFlow_Pipeline_Indexador_IA_v1.docx
+    FitFlow_ROADMAP_Arquitectura_Validacion_con_IA_v1.docx
+    FitFlow_ROADMAP_Arquitectura_Validacion_con_IA_v2.docx
+    README.md
+  README.md
+formal/
+  FitFlow_BASELINE_Arquitectura_Operacion_IA_v3.docx
+  FitFlow_ROADMAP_Arquitectura_Validacion_con_IA_v2.docx
+  README.md
+process/
+  ignore-policy.md
+  orm-and-critical-follow-up.md
+  README.md
+  task-lifecycle-and-reporting.md
+architecture.md
+current-state.md
+domain.md
+MIGRATION.md
+quality-and-validation.md
+README.md
+roadmap.md
+SOURCE_OF_TRUTH.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="adr/0001-ui-component-library-chakra-ui.md">
+# ADR 0001: Eleccion de Chakra UI
+
+- **Estado:** Accepted
+- **Fecha original:** 2025-08-16
+
+## Contexto
+
+FitFlow necesitaba una forma eficiente y escalable de construir la interfaz, con desarrollo rapido, consistencia visual y una curva de adopcion razonable.
+
+## Decision
+
+Usar **Chakra UI** como libreria principal de componentes del frontend.
+
+## Consecuencias
+
+### Positivas
+- gran cantidad de componentes listos para usar;
+- foco en accesibilidad;
+- tema personalizable;
+- buena experiencia de desarrollo basada en props.
+
+### Negativas
+- dependencia significativa;
+- bundle potencialmente mayor que enfoques utility-first.
+
+## Alternativas consideradas
+
+### Tailwind CSS
+Fue la primera opcion considerada, pero durante la configuracion inicial existieron problemas persistentes de compatibilidad/ejecucion de scripts (`npx`) que bloquearon el avance. Se priorizo no retrasar el desarrollo.
+
+### CSS Modules / Styled Components
+Mayor control, pero mas CSS manual para la etapa inicial.
+
+### Mantine UI
+Alternativa similar, conservada como plan B en aquel momento.
+
+## Estado actual
+
+Chakra UI continua en el stack frontend canonico. Cambiar de libreria requeriria un nuevo ADR y una justificacion que compense el costo de migracion.
+</file>
+
+<file path="adr/0002-git-and-agent-workflow.md">
+# ADR 0002: Git y trabajo aislado de agentes
+
+- **Estado:** Accepted
+- **Fecha:** 2026-08-12
+
+## Contexto
+
+FitFlow utiliza agentes capaces de modificar varios archivos y, en algunos entornos, worktrees/ramas de tarea. Se necesita trazabilidad y una forma de evitar que una tarea experimental contamine el estado estable.
+
+## Decision
+
+Git es el sistema de versionado y trazabilidad del proyecto. Los agentes deben trabajar en cambios acotados y, cuando el entorno lo soporte o exista paralelismo, en ramas/worktrees de tarea aislados.
+
+Reglas:
+- cambios de agentes deben ser revisables como diff;
+- no mezclar cambios no relacionados en una misma tarea;
+- arquitectura/dominio no se integran automaticamente sin aprobacion;
+- los tests y validaciones forman parte del handoff;
+- el historial Git es evidencia, pero no reemplaza ADRs/documentacion del por que.
+
+## Consecuencias
+
+- facilita revertir y revisar;
+- permite Codex/AiderDesk en ramas operativas distintas;
+- requiere disciplina para no acumular worktrees/branches abandonados;
+- los auto-commits de herramientas no equivalen a aprobacion arquitectonica.
+</file>
+
+<file path="adr/0003-modular-monolith-target.md">
+# ADR 0003: Monolito modular como arquitectura objetivo
+
+- **Estado:** Accepted / Pending Implementation
+- **Fecha:** 2026-08-12
+
+## Contexto
+
+FitFlow no necesita la complejidad operacional de microservicios para entregar el MVP. Al mismo tiempo, el crecimiento del dominio exige fronteras internas claras y una estructura mantenible.
+
+## Decision
+
+Consolidar gradualmente FitFlow como **Modular Monolith**.
+
+El sistema permanece simple de ejecutar/desplegar, con limites internos por responsabilidades y dominio. No se introducen microservicios, brokers, CQRS o event sourcing para resolver necesidades actuales del MVP.
+
+## Implementacion
+
+La reorganizacion sera incremental despues de estabilizar comportamiento y contratos. No autoriza un big-bang refactor durante Sprint 6.8.
+
+## Consecuencias
+
+### Positivas
+- menor complejidad operacional;
+- debugging y desarrollo local mas simples;
+- limites internos que permiten evolucion futura;
+- menor overhead de red/observabilidad distribuida.
+
+### Negativas
+- requiere disciplina para preservar fronteras;
+- una extraccion futura a servicios exigira trabajo adicional si aparece una necesidad real.
+</file>
+
+<file path="adr/0004-class-schedule-rrule.md">
+# ADR 0004: RRULE como fuente unica de recurrencia de ClassSchedule
+
+- **Estado:** Implemented
+- **Fecha:** 2026-08-12
+
+## Contexto
+
+Mantener dos representaciones de recurrencia crea riesgo de divergencia, fallbacks ambiguos y reglas duplicadas para la generacion de `ClassSession`.
+
+Documentacion anterior trato RRULE como si ya estuviera cerrado; el estado actual no lo confirma y debe verificarse durante Sprint 6.8.
+
+## Decision
+
+`ClassSchedule` usa **RRULE como única fuente de recurrencia**. El valor es una
+única línea RFC 5545 con prefijo `RRULE:` y sin `DTSTART`; `start_date` y
+`start_time` son el ancla local en `LOCAL_TZ`. La migración convierte y elimina
+`days_of_week`.
+
+La creación o actualización de un schedule completa solo ocurrencias futuras
+faltantes dentro de 15 días. No modifica ni elimina sesiones existentes,
+Bookings ni `capacity_snapshot`; una sesión obsoleta se cancela explícitamente.
+
+## Responsabilidades
+
+- Schema: formato/validacion estructural del dato.
+- Service: resolver RRULE, ventana, ocurrencias y conflictos.
+- Model/DB: persistir el contrato aprobado.
+- Tests: cubrir recurrencia, limites de fecha, conflictos y generacion de sesiones.
+
+## Consecuencias
+
+- reduce ambiguedad;
+- requiere completar/verificar implementacion antes de marcar el ADR como Implemented;
+- cualquier legacy se elimina con pruebas, no solo para satisfacer documentacion.
+</file>
+
+<file path="adr/0005-atomic-booking-capacity.md">
+# ADR 0005: Capacidad atomica en creacion de Booking
+
+- **Estado:** Accepted
+- **Fecha:** 2026-08-12
+
+## Contexto
+
+Una comprobacion de `available_spots` realizada fuera de la operacion de creacion puede quedar obsoleta por concurrencia y permitir overbooking.
+
+## Decision
+
+La creacion de Booking debe tener una comprobacion transaccional protegida de capacidad y duplicados. La capa service puede realizar validaciones tempranas para UX/negocio, pero la integridad final depende de la operacion atomica de persistencia.
+
+## Responsabilidades
+
+- Service: estado de sesion, membership, allowed plan y reglas de negocio.
+- CRUD/transaccion: capacidad, duplicado y creacion atomica.
+- DB: constraints/locks que aporten integridad estructural.
+- Router: mapear `ConflictError` u otros errores al contrato HTTP.
+
+## Consecuencias
+
+- evita confiar en valores calculados en memoria;
+- requiere tests de concurrencia/integracion suficientes;
+- no permite mover por comodidad la regla comercial de memberships al CRUD.
+</file>
+
+<file path="adr/0006-pydantic-v2-contracts.md">
+# ADR 0006: Pydantic v2 como capa de contratos
+
+- **Estado:** Accepted
+- **Fecha:** 2026-08-12
+
+## Contexto
+
+Durante la refactorizacion aparecio confusion entre modelos ORM, payloads de entrada, respuestas publicas y estructuras internas.
+
+## Decision
+
+Usar Pydantic v2 como capa explicita de contratos y validacion estructural. Mantener nombres que expresen proposito (`Create`, `Update`, `Public`, `Internal`, vistas especificas) y evitar reutilizar schemas ambiguos.
+
+Pydantic no es propietario de reglas que dependan del estado de DB.
+
+## Consecuencias
+
+- contratos mas claros para FastAPI y frontend;
+- reduce ciclos/mezcla con ORM;
+- exige revisar schemas junto con endpoints y services durante Sprint 6.8.
+</file>
+
+<file path="adr/0007-dual-ai-development-pipeline.md">
+# ADR 0007: Dos pipelines complementarios de desarrollo con IA
+
+- **Estado:** Accepted
+- **Fecha:** 2026-08-12
+
+## Contexto
+
+FitFlow necesita aprovechar un agente potente para tareas complejas sin renunciar a una rama local economica para trabajo cotidiano. Un unico orquestador local no es requisito del MVP y forzarlo agregaria fragilidad.
+
+## Decision
+
+Mantener dos pipelines independientes que consumen la misma documentacion canonica:
+
+1. **Codex + Project Index** como pipeline principal de mayor capacidad.
+2. **AiderDesk local** como rama operativa diaria, con Explorer / Worker / Reviewer evolucionando por pruebas.
+
+El Project Index puede producir un Context Package neutral reutilizable. Aider conserva su RepoMap como capacidad propia de runtime.
+
+## Consecuencias
+
+- cada pipeline puede evolucionar sin bloquear al otro;
+- se evita duplicar exploracion cara en el pipeline potente mediante indice reutilizable;
+- la rama AiderDesk puede seguir siendo experimental hasta alcanzar fiabilidad;
+- requiere una jerarquia de source of truth comun para evitar divergencias.
+</file>
+
+<file path="adr/0008-task-lifecycle-and-execution-lanes.md">
+# ADR 0008: Ciclo de tareas y execution lanes
+
+- **Estado:** Accepted
+- **Fecha:** 2026-08-13
+
+## Contexto
+
+FitFlow usa desarrollo humano, Codex y AiderDesk. Sin un contrato comun, los resultados, estados y decisiones pueden dispersarse entre conversaciones, Jira y Git.
+
+## Decision
+
+Adoptar un ciclo de task neutral al ejecutor:
+
+- Jira controla estado, prioridad y milestone.
+- `TASK.md` define el contrato tecnico.
+- `PLAN.md` se usa solo cuando la complejidad requiere memoria durable.
+- `STATUS.md` registra progreso de trabajos largos.
+- `RESULT.md` normaliza el reporte final.
+- Git conserva implementacion/diff/revision.
+- `docs/` recibe solo conocimiento durable promovido desde resultados aceptados.
+
+Execution lanes: `human`, `codex`, `aider`, `mixed`, `undecided`.
+
+Estados: Backlog -> Ready -> In Progress -> Validation -> Review -> Done, con Blocked.
+
+## Consecuencias
+
+### Positivas
+- trazabilidad entre Jira, Git y agentes;
+- mismo contrato para distintos ejecutores;
+- permite automatizacion futura sin redisenar el proceso;
+- evita que transcripts se conviertan en documentacion.
+
+### Negativas
+- requiere disciplina para mantener TASK/RESULT;
+- puede ser burocratico si se aplica completo a cambios triviales.
+
+## Regla de proporcionalidad
+
+- trivial: prompt + Git;
+- mediana: TASK + RESULT;
+- compleja: TASK + plan + RESULT;
+- larga: TASK + PLAN + STATUS + RESULT.
+</file>
+
+<file path="adr/0009-backend-testing-baseline.md">
+# ADR 0009: Pytest como baseline de validacion backend
+
+- **Estado:** Accepted / Pending Full Coverage
+- **Fecha:** 2026-08-13
+
+## Contexto
+
+La operacion con agentes necesita validaciones deterministas. Sin una suite ejecutable, el agente debe inferir regresiones leyendo mas contexto y la Definition of Done no puede comprobarse de forma consistente.
+
+## Decision
+
+Adoptar **pytest + pytest-asyncio** como baseline de testing backend y una estructura estable por tipo de prueba:
+
+- smoke;
+- unit;
+- integration;
+- api;
+- concurrency.
+
+Se incluyen templates no recolectables por pytest y wrappers de ejecucion para agentes.
+
+## Principios
+
+- tests deterministas y aislados;
+- unit tests para reglas aislables;
+- integration tests para DB/CRUD/transacciones;
+- API tests para contratos HTTP;
+- concurrency tests para invariantes como overbooking cuando corresponda;
+- los tests forman parte de Validation, no sustituyen review;
+- la existencia del harness no equivale a cobertura completa.
+
+## Consecuencias
+
+### Positivas
+- feedback reproducible;
+- menor necesidad de inferencia del agente;
+- habilita gates futuros de CI/orquestacion;
+- protege refactors/naming/movimientos de archivos.
+
+### Negativas
+- requiere fixtures y mantenimiento;
+- integration/concurrency tests pueden ser mas lentos;
+- la primera adopcion necesita reconciliar dependencias y DB de test reales.
+</file>
+
+<file path="adr/0010-lifecycle-preservation-and-schedule-actor-audit.md">
+# ADR 0010: Preservacion de historia y auditoria minima de schedules
+
+- **Estado:** Accepted
+- **Fecha:** 2026-08-13
+
+## Decision
+
+- Booking se cancela por estado y conserva la fila, incluyendo `cancelled_at`.
+- Client, GymClass y ClassSchedule se desactivan o aplican soft delete; no
+  desasocian relaciones que puedan activar `delete-orphan`.
+- Membership se finaliza mediante `status=cancelled`; sigue siendo 1:1 durante
+  Sprint 6.8.
+- ClassSession conserva su soft delete administrativo y sus Bookings.
+- `ClassSchedule` registra `created_by_id` y `updated_by_id` como referencias
+  nullable a User con `ON DELETE SET NULL`.
+
+## Consecuencias
+
+No se modifican las cascades ORM ni las FK existentes. La auditoria de actor se
+limita a ClassSchedule; RBAC granular, auditoria universal y Membership 1:N
+permanecen fuera de este Sprint.
+</file>
+
+<file path="adr/README.md">
+# Architecture Decision Records
+
+Los ADR registran decisiones deliberadas que deben sobrevivir a sprints y refactors.
+
+Estados usados:
+- Proposed
+- Accepted
+- Accepted / Pending Implementation
+- Accepted / Pending Full Coverage
+- Superseded
+- Rejected
+
+Un ADR no prueba que la decision ya este implementada. Para eso consultar `current-state.md` y el codigo.
+</file>
+
+<file path="ai/examples/aider.conf.yml.example">
+# Copiar a la raiz del repositorio como .aider.conf.yml
+# solo si se desea fijar estos valores por proyecto.
+
+map-tokens: 1024
+map-refresh: auto
+</file>
+
+<file path="ai/aiderdesk-explorer-v1.md">
+# M-Explorer v1 - Baseline AiderDesk
+
+**Estado:** Experimental util / en afinacion  
+**Modelo:** FastContext 1.0 4B RL Q4_K_M GGUF
+
+## 1. Rol
+
+Scout read-only. Su salida alimenta a otro agente; no debe implementar ni decidir roadmap.
+
+## 2. Configuracion base observada
+
+### LM Studio
+- Context length: **24K** (subido desde 16K tras errores reales de overflow).
+- Reasoning budget: 1024.
+- Temperature: 0.1.
+- Max concurrency: 1.
+- Sampling/rope/stop strings: default salvo medicion que justifique cambios.
+
+### AiderDesk profile
+- Enable as subagent: ON.
+- Include context files: OFF.
+- Memory tools: OFF.
+- Skills: OFF.
+- Write/edit/shell: OFF.
+- Herramientas: discovery/search/read equivalentes a GLOB + GREP + READ.
+- Max iterations: 6 como limite inicial.
+- Max output: ~2000 tokens; la salida deseada suele ser mucho menor.
+
+### RepoMap
+RepoMap de Aider es un **hint opcional**. Cuando se habilite, usar un presupuesto pequeno (aprox. 1024 tokens) y medir si mejora cobertura sin inducir paths erroneos o lecturas excesivas.
+
+No se considera estable para M-Explorer hasta que las pruebas A/B sean consistentes.
+
+## 3. System prompt v1
+
+```text
+You are a read-only repository explorer.
+
+Your job is to locate the most relevant code for the parent agent and return compact, verifiable evidence.
+
+Use search first. Explore iteratively when needed.
+
+Before reading a file, use the exact repository-relative path returned by search or file discovery. Never reconstruct or invent a path.
+
+Prefer targeted line ranges around relevant symbols. Expand only when necessary.
+
+Follow direct dependencies only when they are needed to understand the requested behavior.
+
+Do not broaden the search unnecessarily. When sufficient evidence has been found for the requested task, stop exploring.
+
+Do not modify files.
+Do not execute commands.
+Do not guess missing code or paths.
+
+Return only:
+- repository-relative file path
+- relevant line range
+- symbol
+- one concise explanation
+
+FitFlow backend:
+- Python / FastAPI
+- routers: backend/app/routers/
+- services: backend/app/services/
+- crud: backend/app/crud/
+- schemas: backend/app/schemas/
+- models: backend/app/db/models/
+
+For backend tasks, prioritize Python files and do not search unrelated programming-language trees unless explicitly required.
+
+Repository root:
+{{projectGitRootDirectory}}
+```
+
+## 4. Problemas observados
+
+- reconstruccion incorrecta de paths cuando infiere desde RepoMap;
+- busquedas iniciales de lenguajes irrelevantes sin contexto de stack;
+- lecturas de archivo completo aunque exista un rango candidato;
+- exploraciones con RepoMap que en algunos casos superaron 16K;
+- salida final generalmente util, pero las afirmaciones semanticas deben ser verificadas por el Worker/Reviewer.
+
+## 5. Criterio de exito
+
+M-Explorer no se evalua por "usar pocos tokens" sino por:
+- cobertura de archivos correctos;
+- precision de rangos;
+- ranking de evidencia importante;
+- recuperacion despues de busquedas fallidas;
+- ausencia de paths inventados;
+- handoff suficientemente pequeno para evitar reexploracion del Worker.
+
+## 6. Donde fijar RepoMap por proyecto
+
+Si se desea un presupuesto explicito para FitFlow, usar `.aider.conf.yml` en la raiz del repositorio:
+
+```yaml
+map-tokens: 1024
+map-refresh: auto
+```
+
+El mismo valor puede pasarse como opcion CLI (`--map-tokens 1024`) desde AiderDesk. La configuracion por proyecto es preferible si no se desea convertir esta decision experimental en global para todos los repositorios.
+
+Ver `docs/ai/examples/aider.conf.yml.example`.
+
+## 7. Ignore policy
+
+Usar `.aiderignore` del root. Excluir, como minimo, `.venv*`, `backend/.venv_backend/`, `scripts/.venv_tools/`, `node_modules/`, `docs/archive/`, `.ai/local/`, caches, secretos y artefactos generados. Para experimentos backend-only puede usarse un archivo alternativo mediante `--aiderignore`.
+</file>
+
+<file path="ai/codex-operating-guide.md">
+# Codex - Guia de integracion con FitFlow
+
+**Estado:** Baseline de configuracion; la configuracion concreta se valida en una sesion separada.
+
+## 1. Principio
+
+Codex consume `AGENTS.md` como guia durable y consulta docs por necesidad. No cargar toda la carpeta `docs/` en cada tarea.
+
+Para cambios complejos:
+1. leer TASK;
+2. investigar;
+3. usar Plan mode cuando convenga;
+4. acordar scope;
+5. implementar;
+6. ejecutar validaciones;
+7. producir RESULT.
+
+## 2. Contexto recomendado
+
+Siempre:
+- task actual;
+- `AGENTS.md`.
+
+Bajo demanda:
+- `current-state.md`;
+- `architecture.md`;
+- `domain.md`;
+- ADR especifico;
+- `quality-and-validation.md`;
+- evidencia del Project Index/codigo.
+
+Evitar por defecto:
+- `docs/archive/`;
+- logs/transcripts;
+- `.venv*`;
+- `node_modules`;
+- `.ai/local`.
+
+## 3. Testing
+
+Los comandos canonicos se declaran en `AGENTS.md` y `quality-and-validation.md`. Si el harness falla por configuracion/dependencias, Codex debe reportarlo como gap, no inventar PASS.
+
+## 4. Worktrees/branches
+
+Para tareas paralelas o de riesgo, usar aislamiento Git. No abrir dos lanes de escritura sobre los mismos archivos.
+
+## 5. Project Index
+
+Cuando exista:
+- usarlo para localizar;
+- recibir candidatos/rangos;
+- verificar archivos reales;
+- editar solo despues de verificar.
+
+## 6. Referencias oficiales
+
+- AGENTS.md: https://developers.openai.com/codex/agent-configuration/agents-md
+- Best practices: https://developers.openai.com/codex/learn/best-practices
+- Worktrees: https://developers.openai.com/codex/environments/git-worktrees
+- MCP: https://developers.openai.com/codex/mcp
+</file>
+
+<file path="ai/context-strategy.md">
+# Estrategia de contexto en capas
+
+## 1. Objetivo
+
+Reducir la cantidad de tokens que un agente potente gasta en exploracion repetida y, al mismo tiempo, evitar que un modelo local de menor capacidad decida la arquitectura del proyecto.
+
+## 2. Capas
+
+### L0 - TASK / Task prompt
+Objetivo concreto, constraints y criterio de aceptacion.
+
+### L1 - AGENTS.md
+Instrucciones operativas durables: estructura, source of truth, limites de autonomia y comandos/validaciones de alto nivel.
+
+### L2 - Docs canonicos
+Solo los documentos relevantes para la tarea: current-state, architecture, domain, ADR especifico, quality.
+
+### L3 - Contexto derivado reutilizable
+Project Index, grafo, busqueda semantica, docstrings/pdoc y un resumen estructural neutral.
+
+### L4 - Runtime hints
+RepoMap de Aider, archivos abiertos, resultados de M-Explorer, grep/read live.
+
+### L5 - Evidencia final
+Codigo real/rangos leidos inmediatamente antes de implementar.
+
+El Worker/Solver deberia recibir L0/L1 + documentos estrictamente necesarios + L5; no todo el historial de L3/L4.
+
+## 3. Context Package neutral
+
+Para reutilizar busquedas entre agentes sin acoplarse a AiderDesk:
+
+```json
+{
+  "revision": "git-sha",
+  "query": "...",
+  "scope": ["backend"],
+  "evidence": [
+    {
+      "path": "backend/app/services/booking_service.py",
+      "symbol": "validate_no_overbooking",
+      "start_line": 0,
+      "end_line": 0,
+      "reason": "capacity business rule",
+      "source": "symbol|semantic|graph|textual"
+    }
+  ],
+  "relations": [],
+  "generated_at": "..."
+}
+```
+
+Los rangos del ejemplo son placeholders: el paquete real siempre debe derivarlos del snapshot indexado.
+
+## 4. RepoMap
+
+Aider mantiene su RepoMap como contexto runtime y puede ser muy util para orientar un agente. No se considera una API de intercambio entre pipelines.
+
+El Project Index puede generar una representacion **RepoMap-like** neutral (`repo_summary.json` o `repo_summary.md`) con simbolos/rutas/relaciones importantes. Esto permite que Codex, herramientas MCP u otros agentes reutilicen estructura sin depender del formato interno de Aider.
+
+## 5. Docs e indice
+
+Indexar por defecto:
+- codigo propio;
+- docs canonicos activos;
+- ADRs activos;
+- tests relevantes;
+- configuracion no secreta.
+
+Excluir por defecto:
+- `docs/archive/`;
+- `.venv*` y `backend/.venv_backend/`;
+- `node_modules/`;
+- `__pycache__/`;
+- `.git/`;
+- `.env*`, secretos, binarios y artefactos generados.
+
+## 6. Regla de economia
+
+El objetivo no es minimizar tokens del Explorer a cualquier costo. El objetivo es minimizar **exploracion repetida del Solver/Worker** manteniendo cobertura y evidencia. Un resultado corto y correcto que evita una exploracion mayor es una optimizacion aunque el explorer haya usado contexto local.
+
+## 7. Contexto operativo de tasks
+
+`TASK.md`, `PLAN.md` y `RESULT.md` son artefactos operativos compactos. Los transcripts completos y logs pertenecen a `.ai/local/` y no deben entrar al contexto normal.
+</file>
+
+<file path="ai/development-pipelines.md">
+# Pipelines de desarrollo asistido por IA
+
+## 1. Objetivo
+
+Economizar tiempo/contexto sin delegar decisiones ambiguas a una cadena opaca de agentes.
+
+Todas las lanes consumen el mismo contrato de task y entregan el mismo contrato de resultado definido en `docs/process/task-lifecycle-and-reporting.md`.
+
+## 2. Pipeline A - Codex + Project Index
+
+```text
+Jira / TASK
+  -> Codex
+  -> Project Index cuando aporta contexto
+  -> lectura del codigo real
+  -> plan / implementacion
+  -> pytest / lint / type / review
+  -> RESULT
+```
+
+Codex es el pipeline principal para auditorias/cambios de mayor alcance.
+
+## 3. Pipeline B - AiderDesk local
+
+```text
+Jira / TASK
+  -> M-Explorer (read-only)
+  -> Evidence Handoff
+  -> Worker
+  -> tests/validation
+  -> Reviewer
+  -> RESULT
+```
+
+La rama AiderDesk sigue en afinacion manual y no bloquea el MVP.
+
+## 4. Contrato de handoff
+
+```text
+Task scope
+Evidence:
+- path
+- symbol
+- line range
+- why relevant
+- confidence/source
+Direct dependencies
+Open questions
+```
+
+No pasar el historial completo si la evidencia compacta alcanza.
+
+## 5. Autonomia
+
+Permitido dentro de tasks delimitadas:
+- exploracion;
+- implementacion local;
+- tests/linters;
+- fixes directamente derivados de failures reproducibles;
+- propuestas fuera de scope sin aplicarlas.
+
+Requiere decision humana:
+- dominio/arquitectura;
+- dependencias base;
+- migraciones destructivas;
+- seguridad transversal;
+- ampliar MVP;
+- superseder ADRs;
+- integrar cambios riesgosos no validados.
+
+## 6. Coordinacion
+
+Codex, Aider y humano pueden trabajar sobre tasks diferentes, pero no deben escribir simultaneamente sobre la misma seccion conceptual.
+
+Jira coordina estado; Git aisla implementacion; RESULT normaliza la salida.
+</file>
+
+<file path="ai/indexer-pipeline.md">
+# Project Index - Pipeline estructural y semantico v2
+
+**Estado:** Activo como diseno de tooling  
+**Relacion con producto:** no bloqueante para el MVP
+
+## 1. Proposito
+
+Construir una memoria tecnica local, incremental y reutilizable que permita a agentes potentes localizar rapidamente codigo y relaciones sin repetir exploraciones completas. El indice no reemplaza al agente ni al codigo.
+
+## 2. Principio
+
+```text
+Git repository
+  -> snapshot/manifest
+  -> AST + symbols
+  -> normalized relations
+  -> docstrings / docs metadata
+  -> optional semantic chunks + embeddings
+  -> local storage
+  -> small query tools
+  -> Context Package
+  -> agent reads real source
+```
+
+## 3. Responsabilidades v1
+
+1. Discovery reproducible del repo y revision Git.
+2. Extraer simbolos Python mediante AST.
+3. Extraer imports, decorators, tipos, docstrings y rangos de lineas.
+4. Normalizar relaciones; conservar pyreverse donde aporte informacion real.
+5. Asociar metadatos de capa: router/schema/service/crud/model/test/docs.
+6. Indexar docs canonicos y ADRs activos con procedencia.
+7. Permitir actualizacion incremental por hash/git diff.
+8. Producir `Context Package` limitado por presupuesto.
+
+## 4. Capa semantica
+
+EmbeddingGemma queda como **canal opcional**. Se activa si las pruebas reales muestran que mejora recall/precision frente a simbolos, grafo y busqueda textual.
+
+No es requisito de AiderDesk ni de RepoMap. Puede ejecutarse bajo demanda y sus vectores permanecen separados del dominio del producto.
+
+Reglas de chunking:
+- respetar modulo/clase/metodo/funcion/schema/model/test;
+- no cortar arbitrariamente funciones pequenas;
+- enriquecer con metadata estructural;
+- no embeddear archivos completos por comodidad;
+- no duplicar codigo generado o dependencias externas.
+
+## 5. Canales de recuperacion
+
+- **Symbol:** maxima precision para nombres reales.
+- **Graph:** relaciones/dependencias/callers/dependents cuando puedan inferirse.
+- **Semantic:** conceptos equivalentes cuando el wording difiere.
+- **Textual:** literal/regex/identificadores y mensajes.
+- **Docs:** ADRs y arquitectura, siempre marcados como documentacion y no como prueba de implementacion.
+
+El ranking debe medirse con consultas reales de FitFlow, no fijarse por intuicion.
+
+## 6. Almacenamiento
+
+Mantenerlo local y regenerable. Un prototipo puede usar SQLite + archivos JSON y un vector store local solo si la capa semantica lo necesita.
+
+Artefactos sugeridos:
+
+```text
+.index/fitflow/
+├── metadata.json
+├── manifest.json
+├── symbols.json
+├── relations.json
+├── architecture.json
+├── repo_summary.json
+├── index.db
+└── vectors/              # opcional
+```
+
+La carpeta es derivada y debe poder borrarse/regenerarse.
+
+## 7. Query tools
+
+Contrato inicial:
+- `find_symbol(query, scope)`
+- `get_symbol(id)`
+- `find_relations(id, type?)`
+- `get_dependencies(id)`
+- `get_dependents(id)`
+- `search_context(query, scope, budget)`
+- `get_context_bundle(query, scope, budget)`
+
+Las tools deben devolver rutas y rangos verificables; no grandes narrativas.
+
+## 8. Integracion con Codex
+
+El indice se expone como herramientas locales/MCP cuando la implementacion este estable. Flujo:
+
+```text
+Codex
+  -> consulta indice
+  -> recibe candidatos/bundle
+  -> lee archivos reales
+  -> implementa
+  -> valida
+```
+
+La documentacion del proyecto y AGENTS fijan limites de autonomia; el indice no toma decisiones arquitectonicas.
+
+## 9. Relacion con Aider RepoMap
+
+No se intentara convertir el formato interno de RepoMap de Aider en contrato compartido.
+
+- AiderDesk puede usar RepoMap nativo como hint runtime.
+- Project Index produce `repo_summary` neutral y reutilizable.
+- Si mas adelante existe una forma estable de importar/exportar mapas, se integra como adaptador, no como dependencia central.
+
+## 10. Exclusiones
+
+Excluir `.venv`, `backend/.venv_backend`, `node_modules`, `.git`, `__pycache__`, `docs/archive`, secretos, `.env*`, binarios, build/dist y artefactos generados.
+
+## 11. Criterios de exito
+
+- regenerable desde una revision Git;
+- incremental por archivo/simbolo;
+- encuentra servicios/entidades relevantes en consultas reales;
+- conserva relaciones suficientes para expandir contexto;
+- bundle de salida compacto y con provenance;
+- no introduce infraestructura pesada;
+- nunca sustituye la lectura del codigo antes de editar.
+
+## 12. Testing y tasks
+
+El indice puede indexar tests activos como evidencia estructural, pero no debe tratar un test como prueba de un comportamiento que no cubre. Los bundles deben registrar revision Git. La integracion MCP se estudia despues de estabilizar Codex, validation baseline e indice; no es prerequisito de v1.
+</file>
+
+<file path="ai/mcp-future.md">
+# MCP - candidato de integracion futura
+
+**Estado:** Study later / no implementar aun
+
+MCP (Model Context Protocol) es una interfaz estandar para conectar modelos con herramientas y fuentes de contexto.
+
+Para FitFlow, el candidato principal es exponer funciones del Project Index, por ejemplo:
+- `find_symbol`
+- `get_symbol`
+- `find_relations`
+- `get_dependencies`
+- `get_dependents`
+- `search_context`
+- `get_context_bundle`
+
+MCP no ahorra tokens por si solo. Puede ahorrar si una tool precisa devuelve evidencia compacta en lugar de obligar al agente a explorar muchos archivos.
+
+Orden acordado:
+1. Codex funcional;
+2. pytest/validation baseline;
+3. Project Index suficientemente estable;
+4. evaluar MCP;
+5. implementar solo si mejora precision, mantenibilidad o costo de contexto.
+
+Ver prompt de investigacion en `.ai/prompts/MCP_FUTURE_RESEARCH.prompt.md`.
+</file>
+
+<file path="archive/historical/README.md">
+# Historical
+
+El antiguo Sprint 7 conserva valor historico y de producto, pero no es un plan activo. Sus objetivos de MVP fueron rebaselined en `docs/roadmap.md`.
+</file>
+
+<file path="archive/source-material/architecture-explained.md">
+# FitFlow: explicacion de la arquitectura
+
+**Tipo:** Material de referencia para personas
+
+**Actualizado:** 2026-08-15
+
+**Documento canonico relacionado:** `architecture.md`
+
+## 1. Objetivo
+
+Este documento explica las decisiones contenidas en `architecture.md`. No
+define reglas nuevas y no sustituye al documento canonico.
+
+## 2. Que arquitectura tiene FitFlow
+
+FitFlow es actualmente un monolito organizado por capas tecnicas. El backend es
+una unica aplicacion, se despliega como una unidad y utiliza PostgreSQL como
+fuente persistente principal.
+
+La organizacion por capas separa responsabilidades:
+
+- routers para HTTP;
+- services para casos de uso y reglas de negocio;
+- CRUD para acceso y persistencia;
+- modelos SQLAlchemy para representar la base;
+- schemas Pydantic para contratos de entrada y salida.
+
+Los dominios no estan agrupados fisicamente en carpetas verticales. Se
+reconocen mediante archivos equivalentes distribuidos entre las capas. Esta
+estructura sigue siendo valida para un monolito y permite evolucionar hacia un
+monolito modular sin una reorganizacion inmediata del repositorio.
+
+## 3. Por que los schemas no forman una capa lineal
+
+La secuencia `Request -> Schema -> Router -> Service -> CRUD -> Model` puede
+inducir a una interpretacion incorrecta. FastAPI recibe la solicitud, resuelve
+la ruta y valida los datos declarados antes de ejecutar el handler. El router
+coordina el limite HTTP y entrega datos validados al service.
+
+En la respuesta, el service puede devolver un objeto ORM ya cargado o un DTO
+derivado. FastAPI aplica el schema declarado como `response_model` y genera el
+JSON final.
+
+Por eso, Pydantic participa en los bordes de entrada y salida, pero no es una
+capa de persistencia entre services y modelos.
+
+## 4. Responsabilidad de routers y services
+
+El router conoce HTTP. Puede conocer el usuario autenticado, los parametros de
+la solicitud, el status code esperado y la forma publica de la respuesta. No
+debe decidir si una membresia habilita una reserva, calcular recurrencias ni
+consultar tablas directamente.
+
+El service representa el caso de uso. Decide que validaciones aplicar, que
+operaciones coordinar y que error de dominio producir. Una funcion service no
+necesita ser async por pertenecer a esa capa: solo es async cuando coordina
+operaciones de entrada/salida.
+
+Los calculos sobre objetos ya cargados y los mappers puros son correctamente
+sync. Su uso no viola la separacion mientras no provoquen consultas implicitas.
+
+## 5. Responsabilidad de CRUD
+
+CRUD concentra el conocimiento de SQLAlchemy y PostgreSQL. Esto incluye
+consultas, filtros, eager loading, inserciones, actualizaciones y operaciones
+atomicas.
+
+Separar estas operaciones evita que cada service construya consultas distintas
+para el mismo concepto. Tambien permite revisar con mayor claridad donde se
+aplican locks, transacciones y garantias de consistencia.
+
+Una operacion CRUD puede ser especifica del dominio cuando necesita garantizar
+atomicidad. La politica que decide cuando ejecutar esa operacion sigue
+perteneciendo al service.
+
+## 6. Relaciones ORM y carga explicita
+
+El backend async no debe depender de lazy loading implicito. Los CRUD cargan las
+relaciones requeridas por cada caso de uso mediante estrategias explicitas.
+
+El service puede recorrer relaciones ya cargadas. Si necesita una relacion que
+la consulta no incluyo, debe corregirse el metodo CRUD correspondiente. No debe
+abrirse una consulta secundaria de manera accidental desde un mapper.
+
+Esta regla es especialmente importante cuando las relaciones usan
+`lazy="raise"`, porque convierte una carga omitida en un error visible en lugar
+de producir I/O inesperado.
+
+## 7. Circularidad de imports
+
+Los ciclos se evitan mediante una direccion estable de dependencias. Routers
+dependen de services; services dependen de CRUD; CRUD depende de modelos. Las
+capas inferiores no importan capas superiores.
+
+Los archivos `*_refs.py` resuelven ciclos entre contratos Pydantic anidados.
+Contienen schemas compactos y sin dependencias hacia services, CRUD o modelos
+ORM. No solucionan ciclos provocados por consultas SQLAlchemy ubicadas en
+services.
+
+Los imports locales y `TYPE_CHECKING` pueden ser utiles para anotaciones, pero
+no reemplazan la correccion de una dependencia bidireccional real.
+
+## 8. Estado actual y transicion
+
+El repositorio todavia contiene routers que acceden directamente a CRUD y
+services que ejecutan consultas ORM. Esto describe el estado actual, no la
+arquitectura aprobada para codigo nuevo.
+
+La correccion se realiza gradualmente al intervenir cada caso de uso:
+
+1. el router delega en un service;
+2. el service conserva decisiones y calculos;
+3. las consultas y la persistencia pasan a CRUD;
+4. las relaciones necesarias se cargan de forma explicita;
+5. el contrato HTTP se valida con Pydantic v2.
+
+No se requiere una reescritura completa para declarar una direccion
+arquitectonica. La regla evita aumentar la deuda y permite reducirla mediante
+tareas acotadas.
+
+## 9. Monolito modular como objetivo
+
+Un monolito modular continua siendo una sola aplicacion desplegable. La
+modularidad surge de limites internos claros, cohesion de dominio y dependencias
+controladas, no solamente de la disposicion de carpetas.
+
+La estructura actual por capas puede sostener esos limites durante el MVP. Una
+organizacion vertical por dominio puede evaluarse cuando el volumen del codigo,
+el ownership o el mantenimiento justifiquen el costo de migracion.
+
+La arquitectura no incorpora microservicios como objetivo automatico. Extraer
+un modulo exigiria separar datos, contratos, seguridad, observabilidad,
+despliegue y pruebas. El monolito modular mantiene abierta esa posibilidad sin
+pagar anticipadamente la complejidad distribuida.
+
+## 10. Auditoria
+
+El sistema conserva timestamps, estados operativos y eliminacion logica donde
+corresponde. Esto no equivale a una auditoria uniforme por actor.
+
+Agregar `created_by` en funciones aisladas produciria una politica incompleta.
+La auditoria por actor debe definir previamente alcance, identidad del actor,
+acciones registradas, retencion, permisos, modelo persistente y migraciones.
+Hasta entonces, no forma parte del contrato obligatorio de generacion de
+sesiones.
+
+## 11. Uso de la documentacion
+
+`architecture.md` responde como debe organizarse y evolucionar el sistema.
+`current-state.md` responde que esta implementado y que desviaciones existen.
+`quality-and-validation.md` responde como se comprueba. Las tareas delimitan
+cambios concretos y sus resultados conservan evidencia.
+
+Esta separacion evita que un informe de agente convierta una observacion del
+codigo en una nueva decision arquitectonica.
+</file>
+
+<file path="archive/source-material/README.md">
+# Source material
+
+Snapshots originales usados para reconstruir la documentacion canonica. Pueden contener objetivos aspiracionales que no equivalen a implementacion confirmada.
+</file>
+
+<file path="archive/superseded/README.md">
+# Superseded
+
+Documentos reemplazados por las versiones canonicas activas. No usar como instrucciones para agentes.
+</file>
+
+<file path="archive/README.md">
+# Archive
+
+Material historico, source material y documentos superseded.
+
+No se usa como contexto operativo por defecto. Se consulta solo para trazabilidad o arqueologia de decisiones.
+</file>
+
+<file path="formal/README.md">
+# Documentos formales
+
+`FitFlow_BASELINE_Arquitectura_Operacion_IA_v3.docx` es una vista consolidada para consulta humana.
+
+Los Markdown canonicos siguen siendo mas faciles de mantener y referenciar por agentes. El DOCX resume; no crea una fuente de verdad paralela.
+</file>
+
+<file path="process/ignore-policy.md">
+# Politica de exclusiones para Git, Aider e indexadores
+
+## Git
+
+`.gitignore` decide que artefactos locales no se versionan. No es una frontera de seguridad para un agente.
+
+
+Exclusiones criticas:
+- `backend/.venv_backend/`
+- `scripts/.venv_tools/`
+- `.ai/local/`
+- `.index/` / `index/`
+- caches/test outputs
+- secretos `.env*`
+
+## Aider
+
+Aider usa `.aiderignore`. El baseline excluye dependencias, virtualenvs, historico documental, logs locales e indice derivado.
+
+Para experimentos backend-only se incluye `.aiderignore.backend`.
+
+## Codex
+
+No se define un `.codexignore` inventado. Mantener `AGENTS.md` compacto, usar Git/worktree/sandbox/configuracion oficial y no asumir que `.gitignore` impide a Codex leer un archivo presente en el workspace.
+
+## Project Index
+
+Debe aplicar su propia lista de exclusiones, alineada con estas reglas, y registrar que paths fueron ignorados en su snapshot.
+</file>
+
+<file path="process/orm-and-critical-follow-up.md">
+# Seguimiento posterior al baseline ORM
+
+Estado: propuesto
+
+Baseline de referencia: Roadmap v3 / SQLAlchemy 2.0
+
+Alcance: trabajo deliberadamente postergado y fallas relevantes detectadas durante la auditoría.
+
+## Propósito
+
+Este documento no redefine el dominio ni autoriza cambios de esquema. Ordena el trabajo que debe revisarse después de estabilizar el metadata ORM y la base de pruebas aislada.
+
+## Prioridad 0 — bloqueantes funcionales
+
+### FF-FOLLOW-01 — Eliminar el borrado físico alcanzable desde Client
+
+**Resuelto en FF-LOCAL-009.** `DELETE /clients/{client_id}` dejó de
+desasociar `User.person_profile`; aplica la baja conservativa del CRUD y no
+activa `delete-orphan` por desasociación.
+
+`DELETE /clients/{client_id}` llama a `unlink_user_profile()`, que asigna `user.person_profile = None`. La relación conserva `cascade="all, delete-orphan"`; por lo tanto, la desasociación puede eliminar físicamente `Person`/`Client` y alcanzar membresías o reservas mediante las cascades existentes.
+
+Política esperada: desactivar Client, conservar Membership y Booking, y mantener el vínculo histórico necesario. No cambiar cascades ORM ni FK `ON DELETE` hasta aprobar una política y un ADR específico.
+
+Criterios mínimos:
+
+- el endpoint no ejecuta eliminación física ni dispara `delete-orphan`;
+- la desactivación es transaccional;
+- memberships, bookings y sesiones históricas permanecen consultables;
+- pruebas de integración demuestran conservación antes y después de la baja.
+
+### FF-FOLLOW-02 — Corregir el contrato HTTP 204 de logout
+
+La importación completa de FastAPI falla al registrar `POST /logout`: FastAPI rechaza un status 204 configurado con una respuesta que puede contener cuerpo.
+
+Criterios mínimos:
+
+- `from app.main import app` funciona con la configuración mínima documentada;
+- logout devuelve 204 sin cuerpo o adopta otro status coherente;
+- OpenAPI se genera sin assertions.
+
+## Prioridad 1 — integridad e historia
+
+### FF-FOLLOW-03 — Definir políticas de ciclo de vida y cascades
+
+Preservar por ahora las cascades y reglas `ON DELETE` existentes. Crear un ADR que defina explícitamente:
+
+- Booking: cancelación por estado; nunca borrado operativo;
+- ClassSession: cancelación/finalización; conservar historia;
+- ClassSchedule y GymClass: desactivación; conservar sesiones generadas;
+- Client y User: desactivación; evaluar anonimización;
+- Membership: finalización/cancelación e historial.
+
+Después del ADR, diseñar migraciones forward-only y pruebas de conservación. Alembic no debe proponer cambios de FK mientras la política siga pendiente.
+
+### FF-FOLLOW-04 — Soft delete de ClassSession
+
+**Resuelto en SCRUM-32.** `ClassSession` implementa `SoftDeleteMixin` y la
+migración forward-only agrega `deleted_at`. `DELETE /class_sessions/{session_id}`
+usa el soft delete genérico: desactiva la sesión y conserva sus Bookings. La
+cancelación operativa sigue siendo una transición explícita a `cancelled`.
+
+### FF-FOLLOW-05 — Revisar endpoints de baja con validaciones defectuosas
+
+**Resuelto parcialmente en FF-LOCAL-009.** GymClass y Membership validan la
+instancia obtenida; Membership ahora se cancela por estado. Teacher y
+ClassSchedule conservan soft delete y requieren cobertura HTTP en FF-LOCAL-010.
+
+Los endpoints de GymClass y Membership recuperan una instancia en una variable, pero validan el objeto CRUD en lugar del resultado. Esto puede ocultar un `not found` y pasar valores nulos o incorrectos a `remove()`.
+
+Revisar también Teacher y ClassSchedule para uniformar autorización, respuesta, transacción y semántica de desactivación.
+
+## Prioridad 2 — ORM y esquema pendientes
+
+### FF-FOLLOW-06 — RRULE para ClassSchedule
+
+Implementar el ADR de RRULE como cambio funcional separado: columna nueva, validación, backfill, actualización de services/schemas y retiro de `days_of_week` solo cuando la transición esté completa.
+
+La auditoría mínima de actor se decidió en ADR 0010 y se limita a
+`created_by_id`/`updated_by_id` de ClassSchedule.
+
+### FF-FOLLOW-07 — Historial de Membership
+
+El mapping vigente continúa siendo 1:1. Evaluar el paso a 1:N únicamente con reglas claras para membresía actual, superposición de períodos, cancelación y consultas históricas.
+
+### FF-FOLLOW-08 — Defaults, checks y timestamps
+
+Revisar qué invariantes deben existir también en PostgreSQL:
+
+- defaults de estados y capacidades;
+- checks de duración/capacidad restantes;
+- actualización de `updated_at` fuera del ORM;
+- nullability de discriminadores y contratos Pydantic.
+
+Cada cambio aprobado debe producir una migración pequeña y una comparación Alembic sin drift no explicado.
+
+### FF-FOLLOW-09 — Estrategia Alembic histórica
+
+Las revisiones antiguas contienen `TRUNCATE ... CASCADE`, `DROP TYPE ... CASCADE` y downgrades incompletos. No reescribir migraciones aplicadas. Probar periódicamente una reconstrucción desde cero y evaluar un baseline/squash futuro con procedimiento explícito de adopción.
+
+## Prioridad 3 — arranque y configuración
+
+### FF-FOLLOW-10 — Hacer explícita la dependencia de Redis
+
+La importación de la aplicación requiere `REDIS_URL`, incluso en validaciones que no usan Redis. Decidir si Redis es obligatorio en todos los perfiles o si el cliente debe inicializarse de forma diferida. Documentar la configuración mínima de desarrollo y tests.
+
+### FF-FOLLOW-11 — Completar pruebas de loaders async
+
+Las relaciones ORM usan `lazy="raise"`. Auditar routers, services y CRUD para asegurar que todas las respuestas con relaciones usan `selectinload()` u otra estrategia explícita. Agregar pruebas API que detecten `MissingGreenlet`, N+1 y relaciones no precargadas.
+
+## Orden sugerido
+
+1. FF-FOLLOW-01 y FF-FOLLOW-02.
+2. ADR de ciclo de vida (FF-FOLLOW-03).
+3. FF-FOLLOW-05.
+4. FF-FOLLOW-10 y FF-FOLLOW-11.
+5. RRULE, historial de Membership y ajustes de integridad.
+6. Estrategia de baseline Alembic.
+
+## Criterio general de salida
+
+- ninguna ruta operativa elimina historia accidentalmente;
+- la aplicación y OpenAPI importan con una configuración mínima documentada;
+- la base aislada migra desde cero hasta head;
+- `alembic check` no detecta drift inesperado;
+- las pruebas cubren estados, relaciones async, conservación histórica y concurrencia;
+- ningún test utiliza la base de desarrollo.
+</file>
+
+<file path="process/README.md">
+# Proceso de desarrollo
+
+Esta carpeta documenta **como se organiza el trabajo**, independientemente de quien lo ejecute.
+
+Documento principal:
+- `task-lifecycle-and-reporting.md`
+- `ignore-policy.md`
+
+El proceso puede ser usado por:
+- desarrollador humano;
+- Codex;
+- AiderDesk;
+- otro agente futuro.
+
+La herramienta de ejecucion cambia; el contrato de task, validacion y reporte no.
+</file>
+
+<file path="process/task-lifecycle-and-reporting.md">
+# Ciclo de tareas y reportes - FitFlow
+
+**Estado:** Canonico  
+**Version:** 1.0 - 2026-08-13
+
+## 1. Objetivo
+
+Mantener seguimiento activo sin mezclar el estado del producto con logs de agentes. El mismo proceso sirve para tareas humanas, Codex y Aider.
+
+## 2. Responsabilidades de cada sistema
+
+```text
+Jira      -> que trabajo existe, prioridad, estado, milestone
+TASK.md   -> contrato tecnico de una task
+PLAN.md   -> estrategia durable si la complejidad lo requiere
+STATUS.md -> progreso durante ejecuciones largas
+RESULT.md -> reporte tecnico final
+Git       -> implementacion, diff y trazabilidad
+docs/     -> conocimiento durable promovido desde resultados aceptados
+```
+
+No duplicar la misma informacion en todos los lugares.
+
+## 3. Workflow de estados
+
+```text
+Backlog
+  -> Ready
+  -> In Progress
+  -> Validation
+  -> Review
+  -> Done
+
+In Progress / Validation / Review -> Blocked cuando exista un bloqueo real
+Blocked -> Ready cuando se resuelva
+Validation / Review -> In Progress si hace falta corregir
+```
+
+### Backlog
+Idea o necesidad todavia no lista para ejecucion.
+
+### Ready
+Objetivo, alcance, restricciones y criterio de aceptacion suficientemente claros.
+
+### In Progress
+Existe un ejecutor trabajando sobre la task.
+
+### Validation
+La implementacion termino; se ejecutan tests/checks.
+
+### Review
+Validacion suficiente; se revisa diff/resultado/impacto.
+
+### Done
+Resultado aceptado e integrado.
+
+### Blocked
+Existe una dependencia concreta. Debe registrarse que falta.
+
+## 4. Dimensiones Jira
+
+Mantener pocas dimensiones estables:
+
+### Area
+- `backend`
+- `frontend`
+- `infra`
+- `docs`
+- `ai-tooling`
+
+### Execution lane
+- `human`
+- `codex`
+- `aider`
+- `mixed`
+- `undecided`
+
+Execution lane describe quien ejecuta, no quien decide arquitectura.
+
+### Task type
+- `feature`
+- `fix`
+- `refactor`
+- `audit`
+- `test`
+- `docs`
+- `tooling`
+
+### Labels excepcionales
+Solo cuando aporten informacion no expresada por campos normales:
+- `needs-adr`
+- `needs-human-decision`
+- `blocked-external`
+
+Priority, Epic/Milestone y Sprint permanecen en las capacidades normales de Jira.
+
+## 5. Contrato TASK.md
+
+Debe ser corto y ejecutable:
+- ID;
+- titulo;
+- tipo;
+- estado;
+- prioridad;
+- area;
+- lane;
+- objetivo;
+- contexto minimo;
+- scope;
+- fuera de scope;
+- restricciones;
+- evidencia requerida;
+- criterios de aceptacion;
+- validaciones esperadas;
+- impacto documental esperado.
+
+No pegar conversaciones completas.
+
+## 6. PLAN.md y Plan mode
+
+Una task trivial no necesita plan durable.
+
+- pequena: prompt/Git;
+- mediana: TASK + RESULT;
+- compleja: TASK + plan aprobado + RESULT;
+- larga: TASK + PLAN + STATUS + RESULT.
+
+En Codex, Plan mode puede usarse para investigar/proponer antes de editar. Si el plan es relevante para reanudar o auditar el trabajo, se materializa en `PLAN.md`.
+
+## 7. Ejecuciones separadas por agente
+
+Una task puede contener:
+
+```text
+.ai/tasks/<TASK-ID>/
+├── TASK.md
+├── PLAN.md            # opcional
+├── codex/
+│   ├── STATUS.md      # opcional
+│   └── NOTES.md       # opcional
+├── aider/
+│   ├── STATUS.md      # opcional
+│   └── NOTES.md       # opcional
+└── RESULT.md
+```
+
+Los subdirectorios guardan datos operativos de cada lane. `RESULT.md` es el reporte normalizado aceptado.
+
+No versionar transcripts/logs gigantes; usar `.ai/local/` para material temporal.
+
+## 8. Concurrencia
+
+Regla: **una sola lane de escritura sobre la misma seccion conceptual a la vez**.
+
+Puede coexistir:
+- Codex implementando Booking;
+- Aider auditando naming read-only.
+
+Evitar:
+- Codex y Aider modificando `booking_service.py` simultaneamente.
+
+Usar branches/worktrees cuando exista paralelismo real.
+
+## 9. Trazabilidad Git
+
+Una task implementadora debe registrar, cuando aplique:
+- baseline commit;
+- branch/worktree;
+- commits resultantes;
+- diff/revision final.
+
+Convencion sugerida una vez confirmado el Jira key:
+
+```text
+task/<JIRA-KEY>-descripcion-corta
+<JIRA-KEY>: descripcion del cambio
+```
+
+Los auto-commits de una herramienta son checkpoints tecnicos, no aprobacion final.
+
+## 10. RESULT.md como reporte
+
+Debe responder:
+- que ocurrio;
+- ejecutor;
+- baseline/final revision;
+- archivos cambiados;
+- validaciones y resultado;
+- hallazgos;
+- riesgos;
+- decisiones propuestas;
+- impacto documental;
+- follow-ups.
+
+El RESULT no debe copiar razonamiento interno ni transcript completo.
+
+## 11. Promocion a docs
+
+Actualizar docs/ADR solo si el resultado cambia conocimiento durable.
+
+Ejemplos:
+- implementar RRULE y cerrar legacy -> current-state/domain/ADR;
+- renombrar un archivo sin cambiar significado -> normalmente no;
+- cambiar ownership de una regla de negocio -> architecture/domain/ADR segun impacto.
+
+## 12. Testing como gate
+
+Para codigo backend, `Validation` debe preferir evidencia ejecutable:
+- pytest targeted;
+- suite mas amplia segun riesgo;
+- Ruff;
+- type checking;
+- Alembic/OpenAPI si aplica.
+
+Si una herramienta no existe, usar `UNAVAILABLE` y abrir/relacionar una task de baseline. No declarar PASS por inferencia.
+
+## 13. Alineacion futura
+
+Este proceso esta preparado para que Jira pueda servir como control plane de una futura orquestacion, pero el humano conserva las transiciones/decisiones mientras el flujo se estabiliza.
+
+Symphony u otra automatizacion se estudia despues; no es requisito de esta version.
+</file>
+
+<file path="architecture.md">
+# Arquitectura de FitFlow
+
+**Estado:** Canonico
+
+**Actualizado:** 2026-08-15
+
+## 1. Proposito
+
+Definir la arquitectura vigente, las responsabilidades obligatorias, la
+direccion de dependencias y la evolucion aprobada de FitFlow.
+
+Este documento es normativo. El estado de implementacion se registra en
+`current-state.md`; las tareas y sus resultados no modifican esta arquitectura.
+
+## 2. Baseline tecnologico
+
+### Backend
+
+- Python 3.11+
+- FastAPI async
+- SQLAlchemy 2.x Async
+- Alembic
+- Pydantic v2
+- PostgreSQL
+- Redis
+- JWT access y refresh con roles
+
+### Frontend
+
+- React
+- TypeScript
+- Vite
+- Chakra UI
+- TanStack Query
+- Axios
+
+### Desarrollo e infraestructura
+
+- Docker y Docker Compose
+- PostgreSQL
+- Adminer
+- Redis cuando el entorno lo requiera
+
+Adminer es tooling de desarrollo y no forma parte del dominio.
+
+## 3. Arquitectura vigente
+
+FitFlow es un monolito full-stack. El backend esta organizado fisicamente por
+capas tecnicas y logicamente por dominios representados en cada capa.
+
+```text
+app/
+  routers/
+  services/
+  crud/
+  schemas/
+  db/models/
+```
+
+La direccion obligatoria de dependencias es:
+
+```text
+Router -> Service -> CRUD -> SQLAlchemy Model -> PostgreSQL
+```
+
+Los schemas Pydantic son contratos de entrada y salida. No constituyen una capa
+de persistencia ni una etapa fija entre las capas anteriores.
+
+### Flujo de entrada
+
+```text
+HTTP Request
+  -> FastAPI: routing, dependencias y validacion
+  -> Router
+  -> Service
+  -> CRUD
+  -> SQLAlchemy Model
+  -> PostgreSQL
+```
+
+### Flujo de salida
+
+```text
+PostgreSQL
+  -> SQLAlchemy Model
+  -> CRUD
+  -> Service
+  -> Router
+  -> Pydantic response model
+  -> JSON
+```
+
+## 4. Responsabilidades obligatorias
+### Docstrings
+Las reglas de estilo, docstrings, linting y type checking se definen en `quality-and-validation.md` o `coding-standards.md`.
+### Routers / FastAPI
+
+Los routers son responsables de:
+
+- protocolo HTTP;
+- parametros de path, query y body;
+- dependency injection;
+- autenticacion y autorizacion;
+- status codes y OpenAPI;
+- traduccion de errores de dominio a respuestas HTTP;
+- declaracion del contrato de respuesta.
+
+Los routers no contienen reglas de negocio ni consultas ORM. El codigo nuevo
+debe delegar los casos de uso en services.
+
+### Schemas / Pydantic v2
+
+Los schemas son responsables de:
+
+- contratos de entrada y salida;
+- tipos y serializacion;
+- validacion estructural;
+- invariantes locales que no requieren estado persistido.
+
+Los schemas no consultan infraestructura, no acceden a ORM y no deciden reglas
+de negocio dependientes del estado.
+
+Convenciones vigentes:
+
+- `*InResponse`: contrato compacto para una respuesta anidada;
+- `*Public`: contrato publico y autocontenido;
+- `<Class1>In<Class2>Response`: contrato compacto de `Class1` dentro de
+  `Class2`;
+- `<Class>WithRelations`: contrato que requiere relaciones ORM cargadas
+  explicitamente;
+- `*_refs.py`: contratos hoja destinados a evitar ciclos entre schemas.
+
+Los modulos `*_refs.py` no importan services, CRUD ni modelos ORM.
+
+### Services
+
+Los services son responsables de:
+
+- casos de uso;
+- reglas de negocio;
+- calculos de dominio;
+- validaciones dependientes del estado;
+- coordinacion entre operaciones CRUD;
+- transformaciones puras y resultados derivados.
+
+Una funcion service es `async` solo cuando coordina I/O. Los helpers que operan
+exclusivamente sobre datos ya cargados son sync.
+
+El codigo nuevo de services no ejecuta `select`, `db.execute`, `db.scalar`,
+`db.add` ni consultas ORM equivalentes. Las operaciones de almacenamiento se
+delegan en CRUD.
+
+### CRUD
+
+CRUD es responsable de:
+
+- consultas SQLAlchemy;
+- carga explicita de relaciones;
+- filtros de persistencia;
+- altas, modificaciones y bajas;
+- operaciones atomicas;
+- control transaccional de operaciones de almacenamiento.
+
+CRUD puede implementar operaciones especificas cuando una garantia de
+consistencia depende de la base de datos. CRUD no importa routers, services ni
+schemas de respuesta y no define politicas comerciales.
+
+### SQLAlchemy / PostgreSQL
+
+Los modelos ORM representan persistencia, relaciones y restricciones
+estructurales. No importan routers, services, CRUD ni schemas Pydantic.
+
+PostgreSQL es la fuente persistente del dominio.
+
+### Redis
+
+Redis mantiene estado temporal o de infraestructura con ownership explicito.
+No reemplaza ni duplica a PostgreSQL como fuente persistente del dominio.
+
+## 5. Politica de dependencias
+
+Dependencias permitidas:
+
+| Origen | Destinos permitidos |
+| --- | --- |
+| Router | Services, schemas, dependencias HTTP y seguridad |
+| Service | CRUD, dominio, enums y schemas cuando produce un DTO derivado |
+| CRUD | Modelos ORM, sesion DB y utilidades de persistencia |
+| Schema | Schemas hoja, tipos y enums estables |
+| Modelo ORM | Base ORM, mixins, tipos y enums estables |
+
+Dependencias prohibidas:
+
+- CRUD hacia services o routers;
+- modelos ORM hacia schemas, CRUD, services o routers;
+- schemas hacia CRUD, services o modelos ORM;
+- imports mutuos entre services;
+- imports locales usados como solucion permanente a ciclos arquitectonicos.
+
+`TYPE_CHECKING` se utiliza solo para anotaciones que no se necesitan en runtime.
+No se utiliza para ocultar una dependencia circular funcional.
+
+## 6. Estado de transicion
+
+Se reconocen como deuda arquitectonica vigente:
+
+- routers que llaman CRUD directamente;
+- services que ejecutan consultas o persistencia ORM directa;
+- organizacion interna inconsistente de algunos routers;
+- contratos HTTP pendientes de validacion integral.
+
+Estas desviaciones pueden conservarse hasta que una tarea delimitada las
+refactorice. No constituyen precedente para codigo nuevo.
+
+Los mappers `to_*` son validos cuando son transformaciones puras. No realizan
+I/O ni carga implicita de relaciones. Deben eliminarse cuando Pydantic pueda
+serializar directamente el ORM cargado sin perder campos derivados ni reglas
+del contrato.
+
+## 7. Arquitectura objetivo: monolito modular
+
+FitFlow evolucionara gradualmente a un monolito modular sin alterar su unidad
+de despliegue.
+
+La arquitectura objetivo exige:
+
+- limites claros por dominio;
+- cohesion interna de cada dominio;
+- dependencias explicitas entre dominios;
+- ausencia de acceso transversal directo a persistencia ajena;
+- contratos HTTP estables;
+- PostgreSQL compartido como fuente persistente;
+- una aplicacion backend desplegable como unidad.
+
+La estructura fisica por capas se conserva durante el MVP. La reorganizacion
+por modulos verticales solo se realiza mediante una decision arquitectonica y
+una migracion planificada.
+
+No se incorporan microservicios, brokers, CQRS ni event sourcing sin una
+necesidad aprobada de escala, ownership o aislamiento.
+
+## 8. Dominio operativo
+
+```text
+User -> Person -> Client / Teacher
+Client -> Membership
+GymClass -> ClassSchedule -> ClassSession -> Booking
+```
+
+Front Desk es una capacidad operativa sobre el dominio existente y no una
+entidad paralela.
+
+## 9. Concerns transversales
+
+### Seguridad
+
+JWT, roles y dependencias de usuario actual permanecen centralizados y
+auditables.
+
+### Fechas
+
+La interpretacion operacional de horarios pertenece a services. Los horarios
+locales se convierten a UTC en limites definidos y se persisten de forma
+consistente.
+
+### Auditoria
+
+Los timestamps y estados existentes proporcionan la trazabilidad vigente. La
+auditoria uniforme por actor queda pendiente de una politica, modelo de datos y
+migracion aprobados. No se agregan parametros `created_by` aislados antes de
+esa decision.
+
+### Soft delete
+
+`active`, estados operativos y `deleted_at` representan conceptos diferentes.
+La baja logica no reemplaza las transiciones de estado.
+
+### Testing
+
+La estrategia de testing forma parte de la arquitectura operativa. Las
+validaciones obligatorias se definen en `quality-and-validation.md`.
+
+## 10. Tooling de IA
+
+Las herramientas de IA son tooling de desarrollo. Sus indices y caches son
+artefactos derivados y no reemplazan codigo, tests ni documentacion canonica.
+
+## 11. Ownership documental
+
+- `architecture.md`: arquitectura, responsabilidades y dependencias;
+- `current-state.md`: estado implementado y desviaciones verificadas;
+- `quality-and-validation.md`: estrategia y comandos de validacion;
+- `TASK.md`: alcance autorizado de una tarea;
+- `RESULT.md`: resultado y evidencia de ejecucion.
+
+Un informe, prompt o resultado de agente no modifica esta arquitectura. Todo
+cambio arquitectonico debe actualizar este documento de forma explicita.
+</file>
+
+<file path="current-state.md">
+# Estado actual de FitFlow
+
+**Snapshot documental:** 2026-08-15
+**Milestone:** Sprint 6.8 - consolidado en Done
+**Objetivo:** preservar un baseline ejecutable y preparar el cierre del MVP.
+
+## Estado general
+
+Sprint 6.8 queda consolidado hasta FF-LOCAL-010. No se conserva el plan
+descartado de una matriz HTTP adicional de roles/JWT/Redis.
+
+La arquitectura vigente es `Request -> Schema -> Router -> Service -> CRUD ->
+Model -> PostgreSQL`, con FastAPI async, SQLAlchemy 2.x Async, Pydantic v2,
+PostgreSQL, JWT y Redis diferido.
+
+## Backend consolidado
+
+- Las entidades activas cargan metadata y mappers SQLAlchemy 2.x.
+- Booking resuelve `class_session_id` o `class_schedule_id`, protege capacidad
+  y cancela conservando historia.
+- Booking cancelado no consume cupo y puede permitir una nueva reserva.
+- ClassSession conserva soft delete administrativo; no se borra su historial.
+- Client, GymClass y ClassSchedule usan bajas conservativas; Membership cambia
+  de estado sin eliminar su historial.
+- ClassSchedule registra actor minimo con referencias nullable a User; la
+  migracion fue verificada exclusivamente en `fitflow_test`.
+
+## RRULE y sesiones
+
+RRULE es la fuente unica de recurrencia. La generacion usa `LOCAL_TZ`, persiste
+sesiones en UTC y completa solo faltantes futuros dentro de 15 dias. No
+reescribe sesiones, Bookings ni `capacity_snapshot` existentes. `days_of_week`
+no forma parte del contrato activo.
+
+## Front Desk y HTTP
+
+FF-LOCAL-010.1 esta implementada: Front Desk usa un service unico, loaders
+explicitos y check-in `confirmed -> attended` con `checked_in_at`.
+
+FF-LOCAL-010.2 esta implementada parcialmente en el alcance consolidado: las
+rutas publicas de GymClass, Teacher y ClassSchedule preceden a sus rutas UUID y
+la proyeccion publica de GymClass esta completa. La cobertura HTTP integral del
+MVP no se declara ejecutada.
+
+La propuesta 010.3 de matriz HTTP completa de roles/JWT/Redis queda descartada.
+Redis continua configurado como infraestructura, sin afirmar cobertura de API
+que no fue ejecutada.
+
+## Testing y validacion
+
+El baseline vive en `backend/tests/` y usa exclusivamente `fitflow-test` para
+pruebas con PostgreSQL. Se validaron metadata, mappers, RRULE, Booking,
+cancelacion, capacidad, check-in y Redis en pruebas dirigidas. Pyright de los
+modulos tocados por FF-LOCAL-010 fue PASS. La fixture HTTP async compartida y la
+suite integral del MVP quedan como deuda explicita.
+
+## Documentacion y workflow
+
+`.ai/tasks/` contiene el contrato y resultado de cada feature flag. FF-LOCAL-009
+y FF-LOCAL-010 estan en `Done`. La cobertura HTTP integral del MVP permanece
+explicitamente fuera de alcance. `AGENTS.md`, ADRs y documentos de dominio
+siguen siendo la guia activa.
+
+No se declara implementado RBAC granular: `Role`, `Permission` y
+`role_permissions` permanecen aislados como drafts. `UserRole` es el mecanismo
+funcional vigente.
+</file>
+
+<file path="domain.md">
+# Dominio de FitFlow
+
+**Estado:** Canonico  
+**Actualizado:** 2026-08-13
+
+## 1. Proposito
+
+Mantener un vocabulario estable del negocio y las invariantes que deben sobrevivir a refactors, cambios de framework y herramientas de IA.
+
+## 2. Identidad y relacion comercial
+
+```text
+User
+  -> Person
+      -> Client
+      -> Teacher
+
+Client -> Membership
+```
+
+- **User:** identidad autenticable.
+- **Person:** identidad civil/persona.
+- **Client:** rol del dominio asociado al uso del gimnasio.
+- **Teacher:** rol profesional que imparte clases.
+- **Membership:** relacion comercial activa o historica del cliente.
+
+Planes conocidos: `gym_only`, `classes`, `premium`, `personalized`.  
+Estados conocidos: `active`, `expired`, `paused`, `cancelled`.
+
+La existencia de una membership valida y la compatibilidad de esa membership con una clase/agenda son validaciones distintas.
+
+`MembershipPlan` expresa la cobertura contratada por el cliente, mientras que
+`AllowedPlan` expresa la restricción de un `ClassSchedule`. Ambos conservan los
+valores `gym_only`, `classes`, `premium` y `personalized` cuando corresponde.
+Un plan `premium` incluye acceso a horarios `gym_only`, `classes` y `premium`;
+un plan `personalized` incluye esos accesos y los horarios `personalized`.
+
+## 3. Dominio operativo
+
+```text
+GymClass -> ClassSchedule -> ClassSession -> Booking
+```
+
+### GymClass
+Catalogo de actividades. Contiene propiedades de referencia como nombre, tipo, dificultad, duracion y capacidad por defecto cuando corresponda.
+
+### ClassSchedule
+Configuracion recurrente de una clase; no es una ocurrencia concreta.
+
+**Fuente única:** `rrule` RFC 5545, sin `DTSTART`; `start_date` y `start_time`
+definen el ancla local. `days_of_week` fue eliminado.
+
+El schedule puede contener profesor, ventana de vigencia, hora, duracion, capacidad y restricciones como `allowed_plan`.
+La generación completa únicamente sesiones futuras faltantes dentro de 15 días;
+no modifica snapshots ni historial existente.
+
+### ClassSession
+Ocurrencia concreta de un schedule. Debe preservar `capacity_snapshot` para no reescribir historicamente la capacidad de una sesion cuando cambie el schedule.
+
+Disponibilidad conceptual:
+
+```text
+available_spots = max(capacity_snapshot - current_bookings_count, 0)
+```
+
+`current_bookings_count` contabiliza solamente reservas que consumen cupo;
+una reserva con estado `cancelled` permanece como historial pero no ocupa lugar.
+
+La cancelación cambia el estado de la sesión. El endpoint administrativo de
+eliminación realiza soft delete (`active=false` y `deleted_at`), por lo que no
+borra sus Bookings ni reescribe la historia.
+
+La disponibilidad mostrada puede ser derivada; la operacion critica de reserva debe confiar en una comprobacion transaccional.
+
+Estados operativos conocidos: `scheduled`, `open`, `closed`, `cancelled`, `completed`.
+
+### Booking
+Reserva/intencion de asistencia de un cliente a una `ClassSession`.
+
+Estados conocidos: `confirmed`, `cancelled`, `attended`, `no_show`.
+
+Cancelar una reserva conserva historia; no equivale a soft-delete.
+Booking no expone borrado operativo: toda baja funcional se representa como
+cancelación con estado `cancelled` y, cuando corresponda, `cancelled_at`.
+
+Una sesión `scheduled` u `open` y futura puede aceptar reservas. Una sesión
+`closed`, `cancelled`, `completed` o pasada no admite reservas nuevas.
+
+Las bajas de Client, GymClass y ClassSchedule preservan historia por
+desactivación o soft delete. Membership se cancela por estado; su cardinalidad
+permanece 1:1 durante Sprint 6.8.
+
+## 4. Invariantes de Booking
+
+1. Un cliente no puede reservar dos veces la misma sesion.
+2. No se crean reservas sobre sesiones invalidadas por estado o tiempo.
+3. Debe existir capacidad.
+4. Debe existir una membership compatible cuando la regla de negocio lo requiera.
+5. `allowed_plan` se valida en la capa de negocio.
+6. Comprobacion de capacidad y creacion deben ser parte de una operacion transaccional protegida.
+7. Los errores de conflicto deben conservar semantica suficiente para mapearse a HTTP apropiadamente.
+8. Cuando el contrato admita schedule o session, exactamente uno de `class_schedule_id` y `class_session_id` debe estar presente; la regla estructural pertenece al schema y la resolucion pertenece al service.
+
+## 5. Front Desk
+
+Front Desk no crea un dominio paralelo. Consume `ClassSession`, `Booking`, `Client`, `GymClass`, `Teacher` y sus vistas Pydantic para operacion diaria.
+
+Schemas como `FrontDeskSessionView`, `FrontDeskBookingView`, `FrontDeskDayView` o equivalentes deben ser vistas/contratos, no nuevos modelos persistentes duplicados.
+
+## 6. Crecimiento del producto
+
+Direccion vertical preferida:
+
+```text
+Identidad
+ -> Cliente
+ -> Membresia
+ -> Clase
+ -> Agenda
+ -> Sesion
+ -> Reserva
+ -> Asistencia
+ -> Metricas
+ -> Facturacion
+```
+
+El MVP termina antes de facturacion/pagos avanzados. Nuevos modulos deben justificar su relacion con este flujo.
+</file>
+
+<file path="MIGRATION.md">
+# Migracion documental - baseline v3
+
+**Fecha:** 2026-08-13
+
+## 1. Motivo
+
+La version v2 separo correctamente source of truth, arquitectura, dominio, roadmap e IA. La v3 conserva esa base y agrega dos capacidades que ahora son parte del baseline operativo:
+
+1. ciclo de tareas/reportes comun a humano, Codex y Aider;
+2. validation baseline con pytest como prerequisito de automatizacion confiable.
+
+## 2. Documentos v2 preservados conceptualmente
+
+Sin cambio de decision:
+- ADR 0001 Chakra UI;
+- ADR 0003 Modular Monolith;
+- ADR 0004 RRULE target;
+- ADR 0005 Booking atomico;
+- ADR 0006 Pydantic v2;
+- ADR 0007 pipelines IA.
+
+ADR 0002 Git sigue vigente y se complementa con ADR 0008.
+
+## 3. Nuevos documentos
+
+- `docs/process/task-lifecycle-and-reporting.md`
+- `docs/adr/0008-task-lifecycle-and-execution-lanes.md`
+- `docs/adr/0009-backend-testing-baseline.md`
+- `docs/ai/codex-operating-guide.md`
+- `docs/ai/mcp-future.md`
+- `.ai/` con templates, tasks iniciales y prompts
+- `backend/tests/` como baseline estructural
+- wrappers de `scripts/quality/`
+
+## 4. Cambios de enfoque
+
+- Pytest deja de ser una herramienta "esperada" y pasa a ser un baseline critico que debe volverse realmente operativo.
+- Jira queda definido como control plane humano del trabajo, sin automatizacion obligatoria.
+- MCP se registra como estudio futuro, no dependencia actual.
+- task/result/reporting deja de pertenecer solo a `docs/ai/` y pasa a `docs/process/`.
+
+## 5. Material historico
+
+Los documentos originales de Sprint 6.8, Sprint 7, roadmap IA v1 e indexador v1 siguen archivados y fuera del contexto activo por defecto.
+
+El documento formal v2 se mueve a `archive/superseded/` cuando se adopta el documento formal v3.
+</file>
+
+<file path="quality-and-validation.md">
+# Calidad, testing y validacion
+
+**Estado:** Canonico  
+**Version:** 3.0
+
+## 1. Principio
+
+Una task no termina por haber modificado archivos. Debe producir evidencia reproducible.
+
+La suite de tests reduce la cantidad de razonamiento que un agente necesita repetir: un resultado determinista debe preferirse a una inferencia extensa cuando existe un test adecuado.
+
+## 2. Estructura de tests
+
+```text
+backend/tests/
+├── smoke/          # el harness/app puede arrancar y dependencias basicas funcionan
+├── unit/           # reglas puras/services/schemas aislables
+├── integration/    # DB/CRUD/transacciones/fixtures reales
+├── api/            # contratos HTTP, auth, status codes
+├── concurrency/    # carreras/locks/overbooking cuando aplique
+├── helpers/
+├── factories/
+└── _templates/     # ejemplos no recolectables por pytest
+```
+
+Convenciones:
+- archivos: `test_<area>.py`;
+- tests: `test_<behavior>_when_<condition>` o equivalente legible;
+- un comportamiento principal por test;
+- Arrange / Act / Assert cuando ayude;
+- tests deterministas, aislados y sin depender de orden;
+- red externa prohibida salvo test explicitamente integrado/mocked;
+- fixtures compartidas solo si expresan un concepto estable.
+
+## 3. Markers
+
+Baseline:
+- `smoke`
+- `unit`
+- `integration`
+- `api`
+- `concurrency`
+- `slow`
+
+Ejemplos:
+
+```text
+python -m pytest backend/tests -m smoke
+python -m pytest backend/tests -m unit
+python -m pytest backend/tests -m "integration or api"
+```
+
+## 4. Gates por capa
+
+### Modelo/ORM
+Mapper config, relaciones/FK/cardinalidad, constraints, typing, impacto Alembic y tests.
+
+### Schema
+Casos validos/invalidos, Create/Update/Public/Internal, OpenAPI/response contracts.
+
+### Service
+Reglas de negocio y errores de dominio; unit tests cuando sea posible.
+
+### CRUD/transaccion
+Atomicidad, rollback/flush/refresh, locks/concurrencia, duplicados, integration tests.
+
+### Router
+Roles, status codes, request/response, mapeo DomainError -> HTTP; API tests.
+
+### Frontend
+Contrato backend actual, estados de UI/cache y tests de flujo cuando exista cobertura.
+
+## 5. Booking como primer vertical slice
+
+Prioridad inicial:
+- duplicado;
+- overbooking/capacidad;
+- membership/allowed_plan;
+- estados invalidos de session;
+- atomicidad/transaccion;
+- mapping HTTP relevante.
+
+No todo debe ser unit test: reglas comerciales pueden vivir en unit; atomicidad/concurrencia requiere integration/concurrency.
+
+## 6. Comandos canonicos
+
+Desde raiz:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/quality/run_backend_tests.ps1
+powershell -ExecutionPolicy Bypass -File scripts/quality/run_backend_validation.ps1
+```
+
+Ambos wrappers construyen e inician exclusivamente el proyecto Compose
+`fitflow-test` y ejecutan las validaciones dentro de `backend_test`. No usan el
+Python local ni la base de desarrollo. El primero acepta argumentos adicionales
+de pytest, por ejemplo `-m smoke -q`.
+
+Comando exacto de smoke dentro del contenedor, desde la raiz montada `/app`:
+
+```text
+python -m pytest backend/tests -m smoke
+```
+
+Los tests de integracion validan que `DATABASE_URL` nombre explicitamente
+`fitflow_test` antes de abrir una conexion. Los wrappers dejan el entorno activo
+para inspeccion; su limpieza acotada retira solo contenedores y red, preservando
+el volumen de pruebas.
+
+## 7. Estados de evidencia
+
+- **PASS:** ejecutado y satisfactorio.
+- **FAIL:** fallo reproducible.
+- **NOT_RUN:** no se ejecuto; explicar por que.
+- **UNAVAILABLE:** herramienta/configuracion no disponible; constituye gap explicito.
+- **A_REVIEW:** evidencia insuficiente/contradictoria.
+
+## 8. Definition of Done para task con codigo
+
+Segun alcance:
+1. implementacion dentro del scope;
+2. targeted tests;
+3. suite mas amplia cuando el riesgo lo justifique;
+4. Ruff;
+5. Pyright/Pylance o equivalente;
+6. Alembic/OpenAPI cuando corresponda;
+7. diff review;
+8. `RESULT.md` con estado de cada gate.
+
+`N/A` es valido cuando un gate no aplica; no es equivalente a `NOT_RUN`.
+
+## 9. Estado de adopcion
+
+El harness v3 esta operativo sobre Python 3.11, pytest y pytest-asyncio dentro de
+`fitflow-test`. Se verificaron smoke de runtime/metadata, tests unitarios de ORM y
+dos invariantes reales de Booking. La cobertura restante de FitFlow continua
+siendo deuda activa; en particular no se ha demostrado cobertura HTTP completa.
+
+Ruff y Pyright están instalados en la imagen de tests. Un fallo de cualquiera
+debe registrarse como `FAIL` con su evidencia; `UNAVAILABLE` queda reservado
+para una herramienta que realmente no pueda ejecutarse.
+
+## 10. Docstrings
+Toda funcion publica, endpoint, metodo CRUD, funcion de service o helper no trivial debe tener un docstring breve.
+</file>
+
+<file path="roadmap.md">
+# Roadmap de FitFlow
+
+**Estado:** Canonico  
+**Version:** 3.0 - 2026-08-13
+
+## 1. Principio
+
+El objetivo es terminar un **MVP operativo** sobre un dominio estable y una base de validacion suficiente. El tooling ayuda al producto; no debe convertirse en un laboratorio que bloquee el MVP.
+
+Se mantienen dos tracks:
+- **Producto**
+- **Engineering Tooling / Developer Operations**
+
+## 2. Track de producto
+
+### P0 - Sprint 6.8: consolidacion actual
+
+Checkpoint:
+- relaciones/cardinalidades y modelos SQLAlchemy coherentes;
+- Pydantic v2 consolidado;
+- ClassSchedule/RRULE con estado real resuelto;
+- ClassSession/capacidad coherente;
+- Booking atomico y duplicados validados;
+- endpoints MVP necesarios cerrados;
+- seguridad/roles revisados en alcance critico;
+- **baseline pytest operativo + cobertura critica suficiente**;
+- Ruff/type checking aplicables;
+- docs canonicos sincronizados.
+- modelos ORM normalizados al estilo SQLAlchemy 2.x sin cambios semánticos accidentales;
+- integridad ORM revisada y discrepancias resueltas o explicitadas;
+- enums y estados del dominio inventariados y alineados;
+- contratos Pydantic v2 reconciliados con modelos y reglas del dominio;
+- ClassSchedule/ClassSession consolidados con estado RRULE resuelto.
+
+### P1 - MVP operativo rebaselined
+
+Absorbe la intencion funcional del antiguo Sprint 7 sin sus supuestos desactualizados:
+- Cliente -> Clase -> Agenda -> Sesion -> Reserva;
+- Front Desk;
+- capacidad/disponibilidad coherentes;
+- creacion/cancelacion de Booking;
+- frontend/backend por contratos actuales;
+- UX minima viable;
+- errores de dominio presentados correctamente.
+
+### P2 - Stabilization
+
+- ampliar unit/integration/API tests;
+- regresiones de Booking/Session/Membership/Auth;
+- concurrencia donde la integridad lo requiera;
+- Alembic;
+- smoke frontend;
+- bugs de integracion.
+
+### P3 - Staging / beta
+
+Docker reproducible, environments, logging/observabilidad basica, staging y beta controlada.
+
+### P4 - Post-MVP
+
+Asistencia avanzada, metricas, facturacion/pagos, automatizaciones y evaluacion de extracciones solo con evidencia real.
+
+## 3. Track Engineering Tooling / Developer Operations
+
+### T0 - Baseline documental v3
+- source of truth;
+- architecture/domain/current-state/roadmap;
+- ADRs;
+- proceso de tasks/reportes;
+- AGENTS compacto;
+- archivo historico separado.
+
+### T1 - Validation baseline
+**Critico para automatizacion fiable.**
+- pytest/pytest-asyncio;
+- estructura de tests;
+- smoke harness;
+- fixtures reales;
+- tests representativos de invariantes;
+- comando canonico para agentes;
+- resultado normalizado PASS/FAIL/NOT_RUN/UNAVAILABLE.
+
+### T2 - Convenciones y naming
+- auditoria read-only;
+- convencion por capa;
+- impacto/imports;
+- plan de normalizacion;
+- aplicar solo despues de validation baseline suficiente.
+
+### T3 - Project Index v1
+
+Estado: experimental / en desarrollo.
+
+- `project-index.toml` versionado;
+- `.index/` como output derivado;
+- discovery y exclusions;
+- manifest + hashes;
+- revision Git;
+- AST / symbols;
+- imports / relations;
+- busqueda textual;
+- query CLI local;
+- incremental indexing;
+- benchmark con consultas reales de FitFlow.
+
+La semántica con embeddings es opcional y debe justificarse mediante medición.
+
+El Context Bundle definitivo no se congela durante esta etapa.
+Se registrarán únicamente los requisitos observados durante el uso real.
+
+#### T4 - Context delivery para Codex
+
+Después de estabilizar Project Index y Codex:
+
+1. utilizar primero consultas CLI/locales;
+2. estudiar una Skill si el workflow se vuelve repetitivo;
+3. formalizar Context Bundle v1 al estabilizar el MVP;
+4. evaluar MCP solamente después.
+
+No adoptar una interfaz más compleja antes de demostrar la necesidad.
+
+### T5 - AiderDesk local pipeline
+M-Explorer -> Worker -> Reviewer, desarrollado sin bloquear el producto.
+
+### T6 - MCP (estudio futuro)
+Evaluar MCP como interfaz estandar para exponer Project Index u otras herramientas a Codex. No implementar hasta tener Codex funcional y el indice suficientemente estable.
+
+### T7 - Orquestacion futura
+Symphony u otras formas de dispatch pueden estudiarse cuando Jira/tasks/validation ya funcionen de forma natural con humano en control.
+
+## 4. Arquitectura objetivo
+
+Monolito modular incremental y probado. No microservicios, Kafka/RabbitMQ, CQRS o event sourcing para necesidades actuales del MVP.
+
+## 5. Autonomia
+
+Agentes pueden explorar, implementar cambios acotados y ejecutar validaciones dentro del scope.
+
+Decision humana explicita para:
+- dominio/arquitectura;
+- dependencias base;
+- migraciones destructivas;
+- seguridad transversal;
+- ampliar MVP;
+- superseder ADRs;
+- integrar cambios con riesgo no validado.
+
+## 6. Jira
+
+Jira organiza el trabajo, no redefine la arquitectura.
+
+Dimensiones estables:
+- status;
+- area;
+- execution lane;
+- task type;
+- priority;
+- epic/milestone;
+- labels excepcionales.
+
+No automatizar por automatizar. Primero estabilizar el flujo manual y luego estudiar automatizaciones que reduzcan cambios repetitivos sin quitar el control humano.
+</file>
+
+<file path="SOURCE_OF_TRUTH.md">
+# Source of Truth - FitFlow
+
+**Estado:** Activo  
+**Version:** 3.0  
+**Actualizado:** 2026-08-13
+
+## 1. Objetivo
+
+Definir como resolver contradicciones entre codigo, tests, documentacion, decisiones, tareas e indices derivados.
+
+## 2. Capas de verdad
+
+### Capa 0 - Realidad ejecutable
+
+Autoridad para responder **que existe y como se comporta hoy**:
+- codigo fuente versionado;
+- tests vigentes;
+- configuracion;
+- modelos y migraciones Alembic;
+- estado reproducible del repositorio.
+
+Los tests son evidencia ejecutable solamente para el comportamiento que realmente cubren.
+
+### Capa 1 - Documentacion canonica
+
+Autoridad para responder **que significa, que fronteras se respetan y que decisiones se aceptaron**:
+- `current-state.md`;
+- `architecture.md`;
+- `domain.md`;
+- `adr/`;
+- `roadmap.md`;
+- `quality-and-validation.md`;
+- `process/`.
+
+La documentacion no debe declarar implementada una decision futura.
+
+### Capa 2 - Registros operativos
+
+Trazabilidad del trabajo, no autoridad arquitectonica:
+- Jira: estado/prioridad/ownership del trabajo;
+- `.ai/tasks/<id>/TASK.md`: contrato de una tarea;
+- `PLAN.md`: estrategia durable cuando la complejidad lo justifica;
+- `STATUS.md`: progreso de una ejecucion larga;
+- `RESULT.md`: reporte tecnico final;
+- Git branches/worktrees/commits/diffs: evidencia de implementacion.
+
+Un RESULT puede motivar cambios de docs, pero no reemplaza por si solo a `architecture.md`, `domain.md` o un ADR.
+
+### Capa 3 - Contexto derivado
+
+Ayuda a encontrar informacion:
+- Project Index;
+- embeddings;
+- grafo de relaciones;
+- pdoc;
+- RepoMap;
+- llamaindex
+- caches;
+- bundles/resumenes de contexto.
+
+Deben ser regenerables y, cuando sea posible, asociados a una revision Git.
+
+### Capa 4 - Historico
+
+`docs/archive/` contiene planes/snapshots reemplazados. Sirve para trazabilidad, no como instruccion activa.
+
+## 3. Regla de conflicto(auditar)
+
+Si codigo, tests y docs difieren:
+1. confirmar revision/estado del codigo;
+2. identificar que cubren realmente los tests;
+3. distinguir estado actual de target/decision;
+4. no corregir silenciosamente una fuente para hacerla coincidir;
+5. marcar **A revisar**;
+6. resolver mediante una task delimitada y, si cambia una decision durable, actualizar docs/ADR.
+
+## 4. Estados documentales
+
+- **Confirmado:** verificado en codigo/tests/config vigente.
+- **Accepted / Pending Implementation:** decision aprobada, implementacion no garantizada.
+- **Planificado:** direccion futura.
+- **A revisar:** evidencia parcial/contradiccion pendiente.
+- **Historico:** ya no gobierna el presente.
+- **Superseded:** reemplazado por una decision/documento posterior.
+
+## 5. Regla de promocion
+
+Una task modifica docs canonicos solo si su resultado cambia conocimiento durable:
+- comportamiento esperado del dominio;
+- responsabilidades/fronteras;
+- arquitectura;
+- source of truth;
+- calidad/validation gates;
+- proceso operativo;
+- roadmap.
+
+No actualizar docs por cambios puramente mecanicos que no cambian significado.
+</file>
+
+<file path="ai/README.md">
+# Tooling de IA - FitFlow
+
+Esta carpeta documenta **como las herramientas de IA ayudan a desarrollar FitFlow**. No contiene la fuente de verdad del dominio.
+
+- `development-pipelines.md`: Codex + Project Index y AiderDesk.
+- `context-strategy.md`: contexto en capas y Context Package.
+- `indexer-pipeline.md`: especificacion del Project Index.
+- `aiderdesk-explorer-v1.md`: baseline experimental de M-Explorer.
+- `codex-operating-guide.md`: integracion esperada de Codex con el baseline v3.
+- `mcp-future.md`: alcance futuro de estudio de MCP.
+
+El ciclo de tasks/reportes es transversal y vive en `docs/process/`, porque tambien aplica a desarrollo humano.
+</file>
+
+<file path="README.md">
+# FitFlow Docs
+
+Esta carpeta contiene la **documentacion canonica activa** de FitFlow. Esta pensada para humanos y agentes: amplia donde el conocimiento debe ser durable y selectiva respecto de lo que se carga en contexto.
+
+## Conjunto canonico
+
+- `SOURCE_OF_TRUTH.md`: jerarquia de autoridad y reglas de reconciliacion.
+- `architecture.md`: arquitectura actual, responsabilidades y target.
+- `domain.md`: entidades, relaciones e invariantes del negocio.
+- `current-state.md`: snapshot vigente.
+- `roadmap.md`: direccion hacia el MVP y evolucion posterior.
+- `quality-and-validation.md`: testing, quality gates y evidencia.
+- `process/`: ciclo de tareas, Jira, reportes y ejecucion humana/agente.
+- `adr/`: decisiones arquitectonicas aceptadas.
+- `ai/`: pipelines de IA, contexto, indexador y AiderDesk.
+- `formal/`: documento de consulta consolidado.
+- `archive/`: historico/superseded; fuera del contexto activo por defecto.
+
+## Regla editorial
+
+Un documento activo debe responder una pregunta concreta.
+
+- El codigo dice **que hace hoy**.
+- `current-state.md` dice **donde estamos**.
+- `architecture.md` y `domain.md` dicen **como se organiza y que significa**.
+- un ADR dice **por que se tomo una decision durable**.
+- `roadmap.md` dice **hacia donde vamos**.
+- `.ai/tasks/*/RESULT.md` dice **que ocurrio en una task concreta**.
+- Jira dice **que trabajo existe y en que estado esta**.
+
+No usar `docs/` como bitacora de cada ejecucion.
+
+## Contexto de agentes
+
+La existencia de muchos documentos no significa cargarlos todos. `AGENTS.md` es la entrada compacta; los documentos restantes se consultan por necesidad. El Project Index puede localizar secciones/documentos, pero nunca reemplaza la verificacion del codigo.
+</file>
+
+</files>

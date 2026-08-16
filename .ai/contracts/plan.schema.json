@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/plan.schema.json",
+  "title": "FitFlow Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "status", "created_at", "baseline_revision", "working_tree_fingerprint", "author_role", "risk", "assigned_coder", "ownership_keys", "expected_result", "steps", "validations", "failure_routes"],
+  "properties": {
+    "artifact": {"const": "PLAN"},
+    "schema_version": {"const": "fitflow-plan/v1"},
+    "task_id": {"type": "string", "minLength": 3},
+    "run_id": {"type": "string", "minLength": 3},
+    "status": {"enum": ["PASS", "BLOCKED", "FAIL"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "baseline_revision": {"type": "string", "minLength": 1},
+    "working_tree_fingerprint": {"type": "string", "pattern": "^sha256:.+$"},
+    "author_role": {"const": "planner_audit"},
+    "risk": {"enum": ["low", "medium", "high"]},
+    "assigned_coder": {"enum": ["coder_a", "coder_b", "none"]},
+    "ownership_keys": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^(path|api|domain|db|doc|config):.+$"}},
+    "expected_result": {"type": "string", "minLength": 5},
+    "verified_assumptions": {"type": "array", "items": {"type": "string"}},
+    "decision_requests": {"type": "array", "items": {"type": "string"}},
+    "steps": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["id", "role", "action", "input", "output", "gate"], "properties": {"id": {"type": "string"}, "role": {"type": "string"}, "action": {"type": "string"}, "input": {"type": "array", "items": {"type": "string"}}, "output": {"type": "array", "items": {"type": "string"}}, "gate": {"type": "string"}}}},
+    "validations": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["id", "check", "required_status"], "properties": {"id": {"type": "string"}, "check": {"type": "string"}, "required_status": {"const": "PASS"}}, "additionalProperties": false}},
+    "failure_routes": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["condition", "next_state"], "properties": {"condition": {"type": "string"}, "next_state": {"enum": ["EXPLORE", "EXECUTE", "PLAN", "BLOCKED", "BLOCKED_HIGH_RISK"]}}, "additionalProperties": false}}
+  }
+}

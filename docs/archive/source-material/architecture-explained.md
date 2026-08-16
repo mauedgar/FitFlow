@@ -1,3 +1,11 @@
+---
+document_id: FF-HUMAN-ARCH-EXPLAINED-001
+status: source_material
+machine_context: false
+indexing: excluded
+updated: 2026-08-16
+---
+
 # FitFlow: explicacion de la arquitectura
 
 **Tipo:** Material de referencia para personas

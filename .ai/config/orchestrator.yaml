@@ -1,0 +1,52 @@
+schema_version: fitflow-orchestrator/v1
+orchestrator: codebase
+adapter:
+  required: true
+  config_source: .ai/config
+  output_validation: strict
+human_control:
+  final_state: DONE
+  agent_terminal_state: PENDING_ACCEPTANCE
+  commits_by_agents: false
+  dependency_changes_by_agents: false
+states:
+  - BACKLOG
+  - READY
+  - PLAN
+  - EXPLORE
+  - EXECUTE
+  - REVIEW
+  - VALIDATE
+  - PENDING_ACCEPTANCE
+  - DONE
+  - BLOCKED
+  - BLOCKED_HIGH_RISK
+  - CANCELLED
+transitions:
+  READY: [PLAN, CANCELLED]
+  PLAN: [EXPLORE, BLOCKED, BLOCKED_HIGH_RISK, CANCELLED]
+  EXPLORE: [EXECUTE, PLAN, BLOCKED]
+  EXECUTE: [REVIEW, EXPLORE, PLAN, BLOCKED, BLOCKED_HIGH_RISK]
+  REVIEW: [VALIDATE, EXECUTE, EXPLORE, PLAN, BLOCKED]
+  VALIDATE: [PENDING_ACCEPTANCE, EXECUTE, EXPLORE, PLAN, BLOCKED]
+  PENDING_ACCEPTANCE: [DONE, EXECUTE, PLAN, BLOCKED, CANCELLED]
+  BLOCKED: [READY, CANCELLED]
+  BLOCKED_HIGH_RISK: [READY, CANCELLED]
+limits:
+  context_rounds: 2
+  implementation_rounds: 2
+  review_rounds: 2
+parallelism:
+  enabled: true
+  require_disjoint_ownership_keys: true
+  single_writer_per_key: true
+artifacts:
+  task_root: .ai/tasks
+  temp_root: .ai/local
+  required_by_stage:
+    PLAN: [TASK.md, PLAN.md]
+    EXPLORE: [CONTEXT_REQUEST.md]
+    EXECUTE: [IMPLEMENTATION.md]
+    REVIEW: [REVIEW.md]
+    VALIDATE: [VALIDATION.md]
+    PENDING_ACCEPTANCE: [RESULT.md]

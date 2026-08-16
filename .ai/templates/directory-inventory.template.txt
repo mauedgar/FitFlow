@@ -1,0 +1,12 @@
+# format: fitflow-directory-inventory/v1
+# scope: backend
+# generated_at: 2026-08-16T00:00:00-03:00
+# baseline_revision: NO_COMMIT
+# working_tree_fingerprint: sha256:REPLACE
+# generator_version: REPLACE
+# exclusions_profile: default-v1
+# content_hash: sha256:REPLACE
+backend/
+  app/
+    services/
+      example.py

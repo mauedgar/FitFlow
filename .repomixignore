@@ -1,0 +1,61 @@
+# Python environments
+.venv/
+venv/
+env/
+**/.venv_backend/
+**/.venv_tools/
+**/internos/
+**/historico/
+.continue/
+# Python cache
+__pycache__/
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+.hypothesis/
+
+# Node
+node_modules/
+
+# Build / distribution
+build/
+dist/
+.eggs/
+*.egg-info/
+
+# Coverage / test artifacts
+htmlcov/
+.coverage
+.coverage.*
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# IDE / editor
+.idea/
+.vscode/
+
+# Logs / temporary files
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+internos/
+historico/
+templates/
+versions/

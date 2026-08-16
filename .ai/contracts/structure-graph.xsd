@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+  <xs:simpleType name="scopeType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="backend"/>
+      <xs:enumeration value="frontend"/>
+      <xs:enumeration value="total"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="parseStatusType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="PARSED"/>
+      <xs:enumeration value="PARTIAL"/>
+      <xs:enumeration value="UNPARSED"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="confidenceType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="low"/>
+      <xs:enumeration value="medium"/>
+      <xs:enumeration value="high"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="fitflowStructureGraph">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="files">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="file" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:attribute name="id" type="xs:string" use="required"/>
+                  <xs:attribute name="path" type="xs:string" use="required"/>
+                  <xs:attribute name="language" type="xs:string" use="required"/>
+                  <xs:attribute name="contentHash" type="xs:string" use="required"/>
+                  <xs:attribute name="parseStatus" type="parseStatusType" use="required"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="symbols">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="symbol" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:attribute name="id" type="xs:string" use="required"/>
+                  <xs:attribute name="fileId" type="xs:string" use="required"/>
+                  <xs:attribute name="kind" type="xs:string" use="required"/>
+                  <xs:attribute name="name" type="xs:string" use="required"/>
+                  <xs:attribute name="qualifiedName" type="xs:string" use="optional"/>
+                  <xs:attribute name="startLine" type="xs:positiveInteger" use="optional"/>
+                  <xs:attribute name="endLine" type="xs:positiveInteger" use="optional"/>
+                  <xs:attribute name="evidenceStatus" type="xs:string" use="optional"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="relations">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="relation" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:attribute name="sourceId" type="xs:string" use="required"/>
+                  <xs:attribute name="targetId" type="xs:string" use="required"/>
+                  <xs:attribute name="kind" type="xs:string" use="required"/>
+                  <xs:attribute name="confidence" type="confidenceType" use="required"/>
+                  <xs:attribute name="source" type="xs:string" use="required"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="schemaVersion" type="xs:string" use="required" fixed="1.0"/>
+      <xs:attribute name="repository" type="xs:string" use="required"/>
+      <xs:attribute name="scope" type="scopeType" use="required"/>
+      <xs:attribute name="generatedAt" type="xs:dateTime" use="required"/>
+      <xs:attribute name="baselineRevision" type="xs:string" use="required"/>
+      <xs:attribute name="workingTreeFingerprint" type="xs:string" use="required"/>
+      <xs:attribute name="generator" type="xs:string" use="required"/>
+      <xs:attribute name="status" type="xs:string" use="optional"/>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

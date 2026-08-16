@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/index-event.schema.json",
+  "title": "FitFlow Index Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "task_id", "run_id", "event", "scope", "baseline_revision", "working_tree_fingerprint", "paths", "created_at"],
+  "properties": {
+    "schema_version": {"const": "fitflow-index-event/v1"},
+    "event_id": {"type": "string", "minLength": 3},
+    "task_id": {"type": "string", "minLength": 3},
+    "run_id": {"type": "string", "minLength": 3},
+    "event": {"enum": ["MARK_DIRTY", "SYNC_REQUESTED", "SYNC_COMPLETED", "VERIFY_COMPLETED", "PROMOTE_REQUESTED", "PROMOTED", "REBUILD_REQUIRED"]},
+    "scope": {"enum": ["backend", "frontend", "mixed", "docs_tooling"]},
+    "baseline_revision": {"type": "string", "minLength": 1},
+    "working_tree_fingerprint": {"type": "string", "pattern": "^sha256:.+$"},
+    "paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "created_at": {"type": "string", "format": "date-time"},
+    "status": {"enum": ["PASS", "FAIL", "UNAVAILABLE", "BLOCKED"]},
+    "details": {"type": "object"}
+  }
+}

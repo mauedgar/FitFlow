@@ -1,5 +1,16 @@
+---
+document_id: FF-ARCHIVE-INDEX-001
+status: historical
+machine_context: false
+indexing: excluded
+updated: 2026-08-16
+---
+
 # Archive
 
-Material historico, source material y documentos superseded.
+Material histórico, explicativo o superseded. Queda fuera de instrucciones,
+inventarios, Repomix y embeddings normales.
 
-No se usa como contexto operativo por defecto. Se consulta solo para trazabilidad o arqueologia de decisiones.
+- `source-material/`: fuentes y explicaciones humanas.
+- `historical/`: snapshots que describen un estado anterior.
+- `superseded/`: reglas reemplazadas, conservadas por trazabilidad.

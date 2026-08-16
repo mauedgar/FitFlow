@@ -1,0 +1,143 @@
+backend
+├── alembic
+│   ├── __init__.py
+│   ├── env.py
+│   ├── README
+│   └── script.py.mako
+├── app
+│   ├── api
+│   │   ├── v1
+│   │   │   ├── __init__.py
+│   │   │   └── api.py
+│   │   └── __init__.py
+│   ├── core
+│   │   ├── __init__.py
+│   │   ├── blacklist.py
+│   │   ├── config.py
+│   │   ├── deps.py
+│   │   ├── enums.py
+│   │   ├── redis_client.py
+│   │   ├── security.py
+│   │   ├── timezone.py
+│   │   └── token_store.py
+│   ├── crud
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── crud_base_sync.py
+│   │   ├── crud_booking.py
+│   │   ├── crud_class_schedule.py
+│   │   ├── crud_class_session.py
+│   │   ├── crud_client.py
+│   │   ├── crud_gym_class.py
+│   │   ├── crud_membership.py
+│   │   ├── crud_permission.py.template
+│   │   ├── crud_role.py.template
+│   │   ├── crud_teacher.py
+│   │   └── crud_user.py
+│   ├── db
+│   │   ├── models
+│   │   │   ├── __init__.py
+│   │   │   ├── booking.py
+│   │   │   ├── class_schedule.py
+│   │   │   ├── class_session.py
+│   │   │   ├── client.py
+│   │   │   ├── gym_class.py
+│   │   │   ├── membership.py
+│   │   │   ├── permission.py
+│   │   │   ├── person.py
+│   │   │   ├── role.py
+│   │   │   ├── role_permissions.py
+│   │   │   ├── teacher.py
+│   │   │   └── user.py
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── base_class.py
+│   │   ├── mixins.py
+│   │   └── session.py
+│   ├── routers
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── bookings.py
+│   │   ├── class_schedules.py
+│   │   ├── class_sessions.py
+│   │   ├── clients.py
+│   │   ├── front_desk.py
+│   │   ├── gym_classes.py
+│   │   ├── memberships.py
+│   │   ├── teachers.py
+│   │   └── users.py
+│   ├── schemas
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── booking.py
+│   │   ├── booking_refs.py
+│   │   ├── class_schedule.py
+│   │   ├── class_schedule_refs.py
+│   │   ├── class_session.py
+│   │   ├── class_session_refs.py
+│   │   ├── client.py
+│   │   ├── front_desk.py
+│   │   ├── gym_class.py
+│   │   ├── membership.py
+│   │   ├── permission.py
+│   │   ├── person.py
+│   │   ├── role.py
+│   │   ├── teacher.py
+│   │   ├── teacher_refs.py
+│   │   ├── token.py
+│   │   └── user.py
+│   ├── services
+│   │   ├── __init__.py
+│   │   ├── auth_service.py
+│   │   ├── booking_service.py
+│   │   ├── class_schedule_service.py
+│   │   ├── class_session_service.py
+│   │   ├── client_service.py
+│   │   ├── errors.py
+│   │   ├── front_desk_service.py
+│   │   ├── gym_class_service.py
+│   │   ├── membership_service.py
+│   │   ├── teacher_service.py
+│   │   └── user_service.py
+│   ├── templates
+│   │   └── plantilla_crud_async
+│   ├── __init__.py
+│   └── main.py
+├── tests
+│   ├── _templates
+│   │   ├── test_api_endpoint.example.py
+│   │   ├── test_booking_concurrency.example.py
+│   │   ├── test_database_integration.example.py
+│   │   └── test_service_unit.example.py
+│   ├── api
+│   │   └── README.md
+│   ├── concurrency
+│   │   └── README.md
+│   ├── factories
+│   │   └── README.md
+│   ├── helpers
+│   │   └── README.md
+│   ├── integration
+│   │   ├── README.md
+│   │   ├── test_booking_database_invariants.py
+│   │   └── test_rrule_generation.py
+│   ├── smoke
+│   │   └── test_pytest_harness.py
+│   ├── unit
+│   │   ├── README.md
+│   │   ├── test_allowed_plan_access.py
+│   │   ├── test_booking_lifecycle.py
+│   │   ├── test_orm_metadata.py
+│   │   ├── test_pydantic_contracts.py
+│   │   ├── test_redis_client.py
+│   │   └── test_rrule_schedule.py
+│   ├── conftest.py
+│   └── README.md
+├── .env
+├── __init__.py
+├── alembic.ini
+├── Dockerfile.test
+├── pytest.ini
+├── requirements_backend.txt
+├── requirements_test.txt
+└── start.sh

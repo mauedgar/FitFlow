@@ -1,28 +1,61 @@
-# Politica de exclusiones para Git, Aider e indexadores
+---
+document_id: FF-PROCESS-IGNORE-001
+status: canonical
+machine_context: true
+version: 2.0
+updated: 2026-08-16
+---
 
-## Git
+# Política de exclusión
 
-`.gitignore` decide que artefactos locales no se versionan. No es una frontera de seguridad para un agente.
+## Contexto e indexación
 
+Excluir siempre:
 
-Exclusiones criticas:
-- `backend/.venv_backend/`
-- `scripts/.venv_tools/`
-- `.ai/local/`
-- `.index/` / `index/`
-- caches/test outputs
-- secretos `.env*`
+```text
+.git/
+.venv*/
+backend/.venv_backend/
+node_modules/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+coverage/
+docs/archive/
+.ai/local/
+data/staging/
+storage/
+exports/
+logs/
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.sqlite*
+```
 
-## Aider
+Aplicar allowlist adicional para docs: solo `machine_context: true`. Los tests y
+config no secreta se incluyen según scope.
 
-Aider usa `.aiderignore`. El baseline excluye dependencias, virtualenvs, historico documental, logs locales e indice derivado.
+## Versionado
 
-Para experimentos backend-only se incluye `.aiderignore.backend`.
+Versionar:
 
-## Codex
+- docs canónicos, ADR, prompts, config sin secretos, schemas, templates, tareas
+  y fixtures pequeños;
+- manifests que permitan reproducir una ejecución cuando sean útiles.
 
-No se define un `.codexignore` inventado. Mantener `AGENTS.md` compacto, usar Git/worktree/sandbox/configuracion oficial y no asumir que `.gitignore` impide a Codex leer un archivo presente en el workspace.
+Ignorar:
 
-## Project Index
+- vectores, DB/volúmenes Qdrant, modelos descargados, caches, logs, traces,
+  snapshots grandes y exports regenerables.
 
-Debe aplicar su propia lista de exclusiones, alineada con estas reglas, y registrar que paths fueron ignorados en su snapshot.
+## Bundles
+
+Un bundle de intercambio puede incluir outputs ignorados, pero vive en
+`exports/`, registra hashes y nunca se convierte en fuente canónica por estar
+adjunto a una tarea.

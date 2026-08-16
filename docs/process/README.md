@@ -1,15 +1,16 @@
-# Proceso de desarrollo
+---
+document_id: FF-PROCESS-INDEX-001
+status: canonical
+machine_context: true
+version: 2.0
+updated: 2026-08-16
+---
 
-Esta carpeta documenta **como se organiza el trabajo**, independientemente de quien lo ejecute.
+# Proceso operativo
 
-Documento principal:
-- `task-lifecycle-and-reporting.md`
-- `ignore-policy.md`
+- `task-lifecycle-and-reporting.md`: estados, transiciones y artefactos.
+- `risk-and-parallelism.md`: clasificación, bloqueos y ownership.
+- `information-artifacts.md`: formato de cada ficha informativa.
+- `ignore-policy.md`: exclusiones de contexto y versionado.
 
-El proceso puede ser usado por:
-- desarrollador humano;
-- Codex;
-- AiderDesk;
-- otro agente futuro.
-
-La herramienta de ejecucion cambia; el contrato de task, validacion y reporte no.
+Los archivos `.ai/templates/` son la representación ejecutable de estas reglas.

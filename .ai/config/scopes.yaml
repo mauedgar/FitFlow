@@ -1,0 +1,38 @@
+schema_version: fitflow-scopes/v1
+scopes:
+  backend:
+    roots: [backend]
+    context_token_budget: 8000
+    directory_inventory: estructura_Directoriosbackend.txt
+  frontend:
+    roots: [frontend]
+    context_token_budget: 8000
+    directory_inventory: estructura_Directoriosfrontend.txt
+  mixed:
+    roots: [backend, frontend, docs]
+    context_token_budget: 12000
+    directory_inventory: estructura_Directoriostotal.txt
+  docs_tooling:
+    roots: [docs, .ai]
+    context_token_budget: 4000
+    directory_inventory: estructura_Directoriostotal.txt
+default_exclusions:
+  - .git/**
+  - .venv*/**
+  - backend/.venv_backend/**
+  - node_modules/**
+  - '**/__pycache__/**'
+  - '**/.pytest_cache/**'
+  - '**/.ruff_cache/**'
+  - dist/**
+  - build/**
+  - docs/archive/**
+  - .ai/local/**
+  - '**/.env'
+  - '**/.env.*'
+  - '**/*.key'
+  - '**/*.pem'
+  - '**/*.p12'
+  - '**/*.sqlite*'
+docs_filter:
+  require_machine_context: true

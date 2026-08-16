@@ -1,0 +1,63 @@
+schema_version: fitflow-model-routing/v1
+selection_policy: cheapest_evaluated_candidate_that_meets_role
+record_effective_model: true
+candidates:
+  cloud_reasoner:
+    provider_class: [openai_gpt, grok]
+    model_id_from_env: FFAI_REASONER_MODEL
+    locality: cloud
+  cloud_coder:
+    provider_class: [openai_gpt, copilot, grok]
+    model_id_from_env: FFAI_CODER_MODEL
+    locality: cloud
+  cloud_light:
+    provider_class: [openai_gpt, copilot, grok]
+    model_id_from_env: FFAI_LIGHT_MODEL
+    locality: cloud
+  qwen_coder_7b:
+    provider_class: local
+    model_id: Qwen2.5-Coder-7B
+    locality: local
+  qwen_coder_3b:
+    provider_class: local
+    model_id: Qwen2.5-Coder-3B
+    locality: local
+  deepseek_r1_8b:
+    provider_class: local
+    model_id: DeepSeek-R1-8B
+    locality: local
+  fastcontext:
+    provider_class: local_tool
+    model_id: FastContext
+    locality: local
+routes:
+  planner_audit:
+    reasoning: high
+    primary: cloud_reasoner
+    allowed_fallbacks: []
+  explorer:
+    reasoning: medium
+    primary: cloud_light
+    candidates: [fastcontext, qwen_coder_7b]
+  coder_a:
+    reasoning: medium
+    primary: cloud_coder
+    candidates: [qwen_coder_7b]
+  coder_b:
+    reasoning: low
+    primary: qwen_coder_3b
+    candidates: [cloud_light]
+  reviewer:
+    reasoning: high
+    primary: cloud_reasoner
+    candidates: [deepseek_r1_8b]
+    require_independent_execution: true
+  validator:
+    reasoning: low
+    primary: deterministic_tools
+    diagnosis_candidate: cloud_light
+promotion:
+  required: true
+  dimensions: [role, task_type, risk]
+  evidence: [fixture_pass_rate, review_rework_rate, critical_violations, latency, cost]
+  high_risk_allowed: false

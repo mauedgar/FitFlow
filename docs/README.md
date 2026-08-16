@@ -1,35 +1,29 @@
-# FitFlow Docs
+---
+document_id: FF-DOCS-INDEX-001
+status: canonical
+machine_context: true
+version: 4.0
+updated: 2026-08-16
+---
 
-Esta carpeta contiene la **documentacion canonica activa** de FitFlow. Esta pensada para humanos y agentes: amplia donde el conocimiento debe ser durable y selectiva respecto de lo que se carga en contexto.
+# Documentación activa
 
-## Conjunto canonico
+| Pregunta | Documento |
+| --- | --- |
+| ¿Qué fuente prevalece? | `SOURCE_OF_TRUTH.md` |
+| ¿Cómo está diseñado el producto? | `architecture.md` |
+| ¿Qué está implementado? | `current-state.md` |
+| ¿Qué reglas de negocio son estables? | `domain.md` |
+| ¿Qué evidencia exige una tarea? | `quality-and-validation.md` |
+| ¿Qué sigue? | `roadmap.md` |
+| ¿Cómo operan los agentes? | `ai/` y `process/` |
+| ¿Por qué se tomó una decisión? | `adr/` |
 
-- `SOURCE_OF_TRUTH.md`: jerarquia de autoridad y reglas de reconciliacion.
-- `architecture.md`: arquitectura actual, responsabilidades y target.
-- `domain.md`: entidades, relaciones e invariantes del negocio.
-- `current-state.md`: snapshot vigente.
-- `roadmap.md`: direccion hacia el MVP y evolucion posterior.
-- `quality-and-validation.md`: testing, quality gates y evidencia.
-- `process/`: ciclo de tareas, Jira, reportes y ejecucion humana/agente.
-- `adr/`: decisiones arquitectonicas aceptadas.
-- `ai/`: pipelines de IA, contexto, indexador y AiderDesk.
-- `formal/`: documento de consulta consolidado.
-- `archive/`: historico/superseded; fuera del contexto activo por defecto.
+## Regla de inclusión
 
-## Regla editorial
+Los documentos con `machine_context: true` pueden ser seleccionados por una
+tarea. `machine_context: false` impide su carga automática. La selección final
+siempre se reduce a los documentos necesarios para el scope.
 
-Un documento activo debe responder una pregunta concreta.
-
-- El codigo dice **que hace hoy**.
-- `current-state.md` dice **donde estamos**.
-- `architecture.md` y `domain.md` dicen **como se organiza y que significa**.
-- un ADR dice **por que se tomo una decision durable**.
-- `roadmap.md` dice **hacia donde vamos**.
-- `.ai/tasks/*/RESULT.md` dice **que ocurrio en una task concreta**.
-- Jira dice **que trabajo existe y en que estado esta**.
-
-No usar `docs/` como bitacora de cada ejecucion.
-
-## Contexto de agentes
-
-La existencia de muchos documentos no significa cargarlos todos. `AGENTS.md` es la entrada compacta; los documentos restantes se consultan por necesidad. El Project Index puede localizar secciones/documentos, pero nunca reemplaza la verificacion del codigo.
+`archive/source-material/` contiene explicaciones e informes para personas. No
+es una capa de instrucciones ni un corpus de recuperación.

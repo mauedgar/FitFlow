@@ -1,97 +1,65 @@
-# Source of Truth - FitFlow
+---
+document_id: FF-SOT-001
+status: canonical
+machine_context: true
+version: 4.0
+updated: 2026-08-16
+---
 
-**Estado:** Activo  
-**Version:** 3.0  
-**Actualizado:** 2026-08-13
+# Source of Truth de FitFlow
 
-## 1. Objetivo
+## Propósito
 
-Definir como resolver contradicciones entre codigo, tests, documentacion, decisiones, tareas e indices derivados.
+Resolver contradicciones y evitar que un resumen generado adquiera autoridad
+sobre el sistema real.
 
-## 2. Capas de verdad
+## Capas de autoridad
 
-### Capa 0 - Realidad ejecutable
+| Orden | Capa | Autoridad |
+| --- | --- | --- |
+| 0 | realidad ejecutable | código, tests, configuración, modelos, migraciones y estado reproducible |
+| 1 | doctrina canónica | arquitectura, dominio, estado, calidad, roadmap, proceso y ADR aceptados |
+| 2 | registros operativos | TASK, PLAN, STATUS, IMPLEMENTATION, REVIEW, VALIDATION y RESULT |
+| 3 | contexto derivado | inventarios, XML estructural, Repomix, embeddings, Qdrant y caches |
+| 4 | material humano/histórico | `docs/archive/` |
 
-Autoridad para responder **que existe y como se comporta hoy**:
-- codigo fuente versionado;
-- tests vigentes;
-- configuracion;
-- modelos y migraciones Alembic;
-- estado reproducible del repositorio.
+Los tests solo prueban el comportamiento cubierto. Una decisión aceptada pero
+no implementada pertenece a doctrina, no a realidad ejecutable.
 
-Los tests son evidencia ejecutable solamente para el comportamiento que realmente cubren.
+## Fuentes derivadas autorizadas
 
-### Capa 1 - Documentacion canonica
+Para seleccionar contexto se autorizan:
 
-Autoridad para responder **que significa, que fronteras se respetan y que decisiones se aceptaron**:
-- `current-state.md`;
-- `architecture.md`;
-- `domain.md`;
-- `adr/`;
-- `roadmap.md`;
-- `quality-and-validation.md`;
-- `process/`.
+1. inventario de directorios del scope;
+2. XML fechado de clases y relaciones;
+3. bundle Repomix acotado;
+4. recuperación vectorial mediante LlamaIndex/Qdrant;
+5. búsqueda y lectura directa en el repositorio.
 
-La documentacion no debe declarar implementada una decision futura.
+Todo artefacto derivado debe incluir revisión base o fingerprint, fecha,
+generador, exclusiones y hash. Si no coincide con el working tree, es `STALE`.
 
-### Capa 2 - Registros operativos
+## Conflicto
 
-Trazabilidad del trabajo, no autoridad arquitectonica:
-- Jira: estado/prioridad/ownership del trabajo;
-- `.ai/tasks/<id>/TASK.md`: contrato de una tarea;
-- `PLAN.md`: estrategia durable cuando la complejidad lo justifica;
-- `STATUS.md`: progreso de una ejecucion larga;
-- `RESULT.md`: reporte tecnico final;
-- Git branches/worktrees/commits/diffs: evidencia de implementacion.
+1. Identificar fuentes y revisiones.
+2. Verificar el código y el alcance real de los tests.
+3. Clasificar la contradicción: estado, intención, doctrina o artefacto obsoleto.
+4. Registrar `DECISION_REQUEST.md` si cambia una decisión durable.
+5. Bloquear la edición cuando resolverla ampliaría scope o riesgo.
+6. Promover el resultado aceptado a docs/ADR mediante una tarea separada o un
+   criterio explícito de la tarea actual.
 
-Un RESULT puede motivar cambios de docs, pero no reemplaza por si solo a `architecture.md`, `domain.md` o un ADR.
+## Estados documentales
 
-### Capa 3 - Contexto derivado
+- `canonical`: gobierna el presente.
+- `accepted_pending_implementation`: decisión aprobada no confirmada en código.
+- `planned`: dirección futura.
+- `review_required`: evidencia incompleta o contradictoria.
+- `historical`: trazabilidad sin autoridad.
+- `superseded`: reemplazado por un documento identificado.
 
-Ayuda a encontrar informacion:
-- Project Index;
-- embeddings;
-- grafo de relaciones;
-- pdoc;
-- RepoMap;
-- llamaindex
-- caches;
-- bundles/resumenes de contexto.
+## Promoción
 
-Deben ser regenerables y, cuando sea posible, asociados a una revision Git.
-
-### Capa 4 - Historico
-
-`docs/archive/` contiene planes/snapshots reemplazados. Sirve para trazabilidad, no como instruccion activa.
-
-## 3. Regla de conflicto(auditar)
-
-Si codigo, tests y docs difieren:
-1. confirmar revision/estado del codigo;
-2. identificar que cubren realmente los tests;
-3. distinguir estado actual de target/decision;
-4. no corregir silenciosamente una fuente para hacerla coincidir;
-5. marcar **A revisar**;
-6. resolver mediante una task delimitada y, si cambia una decision durable, actualizar docs/ADR.
-
-## 4. Estados documentales
-
-- **Confirmado:** verificado en codigo/tests/config vigente.
-- **Accepted / Pending Implementation:** decision aprobada, implementacion no garantizada.
-- **Planificado:** direccion futura.
-- **A revisar:** evidencia parcial/contradiccion pendiente.
-- **Historico:** ya no gobierna el presente.
-- **Superseded:** reemplazado por una decision/documento posterior.
-
-## 5. Regla de promocion
-
-Una task modifica docs canonicos solo si su resultado cambia conocimiento durable:
-- comportamiento esperado del dominio;
-- responsabilidades/fronteras;
-- arquitectura;
-- source of truth;
-- calidad/validation gates;
-- proceso operativo;
-- roadmap.
-
-No actualizar docs por cambios puramente mecanicos que no cambian significado.
+Solo promover a doctrina cambios durables de comportamiento, invariantes,
+fronteras, calidad, proceso o roadmap. Logs, razonamiento interno, resultados de
+búsqueda y texto explicativo no se promueven.

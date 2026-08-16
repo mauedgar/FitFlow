@@ -1,3 +1,9 @@
+---
+document_id: FF-ADR-0005
+status: accepted
+machine_context: true
+---
+
 # ADR 0005: Capacidad atomica en creacion de Booking
 
 - **Estado:** Accepted

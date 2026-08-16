@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/status.schema.json",
+  "title": "FitFlow Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "created_at", "baseline_revision", "working_tree_fingerprint", "author_role", "stage", "status", "completed", "in_progress", "remaining", "blockers", "next_state", "reason"],
+  "properties": {
+    "artifact": {"const": "STATUS"},
+    "schema_version": {"const": "fitflow-status/v1"},
+    "task_id": {"type": "string", "minLength": 3},
+    "run_id": {"type": "string", "minLength": 3},
+    "created_at": {"type": "string", "format": "date-time"},
+    "baseline_revision": {"type": "string", "minLength": 1},
+    "working_tree_fingerprint": {"type": "string", "pattern": "^sha256:.+$"},
+    "author_role": {"type": "string", "minLength": 1},
+    "stage": {"enum": ["PLAN", "EXPLORE", "EXECUTE", "REVIEW", "VALIDATE", "PENDING_ACCEPTANCE"]},
+    "status": {"enum": ["IN_PROGRESS", "BLOCKED", "PASS", "FAIL"]},
+    "completed": {"type": "array", "items": {"type": "string"}},
+    "in_progress": {"type": "array", "items": {"type": "string"}},
+    "remaining": {"type": "array", "items": {"type": "string"}},
+    "blockers": {"type": "array", "items": {"type": "object", "required": ["description", "owner", "unblock_condition"], "properties": {"description": {"type": "string"}, "owner": {"type": "string"}, "unblock_condition": {"type": "string"}}, "additionalProperties": false}},
+    "next_state": {"enum": ["PLAN", "EXPLORE", "EXECUTE", "REVIEW", "VALIDATE", "PENDING_ACCEPTANCE", "BLOCKED"]},
+    "reason": {"type": "string", "minLength": 3}
+  }
+}

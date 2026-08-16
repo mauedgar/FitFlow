@@ -1,144 +1,86 @@
-# Calidad, testing y validacion
+---
+document_id: FF-QUALITY-001
+status: canonical
+machine_context: true
+version: 4.0
+updated: 2026-08-16
+---
 
-**Estado:** Canonico  
-**Version:** 3.0
+# Calidad y validación
 
-## 1. Principio
+## Principio
 
-Una task no termina por haber modificado archivos. Debe producir evidencia reproducible.
+Una modificación no completa una tarea. Debe existir evidencia reproducible,
+asociada al scope y a la revisión validada.
 
-La suite de tests reduce la cantidad de razonamiento que un agente necesita repetir: un resultado determinista debe preferirse a una inferencia extensa cuando existe un test adecuado.
+## Suites backend
 
-## 2. Estructura de tests
+| Carpeta | Cobertura |
+| --- | --- |
+| `smoke/` | arranque y dependencias básicas |
+| `unit/` | reglas puras, services y schemas aislables |
+| `integration/` | DB, CRUD, transacciones y fixtures reales |
+| `api/` | HTTP, auth, status y contratos |
+| `concurrency/` | carreras, locks y sobreventa |
 
-```text
-backend/tests/
-├── smoke/          # el harness/app puede arrancar y dependencias basicas funcionan
-├── unit/           # reglas puras/services/schemas aislables
-├── integration/    # DB/CRUD/transacciones/fixtures reales
-├── api/            # contratos HTTP, auth, status codes
-├── concurrency/    # carreras/locks/overbooking cuando aplique
-├── helpers/
-├── factories/
-└── _templates/     # ejemplos no recolectables por pytest
-```
+Convenciones: tests deterministas, un comportamiento principal, sin red externa
+salvo integración explícita y sin dependencia de orden.
 
-Convenciones:
-- archivos: `test_<area>.py`;
-- tests: `test_<behavior>_when_<condition>` o equivalente legible;
-- un comportamiento principal por test;
-- Arrange / Act / Assert cuando ayude;
-- tests deterministas, aislados y sin depender de orden;
-- red externa prohibida salvo test explicitamente integrado/mocked;
-- fixtures compartidas solo si expresan un concepto estable.
+## Comandos canónicos
 
-## 3. Markers
-
-Baseline:
-- `smoke`
-- `unit`
-- `integration`
-- `api`
-- `concurrency`
-- `slow`
-
-Ejemplos:
-
-```text
-python -m pytest backend/tests -m smoke
-python -m pytest backend/tests -m unit
-python -m pytest backend/tests -m "integration or api"
-```
-
-## 4. Gates por capa
-
-### Modelo/ORM
-Mapper config, relaciones/FK/cardinalidad, constraints, typing, impacto Alembic y tests.
-
-### Schema
-Casos validos/invalidos, Create/Update/Public/Internal, OpenAPI/response contracts.
-
-### Service
-Reglas de negocio y errores de dominio; unit tests cuando sea posible.
-
-### CRUD/transaccion
-Atomicidad, rollback/flush/refresh, locks/concurrencia, duplicados, integration tests.
-
-### Router
-Roles, status codes, request/response, mapeo DomainError -> HTTP; API tests.
-
-### Frontend
-Contrato backend actual, estados de UI/cache y tests de flujo cuando exista cobertura.
-
-## 5. Booking como primer vertical slice
-
-Prioridad inicial:
-- duplicado;
-- overbooking/capacidad;
-- membership/allowed_plan;
-- estados invalidos de session;
-- atomicidad/transaccion;
-- mapping HTTP relevante.
-
-No todo debe ser unit test: reglas comerciales pueden vivir en unit; atomicidad/concurrencia requiere integration/concurrency.
-
-## 6. Comandos canonicos
-
-Desde raiz:
+Desde la raíz:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/quality/run_backend_tests.ps1
 powershell -ExecutionPolicy Bypass -File scripts/quality/run_backend_validation.ps1
 ```
 
-Ambos wrappers construyen e inician exclusivamente el proyecto Compose
-`fitflow-test` y ejecutan las validaciones dentro de `backend_test`. No usan el
-Python local ni la base de desarrollo. El primero acepta argumentos adicionales
-de pytest, por ejemplo `-m smoke -q`.
+Los wrappers usan exclusivamente Compose `fitflow-test` y la base
+`fitflow_test`; no el Python local ni la DB de desarrollo.
 
-Comando exacto de smoke dentro del contenedor, desde la raiz montada `/app`:
+## Gates por cambio
 
-```text
-python -m pytest backend/tests -m smoke
-```
+| Impacto | Evidencia mínima |
+| --- | --- |
+| docs/prompts | schemas, links, reglas contradictorias, revisión de diff |
+| schema | válidos/inválidos y contrato OpenAPI afectado |
+| service | reglas y errores de dominio; unit tests cuando sean aislables |
+| CRUD/DB | integración, atomicidad, rollback y concurrencia si aplica |
+| router | API, auth, status y mapeo de errores |
+| frontend | contrato backend, estados UI/cache y test disponible |
+| migración | upgrade/downgrade seguro en DB de test y revisión humana |
 
-Los tests de integracion validan que `DATABASE_URL` nombre explicitamente
-`fitflow_test` antes de abrir una conexion. Los wrappers dejan el entorno activo
-para inspeccion; su limpieza acotada retira solo contenedores y red, preservando
-el volumen de pruebas.
+Todo cambio de código incluye, según alcance: targeted tests, suite amplia por
+riesgo, Ruff, Pyright, Alembic/OpenAPI y revisión del diff.
 
-## 7. Estados de evidencia
+## Estados
 
-- **PASS:** ejecutado y satisfactorio.
-- **FAIL:** fallo reproducible.
-- **NOT_RUN:** no se ejecuto; explicar por que.
-- **UNAVAILABLE:** herramienta/configuracion no disponible; constituye gap explicito.
-- **A_REVIEW:** evidencia insuficiente/contradictoria.
+- `PASS`: ejecutado satisfactoriamente.
+- `FAIL`: fallo reproducible.
+- `NOT_RUN`: no ejecutado, con causa.
+- `UNAVAILABLE`: herramienta o entorno no disponible.
+- `BLOCKED`: gate impedido por decisión/riesgo/dependencia.
+- `N/A`: no aplica; requiere justificación.
 
-## 8. Definition of Done para task con codigo
+No convertir `NOT_RUN` o `UNAVAILABLE` en `PASS` por inferencia.
 
-Segun alcance:
-1. implementacion dentro del scope;
-2. targeted tests;
-3. suite mas amplia cuando el riesgo lo justifique;
-4. Ruff;
-5. Pyright/Pylance o equivalente;
-6. Alembic/OpenAPI cuando corresponda;
-7. diff review;
-8. `RESULT.md` con estado de cada gate.
+## Riesgo
 
-`N/A` es valido cuando un gate no aplica; no es equivalente a `NOT_RUN`.
+- `low`: validación dirigida y reviewer.
+- `medium`: validación dirigida + suite afectada + reviewer independiente.
+- `high`: no se ejecuta autónomamente.
 
-## 9. Estado de adopcion
+Cambios en auth, permisos, transacciones críticas, migraciones destructivas,
+secretos, dependencias base o fronteras arquitectónicas son `high` hasta que una
+persona recorte y reclasifique el alcance.
 
-El harness v3 esta operativo sobre Python 3.11, pytest y pytest-asyncio dentro de
-`fitflow-test`. Se verificaron smoke de runtime/metadata, tests unitarios de ORM y
-dos invariantes reales de Booking. La cobertura restante de FitFlow continua
-siendo deuda activa; en particular no se ha demostrado cobertura HTTP completa.
+## Independencia
 
-Ruff y Pyright están instalados en la imagen de tests. Un fallo de cualquiera
-debe registrarse como `FAIL` con su evidencia; `UNAVAILABLE` queda reservado
-para una herramienta que realmente no pueda ejecutarse.
+Reviewer y Validator no reutilizan la conclusión del Coder como evidencia. El
+Validator ejecuta comandos deterministas; un LLM solo puede diagnosticar un
+resultado ya observado.
 
-## 10. Docstrings
-Toda funcion publica, endpoint, metodo CRUD, funcion de service o helper no trivial debe tener un docstring breve.
+## Docstrings
+
+Endpoints, funciones públicas, métodos CRUD, services y helpers no triviales
+requieren docstring breve que describa contrato o comportamiento, no la sintaxis.

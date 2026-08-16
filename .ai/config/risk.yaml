@@ -1,0 +1,28 @@
+schema_version: fitflow-risk/v1
+default_when_uncertain: higher
+levels:
+  low:
+    autonomous_execution: true
+    require_review: true
+    require_validation: true
+  medium:
+    autonomous_execution: true
+    require_independent_review: true
+    require_affected_suite: true
+    require_human_acceptance: true
+  high:
+    autonomous_execution: false
+    state: BLOCKED_HIGH_RISK
+high_risk_signals:
+  - authentication_or_authorization
+  - secrets_or_credentials
+  - destructive_migration
+  - critical_transaction_or_capacity
+  - base_dependency_change
+  - cross_cutting_architecture_or_domain
+  - external_write_or_deployment
+  - irreversible_operation
+ownership_key_types: [path, api, domain, db, doc, config]
+parallelism:
+  require_empty_intersection: true
+  require_no_unaccepted_contract_dependency: true

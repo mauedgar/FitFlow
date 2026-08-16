@@ -1,3 +1,9 @@
+---
+document_id: FF-ADR-0009
+status: accepted
+machine_context: true
+---
+
 # ADR 0009: Pytest como baseline de validacion backend
 
 - **Estado:** Accepted / Pending Full Coverage

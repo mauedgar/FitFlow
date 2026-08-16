@@ -1,3 +1,9 @@
+---
+document_id: FF-ADR-0010
+status: accepted
+machine_context: true
+---
+
 # ADR 0010: Preservacion de historia y auditoria minima de schedules
 
 - **Estado:** Accepted

@@ -1,3 +1,9 @@
+---
+status: superseded
+machine_context: false
+indexing: excluded
+---
+
 # Superseded
 
-Documentos reemplazados por las versiones canonicas activas. No usar como instrucciones para agentes.
+Reglas y planes reemplazados. Cada archivo debe enlazar su reemplazo activo.
