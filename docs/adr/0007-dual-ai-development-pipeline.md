@@ -1,24 +1,33 @@
+---
+document_id: FF-ADR-0007
+status: superseded
+machine_context: false
+indexing: excluded
+superseded_by: FF-ADR-0011
+---
+
 # ADR 0007: Dos pipelines complementarios de desarrollo con IA
 
-- **Estado:** Accepted
+- **Estado:** Superseded por ADR 0011
 - **Fecha:** 2026-08-12
+- **Reemplazado:** 2026-08-16
 
-## Contexto
+## Contexto histórico
 
-FitFlow necesita aprovechar un agente potente para tareas complejas sin renunciar a una rama local economica para trabajo cotidiano. Un unico orquestador local no es requisito del MVP y forzarlo agregaria fragilidad.
+Se había decidido mantener un pipeline principal y una rama local diaria con
+un segundo orquestador. Esa separación dejó de representar la arquitectura
+elegida.
 
-## Decision
+## Decisión histórica
 
-Mantener dos pipelines independientes que consumen la misma documentacion canonica:
+La versión v3 definía dos pipelines independientes y un mapa de repositorio
+propio de una herramienta descartada.
 
-1. **Codex + Project Index** como pipeline principal de mayor capacidad.
-2. **AiderDesk local** como rama operativa diaria, con Explorer / Worker / Reviewer evolucionando por pruebas.
+## Motivo del reemplazo
 
-El Project Index puede producir un Context Package neutral reutilizable. Aider conserva su RepoMap como capacidad propia de runtime.
+Codebase pasa a ser la superficie única de orquestación. Los modelos convergen
+mediante roles y un adaptador neutral. La estructura se obtiene con inventarios,
+Repomix, índice vectorial.
 
-## Consecuencias
-
-- cada pipeline puede evolucionar sin bloquear al otro;
-- se evita duplicar exploracion cara en el pipeline potente mediante indice reutilizable;
-- la rama AiderDesk puede seguir siendo experimental hasta alcanzar fiabilidad;
-- requiere una jerarquia de source of truth comun para evitar divergencias.
+ADR 0011 gobierna el proceso activo. Este archivo se conserva solo para
+trazabilidad y no debe seleccionarse como instrucción de tarea.

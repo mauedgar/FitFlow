@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fitflowStructureGraph
+  schemaVersion="1.0"
+  repository="FitFlow"
+  scope="total"
+  generatedAt="2026-08-16T00:00:00-03:00"
+  baselineRevision="NO_COMMIT"
+  workingTreeFingerprint="sha256:example"
+  generator="example/0.0.0"
+  status="WORKING">
+  <files>
+    <file id="file-example" path="backend/app/services/example.py" language="python" contentHash="sha256:example" parseStatus="PARSED"/>
+  </files>
+  <symbols>
+    <symbol id="symbol-example" fileId="file-example" kind="class" name="Example" startLine="1" endLine="2"/>
+  </symbols>
+  <relations>
+    <relation sourceId="symbol-example" targetId="file-example" kind="defined_in" confidence="high" source="repo-packager"/>
+  </relations>
+</fitflowStructureGraph>

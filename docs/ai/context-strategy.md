@@ -1,84 +1,66 @@
-# Estrategia de contexto en capas
+---
+document_id: FF-AI-CONTEXT-001
+status: canonical
+machine_context: true
+version: 1.0
+updated: 2026-08-16
+---
 
-## 1. Objetivo
+# Estrategia de contexto
 
-Reducir la cantidad de tokens que un agente potente gasta en exploracion repetida y, al mismo tiempo, evitar que un modelo local de menor capacidad decida la arquitectura del proyecto.
+## Objetivo
 
-## 2. Capas
+Entregar al Coder el conjunto mínimo suficiente, trazable y actualizado para
+resolver una tarea sin repetir la exploración.
 
-### L0 - TASK / Task prompt
-Objetivo concreto, constraints y criterio de aceptacion.
+## Capas
 
-### L1 - AGENTS.md
-Instrucciones operativas durables: estructura, source of truth, limites de autonomia y comandos/validaciones de alto nivel.
+| Nivel | Contenido | Regla |
+| --- | --- | --- |
+| L0 | TASK y pregunta concreta | siempre |
+| L1 | AGENTS + source of truth | siempre, compacto |
+| L2 | docs/ADR relevantes | allowlist de TASK |
+| L3 | inventario, XML, Repomix y retrieval | Explorer selecciona |
+| L4 | lecturas directas de código/tests | evidencia final |
+| L5 | diff + validación | review/cierre |
 
-### L2 - Docs canonicos
-Solo los documentos relevantes para la tarea: current-state, architecture, domain, ADR especifico, quality.
+No incluir material humano, transcripts, archivos “por si acaso” ni resultados
+sin baseline.
 
-### L3 - Contexto derivado reutilizable
-Project Index, grafo, busqueda semantica, docstrings/pdoc y un resumen estructural neutral.
+## Presupuesto inicial
 
-### L4 - Runtime hints
-RepoMap de Aider, archivos abiertos, resultados de M-Explorer, grep/read live.
+| Scope | Máximo de contexto entregado al Coder |
+| --- | ---: |
+| backend | 8.000 tokens |
+| frontend | 8.000 tokens |
+| mixed | 12.000 tokens |
+| docs/tooling | 4.000 tokens |
 
-### L5 - Evidencia final
-Codigo real/rangos leidos inmediatamente antes de implementar.
+Un override requiere causa, nuevo máximo y registro en el Context Package. Los
+valores se afinan con Phoenix y evaluaciones.
 
-El Worker/Solver deberia recibir L0/L1 + documentos estrictamente necesarios + L5; no todo el historial de L3/L4.
+## Proceso del Explorer
 
-## 3. Context Package neutral
+1. Verificar scope, baseline y pregunta.
+2. Leer inventario de directorios apropiado.
+3. Consultar XML estructural y/o Repomix si está disponible.
+4. Ejecutar búsqueda textual, Repomix o vectorial con filtros.
+5. Leer directamente candidatos antes de citarlos.
+6. Deduplicar y ordenar por necesidad.
+7. Emitir Context Package validado.
 
-Para reutilizar busquedas entre agentes sin acoplarse a AiderDesk:
+## Orden de evidencia
 
-```json
-{
-  "revision": "git-sha",
-  "query": "...",
-  "scope": ["backend"],
-  "evidence": [
-    {
-      "path": "backend/app/services/booking_service.py",
-      "symbol": "validate_no_overbooking",
-      "start_line": 0,
-      "end_line": 0,
-      "reason": "capacity business rule",
-      "source": "symbol|semantic|graph|textual"
-    }
-  ],
-  "relations": [],
-  "generated_at": "..."
-}
-```
+Preferir definición, callers/callees, tests, configuración/contrato y doctrina
+específica. Cada evidencia incluye `path`, rango, símbolo, hash, razón y fuente.
 
-Los rangos del ejemplo son placeholders: el paquete real siempre debe derivarlos del snapshot indexado.
+## Staleness
 
-## 4. RepoMap
+Si `baseline_revision` o `working_tree_fingerprint` difiere, el package es
+`STALE` y no llega al Coder. Si un resultado vectorial apunta a un rango
+inexistente, se descarta y se abre hallazgo de índice.
 
-Aider mantiene su RepoMap como contexto runtime y puede ser muy util para orientar un agente. No se considera una API de intercambio entre pipelines.
+## Reintentos
 
-El Project Index puede generar una representacion **RepoMap-like** neutral (`repo_summary.json` o `repo_summary.md`) con simbolos/rutas/relaciones importantes. Esto permite que Codex, herramientas MCP u otros agentes reutilicen estructura sin depender del formato interno de Aider.
-
-## 5. Docs e indice
-
-Indexar por defecto:
-- codigo propio;
-- docs canonicos activos;
-- ADRs activos;
-- tests relevantes;
-- configuracion no secreta.
-
-Excluir por defecto:
-- `docs/archive/`;
-- `.venv*` y `backend/.venv_backend/`;
-- `node_modules/`;
-- `__pycache__/`;
-- `.git/`;
-- `.env*`, secretos, binarios y artefactos generados.
-
-## 6. Regla de economia
-
-El objetivo no es minimizar tokens del Explorer a cualquier costo. El objetivo es minimizar **exploracion repetida del Solver/Worker** manteniendo cobertura y evidencia. Un resultado corto y correcto que evita una exploracion mayor es una optimizacion aunque el explorer haya usado contexto local.
-
-## 7. Contexto operativo de tasks
-
-`TASK.md`, `PLAN.md` y `RESULT.md` son artefactos operativos compactos. Los transcripts completos y logs pertenecen a `.ai/local/` y no deben entrar al contexto normal.
+Máximo dos solicitudes de contexto por ejecución. La tercera discrepancia
+vuelve al Planner para recortar o reformular la tarea.
