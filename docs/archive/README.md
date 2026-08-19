@@ -11,6 +11,6 @@ updated: 2026-08-18
 Material histórico, explicativo o superseded. Queda fuera de instrucciones,
 inventarios, Repomix y embeddings normales.
 
-- `source-material/`: fuentes y explicaciones para desarrolladores en `.docx`.
+- `source-material/`: informes fuente y entregables para desarrolladores en `.md`.
 - `historical/`: snapshots que describen un estado anterior.
 - `superseded/`: reglas reemplazadas, conservadas por trazabilidad.

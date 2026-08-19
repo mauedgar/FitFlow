@@ -11,9 +11,9 @@ updated: 2026-08-18
 | Orden | Task | Entregable | Estado inicial |
 | ---: | --- | --- | --- |
 | 0 | `FF-AI-VNEXT-001` | baseline vNext, fuentes y bundle | done |
-| 1 | `FF-AI-VNEXT-002` | doctor/compatibilidad y bootstrap sin installs | pending acceptance |
-| 2 | `FF-AI-VNEXT-003` | contracts Zod/JSON Schema y registries loaders | pending acceptance |
-| 3 | `FF-AI-VNEXT-004` | State Machine, JSON events, SQLite projection | pending acceptance |
+| 1 | `FF-AI-VNEXT-002` | doctor/compatibilidad y bootstrap sin installs | done |
+| 2 | `FF-AI-VNEXT-003` | contracts Zod/JSON Schema y registries loaders | done |
+| 3 | `FF-AI-VNEXT-004` | State Machine, JSON events, SQLite projection | done |
 | 4 | `FF-AI-VNEXT-005` | Project Profile, GitHub y OpenSpec adapters | backlog |
 | 5 | `FF-AI-VNEXT-006` | ContextPackager v2 y correcciones repo-packager | paused (defer) |
 | 6 | `FF-AI-VNEXT-007` | Router, Model Resolver y FinOps policy | backlog |
@@ -27,6 +27,12 @@ updated: 2026-08-18
 No comenzar una task si su dependencia no tiene evidencia aceptada. Ninguna
 fase instala dependencias como efecto lateral de discovery.
 
+## Skill de conversion a DOCX (planned post-MVP)
+
+Los entregables se producen en `.md` con formato persistente. Una skill de
+conversion `.md` a `.docx` (para distribucion externa opcional) queda planned
+para despues del MVP; no es parte del camino critico.
+
 ## Pausas activas
 
 - `FF-AI-VNEXT-006` (ContextPackager) esta pausado por decision del
@@ -36,15 +42,15 @@ fase instala dependencias como efecto lateral de discovery.
 - Si `006` se reactiva, revisar su gate y su impacto sobre `008/009` antes de
   continuar.
 
-## Nota de progreso (2026-08-18)
+## Nota de progreso (2026-08-19)
 
-- `001` aceptado (`BASELINE_ACCEPTED`); `002/003/004` con evidencia y en
-  `PENDING_ACCEPTANCE` (tests 24/24 PASS en `../FitFlow-ai`).
+- `001` aceptado (`BASELINE_ACCEPTED`); `002/003/004` aceptados y promovidos a
+  `DONE` por el desarrollador (tests 30/30 PASS re-validados).
 - Nucleo minimo operativo alcanzado: contracts v2 (Zod), registries loaders,
   State Machine gobernada por `orchestrator.yaml` y Run Store durable +
   proyeccion SQLite.
-- Decisiones abiertas del desarrollador: autorizar install-script de
-  `better-sqlite3` para CI, y aceptar nucleo para iniciar `005/007`.
+- Instalacion de `better-sqlite3` corregida y autorizada para CI; LibreOffice
+  ya no es requerido.
 
 ## Decision: carpetas separadas (2026-08-18)
 

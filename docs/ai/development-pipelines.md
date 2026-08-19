@@ -77,6 +77,6 @@ Requiere decision humana:
 
 ## 6. Coordinacion
 
-Codex, Aider y humano pueden trabajar sobre tasks diferentes, pero no deben escribir simultaneamente sobre la misma seccion conceptual.
+Codex, Aider y el desarrollador pueden trabajar sobre tasks diferentes, pero no deben escribir simultaneamente sobre la misma seccion conceptual.
 
 Jira coordina estado; Git aisla implementacion; RESULT normaliza la salida.

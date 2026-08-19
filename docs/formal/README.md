@@ -8,6 +8,6 @@ updated: 2026-08-18
 
 # Documentos formales
 
-Vistas DOCX/PDF para desarrolladores. Resumen decisiones ya promovidas; no crea una
+Vistas Markdown para desarrolladores. Resumen decisiones ya promovidas; no crea una
 fuente paralela. Guardar explicaciones e informes en
 `docs/archive/source-material/` y mantener aquí solo un índice si fuera útil.

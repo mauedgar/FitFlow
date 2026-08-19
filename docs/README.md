@@ -26,5 +26,5 @@ Solo documentos `machine_context: true` pueden seleccionarse automaticamente.
 La seleccion se limita a `required_docs` y evidencia del scope.
 
 `archive/source-material/` contiene informes fuente y documentos para
-desarrolladores en `.docx`. No es una capa de instrucciones ni un corpus de
+desarrolladores en `.md`. No es una capa de instrucciones ni un corpus de
 retrieval.

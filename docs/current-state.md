@@ -45,6 +45,10 @@ Estado global: `BASELINE_ACCEPTED`.
 - OpenCode CLI `1.18.18` es la superficie automatizada elegida; Desktop queda
   para uso manual del desarrollador. El adapter vNext y su conformance suite no
   estan implementados.
+- Los entregables para desarrolladores se producen en `.md` con formato
+  persistente (titulos, tablas y listas). Los `.docx` previos viven en
+  `docs/archive/superseded/`; una skill de conversion `.md` a `.docx` queda
+  planned para despues del MVP.
 - Repomix `1.18.0` esta disponible. `repo-packager` genera paquetes, pero su
   contrato vNext y sus fallos de exclusion/seleccion aun requieren correccion
   (`FF-AI-VNEXT-006`, pausado).
@@ -57,7 +61,8 @@ Estado global: `BASELINE_ACCEPTED`.
 - GitHub Copilot queda deferred y fuera del acceso programatico. El
   desarrollador es intermediario de cualquier orden manual.
 - LibreOffice `26.2.5.2` convierte DOCX correctamente cuando `soffice` y Poppler
-  se agregan al PATH del proceso.
+  se agregan al PATH del proceso; ya no es requerido para la entrega documental
+  porque los entregables se producen en `.md`.
 - LlamaIndex, Qdrant, embeddings, Promptfoo, MCP y Temporal son posteriores a
   gates explicitos; no se declaran funcionales.
 - `../FitFlow-ai/python/.venv_tools` es un entorno Python local gestionado con
