@@ -1,0 +1,47 @@
+{
+  "artifact": "VALIDATION_RESULT",
+  "schema_version": "fitflow-validation-result/v2",
+  "task_id": "FF-AI-VNEXT-002",
+  "run_id": "FF-AI-VNEXT-002-20260818",
+  "created_at": "2026-08-18T16:20:00-03:00",
+  "baseline": {
+    "revision": "44952257482192c438cb38f80be623056fce2409",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El arbol contiene cambios de la migracion vNext en curso; no se capturo un fingerprint antes de la tarea."
+  },
+  "status": "PASS",
+  "gates": [
+    {
+      "gate_id": "unit",
+      "command": "node --test tests/*.test.js",
+      "cwd": "../FitFlow-ai/scripts/doctor",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": 200,
+      "summary": "6 tests PASS",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "doctor-required",
+      "command": "node bin/ffai-doctor.js",
+      "cwd": "../FitFlow-ai/scripts/doctor",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": 3000,
+      "summary": "node, npm, python, git, gh, openspec, repomix, opencode AVAILABLE",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "doctor-optional",
+      "command": "node bin/ffai-doctor.js",
+      "cwd": "../FitFlow-ai/scripts/doctor",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": 3000,
+      "summary": "repo-packager y project-profile AVAILABLE; libreoffice UNREACHABLE (no requerido)",
+      "output_artifact": null
+    }
+  ],
+  "next_state": "REVIEWING"
+}

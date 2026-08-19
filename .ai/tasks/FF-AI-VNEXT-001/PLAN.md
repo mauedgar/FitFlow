@@ -10,7 +10,7 @@ risk: medium
 ownership_keys:
   - "doc:baseline-vnext"
   - "config:ai-v2"
-  - "path:FitFlow-ai/docs"
+  - "path:../FitFlow-ai/docs"
 ---
 
 # Resultado esperado

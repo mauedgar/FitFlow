@@ -8,7 +8,9 @@ updated: 2026-08-18
 
 # Contrato CLI previsto
 
-La entrada unica de AI Core sera `ffai`. No se implementa en esta baseline.
+La entrada unica de AI Core sera `ffai`. `ffai doctor` esta implementado como
+probe de compatibilidad en `../FitFlow-ai/scripts/doctor/`; el resto de comandos
+permanece planned.
 
 ```text
 ffai doctor

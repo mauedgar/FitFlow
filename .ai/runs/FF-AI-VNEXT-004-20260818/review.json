@@ -1,0 +1,43 @@
+{
+  "artifact": "REVIEW_RESULT",
+  "schema_version": "fitflow-review-result/v2",
+  "task_id": "FF-AI-VNEXT-004",
+  "run_id": "FF-AI-VNEXT-004-20260818",
+  "created_at": "2026-08-18T18:25:00-03:00",
+  "baseline": {
+    "revision": "44952257482192c438cb38f80be623056fce2409",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El arbol contiene cambios de la migracion vNext en curso; no se capturo un fingerprint antes de la tarea."
+  },
+  "reviewer_role": "reviewer",
+  "independent": true,
+  "verdict": "PASS",
+  "findings": [
+    {
+      "severity": "note",
+      "path": "../FitFlow-ai/src/core/state-machine.js",
+      "finding": "Los estados sumideros (DONE, CANCELLED, BLOCKED_HIGH_RISK) no declaran transiciones de salida; _validate los acepta como terminales.",
+      "action": "correcto: config los define como sinks sin clave en transitions"
+    },
+    {
+      "severity": "note",
+      "path": "../FitFlow-ai/src/core/run-store.js",
+      "finding": "La proyeccion SQLite usa ON CONFLICT do UPDATE; no valida monotonia de sequence. Puede sobrescribir proyeccion con un evento mas viejo.",
+      "action": "aceptado: canonical sigue siendo events.jsonl; la proyeccion es derived"
+    },
+    {
+      "severity": "note",
+      "path": "../FitFlow-ai/src/core/run-store.js",
+      "finding": "better-sqlite3 rebuild nativo (install script) no fue aprobado; el binario precargado funciona (test OK).",
+      "action": "registrado en FINOPS: keep dependency until explicit decision"
+    }
+  ],
+  "validation_ref": {
+    "path": ".ai/runs/FF-AI-VNEXT-004-20260818/validation.json",
+    "hash": "sha256:f43011efc685e5c2926d1efb4f0ed95f5af2cd9b42a4a5aab134d9388298676e",
+    "schema_version": "fitflow-validation-result/v2"
+  },
+  "summary": "Nucleo operativo: State Machine determinista sobre config real y Run Store durable + proyeccion SQLite; sin findings bloqueantes.",
+  "next_state": "DOC_SYNC"
+}

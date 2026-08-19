@@ -1,0 +1,36 @@
+{
+  "artifact": "RUN_STATE",
+  "schema_version": "fitflow-run-state/v2",
+  "task_id": "FF-AI-VNEXT-004",
+  "run_id": "FF-AI-VNEXT-004-20260818",
+  "updated_at": "2026-08-18T18:30:00-03:00",
+  "baseline": {
+    "revision": "44952257482192c438cb38f80be623056fce2409",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El arbol contiene cambios de la migracion vNext en curso; no se capturo un fingerprint antes de la tarea."
+  },
+  "workflow_id": "development",
+  "current_state": "PENDING_ACCEPTANCE",
+  "next_state": "DONE",
+  "sequence": 4,
+  "retry_counters": {"context": 0, "implementation": 0, "review": 0},
+  "context_deliveries": [],
+  "route_history": [],
+  "validation_history": [
+    {
+      "path": ".ai/runs/FF-AI-VNEXT-004-20260818/validation.json",
+      "hash": "sha256:f43011efc685e5c2926d1efb4f0ed95f5af2cd9b42a4a5aab134d9388298676e",
+      "schema_version": "fitflow-validation-result/v2"
+    }
+  ],
+  "review_history": [
+    {
+      "path": ".ai/runs/FF-AI-VNEXT-004-20260818/review.json",
+      "hash": "sha256:cf98de5ab44019fa59d03c69f2043c8b9a5b3cdc2d83e63accca0a187b4a7bca",
+      "schema_version": "fitflow-review-result/v2"
+    }
+  ],
+  "blocked_by": [],
+  "last_error": null
+}
