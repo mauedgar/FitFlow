@@ -32,18 +32,26 @@ snapshot: 2026-08-18
 
 ## Plataforma de asistencia IA
 
-Estado global: `BASELINE_PROPOSED_PENDING_ACCEPTANCE`.
+Estado global: `BASELINE_ACCEPTED`.
 
+- `FF-AI-VNEXT-001` aceptada; `FF-AI-VNEXT-002` (doctor) implementado y en
+  `PENDING_ACCEPTANCE`. `ffai doctor` reporta el toolchain en JSON v2 sin
+  installs: node, npm, python, git, gh, openspec, repomix y opencode
+  `AVAILABLE`; repo-packager y project-profile operativos; LibreOffice
+  `UNREACHABLE` sin soffice en PATH.
+- `FF-AI-VNEXT-003` (contracts v2 Zod + registries loaders) y
+  `FF-AI-VNEXT-004` (State Machine + Run Store) implementados y en
+  `PENDING_ACCEPTANCE`; tests 24/24 PASS en `../FitFlow-ai`.
 - OpenCode CLI `1.18.18` es la superficie automatizada elegida; Desktop queda
   para uso manual del desarrollador. El adapter vNext y su conformance suite no
   estan implementados.
 - Repomix `1.18.0` esta disponible. `repo-packager` genera paquetes, pero su
-  contrato vNext y sus fallos de exclusion/seleccion aun requieren correccion.
+  contrato vNext y sus fallos de exclusion/seleccion aun requieren correccion
+  (`FF-AI-VNEXT-006`, pausado).
 - Node `22.18.0`, OpenSpec `1.9.0` y GitHub CLI `2.97.0` estan disponibles;
   GitHub esta autenticado. El root OpenSpec y los adapters permanecen pending.
-- `C:\Proyectos Web\FitFlow-ai` existe como repositorio hermano documental. AI
-  Core, registries, workflow TypeScript, SQLite, ledger y adapters permanecen
-  sin implementar.
+- `FitFlow-ai` vive como carpeta hermana en `../FitFlow-ai/` (repo propio en
+  preparacion). AI Core lee registries y contractos de `../FitFlow/.ai/`.
 - OpenCode descubrio runtime IDs de FastContext, Qwen y DeepSeek en LM Studio;
   inferencia, benchmark y rol efectivo quedan `UNVERIFIED`.
 - GitHub Copilot queda deferred y fuera del acceso programatico. El
@@ -59,8 +67,8 @@ Estado global: `BASELINE_PROPOSED_PENDING_ACCEPTANCE`.
 
 - cobertura API integral y fixtures HTTP async compartidas;
 - refactors de fronteras heredadas;
-- implementar contratos y registries v2;
-- corregir y medir `repo-packager` antes del Agent MVP;
+- implementar contracts y registries v2;
+- corregir y medir `repo-packager` (pausado) antes del Agent MVP;
 - implementar State Machine, persistencia de run y FinOps-as-Code;
 - verificar adapter OpenCode, GitHub/OpenSpec y modelo Explorer;
 - medir contexto, calidad y retrabajo antes de ampliar autonomia.

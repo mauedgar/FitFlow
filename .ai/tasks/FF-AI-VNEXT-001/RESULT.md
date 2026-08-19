@@ -6,7 +6,7 @@ run_id: FF-AI-VNEXT-001-20260818
 status: PASS
 created_at: "2026-08-18T15:49:54-03:00"
 author_role: developer
-current_state: PENDING_ACCEPTANCE
+current_state: DONE
 ---
 
 # Resultado
@@ -29,8 +29,8 @@ declaro ninguna capacidad pendiente como operativa.
 
 ## Estado final
 
-`PENDING_ACCEPTANCE`. Solo una decision explicita del desarrollador puede
-emitir `PENDING_ACCEPTANCE -> DONE`.
+`DONE` por decision explicita del desarrollador el 2026-08-18. La baseline
+vNext 5.0 queda aceptada y habilita la implementacion desde `FF-AI-VNEXT-002`.
 
 ## Riesgos y follow-ups
 

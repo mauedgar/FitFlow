@@ -3,7 +3,7 @@ artifact: TASK
 schema_version: fitflow-task/v2
 task_id: FF-AI-VNEXT-001
 title: Adoptar baseline vNext de asistencia IA
-status: PENDING_ACCEPTANCE
+status: DONE
 task_type: migration
 area: ai_tooling
 scope: docs_tooling
@@ -22,7 +22,7 @@ openspec_change: null
 ownership_keys:
   - "doc:baseline-vnext"
   - "config:ai-v2"
-  - "path:FitFlow-ai/docs"
+  - "path:../FitFlow-ai/docs"
 required_docs:
   - AGENTS.md
   - docs/SOURCE_OF_TRUTH.md

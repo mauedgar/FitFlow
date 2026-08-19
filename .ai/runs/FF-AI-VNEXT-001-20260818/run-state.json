@@ -3,7 +3,7 @@
   "schema_version": "fitflow-run-state/v2",
   "task_id": "FF-AI-VNEXT-001",
   "run_id": "FF-AI-VNEXT-001-20260818",
-  "updated_at": "2026-08-18T15:49:54-03:00",
+  "updated_at": "2026-08-18T16:00:00-03:00",
   "baseline": {
     "revision": "3f3021b2cf26c5839feb428a50b59e1116f283a0",
     "fingerprint_status": "unavailable",
@@ -11,9 +11,9 @@
     "fingerprint_reason": "El arbol ya contenia cambios previos y no se capturo un fingerprint antes de iniciar la migracion."
   },
   "workflow_id": "development",
-  "current_state": "PENDING_ACCEPTANCE",
-  "next_state": "DONE",
-  "sequence": 8,
+  "current_state": "DONE",
+  "next_state": null,
+  "sequence": 9,
   "retry_counters": {
     "context": 0,
     "implementation": 2,

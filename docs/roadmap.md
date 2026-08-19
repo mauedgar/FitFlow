@@ -37,6 +37,10 @@ autoridad sobre el producto.
 No avanzar de fase cuando el gate anterior está `FAIL`, `UNAVAILABLE` o
 `BLOCKED` sin decisión explícita.
 
+`FF-AI-VNEXT-006` (ContextPackager) está pausado desde 2026-08-18. La fase C
+solo puede completarse tras reactivar `006`; mientras tanto `FF-AI-VNEXT-008`
+queda desacoplado de `006` y usa `repo-packager` actual con gaps documentados.
+
 ## Autonomía
 
 Los agentes pueden explorar, editar scope acotado y ejecutar validaciones
