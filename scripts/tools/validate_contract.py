@@ -15,6 +15,8 @@ def validate_commit_and_contract(commit_msg):
     return True
 
 if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     # Git pasa el mensaje del commit temporal en un archivo cuyo path es el primer argumento
     commit_msg_filepath = sys.argv[1]
     with open(commit_msg_filepath, "r") as f:
