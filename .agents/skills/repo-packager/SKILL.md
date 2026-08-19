@@ -106,11 +106,27 @@ El agente debe copiar/pegar o inyectar solo la sección de contenido que necesit
 
 ## Estado vNext
 
-La skill es funcional pero no vNext-compliant. Quedan pendientes pruebas y
-correcciones para UTF-8 en Windows, exclusión de `.env`, matching de globs,
-carga de `.repomixignore` y selección scoped bajo presupuestos pequeños.
+La skill ya incluye un parche local para cerrar los gaps de exclusiones y
+señalización de estado: se aplica filtro de `.repomixignore`/`.gitignore`, se
+normalizan rutas Windows, se excluyen `.env` y cachés sensibles, y se devuelve
+`PARTIAL`/`EMPTY` cuando el pack queda acotado por budget o límites.
+
+Quedan pendientes las pruebas formales del baseline para cerrar la validación de
+regresión: UTF-8 en Windows, matching de globs complejos, carga de exclusiones
+provenientes de múltiples ignore files, selección scoped bajo presupuestos
+pequeños y overflow de `ampliado` con más de 10 paths.
 `scripts/.venv_tools` puede reutilizarse para discovery; no es el entorno
 oficial de FitFlow-ai.
+
+## Pruebas de regresión planificadas para baseline
+
+1. Exclusiones de entorno y secretos: `.env`, `.env.*`, `node_modules`, `__pycache__`, caches, logs y `.repo-packager-cache`.
+2. Integración de `.repomixignore` + `.gitignore` sin duplicar o reasignar patrones.
+3. Rutas con separadores Windows (`\\`) y prefijos `./`.
+4. `reducido`/`drill-down` con budget pequeño que deba devolver `PARTIAL` en lugar de truncar silenciosamente.
+5. `ampliado` con >10 paths: status `PARTIAL`, `requested`, `included` y `omitted` visibles.
+6. Focus scoped: archivos dentro del focus debieran priorizarse sin romper el ranking global.
+7. Smoke end-to-end con `repo.json` real usando `.venv_tools` para evitar dependencia del entorno del sistema.
 
 ## Script location
 
