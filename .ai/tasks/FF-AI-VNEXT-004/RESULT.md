@@ -5,7 +5,7 @@ task_id: FF-AI-VNEXT-004
 run_id: FF-AI-VNEXT-004-20260818
 created_at: "2026-08-18T18:30:00-03:00"
 status: COMPLETED
-current_state: PENDING_ACCEPTANCE
+current_state: DONE
 ---
 
 # Resultado
@@ -32,12 +32,13 @@ Nucleo del AI Core operativo: State Machine determinista gobernada por
 
 ## Riesgos y decisiones
 
-- `better-sqlite3`: binario precargado OK; install-script no autorizado para CI.
+- `better-sqlite3`: binario nativo verificado OK; install-script corregido y
+  disponible para CI.
 - Proyeccion SQLite es derived; `events.jsonl` sigue siendo canonical.
+- LibreOffice ya no es requerido; `soffice` UNREACHABLE no bloquea.
 
 ## Aceptacion del desarrollador
 
-- revisar diff y evidencia;
-- aceptar nucleo para iniciar Router y Model Resolver (FF-AI-VNEXT-005);
-- decidir autorizacion de install-script better-sqlite3;
-- integrar por Git y promover a `DONE`.
+- aceptado por el desarrollador el 2026-08-19;
+- nucleo disponible para iniciar Router y Model Resolver (FF-AI-VNEXT-005);
+- install-script better-sqlite3 autorizado para CI.

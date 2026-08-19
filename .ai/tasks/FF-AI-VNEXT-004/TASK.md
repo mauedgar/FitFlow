@@ -3,7 +3,7 @@ artifact: TASK
 schema_version: fitflow-task/v2
 task_id: FF-AI-VNEXT-004
 title: Implementar State Machine y Run Store
-status: READY
+status: DONE
 task_type: tooling
 area: ai_tooling
 scope: docs_tooling

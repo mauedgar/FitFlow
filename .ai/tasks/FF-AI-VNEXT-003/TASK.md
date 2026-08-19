@@ -3,7 +3,7 @@ artifact: TASK
 schema_version: fitflow-task/v2
 task_id: FF-AI-VNEXT-003
 title: Implementar contracts y registries v2
-status: READY
+status: DONE
 task_type: tooling
 area: ai_tooling
 scope: docs_tooling

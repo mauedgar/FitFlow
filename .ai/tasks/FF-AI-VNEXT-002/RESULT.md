@@ -5,7 +5,7 @@ task_id: FF-AI-VNEXT-002
 run_id: FF-AI-VNEXT-002-20260818
 created_at: "2026-08-18T16:30:00-03:00"
 status: COMPLETED
-current_state: PENDING_ACCEPTANCE
+current_state: DONE
 ---
 
 # Resultado
