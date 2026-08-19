@@ -8,9 +8,40 @@ jobs:
   update-pr-body:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write # Permiso crucial para que la Action edite tu PR
+      contents: read
+      pull-requests: write
     steps:
       - name: Generar descripción basada en Commits
-        uses: pmndrs/generate-pull-request-description@v2.0.0 # Acción del Marketplace
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const commits = await github.paginate(
+              github.rest.pulls.listCommits,
+              { owner, repo, pull_number, per_page: 100 }
+            );
+
+            const messages = [...new Set(
+              commits
+                .map((commit) => commit.commit?.message?.split('\n')[0])
+                .filter(Boolean)
+            )];
+
+            const body = [
+              '## Resumen',
+              '',
+              ...messages.map((message) => `- ${message}`),
+              '',
+              '## Validación',
+              '',
+              '- Actualización automática del contenido del PR a partir de los commits del pull request.'
+            ].join('\n');
+
+            await github.rest.pulls.update({
+              owner,
+              repo,
+              pull_number,
+              body
+            });
