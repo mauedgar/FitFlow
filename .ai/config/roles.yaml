@@ -1,0 +1,65 @@
+schema_version: fitflow-role-registry/v2
+roles:
+  developer_planner:
+    status: active
+    actor_type: developer
+    writes_product: false
+    terminal_authority: true
+  planner_ai:
+    status: disabled
+    actor_type: model
+    writes_product: false
+  router:
+    status: active_specification
+    actor_type: hybrid
+    writes_product: false
+    deterministic_first: true
+  model_resolver:
+    status: active_specification
+    actor_type: deterministic
+    writes_product: false
+  explorer:
+    status: active_specification
+    actor_type: model
+    writes_product: false
+    allowed_skills: [repo_packager, ripgrep, lsp]
+  coder_b:
+    status: active_specification
+    actor_type: model
+    writes_product: true
+    criticality_ceiling: low
+  coder_a:
+    status: active_specification
+    actor_type: model
+    writes_product: true
+    criticality_ceiling: medium
+  coder_strong_a:
+    status: conditional_specification
+    actor_type: model
+    writes_product: true
+    criticality_ceiling: medium
+  reviewer:
+    status: active_specification
+    actor_type: model
+    writes_product: false
+    require_independent_execution: true
+  architect:
+    status: conditional_specification
+    actor_type: model
+    writes_product: false
+  doc_curator:
+    status: active_specification
+    actor_type: model
+    writes_product: docs_only
+    promotion_authority: false
+  validator:
+    status: active_specification
+    actor_type: deterministic
+    writes_product: false
+disabled_roles:
+  - security_reviewer
+  - performance_reviewer
+  - migration_engineer
+  - autonomous_evaluator
+  - autonomous_optimizer
+  - orchestrator_workers

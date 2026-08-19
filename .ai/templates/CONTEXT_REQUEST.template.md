@@ -1,37 +1,22 @@
 ---
 artifact: CONTEXT_REQUEST
-schema_version: fitflow-context-request/v1
+schema_version: fitflow-context-request/v2
+request_id: "<request-id>"
 task_id: "<TASK-ID>"
-status: READY
-created_at: "<ISO-8601>"
-baseline_revision: "<revision>"
-working_tree_fingerprint: "sha256:<hash>"
-author_role: planner_audit
 run_id: "<run-id>"
+created_at: "<ISO-8601>"
+consumer_role: coder_a
 scope: backend
-token_budget: 8000
-round: 1
+mode: reduced
+profile: implementation
+budget_tokens: 8000
+exclusions_hash: "sha256:<hash>"
 ---
 
-# Pregunta
+# Necesidad
 
-<Pregunta única y ejecutable.>
+<query o paths explicitos.>
 
-## Evidencia requerida
+## Criterio de suficiencia
 
-- definitions
-- callers
-- tests
-- contracts
-
-## Rutas conocidas
-
-- `<ruta opcional>`
-
-## Exclusiones adicionales
-
-- `<ruta/patrón>`
-
-## Condición de suficiencia
-
-<Qué debe conocer el Coder para actuar sin nueva exploración.>
+<evidencia minima que Explorer necesita observar.>

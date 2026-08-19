@@ -2,42 +2,34 @@
 document_id: FF-AI-PIPELINE-VALIDATION-001
 status: canonical
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
-# Pipeline de validación
+# Pipeline de validacion
 
-## Entrada
+## Orden
 
-TASK, PLAN, diff revisado, baseline/fingerprint y lista de gates aprobada.
+Validator se ejecuta despues de Execution y antes de Review. Review recibe
+TASK, diff, fuente real y un `ValidationResult` ya observado.
 
-## Etapas
+## Gate registry
 
-1. **Preflight:** verificar revisión, entorno y permisos; no instalar.
-2. **Schema/format:** validar artefactos y contratos afectados.
-3. **Targeted:** ejecutar tests/checks directamente vinculados.
-4. **Affected suite:** obligatoria para riesgo medium.
-5. **Static:** Ruff/Pyright y herramientas canónicas aplicables.
-6. **Boundary:** Alembic/OpenAPI/API/frontend según impacto.
-7. **Classify:** asignar estado y clase de fallo por gate.
-8. **Route:** recomendar el estado siguiente.
+Cada gate define ID, comando, cwd, timeout, scope, risk applicability,
+environment requirement y parser de salida. El workflow no inventa comandos.
+
+## Estados
+
+`PASS`, `FAIL`, `NOT_RUN`, `UNAVAILABLE`, `BLOCKED` y `N/A` conservan la
+semantica de `docs/quality-and-validation.md`. Solo `PASS` satisface un gate
+obligatorio.
 
 ## Routing
 
-| Resultado | Siguiente estado |
-| --- | --- |
-| todos PASS/N/A justificados | PENDING_ACCEPTANCE |
-| defecto de implementación | EXECUTE |
-| evidencia faltante | EXPLORE |
-| plan/baseline incorrecto | PLAN |
-| entorno/herramienta ausente | BLOCKED |
-| riesgo alto descubierto | BLOCKED_HIGH_RISK |
+- `FAIL` atribuible al cambio: `ROUTING`.
+- `FAIL` que invalida plan/doctrina: `PLANNING`.
+- `UNAVAILABLE`: `BLOCKED` o aceptacion explicita si el gate no era obligatorio.
+- riesgo alto descubierto: `BLOCKED_HIGH_RISK`.
+- todos los gates obligatorios `PASS`: `REVIEWING`.
 
-## Reglas
-
-- El Validator no corrige código.
-- Un diagnóstico LLM no sustituye exit code/output.
-- `N/A` requiere justificación; `NOT_RUN` y `UNAVAILABLE` no son éxito.
-- Logs extensos quedan fuera del documento; conservar comando, exit code,
-  alcance y resumen reproducible.
+Un LLM puede resumir o diagnosticar una salida, pero no cambiar su estado.

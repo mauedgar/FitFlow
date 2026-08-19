@@ -2,54 +2,31 @@
 document_id: FF-AI-OBS-001
 status: accepted_pending_implementation
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
-# Observabilidad y evaluación
+# Observabilidad y evaluacion
 
-## Phoenix
+## MVP
 
-Phoenix es el backend inicial de trazas. La unidad de correlación es
-`task_id/run_id`. Spans mínimos:
+Run events y usage records forman un ledger append-only. Un Workflow Observer
+local muestra estado, ruta, context lineage, gates, modelos, tokens, retries y
+FinOps summary. No requiere una plataforma SaaS.
 
-- `plan`;
-- `explore.query` y `explore.package`;
-- `model.invoke`;
-- `review`;
-- `validation.command`;
-- `index.discover`, `parse`, `embed`, `upsert`, `verify`;
-- `human.acceptance`.
+## Privacidad
 
-Capturar modelo efectivo, razonamiento, latencia, tokens/costo disponible,
-revisión, IDs de evidencia y estados. No capturar secretos ni código completo
-si los IDs/hash son suficientes.
+No registrar secretos, prompts completos innecesarios ni contenido sensible.
+Preferir hashes, paths, contadores y referencias a artefactos locales.
 
-## Métricas
+## Evals
 
-| Dimensión | Métrica |
-| --- | --- |
-| contexto | tokens, duplicación, staleness, context requests |
-| retrieval | recall/precision top-k, citas verificadas |
-| ejecución | first-pass review, retrabajo, scope violations |
-| validación | pass/fail/not-run/unavailable por gate |
-| modelo | éxito por rol/tipo/riesgo, latencia y costo |
-| índice | tiempo, nodos, deletes, parse failures y drift |
+- conformance de schemas y transitions;
+- fixtures de Router y Model Resolver;
+- suficiencia/exclusion/staleness de contexto;
+- defects sembrados para Reviewer;
+- first-pass acceptance y retrabajo por rol/modelo;
+- golden queries antes de retrieval semantico.
 
-## Golden set
-
-Mantener 15–20 consultas representativas: arquitectura, dominio, callers,
-tests, configuración y cambios mixtos. Cada fixture declara paths/símbolos
-esperados, evidencia prohibida y presupuesto.
-
-## Promptfoo
-
-Incorporar después de estabilizar fixtures y outputs. Evaluar prompts, modelos y
-fallbacks con los mismos contratos. No usar una nota LLM como único juez de
-correctitud; combinar schemas, expected evidence y checks deterministas.
-
-## Umbral de autonomía
-
-No ampliar a tareas altas. Para ampliar tareas low/medium, exigir tendencia
-estable en varias ejecuciones, cero violaciones críticas y revisión humana de
-las métricas.
+Braintrust, Phoenix y Promptfoo permanecen evaluables detras de adapters. No se
+incorpora ninguno antes de disponer de runs, golden set y necesidad demostrada.

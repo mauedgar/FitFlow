@@ -2,8 +2,8 @@
 document_id: FF-STATE-001
 status: canonical
 machine_context: true
-version: 4.0
-snapshot: 2026-08-16
+version: 5.0
+snapshot: 2026-08-18
 ---
 
 # Estado actual de FitFlow
@@ -12,43 +12,55 @@ snapshot: 2026-08-16
 
 - Sprint 6.8 consolidado hasta `FF-LOCAL-010`.
 - Backend con FastAPI async, SQLAlchemy 2.x Async, Pydantic v2 y PostgreSQL.
-- RRULE es la única fuente de recurrencia; genera faltantes futuros en horizonte
-  de 15 días y persiste sesiones en UTC.
-- Booking admite resolución por sesión o agenda, protege capacidad, conserva
+- RRULE es la unica fuente de recurrencia; genera faltantes futuros en horizonte
+  de 15 dias y persiste sesiones en UTC.
+- Booking admite resolucion por sesion o agenda, protege capacidad, conserva
   cancelaciones y no cuenta reservas canceladas como cupo.
 - ClassSession conserva soft delete administrativo e historia.
-- Client, GymClass y ClassSchedule usan bajas conservativas; Membership cambia
-  de estado.
-- Front Desk usa un service único y check-in `confirmed -> attended` con
+- Front Desk usa un service unico y check-in `confirmed -> attended` con
   `checked_in_at`.
-- Las rutas públicas de GymClass, Teacher y ClassSchedule preceden a rutas UUID.
-- `UserRole` es el mecanismo funcional. Role/Permission granular permanece draft.
+- La arquitectura objetivo del producto continua siendo monolito modular por
+  bounded contexts, con migracion gradual y fitness functions.
 
-## Validación confirmada
+## Validacion confirmada
 
 - Harness en `backend/tests/` y base exclusiva `fitflow_test`.
-- Pruebas dirigidas de metadata, mappers, RRULE, Booking, cancelación,
+- Pruebas dirigidas de metadata, mappers, RRULE, Booking, cancelacion,
   capacidad, check-in y Redis.
 - Ruff y Pyright existen en la imagen de tests.
-- La suite HTTP integral del MVP no está demostrada.
+- La suite HTTP integral del MVP no esta demostrada.
 
-## Plataforma de IA
+## Plataforma de asistencia IA
 
-Estado: `DESIGNED_NOT_IMPLEMENTED`.
+Estado global: `BASELINE_PROPOSED_PENDING_ACCEPTANCE`.
 
-- Bundle documental v4 preparado.
-- Codebase seleccionado como superficie de orquestación.
-- Repomix disponible como snapshot acotado.
-- Dependencias de LlamaIndex/Qdrant declaradas instaladas por el equipo, pero su
-  compatibilidad y ejecución aún no están verificadas por este baseline.
-- Repomix, inventarios automáticos, XML estructural, índice vectorial,
-  Phoenix, Promptfoo, hooks y MCP no se declaran funcionales.
+- OpenCode CLI `1.18.18` es la superficie automatizada elegida; Desktop queda
+  para uso manual del desarrollador. El adapter vNext y su conformance suite no
+  estan implementados.
+- Repomix `1.18.0` esta disponible. `repo-packager` genera paquetes, pero su
+  contrato vNext y sus fallos de exclusion/seleccion aun requieren correccion.
+- Node `22.18.0`, OpenSpec `1.9.0` y GitHub CLI `2.97.0` estan disponibles;
+  GitHub esta autenticado. El root OpenSpec y los adapters permanecen pending.
+- `C:\Proyectos Web\FitFlow-ai` existe como repositorio hermano documental. AI
+  Core, registries, workflow TypeScript, SQLite, ledger y adapters permanecen
+  sin implementar.
+- OpenCode descubrio runtime IDs de FastContext, Qwen y DeepSeek en LM Studio;
+  inferencia, benchmark y rol efectivo quedan `UNVERIFIED`.
+- GitHub Copilot queda deferred y fuera del acceso programatico. El
+  desarrollador es intermediario de cualquier orden manual.
+- LibreOffice `26.2.5.2` convierte DOCX correctamente cuando `soffice` y Poppler
+  se agregan al PATH del proceso.
+- LlamaIndex, Qdrant, embeddings, Promptfoo, MCP y Temporal son posteriores a
+  gates explicitos; no se declaran funcionales.
+- `scripts/.venv_tools` es un entorno local reutilizable para discovery, no el
+  entorno oficial de FitFlow-ai.
 
 ## Deuda activa
 
 - cobertura API integral y fixtures HTTP async compartidas;
 - refactors de fronteras heredadas;
-- auditoría de compatibilidad del entorno `env_tools`;
-- implementación y evaluación del sistema de contexto;
-- adaptador comprobado para Codebase;
-- métricas antes de ampliar autonomía o presupuesto.
+- implementar contratos y registries v2;
+- corregir y medir `repo-packager` antes del Agent MVP;
+- implementar State Machine, persistencia de run y FinOps-as-Code;
+- verificar adapter OpenCode, GitHub/OpenSpec y modelo Explorer;
+- medir contexto, calidad y retrabajo antes de ampliar autonomia.

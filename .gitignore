@@ -81,6 +81,7 @@ dmypy.json
 .ai/local/
 .index/
 index/
+/exports/
 
 # Secrets / local env
 .env

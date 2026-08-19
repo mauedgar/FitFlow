@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/context-request.schema.json",
+  "title": "ContextRequest v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "request_id", "task_id", "run_id", "created_at", "baseline", "consumer_role", "scope", "mode", "profile", "budget_tokens", "exclusions_hash"],
+  "properties": {
+    "artifact": {"const": "CONTEXT_REQUEST"},
+    "schema_version": {"const": "fitflow-context-request/v2"},
+    "request_id": {"type": "string", "minLength": 3},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "baseline": {"$ref": "common.schema.json#/$defs/baseline"},
+    "consumer_role": {"$ref": "common.schema.json#/$defs/actor"},
+    "scope": {"enum": ["backend", "frontend", "mixed", "docs_tooling"]},
+    "mode": {"enum": ["reduced", "drill_down", "expanded"]},
+    "profile": {"enum": ["implementation", "review", "test", "custom"]},
+    "query": {"type": ["string", "null"]},
+    "paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "budget_tokens": {"type": "integer", "minimum": 1},
+    "exclusions_hash": {"$ref": "common.schema.json#/$defs/hash"},
+    "include_tests": {"type": "boolean"},
+    "previous_request_id": {"type": ["string", "null"]}
+  },
+  "anyOf": [
+    {
+      "required": ["query"],
+      "properties": {"query": {"type": "string", "minLength": 1}}
+    },
+    {
+      "required": ["paths"],
+      "properties": {"paths": {"type": "array", "minItems": 1}}
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-schema_version: fitflow-risk/v1
+schema_version: fitflow-risk/v2
 default_when_uncertain: higher
 levels:
   low:
@@ -9,7 +9,7 @@ levels:
     autonomous_execution: true
     require_independent_review: true
     require_affected_suite: true
-    require_human_acceptance: true
+    require_developer_acceptance: true
   high:
     autonomous_execution: false
     state: BLOCKED_HIGH_RISK

@@ -1,0 +1,29 @@
+schema_version: fitflow-project-profile/v1
+project_id: fitflow
+baseline: fitflow-ai/vnext-5.0
+roots:
+  product: C:/Proyectos Web/FitFlow
+  ai_core: C:/Proyectos Web/FitFlow-ai
+authority:
+  source_of_truth: docs/SOURCE_OF_TRUTH.md
+  agents: AGENTS.md
+  canonical_docs: [docs/architecture.md, docs/domain.md, docs/current-state.md, docs/quality-and-validation.md]
+product_architecture:
+  backend_dependency_direction: [router, service, crud, sqlalchemy_model, postgresql]
+  target: modular_monolith
+operational:
+  task_store: github_issue_with_local_mirror
+  project_count: one
+  run_root: .ai/runs
+  local_state: .ai/local/run-state.sqlite
+specification:
+  adapter: openspec
+  status: accepted_pending_bootstrap
+features:
+  semantic_retrieval: false
+  mcp: false
+  temporal: false
+  orchestrator_workers: false
+environment:
+  reusable_discovery_env: scripts/.venv_tools
+  official_ai_core_env: null

@@ -1,12 +1,13 @@
 ---
 document_id: FF-ADR-0011
-status: accepted
+status: superseded
 machine_context: true
+superseded_by: FF-ADR-0014
 ---
 
 # ADR 0011: Codebase como superficie de orquestación de IA
 
-- **Estado:** Accepted
+- **Estado:** Superseded por ADR 0014
 - **Fecha:** 2026-08-16
 - **Supersede:** ADR 0007
 - **Amend:** ADR 0008

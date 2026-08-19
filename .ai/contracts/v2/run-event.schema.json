@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/run-event.schema.json",
+  "title": "RunEvent v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "event_id", "sequence", "task_id", "run_id", "created_at", "actor", "event_type", "state_from", "state_to", "reason_code", "inputs", "outputs"],
+  "properties": {
+    "artifact": {"const": "RUN_EVENT"},
+    "schema_version": {"const": "fitflow-run-event/v2"},
+    "event_id": {"type": "string", "minLength": 3},
+    "sequence": {"type": "integer", "minimum": 0},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "actor": {"$ref": "common.schema.json#/$defs/actor"},
+    "event_type": {"enum": ["STATE_TRANSITION", "ROUTE_DECIDED", "CONTEXT_REQUESTED", "CONTEXT_DELIVERED", "EXECUTION_COMPLETED", "VALIDATION_COMPLETED", "REVIEW_COMPLETED", "DOC_IMPACT_RECORDED", "DEVELOPER_DECISION", "ERROR"]},
+    "state_from": {"anyOf": [{"$ref": "common.schema.json#/$defs/state"}, {"type": "null"}]},
+    "state_to": {"$ref": "common.schema.json#/$defs/state"},
+    "reason_code": {"type": "string", "minLength": 1},
+    "inputs": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/artifactRef"}},
+    "outputs": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/artifactRef"}},
+    "usage_record_id": {"type": ["string", "null"]},
+    "idempotency_key": {"type": ["string", "null"]}
+  },
+  "allOf": [
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"type": "null"}}},
+      "then": {"properties": {"state_to": {"enum": ["BACKLOG", "READY"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "BACKLOG"}}},
+      "then": {"properties": {"state_to": {"enum": ["READY", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "READY"}}},
+      "then": {"properties": {"state_to": {"enum": ["PLANNING", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "PLANNING"}}},
+      "then": {"properties": {"state_to": {"enum": ["ROUTING", "WAITING_DEVELOPER", "BLOCKED", "BLOCKED_HIGH_RISK", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "ROUTING"}}},
+      "then": {"properties": {"state_to": {"enum": ["EXPLORING", "EXECUTING", "WAITING_DEVELOPER", "BLOCKED", "BLOCKED_HIGH_RISK"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "EXPLORING"}}},
+      "then": {"properties": {"state_to": {"enum": ["EXECUTING", "EXPLORING", "ROUTING", "PLANNING", "BLOCKED"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "EXECUTING"}}},
+      "then": {"properties": {"state_to": {"enum": ["VALIDATING", "ROUTING", "EXPLORING", "PLANNING", "BLOCKED", "BLOCKED_HIGH_RISK"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "VALIDATING"}}},
+      "then": {"properties": {"state_to": {"enum": ["REVIEWING", "ROUTING", "EXPLORING", "PLANNING", "BLOCKED", "BLOCKED_HIGH_RISK"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "REVIEWING"}}},
+      "then": {"properties": {"state_to": {"enum": ["DOC_SYNC", "ROUTING", "EXPLORING", "PLANNING", "WAITING_DEVELOPER", "BLOCKED"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "DOC_SYNC"}}},
+      "then": {"properties": {"state_to": {"enum": ["PENDING_ACCEPTANCE", "ROUTING", "WAITING_DEVELOPER", "BLOCKED"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "PENDING_ACCEPTANCE"}}},
+      "then": {"properties": {"state_to": {"enum": ["DONE", "ROUTING", "PLANNING", "BLOCKED", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"const": "WAITING_DEVELOPER"}}},
+      "then": {"properties": {"state_to": {"enum": ["PLANNING", "ROUTING", "PENDING_ACCEPTANCE", "BLOCKED", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"enum": ["BLOCKED", "BLOCKED_HIGH_RISK"]}}},
+      "then": {"properties": {"state_to": {"enum": ["READY", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["state_from"], "properties": {"state_from": {"enum": ["DONE", "CANCELLED"]}}},
+      "then": false
+    },
+    {
+      "if": {"required": ["state_to"], "properties": {"state_to": {"const": "DONE"}}},
+      "then": {
+        "properties": {
+          "state_from": {"const": "PENDING_ACCEPTANCE"},
+          "actor": {"const": "developer"},
+          "event_type": {"const": "DEVELOPER_DECISION"}
+        }
+      }
+    }
+  ]
+}

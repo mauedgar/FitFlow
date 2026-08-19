@@ -1,46 +1,35 @@
 ---
 artifact: PLAN
-schema_version: fitflow-plan/v1
+schema_version: fitflow-plan/v2
 task_id: "<TASK-ID>"
+run_id: "<run-id>"
 status: PASS
 created_at: "<ISO-8601>"
-baseline_revision: "<revision>"
-working_tree_fingerprint: "sha256:<hash>"
-author_role: planner_audit
-run_id: "<run-id>"
+author_role: developer_planner
 risk: low
-assigned_coder: coder_b
 ownership_keys: []
 ---
 
 # Resultado esperado
 
-<Una oración observable.>
-
-## Supuestos verificados
-
-- <hecho + evidencia>
-
-## Decisiones requeridas
-
-- `none` o referencia a `DECISION_REQUEST.md`.
+<Resultado observable.>
 
 ## Pasos
 
-| ID | Responsable | Acción | Input | Output | Gate |
+| ID | Responsable | Accion | Input | Output | Gate |
 | --- | --- | --- | --- | --- | --- |
-| P1 | explorer | <acción> | <input> | <output> | <condición> |
+| P1 | router | `<accion>` | `<input>` | `<output>` | `<condicion>` |
 
 ## Validaciones
 
-| Gate | Comando/inspección | Resultado requerido |
+| Gate | Comando/inspeccion | Resultado requerido |
 | --- | --- | --- |
 | targeted | `<comando>` | PASS |
 
 ## Rutas de fallo
 
-| Condición | Transición |
+| Condicion | Transicion |
 | --- | --- |
-| contexto insuficiente | EXPLORE |
-| defecto localizado | EXECUTE |
-| doctrina/scope inválido | PLAN + decisión |
+| contexto insuficiente | EXPLORING |
+| implementacion o validacion fallida | ROUTING |
+| doctrina/scope invalido | PLANNING |

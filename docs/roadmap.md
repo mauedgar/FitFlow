@@ -2,8 +2,8 @@
 document_id: FF-ROADMAP-001
 status: canonical
 machine_context: true
-version: 4.0
-updated: 2026-08-16
+version: 5.0
+updated: 2026-08-18
 ---
 
 # Roadmap de FitFlow
@@ -27,12 +27,12 @@ autoridad sobre el producto.
 
 | Fase | Tareas | Gate de salida |
 | --- | --- | --- |
-| A — baseline | FF-AI-000 | matriz de compatibilidad y decisiones sin upgrades implícitos |
-| B — contexto estructural | FF-AI-001–002 | inventarios/Repomix y grafo Repomix reproducibles |
-| C — recuperación | FF-AI-003–004 | índice incremental y 15–20 consultas evaluadas |
-| D — orquestación | FF-AI-005 | máquina de estados, roles y adaptador ejecutables |
-| E — evaluación/integración | FF-AI-006–008 | evals, MCP read-only y piloto low/medium |
-| F — endurecimiento | FF-AI-009–012 | hooks, Phoenix, routing medido y locks de ownership |
+| A - baseline/doctor | FF-AI-VNEXT-001-002 | baseline aceptada y entorno reproducible sin installs |
+| B - contratos/runtime | FF-AI-VNEXT-003-004 | schemas, registries, State Machine y Run Store |
+| C - adapters/contexto | FF-AI-VNEXT-005-006 | Project Profile, sync y ContextPackager compliant |
+| D - decision/roles | FF-AI-VNEXT-007-009 | Router, Model Resolver, Explorer y Agent MVP medidos |
+| E - endurecimiento | FF-AI-VNEXT-010 | fitness functions, CI y Workflow Observer |
+| F - capacidades futuras | FF-AI-VNEXT-011-013 | retrieval, MCP y Temporal tras gates propios |
 
 No avanzar de fase cuando el gate anterior está `FAIL`, `UNAVAILABLE` o
 `BLOCKED` sin decisión explícita.
@@ -40,7 +40,7 @@ No avanzar de fase cuando el gate anterior está `FAIL`, `UNAVAILABLE` o
 ## Autonomía
 
 Los agentes pueden explorar, editar scope acotado y ejecutar validaciones
-permitidas. Una persona decide arquitectura/dominio, dependencias, seguridad,
+permitidas. El desarrollador decide arquitectura/dominio, dependencias, seguridad,
 migraciones destructivas, ampliación del MVP, promoción documental y aceptación
 final.
 

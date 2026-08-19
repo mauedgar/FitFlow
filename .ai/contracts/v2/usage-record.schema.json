@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/usage-record.schema.json",
+  "title": "UsageRecord v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "usage_record_id", "task_id", "run_id", "created_at", "stage", "role", "resource_pool", "provider", "runtime_id", "tokens", "latency_ms", "attempt", "estimated_incremental_cost_usd"],
+  "properties": {
+    "artifact": {"const": "USAGE_RECORD"},
+    "schema_version": {"const": "fitflow-usage-record/v2"},
+    "usage_record_id": {"type": "string", "minLength": 3},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "stage": {"$ref": "common.schema.json#/$defs/state"},
+    "role": {"$ref": "common.schema.json#/$defs/actor"},
+    "resource_pool": {"enum": ["deterministic", "local", "zen_included", "copilot_included", "openrouter_free", "cloud_included", "paid"]},
+    "provider": {"type": "string", "minLength": 1},
+    "runtime_id": {"type": "string", "minLength": 1},
+    "tokens": {"$ref": "common.schema.json#/$defs/tokenUsage"},
+    "latency_ms": {"type": "integer", "minimum": 0},
+    "attempt": {"type": "integer", "minimum": 1},
+    "estimated_incremental_cost_usd": {"type": "number", "minimum": 0},
+    "quota_before": {"type": ["number", "null"], "minimum": 0},
+    "quota_after": {"type": ["number", "null"], "minimum": 0},
+    "accepted": {"type": ["boolean", "null"]}
+  }
+}

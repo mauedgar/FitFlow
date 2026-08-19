@@ -1,0 +1,30 @@
+{
+  "artifact": "DOC_IMPACT",
+  "schema_version": "fitflow-doc-impact/v2",
+  "task_id": "FF-AI-VNEXT-001",
+  "run_id": "FF-AI-VNEXT-001-20260818",
+  "created_at": "2026-08-18T15:49:54-03:00",
+  "baseline": {
+    "revision": "3f3021b2cf26c5839feb428a50b59e1116f283a0",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El arbol ya contenia cambios previos y no se capturo un fingerprint antes de iniciar la migracion."
+  },
+  "impact": "CANONICAL_UPDATE",
+  "durable_knowledge": [
+    "AI Core gobierna el workflow y OpenCode queda detras de un adapter.",
+    "GitHub, OpenSpec, ledger JSON, SQLite projection y FinOps-as-Code forman la arquitectura vNext.",
+    "Solo el desarrollador puede aceptar la propuesta y emitir DONE."
+  ],
+  "files": [
+    "AGENTS.md",
+    "docs/SOURCE_OF_TRUTH.md",
+    "docs/MIGRATION.md",
+    "docs/ai/",
+    ".ai/config/",
+    ".ai/contracts/v2/"
+  ],
+  "proposal_summary": "Promover baseline vNext 5.0 solo despues de la aceptacion explicita del desarrollador.",
+  "developer_approval_required": true,
+  "next_state": "PENDING_ACCEPTANCE"
+}

@@ -2,28 +2,30 @@
 document_id: FF-AI-INDEX-001
 status: canonical
 machine_context: true
-version: 4.0
-updated: 2026-08-16
+version: 5.0
+updated: 2026-08-18
 ---
 
-# Sistema de desarrollo asistido
+# Sistema de desarrollo asistido vNext
 
-| Documento | Decisión que contiene |
+| Documento | Contrato |
 | --- | --- |
-| `system-overview.md` | componentes, autoridad y flujo global |
-| `codebase-operating-guide.md` | frontera entre Codebase y contratos FitFlow |
-| `roles-and-model-routing.md` | roles, capacidades y selección de LLM |
-| `context-strategy.md` | presupuesto y construcción de contexto |
-| `context-delivery-pipeline.md` | pipeline backend/frontend/mixed del Explorer |
-| `development-pipeline.md` | pipeline de solicitud a aceptación |
-| `indexing-pipeline.md` | ingesta incremental y recuperación |
-| `validation-pipeline.md` | ejecución y clasificación de gates |
-| `context-artifacts.md` | formatos de inventario, XML, bundle y package |
-| `cli-contract.md` | interfaz prevista para scripts/hooks |
-| `mcp-policy.md` | adopción futura y permisos |
-| `observability-and-evaluation.md` | Phoenix, métricas y Promptfoo |
-| `fitflow-ai-layout.md` | layout del repositorio hermano |
-| `references.md` | fuentes técnicas primarias |
+| `system-overview.md` | flujo, autoridad e invariantes |
+| `ai-core-architecture.md` | puertos, Project Profile y fronteras |
+| `development-pipeline.md` | State Machine y rutas de fallo |
+| `roles-and-model-routing.md` | roles, Router y Model Resolver |
+| `registries.md` | Role, Skill, Model, Workflow y Run Registries |
+| `context-strategy.md` | seleccion y presupuesto de contexto |
+| `context-delivery-pipeline.md` | Explorer y ContextPackager |
+| `context-artifacts.md` | artefactos y persistencia |
+| `validation-pipeline.md` | gates deterministas |
+| `project-profile-and-openspec.md` | configuracion por proyecto y specs |
+| `finops-policy.md` | recursos, cuotas y metricas |
+| `observability-and-evaluation.md` | ledger, observer y evals |
+| `indexing-pipeline.md` | retrieval semantico posterior |
+| `opencode-operating-guide.md` | contrato del adapter OpenCode |
+| `mcp-policy.md` | gate futuro de MCP |
+| `roadmap-vnext.md` | secuencia de implementacion |
 
-Configuración serializada: `/.ai/config/`. Contratos y templates:
-`/.ai/contracts/` y `/.ai/templates/`.
+Configuracion activa v2: `/.ai/config/`. Contratos activos:
+`/.ai/contracts/v2/`. Los artefactos v1 solo sirven para historial y migracion.

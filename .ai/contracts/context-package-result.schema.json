@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/context-package-result.schema.json",
+  "title": "ContextPackageResult v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "package_id", "request_id", "task_id", "run_id", "created_at", "baseline", "status", "mode", "requested_paths", "included_paths", "omitted_paths", "evidence", "token_estimate", "content_hash", "reason_code"],
+  "properties": {
+    "artifact": {"const": "CONTEXT_PACKAGE_RESULT"},
+    "schema_version": {"const": "fitflow-context-package-result/v2"},
+    "package_id": {"type": "string", "minLength": 3},
+    "request_id": {"type": "string", "minLength": 3},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "baseline": {"$ref": "common.schema.json#/$defs/baseline"},
+    "status": {"enum": ["COMPLETE", "PARTIAL", "EMPTY", "STALE", "TOO_MANY_PATHS", "ERROR"]},
+    "mode": {"enum": ["reduced", "drill_down", "expanded"]},
+    "requested_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "included_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "omitted_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "candidates": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/evidence"}},
+    "evidence": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/evidence"}},
+    "token_estimate": {"type": "integer", "minimum": 0},
+    "content_hash": {"$ref": "common.schema.json#/$defs/hash"},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "reason_code": {"type": "string", "minLength": 1}
+  }
+}

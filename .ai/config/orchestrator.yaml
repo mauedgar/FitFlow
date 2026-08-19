@@ -1,52 +1,56 @@
-schema_version: fitflow-orchestrator/v1
-orchestrator: codebase
-adapter:
-  required: true
-  config_source: .ai/config
-  output_validation: strict
-human_control:
+schema_version: fitflow-orchestrator/v2
+baseline: fitflow-ai/vnext-5.0
+runtime:
+  port: AgentRuntimePort
+  preferred_adapter: opencode
+  adapter_status: accepted_pending_conformance
+control:
+  planner: developer
+  terminal_agent_state: PENDING_ACCEPTANCE
   final_state: DONE
-  agent_terminal_state: PENDING_ACCEPTANCE
+  final_actor: developer
   commits_by_agents: false
   dependency_changes_by_agents: false
 states:
   - BACKLOG
   - READY
-  - PLAN
-  - EXPLORE
-  - EXECUTE
-  - REVIEW
-  - VALIDATE
+  - PLANNING
+  - ROUTING
+  - EXPLORING
+  - EXECUTING
+  - VALIDATING
+  - REVIEWING
+  - DOC_SYNC
   - PENDING_ACCEPTANCE
+  - WAITING_DEVELOPER
   - DONE
   - BLOCKED
   - BLOCKED_HIGH_RISK
   - CANCELLED
 transitions:
-  READY: [PLAN, CANCELLED]
-  PLAN: [EXPLORE, BLOCKED, BLOCKED_HIGH_RISK, CANCELLED]
-  EXPLORE: [EXECUTE, PLAN, BLOCKED]
-  EXECUTE: [REVIEW, EXPLORE, PLAN, BLOCKED, BLOCKED_HIGH_RISK]
-  REVIEW: [VALIDATE, EXECUTE, EXPLORE, PLAN, BLOCKED]
-  VALIDATE: [PENDING_ACCEPTANCE, EXECUTE, EXPLORE, PLAN, BLOCKED]
-  PENDING_ACCEPTANCE: [DONE, EXECUTE, PLAN, BLOCKED, CANCELLED]
+  BACKLOG: [READY, CANCELLED]
+  READY: [PLANNING, CANCELLED]
+  PLANNING: [ROUTING, WAITING_DEVELOPER, BLOCKED, BLOCKED_HIGH_RISK, CANCELLED]
+  ROUTING: [EXPLORING, EXECUTING, WAITING_DEVELOPER, BLOCKED, BLOCKED_HIGH_RISK]
+  EXPLORING: [EXECUTING, EXPLORING, ROUTING, PLANNING, BLOCKED]
+  EXECUTING: [VALIDATING, ROUTING, EXPLORING, PLANNING, BLOCKED, BLOCKED_HIGH_RISK]
+  VALIDATING: [REVIEWING, ROUTING, EXPLORING, PLANNING, BLOCKED, BLOCKED_HIGH_RISK]
+  REVIEWING: [DOC_SYNC, ROUTING, EXPLORING, PLANNING, WAITING_DEVELOPER, BLOCKED]
+  DOC_SYNC: [PENDING_ACCEPTANCE, ROUTING, WAITING_DEVELOPER, BLOCKED]
+  PENDING_ACCEPTANCE: [DONE, ROUTING, PLANNING, BLOCKED, CANCELLED]
+  WAITING_DEVELOPER: [PLANNING, ROUTING, PENDING_ACCEPTANCE, BLOCKED, CANCELLED]
   BLOCKED: [READY, CANCELLED]
   BLOCKED_HIGH_RISK: [READY, CANCELLED]
 limits:
-  context_rounds: 2
-  implementation_rounds: 2
-  review_rounds: 2
+  context_expansions: 2
+  implementation_attempts: 2
+  review_attempts: 2
 parallelism:
   enabled: true
   require_disjoint_ownership_keys: true
   single_writer_per_key: true
 artifacts:
   task_root: .ai/tasks
-  temp_root: .ai/local
-  required_by_stage:
-    PLAN: [TASK.md, PLAN.md]
-    EXPLORE: [CONTEXT_REQUEST.md]
-    EXECUTE: [IMPLEMENTATION.md]
-    REVIEW: [REVIEW.md]
-    VALIDATE: [VALIDATION.md]
-    PENDING_ACCEPTANCE: [RESULT.md]
+  run_root: .ai/runs
+  local_root: .ai/local
+  schema_root: .ai/contracts/v2

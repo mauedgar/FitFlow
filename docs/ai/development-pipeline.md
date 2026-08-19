@@ -2,59 +2,51 @@
 document_id: FF-AI-PIPELINE-DEV-001
 status: canonical
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
 # Pipeline de desarrollo asistido
 
-## Entrada
+## State Machine
 
-Una solicitud puede ser `use_case`, `feature`, `fix`, `refactor`, `audit`,
-`test`, `docs` o `tooling`. Debe convertirse en `TASK.md` antes de ejecutar.
+`BACKLOG -> READY -> PLANNING -> ROUTING -> EXPLORING -> EXECUTING -> VALIDATING -> REVIEWING -> DOC_SYNC -> PENDING_ACCEPTANCE -> DONE`
 
-## Estados y gates
+`WAITING_DEVELOPER`, `BLOCKED`, `BLOCKED_HIGH_RISK` y `CANCELLED` son estados
+laterales. `DONE` solo acepta actor `developer`.
 
-| Estado | Responsable | Salida obligatoria | Gate |
-| --- | --- | --- | --- |
-| INTAKE | Orchestrator | TASK draft | objetivo identificable |
-| PLAN | Planner/Audit + persona si aplica | PLAN | scope, riesgo, ownership, AC |
-| EXPLORE | Explorer | CONTEXT_REQUEST/PACKAGE | evidencia suficiente y fresca |
-| EXECUTE | Coder A/B | IMPLEMENTATION | scope respetado + self-check |
-| REVIEW | Reviewer | REVIEW | `PASS` o ruta de corrección |
-| VALIDATE | Validator | VALIDATION | gates ejecutados y trazables |
-| PENDING_ACCEPTANCE | Orchestrator | RESULT | persona revisa |
-| DONE | persona | integración aceptada | revisión/commit externo al agente |
+## Etapas
 
-## Routing de ejecución
-
-- Coder B: cambio literal, una responsabilidad, riesgo bajo, sin contrato
-  cruzado.
-- Coder A: tarea media con varias piezas dentro de un ownership delimitado.
-- Riesgo alto: `BLOCKED_HIGH_RISK`; no se asigna coder.
+| Estado | Responsable | Salida |
+| --- | --- | --- |
+| `PLANNING` | Developer Planner | TASK/PLAN aprobados |
+| `ROUTING` | Router + Model Resolver | RouteDecision |
+| `EXPLORING` | Explorer | ContextRequest/ContextPackageResult |
+| `EXECUTING` | Coder seleccionado | ExecutionResult |
+| `VALIDATING` | Validator | ValidationResult |
+| `REVIEWING` | Reviewer | ReviewResult |
+| `DOC_SYNC` | Doc Curator | DocImpact y patch propuesto |
+| `PENDING_ACCEPTANCE` | workflow | Result consolidado |
 
 ## Rutas de fallo
 
-| Detección | Estado siguiente | Límite |
-| --- | --- | --- |
-| falta evidencia | EXPLORE | 2 rondas |
-| defecto localizado | EXECUTE | 2 correcciones |
-| tests fallan por implementación | EXECUTE | 2 correcciones |
-| plan/scope/doctrina incorrectos | PLAN | decisión requerida |
-| conflicto de ownership | BLOCKED | hasta liberar lock |
-| dependencia/entorno ausente | BLOCKED | registrar `UNAVAILABLE` |
-| riesgo alto descubierto | BLOCKED_HIGH_RISK | solo persona reclasifica |
-| validación final falla | EXECUTE o PLAN | según causa |
+| Condicion | Siguiente estado |
+| --- | --- |
+| contexto insuficiente o stale | `EXPLORING` |
+| implementacion/validacion fallida | `ROUTING` |
+| review `FAIL` localizado | `ROUTING` |
+| review `REPLAN` | `PLANNING` |
+| decision o scope ambiguo | `WAITING_DEVELOPER` |
+| riesgo alto | `BLOCKED_HIGH_RISK` |
+| dependencia ausente | `BLOCKED` con `UNAVAILABLE` |
 
-Agotado un límite, no improvisar: producir RESULT parcial y escalar.
+Los limites se leen de policy. Agotar retries produce un resultado parcial y
+escala; nunca habilita un loop autonomo.
 
-## Validación humana crítica
+## Workflows MVP
 
-Obligatoria para arquitectura/dominio, auth/permisos, transacciones críticas,
-migraciones destructivas, dependencias base, secretos, cambios de contratos
-transversales, promoción de docs y aceptación final.
+- `development`: plan, route, explore, execute, validate, review, docs, approve.
+- `bugfix`: plan, route, explore/reproduce, fix, validate, review, docs, approve.
+- `documentation_sync`: diff/result, doc impact, curate, review, approve.
 
-## Cierre
-
-`RESULT.md` consolida archivos, evidencia, riesgos, impacto documental y pasos
-siguientes. No incluye transcript ni razonamiento privado.
+Orchestrator-workers, optimizer autonomo y Temporal permanecen deshabilitados.

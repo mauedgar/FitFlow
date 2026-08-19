@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/common.schema.json",
+  "title": "FitFlow vNext common definitions",
+  "$defs": {
+    "taskId": {"type": "string", "pattern": "^[A-Z][A-Z0-9-]{2,63}$"},
+    "runId": {"type": "string", "minLength": 3, "maxLength": 160},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "hash": {"type": "string", "pattern": "^(sha256:)?[A-Fa-f0-9]{32,128}$"},
+    "state": {
+      "enum": ["BACKLOG", "READY", "PLANNING", "ROUTING", "EXPLORING", "EXECUTING", "VALIDATING", "REVIEWING", "DOC_SYNC", "PENDING_ACCEPTANCE", "WAITING_DEVELOPER", "DONE", "BLOCKED", "BLOCKED_HIGH_RISK", "CANCELLED"]
+    },
+    "actor": {
+      "enum": ["developer", "system", "router", "model_resolver", "explorer", "coder_b", "coder_a", "coder_strong_a", "reviewer", "architect", "doc_curator", "validator", "adapter"]
+    },
+    "normalizedStatus": {"enum": ["PASS", "FAIL", "NOT_RUN", "UNAVAILABLE", "BLOCKED", "N/A"]},
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "fingerprint_status", "working_tree_fingerprint", "fingerprint_reason"],
+      "properties": {
+        "revision": {"type": "string", "minLength": 1},
+        "fingerprint_status": {"enum": ["captured", "unavailable"]},
+        "working_tree_fingerprint": {
+          "anyOf": [
+            {"type": "string", "pattern": "^sha256:[A-Fa-f0-9]{64}$"},
+            {"type": "null"}
+          ]
+        },
+        "fingerprint_reason": {"type": ["string", "null"]}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["fingerprint_status"],
+            "properties": {"fingerprint_status": {"const": "captured"}}
+          },
+          "then": {
+            "properties": {
+              "working_tree_fingerprint": {"type": "string", "pattern": "^sha256:[A-Fa-f0-9]{64}$"},
+              "fingerprint_reason": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["fingerprint_status"],
+            "properties": {"fingerprint_status": {"const": "unavailable"}}
+          },
+          "then": {
+            "properties": {
+              "working_tree_fingerprint": {"type": "null"},
+              "fingerprint_reason": {"type": "string", "minLength": 3}
+            }
+          }
+        }
+      ]
+    },
+    "artifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "hash"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "hash": {"$ref": "#/$defs/hash"},
+        "schema_version": {"type": ["string", "null"]}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "content_hash", "source", "reason"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "start_line": {"type": ["integer", "null"], "minimum": 1},
+        "end_line": {"type": ["integer", "null"], "minimum": 1},
+        "symbol": {"type": ["string", "null"]},
+        "content_hash": {"$ref": "#/$defs/hash"},
+        "source": {"enum": ["direct", "ripgrep", "lsp", "repo_packager", "repomix", "semantic_retrieval", "canonical_doc"]},
+        "score": {"type": ["number", "null"], "minimum": 0},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "tokenUsage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "output", "context", "total"],
+      "properties": {
+        "input": {"type": "integer", "minimum": 0},
+        "output": {"type": "integer", "minimum": 0},
+        "context": {"type": "integer", "minimum": 0},
+        "total": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

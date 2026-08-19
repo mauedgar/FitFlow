@@ -3,7 +3,8 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-005
 title: Implementar orquestación Codebase v1
-status: BACKLOG
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-008
 task_type: tooling
 scope: docs_tooling
 lane: mixed

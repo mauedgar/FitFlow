@@ -2,28 +2,29 @@
 document_id: FF-DOCS-INDEX-001
 status: canonical
 machine_context: true
-version: 4.0
-updated: 2026-08-16
+version: 5.0
+updated: 2026-08-18
 ---
 
-# Documentación activa
+# Documentacion activa
 
 | Pregunta | Documento |
 | --- | --- |
-| ¿Qué fuente prevalece? | `SOURCE_OF_TRUTH.md` |
-| ¿Cómo está diseñado el producto? | `architecture.md` |
-| ¿Qué está implementado? | `current-state.md` |
-| ¿Qué reglas de negocio son estables? | `domain.md` |
-| ¿Qué evidencia exige una tarea? | `quality-and-validation.md` |
-| ¿Qué sigue? | `roadmap.md` |
-| ¿Cómo operan los agentes? | `ai/` y `process/` |
-| ¿Por qué se tomó una decisión? | `adr/` |
+| Que fuente prevalece | `SOURCE_OF_TRUTH.md` |
+| Como esta disenado el producto | `architecture.md` |
+| Que esta implementado | `current-state.md` |
+| Que reglas de negocio son estables | `domain.md` |
+| Que evidencia exige una tarea | `quality-and-validation.md` |
+| Que sigue | `roadmap.md` y `ai/roadmap-vnext.md` |
+| Como migra v4 a vNext | `MIGRATION.md` |
+| Como opera AI Core | `ai/` |
+| Por que se tomo una decision | `adr/` |
 
-## Regla de inclusión
+## Regla de inclusion
 
-Los documentos con `machine_context: true` pueden ser seleccionados por una
-tarea. `machine_context: false` impide su carga automática. La selección final
-siempre se reduce a los documentos necesarios para el scope.
+Solo documentos `machine_context: true` pueden seleccionarse automaticamente.
+La seleccion se limita a `required_docs` y evidencia del scope.
 
-`archive/source-material/` contiene explicaciones e informes para personas. No
-es una capa de instrucciones ni un corpus de recuperación.
+`archive/source-material/` contiene informes fuente y documentos para
+desarrolladores en `.docx`. No es una capa de instrucciones ni un corpus de
+retrieval.

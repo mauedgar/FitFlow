@@ -1,0 +1,17 @@
+schema_version: fitflow-workflow-registry/v2
+workflows:
+  development:
+    status: active_specification
+    implementation: FitFlow-ai/src/workflows/development.ts
+    states: [PLANNING, ROUTING, EXPLORING, EXECUTING, VALIDATING, REVIEWING, DOC_SYNC, PENDING_ACCEPTANCE]
+  bugfix:
+    status: active_specification
+    implementation: FitFlow-ai/src/workflows/bugfix.ts
+    states: [PLANNING, ROUTING, EXPLORING, EXECUTING, VALIDATING, REVIEWING, DOC_SYNC, PENDING_ACCEPTANCE]
+  documentation_sync:
+    status: active_specification
+    implementation: FitFlow-ai/src/workflows/documentation-sync.ts
+    states: [EXPLORING, VALIDATING, REVIEWING, DOC_SYNC, PENDING_ACCEPTANCE]
+  orchestrator_workers:
+    status: disabled
+    phase: future

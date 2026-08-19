@@ -1,0 +1,75 @@
+role_id: coderA
+
+purpose:
+  - bounded implementation
+  - tests
+  - bugfix
+
+allowed_tools:
+  - repo-packager
+  - git
+  - rg
+  - lsp
+  - test-runner
+
+skills:
+  - tdd
+  - backend-patterns
+  - repo-packager
+
+write_scope:
+  - source
+  - tests
+
+forbidden:
+  - architecture_change
+  - destructive_migration
+
+risk_ceiling: 7
+
+models:
+  preferred: qwen2.5-coder-7b
+  escalation: cloud-strong
+
+requires:
+  - TASK
+  - context-package
+
+output:
+  schema: implementation-result-v1
+
+human_gate:
+  - architecture_change
+  - scope_growth
+
+
+
+Security-reviewer     disabled
+test-engineer         planned
+doc-curator           local
+architect             conditional
+migration-engineer    future
+performance-reviewer  future
+
+
+##SKILLS 
+skill
+source
+version/commit
+roles_using_it
+tools_required
+permissions
+last_reviewed
+status
+
+repo-packager
+  source: local
+  status: trusted
+
+playwright
+  source: community
+  status: reviewed
+
+random-db-optimizer
+  source: community
+  status: experimental

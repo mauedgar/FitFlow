@@ -1,34 +1,23 @@
 ---
 artifact: DECISION_REQUEST
-schema_version: fitflow-decision-request/v1
+schema_version: fitflow-decision-request/v2
 task_id: "<TASK-ID>"
-status: BLOCKED
-created_at: "<ISO-8601>"
-baseline_revision: "<revision>"
-working_tree_fingerprint: "sha256:<hash>"
-author_role: "<role>"
 run_id: "<run-id>"
-decision_owner: human
+created_at: "<ISO-8601>"
+decision_owner: developer
+status: WAITING_DEVELOPER
 ---
 
-# Decisión
+# Decision requerida
 
-<Pregunta binaria o conjunto cerrado de alternativas.>
-
-## Evidencia
-
-- `<path/range/document_id>` — <hecho>.
+<Pregunta cerrada y evidencia que impide continuar.>
 
 ## Opciones
 
-| Opción | Impacto | Riesgo | Reversible |
-| --- | --- | --- | --- |
-| A | <impacto> | low/medium/high | yes/no |
+| Opcion | Impacto | Riesgo |
+| --- | --- | --- |
+| A | `<impacto>` | `<riesgo>` |
 
-## Recomendación
+## Recomendacion
 
-<opción + razón basada en evidencia>.
-
-## Condición de desbloqueo
-
-<decisión y actualización de TASK/PLAN requerida>.
+<Recomendacion sin ejecutar la decision.>

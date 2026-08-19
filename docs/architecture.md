@@ -2,8 +2,8 @@
 document_id: FF-ARCH-001
 status: canonical
 machine_context: true
-version: 4.0
-updated: 2026-08-16
+version: 5.0
+updated: 2026-08-18
 ---
 
 # Arquitectura de FitFlow
@@ -12,7 +12,7 @@ updated: 2026-08-16
 
 Este documento define la arquitectura del producto. La plataforma de asistencia
 vive en el repositorio hermano `FitFlow-ai` y no puede introducir dependencias
-runtime en FitFlow sin ADR y aprobación humana.
+runtime en FitFlow sin ADR y aprobacion del desarrollador.
 
 ## Baseline
 
@@ -91,6 +91,8 @@ brokers, CQRS o event sourcing sin necesidad aprobada.
 
 ## Frontera con FitFlow-ai
 
-`FitFlow-ai` puede leer código y producir artefactos derivados. No es una
+`FitFlow-ai` puede leer codigo y producir artefactos derivados. No es una
 dependencia del runtime del producto. Sus outputs son regenerables y se guardan
-fuera de `FitFlow`, salvo contratos/prompts versionados en `.ai/`.
+fuera de `FitFlow`, salvo Project Profile, contratos y artefactos operativos
+versionados en `.ai/`. La integracion se realiza por puertos; ninguna decision
+de tooling cambia las fronteras del producto.

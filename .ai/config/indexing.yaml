@@ -1,37 +1,21 @@
-schema_version: fitflow-indexing/v1
-status: accepted_pending_implementation
-repository: FitFlow
-structure:
-  parser: repomix
-  fallback_until_available: xml_generator
-  class_graph_name_pattern: estructura_de_clases_<YYYY-MM-DD>.xml
-snapshot:
-  engine: repomix
-  profiles: [backend, frontend, mixed]
-ingestion:
-  engine: llamaindex
-  strategy: upserts_and_delete
-  require_baseline_or_fingerprint: true
-embedding:
-  model: EmbeddingGemma-300M
-  change_requires_rebuild: true
-vector_store:
-  engine: qdrant
-  collection: fitflow_context_v1
-  distance: detect_and_validate_from_model_adapter
-  payload_filters_required: [repository, scope, baseline_revision, machine_context]
-triggers:
-  on_file_change: mark_dirty
-  on_save: no_reindex
-  after_targeted_validation_pass: sync_dirty
-  after_review_pass: verify_working_index
-  after_human_acceptance: promote
-rebuild_when_changed:
-  - parser_version
-  - chunker_version
-  - embedding_model
-  - exclusions_profile
-evaluation:
-  golden_queries_min: 15
-  golden_queries_max: 20
-  metrics: [useful_recall, top_k_precision, citation_coverage, stale_rate, latency_ms, context_tokens]
+schema_version: fitflow-retrieval/v2
+status: planned
+enabled: false
+first_use: explorer_candidate_retrieval
+forbidden_uses: [critical_routing, source_of_truth, automatic_edit_selection]
+entry_gates:
+  - canonical_docs_stable
+  - registries_and_contracts_accepted
+  - context_packager_v2_pass
+  - explorer_eval_pass
+  - golden_queries_accepted
+candidate_implementations:
+  ingestion: llamaindex_typescript
+  vector_store: qdrant
+  embedding: to_be_evaluated
+promotion_gates:
+  - zero_critical_misses
+  - deletes_and_renames_pass
+  - stale_detection_pass
+  - rollback_pass
+  - cost_and_latency_accepted

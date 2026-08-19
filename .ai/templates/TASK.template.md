@@ -1,8 +1,8 @@
 ---
 artifact: TASK
-schema_version: fitflow-task/v1
+schema_version: fitflow-task/v2
 task_id: "<TASK-ID>"
-title: "<título>"
+title: "<titulo>"
 status: READY
 task_type: feature
 area: backend
@@ -11,42 +11,40 @@ lane: ai_orchestrated
 risk: low
 priority: P2
 created_at: "<ISO-8601>"
-baseline_revision: "<git-sha-or-NO_COMMIT>"
-working_tree_fingerprint: "sha256:<hash>"
-author_role: human
-run_id: "<run-id>"
+author_role: developer
+baseline:
+  revision: "<git-sha-or-NO_COMMIT>"
+  fingerprint_status: captured
+  working_tree_fingerprint: "sha256:<64-hex>"
+  fingerprint_reason: null
+github_issue: null
+openspec_change: null
 ownership_keys: []
 required_docs: []
 ---
 
 # Objetivo
 
-<Un resultado observable.>
-
-## Contexto mínimo
-
-<Hechos necesarios; no conversación.>
+<Resultado observable.>
 
 ## Scope
 
-- `<ruta/responsabilidad explícita>`
+- `<ruta o responsabilidad explicita>`
 
 ## Fuera de scope
 
-- `<exclusión explícita>`
+- `<exclusion explicita>`
 
 ## Restricciones
 
-- <regla aplicable>
+- `<regla aplicable>`
 
-## Criterios de aceptación
+## Criterios de aceptacion
 
-1. <criterio binario/verificable>
+| ID | Criterio | Evidencia esperada |
+| --- | --- | --- |
+| AC-1 | `<criterio binario>` | `<comando o artefacto>` |
 
-## Evidencia y validación esperadas
+## Impacto documental
 
-- `<comando o artefacto>`
-
-## Impacto documental esperado
-
-`none|current-state|architecture|domain|quality|roadmap|adr:<id>`
+`none|canonical_update|adr|follow_up`

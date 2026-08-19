@@ -1,4 +1,11 @@
-# MCP - candidato de integracion futura
+---
+document_id: FF-AI-LEGACY-MCP
+status: superseded
+machine_context: false
+superseded_by: FF-AI-MCP-001
+---
+
+# MCP - candidato de integracion futura (historico)
 
 **Estado:** Study later / no implementar aun
 

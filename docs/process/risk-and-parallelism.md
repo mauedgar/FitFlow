@@ -2,8 +2,8 @@
 document_id: FF-PROCESS-RISK-001
 status: canonical
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
 # Riesgo y paralelismo
@@ -16,7 +16,7 @@ updated: 2026-08-16
 | medium | feature/refactor acotado con dependencias conocidas | permitida con reviewer + validator |
 | high | auth, permisos, secretos, transacción crítica, migración destructiva, dependencia base, arquitectura/dominio transversal | bloqueada |
 
-Ante duda, usar la categoría superior. Solo una persona puede recortar alcance y
+Ante duda, usar la categoria superior. Solo el desarrollador puede recortar alcance y
 reclasificar.
 
 ## Ownership keys

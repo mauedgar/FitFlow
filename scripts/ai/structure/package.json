@@ -1,0 +1,15 @@
+{
+  "name": "ffai-structure",
+  "version": "1.0.0",
+  "description": "FitFlow AI structural context discovery tooling (FF-AI-001)",
+  "private": true,
+  "main": "lib/index.js",
+  "type": "commonjs",
+  "bin": {
+    "ffai": "bin/ffai.js"
+  },
+  "scripts": {
+    "test": "node --test tests/",
+    "ffai": "node bin/ffai.js"
+  }
+}

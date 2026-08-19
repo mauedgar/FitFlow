@@ -1,23 +1,34 @@
 # Contratos serializados
 
-Todos los JSON Schema usan Draft 2020-12. El Markdown es una vista humana: un
-parser extrae frontmatter y secciones a un objeto equivalente antes de validar.
+## Activos
 
-| Ficha | Contrato |
+Los runs vNext usan Draft 2020-12 bajo `v2/`. Los schemas v1 en la raiz se
+conservan para lectura de historial y no se modifican.
+
+| Artefacto | Schema v2 |
 | --- | --- |
-| TASK | `task.schema.json` |
-| PLAN | `plan.schema.json` |
-| CONTEXT_REQUEST | `context-request.schema.json` |
-| Context Package | `context-package.schema.json` |
-| STATUS/transición | `status.schema.json` / `run-state.schema.json` |
-| IMPLEMENTATION | `implementation.schema.json` |
-| REVIEW | `review.schema.json` |
-| VALIDATION | `validation.schema.json` |
-| DECISION_REQUEST | `decision-request.schema.json` |
-| INDEX_RUN/event | `index-run.schema.json` / `index-event.schema.json` |
-| RESULT | `result.schema.json` |
-| ownership | `ownership-lock.schema.json` |
-| grafo XML | `structure-graph.xsd` |
+| TASK | `v2/task.schema.json` |
+| RouteDecision | `v2/route-decision.schema.json` |
+| ContextRequest | `v2/context-request.schema.json` |
+| ContextPackageResult | `v2/context-package-result.schema.json` |
+| ExecutionResult | `v2/execution-result.schema.json` |
+| ValidationResult | `v2/validation-result.schema.json` |
+| ReviewResult | `v2/review-result.schema.json` |
+| DocImpact | `v2/doc-impact.schema.json` |
+| RunEvent / RunState | `v2/run-event.schema.json` / `v2/run-state.schema.json` |
+| UsageRecord / FinOpsSummary | `v2/usage-record.schema.json` / `v2/finops-summary.schema.json` |
+| RunResult | `v2/run-result.schema.json` |
 
-El adapter rechaza campos desconocidos salvo donde el schema declare
-extensibilidad explícita.
+## Migracion v1 -> v2
+
+- `author_role: human` -> `author_role: developer`;
+- lane `human` -> `developer`;
+- `PLAN` -> `PLANNING`, `EXPLORE` -> `EXPLORING`, `EXECUTE` -> `EXECUTING`,
+  `VALIDATE` -> `VALIDATING`, `REVIEW` -> `REVIEWING`;
+- el orden historico review/validate se conserva en runs v1 y no se reescribe;
+- `baseline_revision` + `working_tree_fingerprint` -> objeto `baseline`;
+- modelos y providers se resuelven en UsageRecord, no dentro del rol;
+- artefactos v1 y v2 no comparten `run_id`.
+
+Un migrador debe producir un reporte de campos transformados y rechazados. No
+acepta aliases silenciosos ni infiere runtime IDs.

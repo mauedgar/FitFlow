@@ -2,53 +2,59 @@
 document_id: FF-AI-SYSTEM-001
 status: canonical
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
-# Visión del sistema
+# Vision del sistema
 
-## Propósito
+## Proposito
 
-Transformar una solicitud en un cambio revisado y validado, con contexto mínimo,
-roles separados y aceptación humana.
+Transformar una TASK aprobada en un cambio validado, revisado y documentado,
+con contexto minimo, costos medidos y aceptacion del desarrollador.
+
+## Flujo nominal
+
+```text
+Developer Planner
+  -> GitHub Issue / TASK mirror
+  -> Router (deterministic-first)
+  -> Explorer
+  -> ContextPackager (repo-packager)
+  -> Model Resolver
+  -> Coder
+  -> Validator
+  -> Review Context Builder
+  -> Reviewer
+  -> DocImpact / Doc Curator
+  -> Developer Approval
+```
+
+OpenCode ejecuta roles mediante un adapter. TypeScript conserva la State
+Machine. Ninguna LLM controla libremente transiciones, retries o gates.
 
 ## Componentes
 
-| Componente | Responsabilidad | Autoridad |
+| Componente | Responsabilidad | Estado |
 | --- | --- | --- |
-| Codebase | dispatch, sesiones y herramientas | operacional |
-| contratos `.ai/` | estados, roles, prompts, schemas y gates | canónica para agentes |
-| FitFlow | código, tests, config y docs de producto | ejecutable/canónica |
-| FitFlow-ai | inventarios, parsing, Repomix, ingesta, retrieval y trazas | derivada |
-| persona | aprobación, riesgo alto, integración y `DONE` | final |
-
-## Flujo de información
-
-```mermaid
-flowchart TD
-    R["Solicitud"] --> P["Plan y riesgo"]
-    P --> E["Exploración acotada"]
-    E --> C["Ejecución"]
-    C --> V["Review y validación"]
-    V --> H["Aceptación humana"]
-    V -->|contexto insuficiente| E
-    V -->|defecto| C
-    V -->|plan inválido| P
-```
+| AI Core | workflow, policies, ports y contratos | accepted_pending_implementation |
+| Project Profile | reglas y paths especificos de FitFlow | baseline v2 definido |
+| OpenCode CLI adapter | sesiones, modelos, tools y permisos | CLI disponible; pending conformance |
+| GitHub adapter | Issue/PR/Project/Actions | pending; `gh` unavailable |
+| OpenSpec adapter | specs y deltas funcionales | pending; CLI unavailable |
+| repo-packager | empaquetado determinista | funcional con gaps conocidos |
+| Run Store | JSON durable + SQLite local | pending implementation |
+| Workflow Observer | vista local de runs y FinOps | planned |
 
 ## Invariantes
 
-1. La tarea se clasifica `backend`, `frontend` o `mixed` antes de buscar.
-2. Un Coder recibe evidencia, no un volcado de repositorio.
-3. Reviewer y Validator son independientes del Coder.
-4. Ningún agente integra cambios o ejecuta riesgo alto.
-5. Los artefactos derivados declaran baseline y staleness.
-6. El paralelismo requiere ownership disjunto.
-7. Cada transición produce un artefacto validable.
-
-## Límites
-
-Codebase orquesta desarrollo. LlamaIndex orquesta ingesta y retrieval, no el
-ciclo de vida de la tarea. Repomix/repo-packager extrae estructura, Qdrant almacena
-vectores, Repomix crea snapshots y Phoenix observa; ninguno decide arquitectura.
+1. El desarrollador es Planner y autoridad final.
+2. Role y Model se resuelven por separado.
+3. Router usa reglas antes de LLM.
+4. Explorer decide contexto; ContextPackager solo ejecuta la solicitud.
+5. Validator precede a Reviewer.
+6. Reviewer no corrige codigo por defecto; FAIL vuelve a Router.
+7. OpenSpec no reemplaza TASK, Run State ni GitHub.
+8. El gasto incremental pago esta deshabilitado.
+9. Riesgo alto se bloquea.
+10. Los outputs derivados nunca sustituyen lectura de fuente real.

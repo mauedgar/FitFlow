@@ -1,4 +1,11 @@
-# Project Index - Pipeline estructural y semantico v2
+---
+document_id: FF-AI-LEGACY-INDEXER
+status: superseded
+machine_context: false
+superseded_by: FF-ADR-0015
+---
+
+# Project Index - Pipeline estructural y semantico v2 (historico)
 
 **Estado:** Activo como diseno de tooling  
 **Relacion con producto:** no bloqueante para el MVP

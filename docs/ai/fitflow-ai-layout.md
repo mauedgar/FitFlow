@@ -1,48 +1,36 @@
 ---
 document_id: FF-AI-LAYOUT-001
-status: canonical
+status: accepted_pending_implementation
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
-# Layout de FitFlow-ai
-
-Ruta recomendada:
-
-```text
-C:\Proyectos Web\
-  FitFlow\
-  FitFlow-ai\
-```
-
-La separación exacta “milimétrica” no es necesaria, pero ambos repositorios
-deben ser hermanos para evitar anidar entornos, índices y dependencias dentro
-del producto.
+# Layout objetivo de FitFlow-ai
 
 ```text
 FitFlow-ai/
-  docs/                 # arquitectura del tooling
-  config/               # perfiles sin secretos
-  scripts/              # CLI/hooks
-  src/                  # adapters, parsing, ingestion, retrieval
-  tests/                # unit/integration/evals
-  data/
-    staging/            # entradas temporales normalizadas
-    derived/            # inventarios, XML y manifests regenerables
-  storage/              # estado local de Qdrant/cache; ignorado
-  exports/              # bundles/reportes entregables; ignorado por defecto
-  logs/                 # trazas locales; ignorado
+  src/
+    core/                 # functional core, state machine, policies
+    contracts/            # Zod y neutral JSON serialization
+    registries/           # loaders y validators
+    ports/                # interfaces estables
+    adapters/             # OpenCode, GitHub, OpenSpec, filesystem, SQLite
+    workflows/            # development, bugfix, documentation-sync
+    observer/             # vista local y reportes
+  tests/
+    unit/
+    contract/
+    integration/
+    evals/
+  storage/                # ignored; SQLite/caches
+  exports/                # ignored; bundles/reportes
+  logs/                   # ignored
+  docs/
 ```
 
-## Semántica de datos
+FitFlow conserva `AGENTS.md`, `.agents/skills`, `.ai/config`, contratos del
+proyecto y artefactos de task/run. Esta distribucion es deliberada: AI Core es
+reusable y Project Profile permanece junto al producto cuya doctrina gobierna.
 
-- `data/staging`: material transitorio de una ejecución; puede borrarse y
-  regenerarse.
-- `data/derived`: outputs deterministas con manifest; no son verdad canónica.
-- `storage`: persistencia técnica local y volúmenes.
-- `exports`: paquetes explícitos para intercambio o auditoría.
-
-`env_tools` puede vivir en `FitFlow-ai` como entorno local ignorado. El entorno
-`backend/.venv_backend` permanece propiedad de FitFlow y no debe reutilizarse
-para indexación.
+No se crea implementacion ni dependencia al adoptar este layout documental.

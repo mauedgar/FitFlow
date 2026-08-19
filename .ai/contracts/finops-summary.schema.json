@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/finops-summary.schema.json",
+  "title": "FinOpsSummary v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "created_at", "incremental_budget_usd", "paid_api_used", "total_estimated_incremental_cost_usd", "total_tokens", "context_tokens", "attempts", "escalations", "developer_interventions"],
+  "properties": {
+    "artifact": {"const": "FINOPS_SUMMARY"},
+    "schema_version": {"const": "fitflow-finops-summary/v2"},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "incremental_budget_usd": {"type": "number", "minimum": 0},
+    "paid_api_used": {"type": "boolean"},
+    "total_estimated_incremental_cost_usd": {"type": "number", "minimum": 0},
+    "total_tokens": {"type": "integer", "minimum": 0},
+    "context_tokens": {"type": "integer", "minimum": 0},
+    "attempts": {"type": "integer", "minimum": 0},
+    "escalations": {"type": "integer", "minimum": 0},
+    "developer_interventions": {"type": "integer", "minimum": 0},
+    "first_pass_accepted": {"type": ["boolean", "null"]},
+    "latency_ms": {"type": "integer", "minimum": 0}
+  }
+}

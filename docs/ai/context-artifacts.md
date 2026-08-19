@@ -2,68 +2,53 @@
 document_id: FF-AI-ARTIFACTS-001
 status: canonical
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
-# Artefactos de contexto
+# Artefactos vNext
 
-## Inventarios de directorios
+## Contratos estables
 
-Nombres activos exactos:
+`Task`, `RouteDecision`, `ContextRequest`, `ContextPackageResult`,
+`ExecutionResult`, `ValidationResult`, `ReviewResult`, `DocImpact`, `RunEvent`,
+`RunState`, `UsageRecord` y `FinOpsSummary` se validan con
+`.ai/contracts/v2/`.
 
-- `estructura_Directoriosbackend.txt`;
-- `estructura_Directoriosfrontend.txt`;
-- `estructura_Directoriostotal.txt`.
-
-El archivo contiene header de metadata y árbol de directorios/archivos
-permitidos. Excluye artefactos irrelevantes y secretos; no resume contenido.
+## Persistencia
 
 ```text
-# format: fitflow-directory-inventory/v1
-# scope: backend
-# generated_at: 2026-08-16T00:00:00-03:00
-# baseline_revision: NO_COMMIT
-# working_tree_fingerprint: sha256:...
-# generator_version: ...
-# exclusions_profile: default-v1
-backend/
-  app/
-    services/
-      booking_service.py
+.ai/runs/<run_id>/
+  run-state.json
+  events.jsonl
+  route.json
+  context-*.json
+  execution.json
+  validation.json
+  review.json
+  doc-impact.json
+  usage.jsonl
+  result.json
 ```
 
-## Estructura de clases
+Solo se crean artefactos aplicables. Los JSON aceptados son evidencia durable.
+`.ai/local/run-state.sqlite` conserva checkpoints y consultas locales; puede
+reconstruirse desde eventos y no se versiona.
 
-Nombre: `estructura_de_clases_<YYYY-MM-DD>.xml`. Es un grafo total por defecto;
-el atributo `scope` indica cobertura. Si se ejecuta más de una vez el mismo día,
-el archivo activo se reemplaza atómicamente y el run queda en `INDEX_RUN.md`.
+## GitHub
 
-Debe validar contra `.ai/contracts/structure-graph.xsd`. Incluye símbolos,
-ubicaciones, imports y relaciones; una relación inferida declara
-`confidence="low|medium|high"` y `source`.
+PR comments y checks muestran un resumen consolidado. Actions artifacts pueden
+transportar evidencia temporal. Ninguno reemplaza el artefacto local canonical.
 
-El seed puede omitir rangos y declarar `evidenceStatus="INFERRED"` cuando la
-clase procede del vocabulario canónico pero el código no fue parseado. Ese nodo
-sirve para orientación, no como cita de código. Repomix/repo-packager debe reemplazarlo
-por rangos y hash verificados.
+## Lineage
 
-## Bundle Repomix
+Los artefactos principales declaran schema version, task/run, baseline y
+timestamp cuando aplica. `RunEvent` registra el productor mediante `actor` y
+enlaza inputs/outputs con referencias hash. Cada evidencia de codigo agrega
+path, hash y, cuando aplica, rango/simbolo. Un artifact stale no habilita
+transicion.
 
-Un bundle por ejecución/scope. Debe aplicar las mismas exclusiones, registrar
-config hash y permanecer en staging/exports, no en docs canónicos.
+## Markdown
 
-## Context Package
-
-Formato neutral validado por `context-package.schema.json`. Contiene pregunta,
-scope, baseline, presupuesto, evidencia y relaciones. No incluye archivos
-completos salvo justificación explícita.
-
-## Freshness
-
-| Estado | Condición | Uso |
-| --- | --- | --- |
-| FRESH | baseline/fingerprint coincide | permitido |
-| PARTIAL | coincide, pero hay archivos `UNPARSED` | permitido con warning |
-| STALE | revisión/fingerprint difiere | prohibido para edición |
-| INVALID | schema/hash falla | prohibido |
+TASK/PLAN/REVIEW/VALIDATION/RESULT Markdown son vistas para el desarrollador.
+No constituyen un contrato alternativo cuando existe JSON v2 del mismo run.

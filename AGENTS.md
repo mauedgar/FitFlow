@@ -2,80 +2,96 @@
 document_id: FF-AGENTS-001
 status: canonical
 machine_context: true
-version: 4.0
-updated: 2026-08-16
+version: 5.0
+updated: 2026-08-18
 ---
 
 # Reglas para agentes
 
 ## Precedencia
 
-1. Código, tests, configuración y migraciones verificadas.
+1. Codigo, tests, configuracion y migraciones verificadas.
 2. `docs/SOURCE_OF_TRUTH.md`.
-3. Documentación canónica y ADR aceptados.
-4. Contrato `TASK.md` aprobado.
-5. Contexto derivado asociado al baseline correcto.
+3. Documentacion canonica y ADR aceptados.
+4. GitHub Issue aprobada o su espejo local `TASK.md` autorizado.
+5. Artefactos de run asociados al baseline correcto.
+6. Contexto derivado asociado al baseline correcto.
 
-Ante contradicción: detener la inferencia, registrar evidencia y escalar al
-Planner o a una persona. No armonizar fuentes silenciosamente.
+Ante contradiccion: detener la inferencia, registrar evidencia y escalar al
+Planner o al desarrollador. No armonizar fuentes silenciosamente.
 
 ## Inicio obligatorio
 
 1. Clasificar la tarea: `backend`, `frontend` o `mixed`.
 2. Confirmar `task_id`, objetivo, riesgo, baseline y ownership.
 3. Cargar solo los documentos declarados en `required_docs`.
-4. Solicitar al Explorer un Context Package acotado.
-5. Leer el código citado antes de editar.
+4. Solicitar al Explorer un `ContextRequest` acotado cuando falte evidencia.
+5. Usar `repo-packager` solo como empaquetador determinista.
+6. Leer el codigo citado antes de editar.
 
 ## Flujo
 
-`PLAN -> EXPLORE -> EXECUTE -> REVIEW -> VALIDATE -> PENDING_ACCEPTANCE`.
+`PLAN -> ROUTE -> EXPLORE -> EXECUTE -> VALIDATE -> REVIEW -> DOC_SYNC -> PENDING_ACCEPTANCE`.
 
-Solo una persona puede promover a `DONE`. Si falta contexto, volver a
-`EXPLORE`; si falla la implementación, volver a `EXECUTE`; si el plan o la
-doctrina son incorrectos, volver a `PLAN`.
+Solo el desarrollador puede promover a `DONE`. Si falta contexto, volver a
+`EXPLORE`; si falla la implementacion o la validacion, volver a `ROUTE`; si el
+plan o la doctrina son incorrectos, volver a `PLAN`.
 
-## Autonomía
+## Autonomia
 
-- `low`: ejecución permitida dentro del scope.
-- `medium`: ejecución permitida con revisión independiente y validación.
-- `high`: `BLOCKED_HIGH_RISK`; requiere nueva decisión humana.
-- No instalar o actualizar dependencias sin autorización explícita.
+- `low`: ejecucion permitida dentro del scope.
+- `medium`: ejecucion permitida con revision independiente y validacion.
+- `high`: `BLOCKED_HIGH_RISK`; requiere nueva decision del desarrollador.
+- No instalar o actualizar dependencias sin autorizacion explicita.
 - No ejecutar comandos destructivos.
 - No modificar secretos ni archivos `.env`.
 - No crear commits, push, merge ni transiciones finales.
-- No ampliar scope para “aprovechar” una edición.
+- No ampliar scope para aprovechar una edicion.
+- El gasto incremental de API es `USD 0`; proveedores pagos permanecen
+  deshabilitados salvo decision explicita.
 
 ## Arquitectura de producto
 
 - Backend: `Router -> Service -> CRUD -> SQLAlchemy Model -> PostgreSQL`.
 - Schemas Pydantic son contratos de borde, no persistencia.
 - Services nuevos no ejecutan ORM directo.
-- CRUD no define política de negocio.
+- CRUD no define politica de negocio.
 - PostgreSQL conserva estado persistente; Redis solo estado temporal con
-  ownership explícito.
+  ownership explicito.
+
+## Arquitectura de asistencia IA
+
+- OpenCode es una implementacion detras de `AgentRuntimePort`, no la autoridad
+  del workflow.
+- TypeScript gobierna estados, retries, gates y persistencia.
+- El Router aplica reglas deterministas y usa LLM solo como fallback.
+- El Model Resolver selecciona capacidad y recurso; no define autoridad.
+- Explorer decide que contexto necesita otro rol.
+- `repo-packager` empaqueta exactamente una solicitud; no explora ni decide.
+- Validator es determinista. Reviewer no valida su propia implementacion.
+- OpenSpec describe cambios funcionales; no reemplaza TASK ni Run State.
 
 ## Contexto autorizado
 
-- `estructura_Directoriosbackend.txt`,
-  `estructura_Directoriosfrontend.txt` o
-  `estructura_Directoriostotal.txt`;
-- `estructura_de_clases_<YYYY-MM-DD>.xml`;
-- bundle Repomix del scope;
-- resultados del índice vectorial;
-- lecturas directas de código/tests.
+- inventarios `estructura_Directorios<scope>.txt`;
+- grafo `estructura_de_clases_<YYYY-MM-DD>.xml` cuando este fresco;
+- paquetes `reduced`, `drill-down` o `expanded` de `repo-packager`;
+- bundles Repomix acotados;
+- resultados de retrieval evaluados;
+- lecturas directas de codigo y tests.
 
-Los artefactos derivados orientan; nunca sustituyen la lectura del código
+Los artefactos derivados orientan; nunca sustituyen la lectura del codigo
 antes de editar. No cargar `docs/archive/source-material/`.
 
 ## Escritura concurrente
 
-Una sola ejecución puede poseer una `ownership_key`. Las claves incluyen rutas,
-contratos API, dominio, DB/migraciones y documentación canónica. Si existe
-intersección, serializar las tareas.
+Una sola ejecucion puede poseer una `ownership_key`. Las claves incluyen rutas,
+contratos API, dominio, DB/migraciones y documentacion canonica. Si existe
+interseccion, serializar las tareas.
 
 ## Evidencia
 
-Cada ejecución debe producir `REVIEW.md`, `VALIDATION.md` y `RESULT.md` usando
-los estados `PASS`, `FAIL`, `NOT_RUN`, `UNAVAILABLE`, `BLOCKED` o `N/A`. Un
-resumen narrativo sin comando, alcance y salida verificable no es evidencia.
+Cada ejecucion debe producir `REVIEW.md`, `VALIDATION.md` y `RESULT.md` usando
+`PASS`, `FAIL`, `NOT_RUN`, `UNAVAILABLE`, `BLOCKED` o `N/A`. Los artefactos
+estructurados del run usan `.ai/contracts/v2/`. Un resumen sin comando, alcance
+y salida verificable no es evidencia.

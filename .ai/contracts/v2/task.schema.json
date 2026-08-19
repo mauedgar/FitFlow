@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/task.schema.json",
+  "title": "FitFlow Task v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "title", "status", "task_type", "scope", "lane", "risk", "priority", "created_at", "author_role", "baseline", "objective", "in_scope", "out_of_scope", "acceptance_criteria", "ownership_keys"],
+  "properties": {
+    "artifact": {"const": "TASK"},
+    "schema_version": {"const": "fitflow-task/v2"},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "title": {"type": "string", "minLength": 3, "maxLength": 180},
+    "status": {"$ref": "common.schema.json#/$defs/state"},
+    "task_type": {"enum": ["use_case", "feature", "fix", "refactor", "audit", "test", "docs", "tooling", "migration"]},
+    "area": {"enum": ["backend", "frontend", "infra", "docs", "ai_tooling", "mixed"]},
+    "scope": {"enum": ["backend", "frontend", "mixed", "docs_tooling"]},
+    "lane": {"enum": ["developer", "ai_orchestrated", "mixed", "undecided"]},
+    "risk": {"enum": ["low", "medium", "high"]},
+    "priority": {"enum": ["P0", "P1", "P2", "P3", "P4", "P5"]},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "author_role": {"enum": ["developer", "planner_ai"]},
+    "baseline": {"$ref": "common.schema.json#/$defs/baseline"},
+    "github_issue": {"type": ["string", "null"]},
+    "openspec_change": {"type": ["string", "null"]},
+    "objective": {"type": "string", "minLength": 10, "maxLength": 1600},
+    "in_scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "out_of_scope": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "constraints": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "acceptance_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "criterion"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^AC-[0-9]+$"},
+          "criterion": {"type": "string", "minLength": 5},
+          "evidence": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "ownership_keys": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^(path|api|domain|db|doc|config):.+$"}},
+    "required_docs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "validation_expected": {"type": "array", "items": {"type": "string"}},
+    "document_impact": {"type": "array", "items": {"type": "string"}},
+    "depends_on": {"type": "array", "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/taskId"}},
+    "supersedes": {"type": "array", "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/taskId"}}
+  }
+}

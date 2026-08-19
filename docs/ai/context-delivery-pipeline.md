@@ -2,48 +2,49 @@
 document_id: FF-AI-PIPELINE-CONTEXT-001
 status: canonical
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
 # Pipeline de entrega de contexto
 
-## Entrada
+## Secuencia
 
-`CONTEXT_REQUEST` válido con task, pregunta, scope, baseline/fingerprint,
-evidence types y presupuesto.
+```text
+role need
+  -> Explorer
+  -> ContextRequest
+  -> ContextPackagerPort
+  -> repo-packager
+  -> ContextPackageResult
+  -> Explorer sufficiency decision
+  -> deliver or request expansion
+```
 
-## Perfiles
+## Entrada obligatoria
 
-| Scope solicitado | Inventario | Raíces | Budget |
-| --- | --- | --- | ---: |
-| backend | `estructura_Directoriosbackend.txt` | `backend/` | 8.000 |
-| frontend | `estructura_Directoriosfrontend.txt` | `frontend/` | 8.000 |
-| mixed | `estructura_Directoriostotal.txt` | backend + frontend + docs allowlist | 12.000 |
+`task_id`, `run_id`, `consumer_role`, `scope`, `baseline`, `mode`, `query` o
+`paths`, profile, budget y exclusions hash.
 
-`docs_tooling` reutiliza inventario total con allowlist y 4.000 tokens.
+## Salida
 
-## Etapas
+`status`, paths requested/included/omitted, candidates, provenance, token
+estimate, content hash, warnings y reason code. El status puede ser `COMPLETE`,
+`PARTIAL`, `EMPTY`, `STALE`, `TOO_MANY_PATHS` o `ERROR`.
 
-1. **Classify:** confirmar que la pregunta coincide con el scope.
-2. **Freshness:** comparar revisión/fingerprint de artefactos.
-3. **Orient:** inventario y XML/Repomix.
-4. **Retrieve:** Repomix/texto/vector con filtros.
-5. **Verify:** abrir código/tests y confirmar rangos/hash.
-6. **Reduce:** deduplicar, priorizar y aplicar budget.
-7. **Serialize:** validar Context Package.
-8. **Deliver:** entregar solo package + documentos allowlisted.
+## Reglas
 
-## Suficiencia
+1. La misma entrada y snapshot produce el mismo hash semantico.
+2. Timestamps no forman parte del hash semantico.
+3. Ningun path fuera de allowlist se incluye.
+4. Source material, secrets, envs, caches, outputs y archivos superseded se
+   excluyen por frontera efectiva.
+5. `repo-packager` no solicita otra ronda ni modifica Run State.
+6. Explorer no entrega candidatos sin lectura real cuando el siguiente rol
+   puede editar o aprobar.
 
-El package contiene definición/caso de uso, dependencias necesarias, tests y
-contrato/doctrina afectados. Si no alcanza, declarar `gaps`; no compensar con
-archivos irrelevantes.
+## Gaps conocidos
 
-## Fallos
-
-- artefacto stale/invalid: regenerar o bloquear;
-- Qdrant unavailable: usar estructura/texto y marcar `PARTIAL`;
-- parser parcial: incluir warning y lectura directa;
-- presupuesto insuficiente: Planner recorta o una persona autoriza override;
-- dos rondas sin suficiencia: volver a PLAN.
+La implementacion actual requiere corregir exclusions de `.env`, matching de
+globs, carga de `.repomixignore`, normalizacion Windows y seleccion de archivos
+irrelevantes bajo presupuestos pequenos antes de considerarse vNext compliant.

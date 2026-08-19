@@ -3,7 +3,8 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-008
 title: Ejecutar piloto end-to-end low y medium
-status: BACKLOG
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-009
 task_type: test
 scope: mixed
 lane: mixed

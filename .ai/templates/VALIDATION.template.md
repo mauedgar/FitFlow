@@ -1,33 +1,19 @@
 ---
-artifact: VALIDATION
-schema_version: fitflow-validation/v1
+artifact: VALIDATION_RESULT
+schema_version: fitflow-validation-result/v2
 task_id: "<TASK-ID>"
-status: PASS
-created_at: "<ISO-8601>"
-baseline_revision: "<revision>"
-working_tree_fingerprint: "sha256:<hash>"
-author_role: validator
 run_id: "<run-id>"
+created_at: "<ISO-8601>"
+status: PASS
+next_state: REVIEWING
 ---
 
 # Gates
 
-| ID | CWD | Comando | Exit | Duración | Estado | Alcance |
-| --- | --- | --- | ---: | ---: | --- | --- |
-| V-1 | `<cwd>` | `<comando>` | 0 | 0s | PASS | <tests/checks> |
+| ID | CWD | Comando | Exit | Estado | Resumen |
+| --- | --- | --- | ---: | --- | --- |
+| V-1 | `<cwd>` | `<comando>` | 0 | PASS | `<salida verificable>` |
 
-## Salida resumida
+## No ejecutado
 
-- V-1: <resultado verificable; sin logs extensos>.
-
-## No ejecutado / unavailable
-
-- `none` o <gate + causa + impacto>.
-
-## Clasificación de fallos
-
-- `none|implementation|environment|baseline|policy`.
-
-## Recomendación
-
-`PENDING_ACCEPTANCE|EXECUTE|EXPLORE|PLAN|BLOCKED`.
+- `none` o `<gate + causa + impacto>`.

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/doc-impact.schema.json",
+  "title": "DocImpact v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "created_at", "baseline", "impact", "durable_knowledge", "files", "developer_approval_required", "next_state"],
+  "properties": {
+    "artifact": {"const": "DOC_IMPACT"},
+    "schema_version": {"const": "fitflow-doc-impact/v2"},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "baseline": {"$ref": "common.schema.json#/$defs/baseline"},
+    "impact": {"enum": ["NONE", "CANONICAL_UPDATE", "ADR", "FOLLOW_UP"]},
+    "durable_knowledge": {"type": "array", "items": {"type": "string"}},
+    "files": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "proposal_summary": {"type": ["string", "null"]},
+    "developer_approval_required": {"const": true},
+    "next_state": {"enum": ["PENDING_ACCEPTANCE", "ROUTING", "WAITING_DEVELOPER", "BLOCKED"]}
+  }
+}

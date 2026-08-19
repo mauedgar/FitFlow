@@ -3,7 +3,8 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-009
 title: Automatizar sincronización incremental por módulos
-status: BACKLOG
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-004
 task_type: tooling
 scope: mixed
 lane: ai_orchestrated

@@ -2,13 +2,14 @@
 document_id: FF-ADR-0002
 status: amended
 machine_context: true
+amended_by: [FF-ADR-0014, FF-ADR-0016]
 ---
 
 # ADR 0002: Git y trabajo aislado de agentes
 
 - **Estado:** Amended
 - **Fecha:** 2026-08-12
-- **Enmienda:** 2026-08-16
+- **Enmienda:** 2026-08-18
 
 ## Contexto
 
@@ -24,13 +25,13 @@ Reglas:
 - arquitectura/dominio no se integran automaticamente sin aprobacion;
 - los tests y validaciones forman parte del handoff;
 - los agentes no crean commits, push, merge ni integraciones sin autorización
-  explícita de una persona;
+  explicita del desarrollador;
 - el historial Git es evidencia, pero no reemplaza ADRs/documentacion del por que.
 
 ## Consecuencias
 
 - facilita revertir y revisar;
-- permite ejecuciones humanas o asistidas en ramas operativas distintas;
+- permite ejecuciones del desarrollador o asistidas en ramas operativas distintas;
 - requiere disciplina para no acumular worktrees/branches abandonados.
 
 La política activa de ownership y paralelismo se define en

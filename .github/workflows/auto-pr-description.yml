@@ -1,0 +1,16 @@
+name: "Estructurador Automático de PR"
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  update-pr-body:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Permiso crucial para que la Action edite tu PR
+    steps:
+      - name: Generar descripción basada en Commits
+        uses: pmndrs/generate-pull-request-description@v2.0.0 # Acción del Marketplace
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}

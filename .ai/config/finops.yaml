@@ -1,0 +1,22 @@
+schema_version: fitflow-finops/v1
+incremental_budget_usd: 0
+paid_api_enabled: false
+optimization_order: [quality, risk, privacy, accepted_result_cost]
+resource_pools:
+  deterministic: {enabled: true, cost_class: zero}
+  local: {enabled: true, cost_class: zero_incremental}
+  zen_included: {enabled: true, cost_class: quota}
+  copilot_included: {enabled: false, cost_class: quota, access_mode: developer_intermediated, status: deferred}
+  openrouter_free: {enabled: true, cost_class: free_external, criticality_ceiling: low}
+  cloud_included: {enabled: true, cost_class: quota}
+  paid: {enabled: false, cost_class: paid}
+metrics:
+  - tokens_per_accepted_task
+  - context_tokens
+  - attempts
+  - first_pass_acceptance
+  - escalation_rate
+  - context_reuse
+  - developer_interventions
+  - latency
+automatic_optimizer: disabled

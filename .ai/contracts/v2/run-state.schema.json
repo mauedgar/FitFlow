@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/run-state.schema.json",
+  "title": "RunState v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "updated_at", "baseline", "workflow_id", "current_state", "next_state", "sequence", "retry_counters", "context_deliveries", "route_history", "validation_history", "review_history", "blocked_by"],
+  "properties": {
+    "artifact": {"const": "RUN_STATE"},
+    "schema_version": {"const": "fitflow-run-state/v2"},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "updated_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "baseline": {"$ref": "common.schema.json#/$defs/baseline"},
+    "workflow_id": {"enum": ["development", "bugfix", "documentation_sync"]},
+    "current_state": {"$ref": "common.schema.json#/$defs/state"},
+    "next_state": {"anyOf": [{"$ref": "common.schema.json#/$defs/state"}, {"type": "null"}]},
+    "sequence": {"type": "integer", "minimum": 0},
+    "retry_counters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "implementation", "review"],
+      "properties": {
+        "context": {"type": "integer", "minimum": 0},
+        "implementation": {"type": "integer", "minimum": 0},
+        "review": {"type": "integer", "minimum": 0}
+      }
+    },
+    "context_deliveries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["package_id", "consumer_role", "mode", "paths", "tokens", "content_hash"],
+        "properties": {
+          "package_id": {"type": "string"},
+          "consumer_role": {"$ref": "common.schema.json#/$defs/actor"},
+          "mode": {"enum": ["reduced", "drill_down", "expanded"]},
+          "paths": {"type": "array", "items": {"type": "string"}},
+          "tokens": {"type": "integer", "minimum": 0},
+          "content_hash": {"$ref": "common.schema.json#/$defs/hash"}
+        }
+      }
+    },
+    "route_history": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/artifactRef"}},
+    "validation_history": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/artifactRef"}},
+    "review_history": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/artifactRef"}},
+    "blocked_by": {"type": "array", "items": {"type": "string"}},
+    "last_error": {"type": ["string", "null"]}
+  },
+  "allOf": [
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "BACKLOG"}}},
+      "then": {"properties": {"next_state": {"enum": ["READY", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "READY"}}},
+      "then": {"properties": {"next_state": {"enum": ["PLANNING", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "PLANNING"}}},
+      "then": {"properties": {"next_state": {"enum": ["ROUTING", "WAITING_DEVELOPER", "BLOCKED", "BLOCKED_HIGH_RISK", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "ROUTING"}}},
+      "then": {"properties": {"next_state": {"enum": ["EXPLORING", "EXECUTING", "WAITING_DEVELOPER", "BLOCKED", "BLOCKED_HIGH_RISK"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "EXPLORING"}}},
+      "then": {"properties": {"next_state": {"enum": ["EXECUTING", "EXPLORING", "ROUTING", "PLANNING", "BLOCKED"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "EXECUTING"}}},
+      "then": {"properties": {"next_state": {"enum": ["VALIDATING", "ROUTING", "EXPLORING", "PLANNING", "BLOCKED", "BLOCKED_HIGH_RISK"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "VALIDATING"}}},
+      "then": {"properties": {"next_state": {"enum": ["REVIEWING", "ROUTING", "EXPLORING", "PLANNING", "BLOCKED", "BLOCKED_HIGH_RISK"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "REVIEWING"}}},
+      "then": {"properties": {"next_state": {"enum": ["DOC_SYNC", "ROUTING", "EXPLORING", "PLANNING", "WAITING_DEVELOPER", "BLOCKED"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "DOC_SYNC"}}},
+      "then": {"properties": {"next_state": {"enum": ["PENDING_ACCEPTANCE", "ROUTING", "WAITING_DEVELOPER", "BLOCKED"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "PENDING_ACCEPTANCE"}}},
+      "then": {"properties": {"next_state": {"enum": ["DONE", "ROUTING", "PLANNING", "BLOCKED", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"const": "WAITING_DEVELOPER"}}},
+      "then": {"properties": {"next_state": {"enum": ["PLANNING", "ROUTING", "PENDING_ACCEPTANCE", "BLOCKED", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"enum": ["BLOCKED", "BLOCKED_HIGH_RISK"]}}},
+      "then": {"properties": {"next_state": {"enum": ["READY", "CANCELLED"]}}}
+    },
+    {
+      "if": {"required": ["current_state"], "properties": {"current_state": {"enum": ["DONE", "CANCELLED"]}}},
+      "then": {"properties": {"next_state": {"type": "null"}}}
+    }
+  ]
+}

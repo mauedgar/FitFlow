@@ -1,8 +1,10 @@
-# Contratos de operación IA
+# Operacion IA vNext
 
-`config/` define políticas neutrales; `prompts/` define roles; `contracts/`
-valida intercambio; `templates/` materializa fichas; `tasks/` contiene el
-backlog ejecutable.
+`config/` define Project Profile, policies y registries; `contracts/v2/` valida
+intercambio; `templates/` materializa vistas; `tasks/` conserva contratos de
+trabajo; `runs/` conserva evidencia estructurada durable.
 
-La configuración propietaria de Codebase se genera mediante un adaptador. Estos
-archivos no deben contener API keys, tokens, endpoints privados ni secretos.
+AI Core vive en `../FitFlow-ai` y consume estos archivos mediante ports. El
+adapter OpenCode no puede reducir gates ni introducir secretos.
+
+Todo run nuevo usa v2. Los schemas v1 permanecen para historial.

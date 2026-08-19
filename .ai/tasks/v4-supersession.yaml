@@ -1,0 +1,18 @@
+schema_version: fitflow-task-supersession/v1
+baseline: fitflow-ai/vnext-5.0
+recorded_at: "2026-08-18T00:00:00-03:00"
+reason: "El paradigma vNext reemplaza el backlog v4; las tareas canceladas no deben ejecutarse como contratos activos."
+entries:
+  - {task_id: FF-AI-000, status: superseded, superseded_by: FF-AI-VNEXT-002}
+  - {task_id: FF-AI-001, status: superseded, superseded_by: FF-AI-VNEXT-006}
+  - {task_id: FF-AI-002, status: superseded, superseded_by: FF-AI-VNEXT-006}
+  - {task_id: FF-AI-003, status: superseded, superseded_by: FF-AI-VNEXT-011}
+  - {task_id: FF-AI-004, status: superseded, superseded_by: FF-AI-VNEXT-011}
+  - {task_id: FF-AI-005, status: superseded, superseded_by: FF-AI-VNEXT-008}
+  - {task_id: FF-AI-006, status: superseded, superseded_by: FF-AI-VNEXT-010}
+  - {task_id: FF-AI-007, status: superseded, superseded_by: FF-AI-VNEXT-012}
+  - {task_id: FF-AI-008, status: superseded, superseded_by: FF-AI-VNEXT-009}
+  - {task_id: FF-AI-009, status: superseded, superseded_by: FF-AI-VNEXT-004}
+  - {task_id: FF-AI-010, status: superseded, superseded_by: FF-AI-VNEXT-010}
+  - {task_id: FF-AI-011, status: superseded, superseded_by: FF-AI-VNEXT-007}
+  - {task_id: FF-AI-012, status: superseded, superseded_by: FF-AI-VNEXT-004}

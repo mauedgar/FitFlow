@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Activar tu entorno virtual de Python automáticamente
+source scripts/venv_tools/bin/activate
+
+# Ejecutar tu skill personalizada de FitFlow pasando el mensaje del commit
+python scripts/tools/validate_contract.py "$1"
+
+# Guardar el resultado del script de Python
+RESULT=$?
+
+# Desactivar el entorno virtual
+deactivate
+
+# Retornar el resultado a Git (si es 1, bloquea el commit)
+exit $RESULT

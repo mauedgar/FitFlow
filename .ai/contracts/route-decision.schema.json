@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/route-decision.schema.json",
+  "title": "RouteDecision v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "created_at", "baseline", "selected_role", "capability_class", "scope", "reasoning", "context_strategy", "confidence", "reason", "next_state"],
+  "properties": {
+    "artifact": {"const": "ROUTE_DECISION"},
+    "schema_version": {"const": "fitflow-route-decision/v2"},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "baseline": {"$ref": "common.schema.json#/$defs/baseline"},
+    "selected_role": {"enum": ["explorer", "coder_b", "coder_a", "coder_strong_a", "reviewer", "architect", "doc_curator", "developer"]},
+    "capability_class": {"enum": ["deterministic", "local", "light", "standard", "strong", "specialized"]},
+    "scope": {"enum": ["backend", "frontend", "mixed", "docs_tooling"]},
+    "reasoning": {"enum": ["none", "low", "medium", "high"]},
+    "context_strategy": {"enum": ["none", "reduced", "drill_down", "expanded", "reduced_then_expand"]},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "reason": {"type": "string", "minLength": 1},
+    "rules_matched": {"type": "array", "items": {"type": "string"}},
+    "llm_fallback_used": {"type": "boolean"},
+    "model_requirements": {"type": "array", "items": {"type": "string"}},
+    "escalation_role": {"type": ["string", "null"]},
+    "next_state": {"enum": ["EXPLORING", "EXECUTING", "WAITING_DEVELOPER", "BLOCKED", "BLOCKED_HIGH_RISK"]}
+  }
+}

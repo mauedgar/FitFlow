@@ -1,69 +1,48 @@
 ---
 document_id: FF-AI-OPENCODE-001
-status: canonical
+status: accepted_pending_implementation
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
-# Guía de operación con OpenCode
+# Contrato del adapter OpenCode
 
-## Contrato de integración
+## Frontera
 
-OpenCode es la superficie de ejecución. Los nombres concretos de providers,
-modelos, herramientas y archivos propios se resuelven en un adaptador. El
-adaptador consume estos artefactos neutrales:
+OpenCode CLI/headless es la superficie operativa primaria. Desktop queda como
+interfaz manual del desarrollador y no forma parte del contrato automatizado.
+AI Core depende de `AgentRuntimePort`; configuracion, permisos y nombres propios
+de OpenCode no se filtran a los contratos de dominio del workflow.
 
-- `.ai/config/orchestrator.yaml`;
-- `.ai/config/models.yaml`;
-- `.ai/prompts/*.prompt.md`;
-- `.ai/contracts/*.schema.json`;
-- `.ai/tasks/<ID>/TASK.md`.
+## Responsabilidades
 
-No duplicar reglas en configuración propietaria. Si OpenCode exige otro
-formato, generarlo desde estos archivos y registrar versión/hash del adaptador.
+1. Detectar version y capacidades reales.
+2. Mapear roles, skills, modelos y permisos desde registries v2.
+3. Restringir tools y paths por rol.
+4. Validar input/output contra schemas v2.
+5. Registrar runtime ID, provider, pool, tokens y errores.
+6. Respetar abort, timeout, retries y high-risk block.
 
-## Entrada mínima de ejecución
+La implementacion puede usar `opencode run --format json` o adjuntarse a una
+instancia local de `opencode serve`. No automatiza la UI Desktop.
 
-```yaml
-task_id: FF-000
-stage: PLAN
-scope: backend
-risk: medium
-baseline_revision: <git-sha-or-NO_COMMIT>
-working_tree_fingerprint: <sha256>
-ownership_keys:
-  - path:backend/app/services/example.py
-required_docs:
-  - docs/architecture.md
-  - docs/quality-and-validation.md
-```
+## Conformance gates
 
-## Salida mínima
+- no puede emitir `DONE`;
+- no puede instalar dependencias, hacer commit/push/merge ni escribir fuera de
+  ownership;
+- rechaza output invalido o modelo no elegible;
+- conserva actor `developer` en gates y decisiones;
+- permite reviewer independiente;
+- no convierte una sesion de chat en fuente de verdad.
 
-Cada subagente devuelve un bloque serializable con:
+## Estado verificado
 
-- `task_id`, `run_id`, `role`, `stage`;
-- `status` y `next_state`;
-- `evidence` con rutas/rangos/hash;
-- `artifacts_written`;
-- `validation` o `context_request` según corresponda;
-- `model` y `reasoning_level` efectivos;
-- `assumptions` explícitas, idealmente vacías.
+La CLI `opencode 1.18.18` esta disponible. Discovery enumero modelos LM Studio
+con runtime IDs concretos; el smoke de inferencia y la conformance suite del
+adapter permanecen pending.
 
-## Reglas del adaptador
-
-1. Validar input/output contra schema.
-2. Rechazar transición no permitida.
-3. Bloquear `risk: high` antes de invocar un Coder.
-4. Verificar ownership lock antes de escribir.
-5. Limitar herramientas y rutas por rol/scope.
-6. Registrar el modelo realmente usado, incluidos fallbacks.
-7. No conceder commit, push, merge, secretos o instalación de dependencias.
-8. Finalizar en `PENDING_ACCEPTANCE`, nunca `DONE`.
-
-## Fallback
-
-Si una capacidad de OpenCode no está disponible, la tarea pasa a `BLOCKED` o
-se ejecuta manualmente usando los mismos contratos. No se reduce un gate para
-mantener el flujo en movimiento.
+GitHub Copilot queda deferred. No existe acceso programatico autorizado: si se
+usa, el desarrollador actua como intermediario y transmite la orden fuera de
+AI Core. Copilot no pertenece a los pools elegibles del Model Resolver.

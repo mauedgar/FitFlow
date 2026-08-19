@@ -1,0 +1,37 @@
+schema_version: fitflow-skill-registry/v2
+skills:
+  repo_packager:
+    status: adopted_with_gaps
+    source: .agents/skills/repo-packager
+    deterministic: true
+    allowed_roles: [explorer, reviewer]
+    permissions: [read_repository, write_temp_output]
+    contract: ContextRequest_to_ContextPackageResult
+    known_gaps: [windows_utf8, env_exclusion, glob_matching, repomixignore_loading, scoped_selection]
+  ripgrep:
+    status: adopted
+    source: system
+    deterministic: true
+    allowed_roles: [explorer, reviewer, coder_a, coder_b]
+  lsp:
+    status: adopted_when_runtime_available
+    source: runtime
+    deterministic: true
+    allowed_roles: [explorer, reviewer, coder_a]
+  playwright_cli:
+    status: adopted_when_applicable
+    source: project_tooling
+    deterministic: true
+    allowed_roles: [validator]
+evaluations:
+  - import_linter
+  - ts_arch
+  - adapted_code_review_skill
+future:
+  - semantic_retrieval
+  - promptfoo
+  - mcp_read_only
+rejected:
+  - workflow_sdk
+  - effect_ts
+  - agent_skill_mega_packs

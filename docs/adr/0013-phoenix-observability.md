@@ -1,12 +1,13 @@
 ---
 document_id: FF-ADR-0013
-status: accepted_pending_implementation
+status: superseded
 machine_context: true
+superseded_by: FF-ADR-0017
 ---
 
 # ADR 0013: Phoenix como observabilidad inicial
 
-- **Estado:** Accepted / Pending Implementation
+- **Estado:** Superseded por ADR 0017
 - **Fecha:** 2026-08-16
 
 ## Contexto

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/run-result.schema.json",
+  "title": "RunResult v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "created_at", "baseline", "status", "current_state", "acceptance_criteria", "artifacts", "risks", "developer_decisions_required"],
+  "properties": {
+    "artifact": {"const": "RUN_RESULT"},
+    "schema_version": {"const": "fitflow-run-result/v2"},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "baseline": {"$ref": "common.schema.json#/$defs/baseline"},
+    "status": {"enum": ["COMPLETED", "PARTIAL", "BLOCKED", "CANCELLED"]},
+    "current_state": {"$ref": "common.schema.json#/$defs/state"},
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "evidence"],
+        "properties": {
+          "id": {"type": "string"},
+          "status": {"$ref": "common.schema.json#/$defs/normalizedStatus"},
+          "evidence": {"type": "string"}
+        }
+      }
+    },
+    "artifacts": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/artifactRef"}},
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "developer_decisions_required": {"type": "array", "items": {"type": "string"}},
+    "finops_summary_ref": {"anyOf": [{"$ref": "common.schema.json#/$defs/artifactRef"}, {"type": "null"}]}
+  }
+}

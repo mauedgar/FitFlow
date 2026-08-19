@@ -1,4 +1,11 @@
-# Codex - Guia de integracion con FitFlow
+---
+document_id: FF-AI-LEGACY-CODEX-GUIDE
+status: superseded
+machine_context: false
+superseded_by: FF-ADR-0014
+---
+
+# Codex - Guia de integracion con FitFlow (historico)
 
 **Estado:** Baseline de configuracion; la configuracion concreta se valida en una sesion separada.
 

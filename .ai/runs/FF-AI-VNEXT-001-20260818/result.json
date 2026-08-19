@@ -1,0 +1,65 @@
+{
+  "artifact": "RUN_RESULT",
+  "schema_version": "fitflow-run-result/v2",
+  "task_id": "FF-AI-VNEXT-001",
+  "run_id": "FF-AI-VNEXT-001-20260818",
+  "created_at": "2026-08-18T15:49:54-03:00",
+  "baseline": {
+    "revision": "3f3021b2cf26c5839feb428a50b59e1116f283a0",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El arbol ya contenia cambios previos y no se capturo un fingerprint antes de iniciar la migracion."
+  },
+  "status": "COMPLETED",
+  "current_state": "PENDING_ACCEPTANCE",
+  "acceptance_criteria": [
+    {"id": "AC-1", "status": "PASS", "evidence": "docs/MIGRATION.md and ADR 0014-0017"},
+    {"id": "AC-2", "status": "PASS", "evidence": ".ai/local/validate_vnext.py"},
+    {"id": "AC-3", "status": "PASS", "evidence": ".ai/backlog/vnext.yaml and .ai/tasks/v4-supersession.yaml"},
+    {"id": "AC-4", "status": "PASS", "evidence": "FitFlow-ai README and docs"},
+    {"id": "AC-5", "status": "PASS", "evidence": "DOCX structural and accessibility audits"},
+    {"id": "AC-6", "status": "PASS", "evidence": "exports/FitFlow_Baseline_vNext_5.0_2026-08-18-r1.zip and embedded MANIFEST.sha256"},
+    {"id": "AC-7", "status": "PASS", "evidence": "independent review round 3 PASS and normalized run artifacts"}
+  ],
+  "artifacts": [
+    {
+      "path": ".ai/runs/FF-AI-VNEXT-001-20260818/validation.json",
+      "hash": "sha256:1ac8e550c05cf84a0d5cb9131cf1d6530f7f78dcc5a6d9c15403b68208813de0",
+      "schema_version": "fitflow-validation-result/v2"
+    },
+    {
+      "path": ".ai/runs/FF-AI-VNEXT-001-20260818/review.json",
+      "hash": "sha256:f26fa8e8983c519f03c65299d898c4e4661c8e869244b25ca0d9c3622f3c41a1",
+      "schema_version": "fitflow-review-result/v2"
+    },
+    {
+      "path": ".ai/runs/FF-AI-VNEXT-001-20260818/doc-impact.json",
+      "hash": "sha256:73c9d2db01cb232efd7511daa27cbde7501896444c346fb5fa49ea80ef949ad2",
+      "schema_version": "fitflow-doc-impact/v2"
+    },
+    {
+      "path": "docs/archive/source-material/FitFlow_Baseline_vNext_Guia_para_Desarrolladores.docx",
+      "hash": "sha256:a876357380d12ca11c444ed6975467c41a0d9f2adf2a395d94a4e8ab38672b26",
+      "schema_version": null
+    },
+    {
+      "path": "docs/archive/source-material/FitFlow_Baseline_vNext_Registro_de_Decisiones.docx",
+      "hash": "sha256:6dc36fb2b187bb32f4cb0286a2cee52185609ab0cc83f2694e9ba192a8b2f128",
+      "schema_version": null
+    },
+    {
+      "path": "docs/archive/source-material/FitFlow_Arquitectura_Explicada_v4.docx",
+      "hash": "sha256:5e915272a1866c65642006d27d7934259060de53aee4b6e44eb5932043550e6a",
+      "schema_version": null
+    }
+  ],
+  "risks": [
+    "OpenCode CLI adapter still requires smoke and conformance before Agent MVP.",
+    "GitHub Copilot is deferred and cannot be invoked programmatically.",
+    "Four repo-packager exclusion tests remain failing and are assigned to FF-AI-VNEXT-006."
+  ],
+  "developer_decisions_required": [
+    "Aceptar o rechazar la baseline vNext 5.0 propuesta; solo una aceptacion explicita habilita DONE."
+  ],
+  "finops_summary_ref": null
+}

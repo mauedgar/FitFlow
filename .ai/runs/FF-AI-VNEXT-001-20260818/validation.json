@@ -1,0 +1,67 @@
+{
+  "artifact": "VALIDATION_RESULT",
+  "schema_version": "fitflow-validation-result/v2",
+  "task_id": "FF-AI-VNEXT-001",
+  "run_id": "FF-AI-VNEXT-001-20260818",
+  "created_at": "2026-08-18T15:49:54-03:00",
+  "baseline": {
+    "revision": "3f3021b2cf26c5839feb428a50b59e1116f283a0",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El arbol ya contenia cambios previos y no se capturo un fingerprint antes de iniciar la migracion."
+  },
+  "status": "PASS",
+  "gates": [
+    {
+      "gate_id": "vnext-contracts-config",
+      "command": "backend\\.venv_backend\\Scripts\\python.exe .ai\\local\\validate_vnext.py",
+      "cwd": "C:\\Proyectos Web\\FitFlow",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": 1700,
+      "summary": "14 schemas, 13 examples, negative guards, 12 YAML, task frontmatters and supersession map passed.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "docx-structure",
+      "command": "bundled-python .ai\\local\\vnext-docx\\verify_docs.py",
+      "cwd": "C:\\Proyectos Web\\FitFlow",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": 1500,
+      "summary": "Three DOCX files passed OOXML, page geometry and table geometry checks.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "docx-accessibility",
+      "command": "bundled-python documents\\scripts\\a11y_audit.py <three-docx-files>",
+      "cwd": "C:\\Proyectos Web\\FitFlow",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": 900,
+      "summary": "Each DOCX reported zero high, medium and low findings.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "repomix-smoke",
+      "command": "repomix --style json --compress -o .ai\\local\\vnext-repomix.json",
+      "cwd": "C:\\Proyectos Web\\FitFlow",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": 2418,
+      "summary": "Repomix 1.18.0 packed 325 files and excluded three suspicious files.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "docx-visual-render",
+      "command": "bundled-python documents\\render_docx.py <vnext.docx> --output_dir <local>",
+      "cwd": "C:\\Proyectos Web\\FitFlow",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": 13100,
+      "summary": "LibreOffice 26.2.5.2 rendered nine pages; all pages were visually inspected without clipping, overlap or split table rows.",
+      "output_artifact": null
+    }
+  ],
+  "next_state": "REVIEWING"
+}

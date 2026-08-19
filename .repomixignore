@@ -47,6 +47,13 @@ logs/
 tmp/
 temp/
 .cache/
+.context/
+.ai/local/
+.ai/runs/
+storage/
+exports/
+qdrant_storage/
+.repo-packager-cache/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -54,6 +61,25 @@ temp/
 # OS
 .DS_Store
 Thumbs.db
+
+# Non-machine documentation and generated bundles
+docs/archive/
+docs/formal/
+docs/directorios/
+docs/ai/development-pipelines.md
+docs/ai/indexer-pipeline.md
+docs/ai/codex-operating-guide.md
+docs/ai/mcp-future.md
+.ai/tasks/
+.ai/backlog/
+**/repomix-output.*
+**/out.txt
+TREE.txt
+**/.repo_map_structure.json
+**/.repo-map-cache.db
+scripts/superseeded/
+frontend/public/**/*.svg
+frontend/src/assets/react.svg
 
 internos/
 historico/

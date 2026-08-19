@@ -3,7 +3,8 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-002
 title: Implementar índice estructural con Repomix/repo-packager
-status: BACKLOG
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-006
 task_type: tooling
 scope: mixed
 lane: ai_orchestrated
@@ -17,8 +18,8 @@ run_id: NOT_STARTED
 depends_on: [FF-AI-000, FF-AI-001]
 ownership_keys:
   - path:FitFlow-ai/src/structure
-   - config:repomix-profiles
-   - note: Tree-sitter reemplazado por Repomix/repo-packager; fallback a xml_generator
+  - config:repomix-profiles
+  - note: Tree-sitter reemplazado por Repomix/repo-packager; fallback a xml_generator
 required_docs:
   - docs/ai/indexing-pipeline.md
   - docs/ai/context-artifacts.md

@@ -3,7 +3,8 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-012
 title: Implementar locks de ownership y paralelismo seguro
-status: BACKLOG
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-004
 task_type: tooling
 scope: mixed
 lane: ai_orchestrated

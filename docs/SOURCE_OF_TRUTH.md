@@ -2,64 +2,75 @@
 document_id: FF-SOT-001
 status: canonical
 machine_context: true
-version: 4.0
-updated: 2026-08-16
+version: 5.0
+updated: 2026-08-18
 ---
 
 # Source of Truth de FitFlow
 
-## Propósito
+## Proposito
 
-Resolver contradicciones y evitar que un resumen generado adquiera autoridad
-sobre el sistema real.
+Resolver contradicciones sin permitir que un resumen, un indice, un run o una
+integracion externa adquieran autoridad sobre el sistema real.
 
 ## Capas de autoridad
 
 | Orden | Capa | Autoridad |
 | --- | --- | --- |
-| 0 | realidad ejecutable | código, tests, configuración, modelos, migraciones y estado reproducible |
-| 1 | doctrina canónica | arquitectura, dominio, estado, calidad, roadmap, proceso y ADR aceptados |
-| 2 | registros operativos | TASK, PLAN, STATUS, IMPLEMENTATION, REVIEW, VALIDATION y RESULT |
-| 3 | contexto derivado | inventarios, XML estructural, Repomix, embeddings, Qdrant y caches |
-| 4 | material humano/histórico | `docs/archive/` |
+| 0 | realidad ejecutable | codigo, tests, configuracion, migraciones y estado reproducible |
+| 1 | doctrina canonica | arquitectura, dominio, estado, calidad, proceso y ADR aceptados |
+| 2 | control operativo | GitHub Project, Issues, PR, commits y resultados de Actions |
+| 3 | artefactos de run | TASK espejo, route, context, execution, validation, review, doc impact y result |
+| 4 | contexto derivado | inventarios, grafos, Repomix, repo-packager, embeddings, indices y caches |
+| 5 | archivo | `docs/archive/`, informes fuente y material reemplazado |
 
-Los tests solo prueban el comportamiento cubierto. Una decisión aceptada pero
+Los tests solo prueban el comportamiento cubierto. Una decision aceptada pero
 no implementada pertenece a doctrina, no a realidad ejecutable.
 
-## Fuentes derivadas autorizadas
+## Autoridad operacional unica
 
-Para seleccionar contexto se autorizan:
+Cuando existe GitHub Issue sincronizada, la Issue es la TASK principal y
+`.ai/tasks/<task_id>/TASK.md` es su espejo local. En ejecuciones locales sin
+sincronizacion habilitada, el TASK aprobado es temporalmente la fuente
+operativa. Nunca se editan ambas superficies como fuentes independientes.
 
-1. inventario de directorios del scope;
-2. XML fechado de clases y relaciones;
-3. bundle Repomix acotado;
-4. recuperación vectorial mediante LlamaIndex/Qdrant;
-5. búsqueda y lectura directa en el repositorio.
+Los JSON aceptados de `.ai/runs/<run_id>/` son la evidencia durable del run.
+SQLite bajo `.ai/local/` es una proyeccion operacional regenerable. Comentarios,
+checks y artifacts de GitHub son visualizacion o transporte, no una segunda
+fuente con igual autoridad.
 
-Todo artefacto derivado debe incluir revisión base o fingerprint, fecha,
-generador, exclusiones y hash. Si no coincide con el working tree, es `STALE`.
+## Contexto derivado
+
+Se autorizan paquetes `reduced`, `drill-down` y `expanded` generados por
+`repo-packager`, snapshots Repomix, inventarios, grafos y retrieval evaluado.
+Todo artefacto declara baseline o fingerprint, generador, exclusiones y hash.
+Si no coincide con el working tree, es `STALE`.
+
+Explorer decide que evidencia necesita. El empaquetador no decide suficiencia,
+no amplia paths por cuenta propia y devuelve `PARTIAL` con omitted paths cuando
+no puede cumplir la solicitud completa.
 
 ## Conflicto
 
-1. Identificar fuentes y revisiones.
-2. Verificar el código y el alcance real de los tests.
-3. Clasificar la contradicción: estado, intención, doctrina o artefacto obsoleto.
-4. Registrar `DECISION_REQUEST.md` si cambia una decisión durable.
-5. Bloquear la edición cuando resolverla ampliaría scope o riesgo.
-6. Promover el resultado aceptado a docs/ADR mediante una tarea separada o un
-   criterio explícito de la tarea actual.
+1. Identificar fuentes, revisiones y ownership.
+2. Verificar codigo y alcance real de tests.
+3. Clasificar la contradiccion: estado, intencion, doctrina o artefacto stale.
+4. Registrar `DecisionRequest` si cambia una decision durable.
+5. Bloquear cuando resolverla amplie scope o riesgo.
+6. Promover conocimiento durable solo mediante `DocImpact`, review y aceptacion
+   del desarrollador.
 
 ## Estados documentales
 
 - `canonical`: gobierna el presente.
-- `accepted_pending_implementation`: decisión aprobada no confirmada en código.
-- `planned`: dirección futura.
+- `accepted_pending_implementation`: decision aprobada no confirmada en codigo.
+- `planned`: direccion futura no comprometida.
 - `review_required`: evidencia incompleta o contradictoria.
 - `historical`: trazabilidad sin autoridad.
 - `superseded`: reemplazado por un documento identificado.
 
-## Promoción
+## OpenSpec
 
-Solo promover a doctrina cambios durables de comportamiento, invariantes,
-fronteras, calidad, proceso o roadmap. Logs, razonamiento interno, resultados de
-búsqueda y texto explicativo no se promueven.
+OpenSpec puede gobernar especificaciones y deltas funcionales cuando se adopte
+para un bounded context. No gobierna el workflow, el estado del run, la
+prioridad operativa ni la evidencia de implementacion.

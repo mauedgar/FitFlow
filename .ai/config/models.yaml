@@ -1,63 +1,70 @@
-schema_version: fitflow-model-routing/v1
-selection_policy: cheapest_evaluated_candidate_that_meets_role
-record_effective_model: true
-candidates:
-  cloud_reasoner:
-    provider_class: [openai_gpt, grok]
-    model_id_from_env: FFAI_REASONER_MODEL
-    locality: cloud
-  cloud_coder:
-    provider_class: [openai_gpt, copilot, grok]
-    model_id_from_env: FFAI_CODER_MODEL
-    locality: cloud
-  cloud_light:
-    provider_class: [openai_gpt, copilot, grok]
-    model_id_from_env: FFAI_LIGHT_MODEL
-    locality: cloud
-  qwen_coder_7b:
-    provider_class: local
-    model_id: Qwen2.5-Coder-7B
-    locality: local
-  qwen_coder_3b:
-    provider_class: local
-    model_id: Qwen2.5-Coder-3B
-    locality: local
-  deepseek_r1_8b:
-    provider_class: local
-    model_id: DeepSeek-R1-8B
-    locality: local
-  fastcontext:
-    provider_class: local_tool
-    model_id: FastContext
-    locality: local
-routes:
-  planner_audit:
-    reasoning: high
-    primary: cloud_reasoner
-    allowed_fallbacks: []
-  explorer:
-    reasoning: medium
-    primary: cloud_light
-    candidates: [fastcontext, qwen_coder_7b]
-  coder_a:
-    reasoning: medium
-    primary: cloud_coder
-    candidates: [qwen_coder_7b]
-  coder_b:
-    reasoning: low
-    primary: qwen_coder_3b
-    candidates: [cloud_light]
-  reviewer:
-    reasoning: high
-    primary: cloud_reasoner
-    candidates: [deepseek_r1_8b]
-    require_independent_execution: true
-  validator:
-    reasoning: low
-    primary: deterministic_tools
-    diagnosis_candidate: cloud_light
-promotion:
-  required: true
-  dimensions: [role, task_type, risk]
-  evidence: [fixture_pass_rate, review_rework_rate, critical_violations, latency, cost]
-  high_risk_allowed: false
+schema_version: fitflow-model-registry/v2
+selection_policy: sufficient_capability_lowest_expected_total_cost
+record_effective_runtime_id: true
+unknown_runtime_policy: experimental_only
+entries:
+  fastcontext_local_candidate:
+    provider: local
+    runtime_id: lmstudio/fastcontext-1.0-4b-rl
+    display_name: FastContext 1.0 4B-R1
+    availability: discovered_local
+    trust: experimental
+    quota_pool: local
+    capabilities: [exploration]
+    criticality_ceiling: low
+    preferred_roles: [explorer]
+    benchmark_status: untested
+    last_verified: 2026-08-18
+  qwen25_coder_7b_candidate:
+    provider: local
+    runtime_id: lmstudio/qwen2.5-coder-7b-instruct
+    display_name: Qwen2.5-Coder 7B Instruct
+    availability: discovered_local
+    trust: experimental
+    quota_pool: local
+    capabilities: [coding]
+    criticality_ceiling: low
+    preferred_roles: [coder_b, coder_a]
+    benchmark_status: untested
+    last_verified: 2026-08-18
+  qwen25_coder_3b_candidate:
+    provider: local
+    runtime_id: lmstudio/qwen2.5-coder-3b-instruct
+    display_name: Qwen2.5-Coder 3B Instruct
+    availability: discovered_local
+    trust: experimental
+    quota_pool: local
+    capabilities: [coding, classification]
+    criticality_ceiling: low
+    preferred_roles: [coder_b]
+    benchmark_status: untested
+    last_verified: 2026-08-18
+  deepseek_r1_8b_candidate:
+    provider: local
+    runtime_id: lmstudio/deepseek/deepseek-r1-0528-qwen3-8b
+    display_name: DeepSeek R1 0528 Qwen3 8B
+    availability: discovered_local
+    trust: experimental
+    quota_pool: local
+    capabilities: [reasoning, review]
+    criticality_ceiling: low
+    preferred_roles: [reviewer]
+    benchmark_status: untested
+    last_verified: 2026-08-18
+dynamic_sources:
+  - adapter: opencode
+    surface: cli_headless
+    version: 1.18.18
+    status: cli_available_conformance_pending
+    allowed_pools: [zen_included, openrouter_free, cloud_included]
+deferred_sources:
+  github_copilot:
+    status: deferred
+    access_mode: developer_intermediated
+    programmatic_access: false
+    reason: "El desarrollador transmite ordenes manualmente; AI Core no invoca Copilot."
+prohibited:
+  - paid_without_explicit_developer_decision
+  - unknown_model_for_final_review
+  - unbenchmarked_model_above_low_criticality
+  - programmatic_github_copilot

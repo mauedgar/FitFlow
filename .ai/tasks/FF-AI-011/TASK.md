@@ -3,7 +3,8 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-011
 title: Afinar matriz de modelos por métricas
-status: BACKLOG
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-007
 task_type: audit
 scope: docs_tooling
 lane: mixed

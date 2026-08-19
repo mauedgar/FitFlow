@@ -2,65 +2,49 @@
 document_id: FF-AI-CONTEXT-001
 status: canonical
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
 # Estrategia de contexto
 
 ## Objetivo
 
-Entregar al Coder el conjunto mínimo suficiente, trazable y actualizado para
-resolver una tarea sin repetir la exploración.
+Entregar evidencia minima suficiente, fresca y trazable sin convertir el
+empaquetado o retrieval en autoridad.
 
-## Capas
+## Responsabilidades
 
-| Nivel | Contenido | Regla |
+- el rol consumidor declara su necesidad;
+- Explorer formula `ContextRequest` y decide suficiencia;
+- `repo-packager` ejecuta un modo y devuelve resultado;
+- Run State conserva lineage, destinatario, tokens y expansiones;
+- Coder y Reviewer abren la fuente real antes de decidir.
+
+## Modos
+
+| Modo | Salida | Uso |
 | --- | --- | --- |
-| L0 | TASK y pregunta concreta | siempre |
-| L1 | AGENTS + source of truth | siempre, compacto |
-| L2 | docs/ADR relevantes | allowlist de TASK |
-| L3 | inventario, XML, Repomix y retrieval | Explorer selecciona |
-| L4 | lecturas directas de código/tests | evidencia final |
-| L5 | diff + validación | review/cierre |
+| `reduced` | mapa PageRank, firmas, candidatos y scores | overview |
+| `drill_down` | mapa centrado en una zona | comprender modulo |
+| `expanded` | codigo real de paths explicitos | implementar/revisar |
 
-No incluir material humano, transcripts, archivos “por si acaso” ni resultados
-sin baseline.
+Explorer puede pedir cualquier modo directamente. `expanded` no trunca en
+silencio: devuelve `PARTIAL` y `omitted_paths` o `TOO_MANY_PATHS`.
 
-## Presupuesto inicial
+## Presupuesto
 
-| Scope | Máximo de contexto entregado al Coder |
-| --- | ---: |
-| backend | 8.000 tokens |
-| frontend | 8.000 tokens |
-| mixed | 12.000 tokens |
-| docs/tooling | 4.000 tokens |
+Los valores de `.ai/config/scopes.yaml` son limites iniciales, no objetivos
+de consumo. Cada entrega registra tokens estimados, hash, paths y destinatario.
+Un override requiere motivo y queda en Run State.
 
-Un override requiere causa, nuevo máximo y registro en el Context Package. Los
-valores se afinan con Phoenix y evaluaciones.
+## Perfiles por consumidor
 
-## Proceso del Explorer
+Tests pueden omitirse en `reduced:implementation`, pero no por regla global.
+Explorer selecciona `implementation`, `review`, `test` o un perfil explicito.
 
-1. Verificar scope, baseline y pregunta.
-2. Leer inventario de directorios apropiado.
-3. Consultar XML estructural y/o Repomix si está disponible.
-4. Ejecutar búsqueda textual, Repomix o vectorial con filtros.
-5. Leer directamente candidatos antes de citarlos.
-6. Deduplicar y ordenar por necesidad.
-7. Emitir Context Package validado.
+## Frescura
 
-## Orden de evidencia
-
-Preferir definición, callers/callees, tests, configuración/contrato y doctrina
-específica. Cada evidencia incluye `path`, rango, símbolo, hash, razón y fuente.
-
-## Staleness
-
-Si `baseline_revision` o `working_tree_fingerprint` difiere, el package es
-`STALE` y no llega al Coder. Si un resultado vectorial apunta a un rango
-inexistente, se descarta y se abre hallazgo de índice.
-
-## Reintentos
-
-Máximo dos solicitudes de contexto por ejecución. La tercera discrepancia
-vuelve al Planner para recortar o reformular la tarea.
+Un cambio de baseline o fingerprint invalida el package. La revalidacion puede
+usar delta de paths; si la evidencia afectada no puede determinarse, regenerar.
+Embeddings e indices solo producen candidatos y permanecen feature-flagged.

@@ -3,7 +3,8 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-006
 title: Implementar evaluación de prompts y modelos
-status: BACKLOG
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-010
 task_type: test
 scope: docs_tooling
 lane: ai_orchestrated

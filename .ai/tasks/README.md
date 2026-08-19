@@ -1,13 +1,19 @@
 # Tasks
 
-Solo crear una carpeta de task cuando aporta trazabilidad real.
-
-Convencion al tener Jira activo:
+Convencion:
 
 ```text
-.ai/tasks/<JIRA-KEY>/
+.ai/tasks/<TASK-ID>/
 ```
 
-Hasta confirmar el project key de Jira, las dos tasks iniciales usan IDs locales provisionales. Al migrarlas a Jira, renombrar la carpeta y actualizar `id` sin duplicar la task.
+Cuando existe GitHub Issue sincronizada, la Issue es la TASK principal y el
+archivo local es un espejo validable. Sin adapter disponible, un TASK local
+aprobado puede gobernar un run offline; debe registrar `github_issue: null`.
 
-Una task simple puede contener solo `TASK.md` y `RESULT.md`. No crear PLAN/STATUS/NOTES por obligacion.
+Una task simple puede omitir artefactos no aplicables, pero toda ejecucion
+produce `REVIEW.md`, `VALIDATION.md` y `RESULT.md`. Los JSON del run se guardan
+en `.ai/runs/<run_id>/`.
+
+`FF-AI-000` a `FF-AI-012` son backlog v4 superseded. El roadmap activo esta en
+`docs/ai/roadmap-vnext.md`; el reemplazo machine-readable se registra en
+`.ai/tasks/v4-supersession.yaml`.

@@ -2,8 +2,8 @@
 document_id: FF-QUALITY-001
 status: canonical
 machine_context: true
-version: 4.0
-updated: 2026-08-16
+version: 5.0
+updated: 2026-08-18
 ---
 
 # Calidad y validación
@@ -48,7 +48,7 @@ Los wrappers usan exclusivamente Compose `fitflow-test` y la base
 | CRUD/DB | integración, atomicidad, rollback y concurrencia si aplica |
 | router | API, auth, status y mapeo de errores |
 | frontend | contrato backend, estados UI/cache y test disponible |
-| migración | upgrade/downgrade seguro en DB de test y revisión humana |
+| migracion | upgrade/downgrade seguro en DB de test y revision del desarrollador |
 
 Todo cambio de código incluye, según alcance: targeted tests, suite amplia por
 riesgo, Ruff, Pyright, Alembic/OpenAPI y revisión del diff.
@@ -72,7 +72,7 @@ No convertir `NOT_RUN` o `UNAVAILABLE` en `PASS` por inferencia.
 
 Cambios en auth, permisos, transacciones críticas, migraciones destructivas,
 secretos, dependencias base o fronteras arquitectónicas son `high` hasta que una
-persona recorte y reclasifique el alcance.
+desarrollador recorte y reclasifique el alcance.
 
 ## Independencia
 

@@ -3,7 +3,8 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-010
 title: Instrumentar Phoenix y correlación de runs
-status: BACKLOG
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-010
 task_type: tooling
 scope: docs_tooling
 lane: ai_orchestrated

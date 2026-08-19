@@ -1,47 +1,33 @@
 ---
-artifact: RESULT
-schema_version: fitflow-result/v1
+artifact: RUN_RESULT
+schema_version: fitflow-run-result/v2
 task_id: "<TASK-ID>"
-status: PENDING_ACCEPTANCE
-created_at: "<ISO-8601>"
-baseline_revision: "<revision>"
-working_tree_fingerprint: "sha256:<hash>"
-author_role: orchestrator
 run_id: "<run-id>"
+created_at: "<ISO-8601>"
+status: COMPLETED
+current_state: PENDING_ACCEPTANCE
 ---
 
 # Resultado
 
-<Qué se logró o por qué no se logró.>
+<Resultado observable.>
 
-## Archivos
+## Criterios
 
-- `<path>` — <cambio>.
-
-## Evidencia
-
-| Fuente | Estado | Referencia |
+| ID | Estado | Evidencia |
 | --- | --- | --- |
-| review | PASS | REVIEW.md |
-| validation | PASS | VALIDATION.md |
+| AC-1 | PASS | `<referencia>` |
 
-## Criterios de aceptación
+## Artefactos
 
-| Criterio | Estado |
-| --- | --- |
-| AC-1 | PASS/FAIL |
+- `<path>`
 
-## Riesgos y deuda
+## Riesgos y decisiones
 
-- `none` o <riesgo/follow-up>.
+- `none`
 
-## Impacto documental
-
-- `none` o <documento + cambio propuesto>.
-
-## Aceptación humana requerida
+## Aceptacion del desarrollador
 
 - revisar diff y evidencia;
-- integrar mediante Git;
-- promover índice/docs si corresponde;
-- marcar `DONE` o devolver al estado indicado.
+- aceptar o devolver al estado indicado;
+- integrar por Git y promover a `DONE`.

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fitflow.local/schemas/v2/execution-result.schema.json",
+  "title": "ExecutionResult v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifact", "schema_version", "task_id", "run_id", "created_at", "baseline", "executor_role", "status", "files_changed", "self_check", "next_state"],
+  "properties": {
+    "artifact": {"const": "EXECUTION_RESULT"},
+    "schema_version": {"const": "fitflow-execution-result/v2"},
+    "task_id": {"$ref": "common.schema.json#/$defs/taskId"},
+    "run_id": {"$ref": "common.schema.json#/$defs/runId"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "baseline": {"$ref": "common.schema.json#/$defs/baseline"},
+    "executor_role": {"enum": ["coder_b", "coder_a", "coder_strong_a", "developer"]},
+    "status": {"enum": ["COMPLETED", "PARTIAL", "FAILED", "BLOCKED"]},
+    "files_changed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "change", "purpose"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "change": {"enum": ["added", "modified", "deleted", "renamed"]},
+          "purpose": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "tests_added": {"type": "array", "items": {"type": "string"}},
+    "self_check": {"type": "array", "items": {"type": "string"}},
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "next_state": {"enum": ["VALIDATING", "ROUTING", "EXPLORING", "PLANNING", "BLOCKED", "BLOCKED_HIGH_RISK"]}
+  }
+}

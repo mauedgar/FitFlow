@@ -1,40 +1,28 @@
 ---
-artifact: REVIEW
-schema_version: fitflow-review/v1
+artifact: REVIEW_RESULT
+schema_version: fitflow-review-result/v2
 task_id: "<TASK-ID>"
-status: PASS
-decision: PASS
+run_id: "<run-id>"
 created_at: "<ISO-8601>"
-baseline_revision: "<revision>"
-working_tree_fingerprint: "sha256:<hash>"
-author_role: reviewer
-run_id: "<review-run-id>"
-reviewed_run_id: "<coder-run-id>"
-independent_execution: true
+reviewer_role: reviewer
+independent: true
+verdict: PASS
+next_state: DOC_SYNC
 ---
 
 # Veredicto
 
-`PASS|REQUEST_CONTEXT|REQUEST_CHANGES|REPLAN|BLOCKED`
-
-## Criterios
-
-| Criterio | Estado | Evidencia |
-| --- | --- | --- |
-| AC-1 | PASS/FAIL | `<path/range>` |
+`PASS|FAIL|REPLAN|BLOCKED`
 
 ## Hallazgos
 
-| ID | Severidad | Ruta/rango | Hallazgo | Acción |
-| --- | --- | --- | --- | --- |
-| R-1 | minor | `<path:line>` | <hecho> | <acción> |
+| Severidad | Ruta/linea | Hallazgo | Accion |
+| --- | --- | --- | --- |
+| note | `N/A` | `none` | `none` |
 
-## Scope y arquitectura
+## Evidencia revisada
 
-- scope: `PASS|FAIL`
-- architecture: `PASS|FAIL|N/A`
-- tests proposed: `SUFFICIENT|INSUFFICIENT`
-
-## Siguiente estado
-
-`VALIDATE|EXPLORE|EXECUTE|PLAN|BLOCKED`.
+- TASK y baseline;
+- diff y fuente real;
+- `ValidationResult`;
+- ownership y document impact.

@@ -2,80 +2,77 @@
 document_id: FF-PROCESS-LIFECYCLE-001
 status: canonical
 machine_context: true
-version: 2.0
-updated: 2026-08-16
+version: 3.0
+updated: 2026-08-18
 ---
 
 # Ciclo de tareas y reportes
 
-## Separación de responsabilidades
+## Separacion de responsabilidades
 
 | Sistema | Conserva |
 | --- | --- |
-| tracker | trabajo, prioridad, milestone y estado humano |
-| TASK | contrato técnico |
-| PLAN | estrategia y riesgos |
-| Context Package | evidencia seleccionada |
-| IMPLEMENTATION | cambios y self-check del Coder |
-| REVIEW | inspección independiente |
-| VALIDATION | comandos y resultados |
-| RESULT | consolidación para aceptación |
-| Git | diff, revisión e integración |
-| docs | conocimiento durable aceptado |
+| GitHub Project | prioridad y macroestado operativo |
+| GitHub Issue | TASK principal cuando esta sincronizada |
+| TASK local | espejo validable y fallback offline autorizado |
+| OpenSpec | especificacion/delta funcional, no workflow |
+| Run State | microestado, rutas, retries y gates |
+| artefactos de run | decisiones y evidencia estructurada |
+| Git/PR/Actions | diff, discusion, checks e integracion |
+| docs/ADR | conocimiento durable aceptado |
 
-## Estados
+## Estados internos
 
 ```text
-BACKLOG -> READY -> PLAN -> EXPLORE -> EXECUTE -> REVIEW -> VALIDATE
-         -> PENDING_ACCEPTANCE -> DONE
+BACKLOG -> READY -> PLANNING -> ROUTING -> EXPLORING -> EXECUTING
+        -> VALIDATING -> REVIEWING -> DOC_SYNC -> PENDING_ACCEPTANCE
+        -> DONE
 ```
 
-Estados laterales: `BLOCKED`, `BLOCKED_HIGH_RISK`, `CANCELLED`.
+Estados laterales: `WAITING_DEVELOPER`, `BLOCKED`, `BLOCKED_HIGH_RISK` y
+`CANCELLED`.
 
-Transiciones de retorno:
+Rutas de retorno:
 
-- `REVIEW/VALIDATE -> EXPLORE`: falta contexto;
-- `REVIEW/VALIDATE -> EXECUTE`: defecto localizado;
-- cualquier estado activo `-> PLAN`: scope/doctrina/estrategia inválida;
-- `BLOCKED -> READY`: una persona confirma que desapareció el bloqueo.
+- evidencia insuficiente: `EXPLORING`;
+- implementacion o validacion fallida: `ROUTING`;
+- review fallido localizado: `ROUTING`;
+- scope, plan o doctrina invalidos: `PLANNING`;
+- decision requerida: `WAITING_DEVELOPER`;
+- solo el desarrollador: `PENDING_ACCEPTANCE -> DONE`.
 
-## Lanes
+## Macroestados GitHub
 
-- `human`;
+| Project | Estados internos |
+| --- | --- |
+| Backlog | `BACKLOG` |
+| Todo | `READY`, `PLANNING` |
+| In progress | `ROUTING`, `EXPLORING`, `EXECUTING` |
+| In review / testing | `VALIDATING`, `REVIEWING`, `DOC_SYNC` |
+| Done | `DONE` |
+
+## Lanes v2
+
+- `developer`;
 - `ai_orchestrated`;
 - `mixed`;
 - `undecided`.
 
-El rol/modelo efectivo vive en el run, no como lane del tracker.
+`human` es un valor historico v1 y se migra a `developer`. Rol, modelo y pool
+efectivos viven en el run, no en el tracker.
 
-## Proporcionalidad
+## Artefactos
 
-| Complejidad | Artefactos mínimos |
-| --- | --- |
-| trivial low | TASK + IMPLEMENTATION + VALIDATION + RESULT |
-| medium | TASK + PLAN + Context Package + IMPLEMENTATION + REVIEW + VALIDATION + RESULT |
-| larga | anteriores + STATUS e INDEX_RUN si aplica |
+Los TASK se guardan en `.ai/tasks/<task_id>/`. Los artefactos estructurados se
+guardan en `.ai/runs/<run_id>/` usando schemas v2. `REVIEW.md`, `VALIDATION.md`
+y `RESULT.md` son vistas para el desarrollador y deben conservar comando,
+alcance, salida y estado normalizado.
 
-## Directorio de tarea
+SQLite bajo `.ai/local/` permite checkpoints y consultas locales; no reemplaza
+los JSON durables del run.
 
-```text
-.ai/tasks/<TASK-ID>/
-  TASK.md
-  PLAN.md
-  CONTEXT_REQUEST.md
-  STATUS.md
-  IMPLEMENTATION.md
-  REVIEW.md
-  VALIDATION.md
-  RESULT.md
-  DECISION_REQUEST.md
-  INDEX_RUN.md
-```
+## Aceptacion
 
-Solo crear artefactos aplicables. No guardar transcripts extensos; usar
-`.ai/local/` para temporal no versionado.
-
-## Aceptación
-
-El Orchestrator puede finalizar `PENDING_ACCEPTANCE`. Una persona revisa diff,
-gates, riesgos y promoción documental; integra por Git y marca `DONE`.
+El workflow termina en `PENDING_ACCEPTANCE`. El desarrollador revisa diff,
+validacion, review, riesgo y `DocImpact`, integra mediante Git y promueve a
+`DONE`.

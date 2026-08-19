@@ -1,25 +1,29 @@
-schema_version: fitflow-scopes/v1
+schema_version: fitflow-scopes/v2
 scopes:
   backend:
     roots: [backend]
-    context_token_budget: 8000
-    directory_inventory: estructura_Directoriosbackend.txt
+    initial_context_token_ceiling: 8000
   frontend:
     roots: [frontend]
-    context_token_budget: 8000
-    directory_inventory: estructura_Directoriosfrontend.txt
+    initial_context_token_ceiling: 8000
   mixed:
     roots: [backend, frontend, docs]
-    context_token_budget: 12000
-    directory_inventory: estructura_Directoriostotal.txt
+    initial_context_token_ceiling: 12000
   docs_tooling:
-    roots: [docs, .ai]
-    context_token_budget: 4000
-    directory_inventory: estructura_Directoriostotal.txt
+    roots: [docs, .ai, .agents]
+    initial_context_token_ceiling: 6000
+consumer_profiles:
+  implementation:
+    include_tests: targeted
+  review:
+    include_tests: affected
+  test:
+    include_tests: required
 default_exclusions:
   - .git/**
   - .venv*/**
   - backend/.venv_backend/**
+  - scripts/.venv_tools/**
   - node_modules/**
   - '**/__pycache__/**'
   - '**/.pytest_cache/**'
@@ -28,6 +32,12 @@ default_exclusions:
   - build/**
   - docs/archive/**
   - .ai/local/**
+  - .ai/runs/**
+  - exports/**
+  - storage/**
+  - qdrant_storage/**
+  - .repo-packager-cache/**
+  - logs/**
   - '**/.env'
   - '**/.env.*'
   - '**/*.key'
@@ -36,3 +46,6 @@ default_exclusions:
   - '**/*.sqlite*'
 docs_filter:
   require_machine_context: true
+expanded_mode:
+  max_paths: 10
+  overflow_behavior: partial_with_omitted_paths

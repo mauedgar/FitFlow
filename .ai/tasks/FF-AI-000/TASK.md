@@ -3,7 +3,8 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-000
 title: Auditar compatibilidad del entorno de tooling
-status: READY
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-002
 task_type: audit
 scope: docs_tooling
 lane: mixed

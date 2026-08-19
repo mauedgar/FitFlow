@@ -1,0 +1,15 @@
+schema_version: fitflow-run-store/v1
+durable:
+  type: filesystem_json
+  root: .ai/runs
+  append_only_events: true
+  accepted_runs_versioned: true
+local_projection:
+  type: sqlite
+  path: .ai/local/run-state.sqlite
+  canonical: false
+github_projection:
+  comments: summary_only
+  checks: validation_status
+  actions_artifacts: transport_only
+  canonical: false

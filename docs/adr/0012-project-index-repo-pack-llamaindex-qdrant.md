@@ -1,12 +1,13 @@
 ---
 document_id: FF-ADR-0012
-status: accepted_pending_implementation
+status: superseded
 machine_context: true
+superseded_by: FF-ADR-0015
 ---
 
 # ADR 0012: Contexto estructural y vectorial
 
-- **Estado:** Accepted / Pending Implementation
+- **Estado:** Superseded por ADR 0015
 - **Fecha:** 2026-08-16
 
 ## Contexto
@@ -22,7 +23,7 @@ La capa de contexto derivado usa:
 1. inventarios depurados `estructura_Directorios<scope>.txt`;
 2. grafo `estructura_de_clases_<YYYY-MM-DD>.xml`;
 3. bundles Repomix por scope;
-   4. Repomix/repo-packager para símbolos, imports y relaciones;
+4. Repomix/repo-packager para símbolos, imports y relaciones;
 5. LlamaIndex para ingesta/recuperación;
 6. Qdrant como vector store;
 7. EmbeddingGemma-300M como embedding inicial.

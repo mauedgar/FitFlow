@@ -3,17 +3,17 @@ artifact: TASK
 schema_version: fitflow-task/v1
 task_id: FF-AI-001
 title: Implementar fuentes de contexto estructural v1
-status: BACKLOG
+status: CANCELLED
+# vNext: SUPERSEDED_BY FF-AI-VNEXT-006
 task_type: tooling
 scope: mixed
 lane: ai_orchestrated
 risk: medium
 priority: P0
 created_at: "2026-08-16T00:00:00-03:00"
-baseline_revision: TO_BE_CAPTURED_AT_START
-working_tree_fingerprint: "sha256:TO_BE_CAPTURED_AT_START"
-author_role: human
-run_id: NOT_STARTED
+baseline_revision: 3f3021b2cf26c5839feb428a50b59e1116f283a0
+working_tree_fingerprint: sha256:3f3021b2cf26c5839feb428a50b59e1116f283a0
+run_id: FF-AI-001-2026-08-16T00-00-00
 depends_on: [FF-AI-000]
 ownership_keys:
   - path:FitFlow-ai/scripts/structure

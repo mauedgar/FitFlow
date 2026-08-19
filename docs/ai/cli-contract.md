@@ -2,44 +2,30 @@
 document_id: FF-AI-CLI-001
 status: planned
 machine_context: true
-version: 1.0
-updated: 2026-08-16
+version: 2.0
+updated: 2026-08-18
 ---
 
-# Contrato de CLI previsto
+# Contrato CLI previsto
 
-Nombre lógico: `ffai`. La implementación puede usar Node para discovery,
-Repomix y serialización; Python `env_tools` aloja Repomix/repo-packager y LlamaIndex.
+La entrada unica de AI Core sera `ffai`. No se implementa en esta baseline.
 
-| Comando | Salida |
-| --- | --- |
-| `ffai structure dirs --scope backend` | inventario activo backend |
-| `ffai structure dirs --scope frontend` | inventario activo frontend |
-| `ffai structure dirs --scope total` | inventario activo total |
-| `ffai structure classes --scope total` | XML fechado |
-| `ffai snapshot --scope backend --task <ID>` | bundle Repomix + manifest |
-| `ffai context backend --task <ID> --question <q>` | Context Package backend |
-| `ffai context frontend --task <ID> --question <q>` | Context Package frontend |
-| `ffai context mixed --task <ID> --question <q>` | Context Package mixto |
-| `ffai index build --scope <scope>` | índice de trabajo completo |
-| `ffai index sync --dirty <manifest>` | upserts/deletes incrementales |
-| `ffai index promote --run <RUN>` | baseline aceptado |
-| `ffai query --scope <scope> --task <ID> --text <q>` | primitive de recuperación |
-| `ffai verify --run <RUN>` | INDEX_RUN con checks |
+```text
+ffai doctor
+ffai run --task <id>
+ffai context reduced --task <id> --query <text>
+ffai context drill-down --task <id> --path <path>
+ffai context expanded --task <id> --path <path> [--path <path>]
+ffai validate --run <id>
+ffai observe [--run <id>]
+ffai sync github --task <id>
+```
 
-## Exit codes
+STDOUT emite JSON v2 o una vista solicitada; STDERR es diagnostico. Exit codes:
+`0` success, `2` invalid input/schema, `3` blocked, `4` unavailable, `5` stale,
+`6` partial y `10` internal error.
 
-- `0`: éxito y schema válido.
-- `2`: input/config inválido.
-- `3`: artefacto stale.
-- `4`: dependencia unavailable.
-- `5`: fallo de parsing/ingesta/validación.
-- `6`: operación bloqueada por política.
+`doctor` solo descubre y reporta. No instala ni actualiza dependencias.
 
-## Salida
-
-STDOUT contiene solo el JSON/XML principal. Diagnóstico va a STDERR. Los
-comandos no instalan dependencias, no acceden a secretos y no escriben fuera de
-las rutas configuradas.
-
-Este archivo es especificación; `FF-AI-001–003` deben implementarla y probarla.
+Para roles agentic, `ffai` invoca el adapter OpenCode CLI/headless. No controla
+OpenCode Desktop ni expone GitHub Copilot como proveedor programatico.

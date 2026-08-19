@@ -1,4 +1,11 @@
-# Pipelines de desarrollo asistido por IA
+---
+document_id: FF-AI-LEGACY-DEV-PIPELINES
+status: superseded
+machine_context: false
+superseded_by: FF-AI-PIPELINE-DEV-001
+---
+
+# Pipelines de desarrollo asistido por IA (historico)
 
 ## 1. Objetivo
 
