@@ -55,5 +55,10 @@ determinista y control final del desarrollador.
 1. Verificar versiones y smoke tests sin instalar dependencias.
 2. Congelar schemas, registries y Project Profile v2.
 3. Corregir exclusiones, `PARTIAL` y seleccion scoped de `repo-packager`.
+   - Estado actual: parche local aplicado en `develop` para filtros de excluir
+     `.env`, caches y rutas Windows; la salida marca `PARTIAL`/`EMPTY` explícitos
+     cuando el pack queda acotado.
+   - Pendiente para baseline formal: pruebas de regresión detalladas para
+     ignore files, budgets pequeños y overflow de paths.
 4. Implementar State Machine y persistencia antes de roles LLM activos.
 5. Medir Router, Explorer y Agent MVP antes de embeddings, MCP o Temporal.

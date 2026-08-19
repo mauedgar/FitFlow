@@ -7,13 +7,14 @@ Modos: reducido | ampliado | drill-down
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import re
 import subprocess
 import sys
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from collections import defaultdict
 from typing import Optional
 
@@ -30,6 +31,33 @@ except ImportError:
 CACHE_DIR_NAME = ".repo-packager-cache"
 MAX_AMPLIADO_PATHS = 10
 CHARS_PER_TOKEN = 4  # rough estimate
+
+DEFAULT_EXCLUSIONS = [
+    ".git/**",
+    ".venv*/**",
+    "backend/.venv_backend/**",
+    "scripts/.venv_tools/**",
+    "node_modules/**",
+    "**/__pycache__/**",
+    "**/.pytest_cache/**",
+    "**/.ruff_cache/**",
+    "dist/**",
+    "build/**",
+    "docs/archive/**",
+    ".ai/local/**",
+    ".ai/runs/**",
+    "exports/**",
+    "storage/**",
+    "qdrant_storage/**",
+    ".repo-packager-cache/**",
+    "logs/**",
+    "**/.env",
+    "**/.env.*",
+    "**/*.key",
+    "**/*.pem",
+    "**/*.p12",
+    "**/*.sqlite*",
+]
 
 IMPORT_PATTERNS = [
     # Python
@@ -61,6 +89,82 @@ def extract_imports(content: str) -> set[str]:
                     imports.add(g.strip())
                     break
     return imports
+
+
+def load_ignore_patterns(repo_root: Path) -> list[str]:
+    patterns = list(DEFAULT_EXCLUSIONS)
+    for ignore_name in (".repomixignore", ".gitignore"):
+        ignore_path = repo_root / ignore_name
+        if not ignore_path.exists():
+            continue
+        with open(ignore_path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                candidate = line.strip()
+                if not candidate or candidate.startswith("#") or candidate.startswith("!"):
+                    continue
+                patterns.append(candidate)
+    return patterns
+
+
+def normalize_repo_path(path: str, repo_root: Optional[Path] = None) -> str:
+    normalized = str(path).replace("\\", "/")
+    if repo_root:
+        try:
+            candidate = Path(normalized)
+            if candidate.is_absolute():
+                rel = candidate.relative_to(repo_root)
+                return rel.as_posix()
+        except Exception:
+            pass
+    if normalized.startswith("./"):
+        return normalized[2:]
+    return normalized
+
+
+def path_matches_exclusion(path: str, patterns: list[str], repo_root: Optional[Path] = None) -> bool:
+    relative_path = normalize_repo_path(path, repo_root)
+    candidate_name = PurePosixPath(relative_path).name
+    for raw_pattern in patterns:
+        pattern = raw_pattern.strip().replace("\\", "/")
+        if not pattern or pattern.startswith("#") or pattern.startswith("!"):
+            continue
+        pattern = pattern.lstrip("/")
+        if pattern.startswith("./"):
+            pattern = pattern[2:]
+        if pattern.endswith("/"):
+            pattern = pattern.rstrip("/")
+
+        if not pattern:
+            continue
+
+        pattern_variants = {pattern}
+        if "/" not in pattern:
+            pattern_variants.update({f"**/{pattern}"})
+        else:
+            pattern_variants.update({pattern, f"./{pattern}", f"**/{pattern}"})
+
+        if relative_path in pattern_variants:
+            return True
+        if relative_path.startswith(pattern + "/"):
+            return True
+        if relative_path.startswith(f"./{pattern}/"):
+            return True
+        if any(fnmatch.fnmatch(relative_path, variant) for variant in pattern_variants):
+            return True
+        if any(fnmatch.fnmatch(relative_path, f"{variant}/**") for variant in pattern_variants):
+            return True
+        if "/" not in pattern and fnmatch.fnmatch(candidate_name, pattern):
+            return True
+    return False
+
+
+def filter_excluded_files(files: dict[str, str], repo_root: Path, patterns: Optional[list[str]] = None) -> dict[str, str]:
+    active_patterns = patterns or load_ignore_patterns(repo_root)
+    return {
+        path: content
+        for path, content in files.items()
+        if not path_matches_exclusion(path, active_patterns, repo_root)
+    }
 
 
 def resolve_to_file(imp: str, all_files: dict[str, str], current_file: str) -> Optional[str]:
@@ -224,6 +328,14 @@ def mode_reducido(args: argparse.Namespace) -> None:
         print("ERROR: JSON sin clave 'files'", file=sys.stderr)
         sys.exit(1)
 
+    repo_root = json_path.parent
+    exclusions = load_ignore_patterns(repo_root)
+    files = filter_excluded_files(files, repo_root, exclusions)
+    if not files:
+        print("STATUS: EMPTY")
+        print("No hay archivos relevantes después de aplicar exclusiones de entorno, caches y secrets.")
+        return
+
     G = load_or_build_graph(json_path, files)
     ranked = compute_pagerank(G, personalize=args.personalize or None)
     sorted_files = sorted(ranked.items(), key=lambda x: x[1], reverse=True)
@@ -242,6 +354,8 @@ def mode_reducido(args: argparse.Namespace) -> None:
         selected_set.add(fpath)
         total_tokens += toks
 
+    ignored_paths = [fpath for fpath, _ in sorted_files if fpath not in selected_set]
+
     # candidates = next ones that did not fit + high-score neighbors
     candidates = []
     for fpath, score in sorted_files:
@@ -252,11 +366,15 @@ def mode_reducido(args: argparse.Namespace) -> None:
         reason = reason_for_candidate(fpath, score, G, selected_set)
         candidates.append((fpath, score, reason, estimate_tokens(files[fpath])))
 
+    status = "COMPLETE" if not ignored_paths else "PARTIAL"
+
     # output
     print("=" * 60)
     print("MODO: reducido")
+    print(f"Status: {status}")
     print(f"Archivos incluidos: {len(selected)}  |  Tokens estimados: ~{total_tokens}")
-    print(f"Budget: {args.budget}  |  Signatures-only: {args.signatures_only}")
+    print(f"Archivos omitidos por budget: {len(ignored_paths)}  |  Budget: {args.budget}")
+    print(f"Signatures-only: {args.signatures_only}")
     if args.personalize:
         print(f"Personalize: {', '.join(args.personalize)}")
     print("=" * 60)
@@ -292,6 +410,14 @@ def mode_drill_down(args: argparse.Namespace) -> None:
         print("ERROR: JSON sin clave 'files'", file=sys.stderr)
         sys.exit(1)
 
+    repo_root = json_path.parent
+    exclusions = load_ignore_patterns(repo_root)
+    files = filter_excluded_files(files, repo_root, exclusions)
+    if not files:
+        print("STATUS: EMPTY")
+        print("No hay archivos relevantes en el foco después de aplicar exclusiones de entorno, caches y secrets.")
+        return
+
     G = load_or_build_graph(json_path, files)
     ranked = compute_pagerank(G, personalize=args.personalize, focus=args.focus)
     sorted_files = sorted(ranked.items(), key=lambda x: x[1], reverse=True)
@@ -311,6 +437,8 @@ def mode_drill_down(args: argparse.Namespace) -> None:
         selected_set.add(fpath)
         total_tokens += toks
 
+    ignored_paths = [fpath for fpath, _ in sorted_files if fpath not in selected_set]
+
     candidates = []
     for fpath, score in sorted_files:
         if fpath in selected_set:
@@ -322,11 +450,15 @@ def mode_drill_down(args: argparse.Namespace) -> None:
             reason = "dentro del focus + " + reason
         candidates.append((fpath, score, reason, estimate_tokens(files[fpath])))
 
+    status = "COMPLETE" if not ignored_paths else "PARTIAL"
+
     print("=" * 60)
     print("MODO: drill-down")
+    print(f"Status: {status}")
     print(f"Focus: {args.focus}")
     print(f"Archivos incluidos: {len(selected)}  |  Tokens estimados: ~{total_tokens}")
-    print(f"Budget: {args.budget}  |  Signatures-only: {args.signatures_only}")
+    print(f"Archivos omitidos por budget: {len(ignored_paths)}  |  Budget: {args.budget}")
+    print(f"Signatures-only: {args.signatures_only}")
     print("=" * 60)
 
     print("\n--- PATHS SELECCIONADOS (score) ---")
@@ -345,22 +477,22 @@ def mode_drill_down(args: argparse.Namespace) -> None:
 
 
 def mode_ampliado(args: argparse.Namespace) -> None:
-    paths = [p.strip() for p in args.paths.split(",") if p.strip()]
-    if not paths:
+    requested_paths = [p.strip() for p in args.paths.split(",") if p.strip()]
+    if not requested_paths:
         print("ERROR: --paths vacío", file=sys.stderr)
         sys.exit(1)
-    if len(paths) > MAX_AMPLIADO_PATHS:
-        print(
-            f"AVISO: se recibieron {len(paths)} paths. Límite duro = {MAX_AMPLIADO_PATHS}. "
-            f"Se usarán solo los primeros {MAX_AMPLIADO_PATHS}.",
-            file=sys.stderr,
-        )
-        paths = paths[:MAX_AMPLIADO_PATHS]
+
+    status = "COMPLETE"
+    omitted_paths = []
+    if len(requested_paths) > MAX_AMPLIADO_PATHS:
+        status = "PARTIAL"
+        omitted_paths = requested_paths[MAX_AMPLIADO_PATHS:]
+        requested_paths = requested_paths[:MAX_AMPLIADO_PATHS]
 
     # Build include pattern for repomix
     # Repomix accepts --include with globs
     include_globs = []
-    for p in paths:
+    for p in requested_paths:
         p = p.rstrip("/")
         if Path(p).suffix:  # file
             include_globs.append(p)
@@ -385,7 +517,10 @@ def mode_ampliado(args: argparse.Namespace) -> None:
 
     print("=" * 60)
     print("MODO: ampliado (código real, sin compress)")
-    print(f"Paths solicitados: {', '.join(paths)}")
+    print(f"Status: {status}")
+    print(f"Paths solicitados: {', '.join(requested_paths)}")
+    if omitted_paths:
+        print(f"Paths omitidos: {', '.join(omitted_paths)}")
     print(f"Comando: {' '.join(cmd)}")
     print("=" * 60)
     print()
@@ -416,7 +551,9 @@ def mode_ampliado(args: argparse.Namespace) -> None:
         print(result.stdout)
         return
 
-    files = data.get("files", {})
+    repo_root = Path.cwd()
+    exclusions = load_ignore_patterns(repo_root)
+    files = filter_excluded_files(data.get("files", {}), repo_root, exclusions)
     total_tokens = 0
     print(f"Archivos devueltos: {len(files)}")
     for fpath, content in files.items():
