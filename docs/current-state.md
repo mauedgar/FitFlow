@@ -60,8 +60,8 @@ Estado global: `BASELINE_ACCEPTED`.
   se agregan al PATH del proceso.
 - LlamaIndex, Qdrant, embeddings, Promptfoo, MCP y Temporal son posteriores a
   gates explicitos; no se declaran funcionales.
-- `scripts/.venv_tools` es un entorno local reutilizable para discovery, no el
-  entorno oficial de FitFlow-ai.
+- `../FitFlow-ai/python/.venv_tools` es un entorno Python local gestionado con
+  uv para discovery, no el entorno oficial de FitFlow-ai.
 
 ## Deuda activa
 

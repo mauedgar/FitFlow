@@ -115,8 +115,8 @@ Quedan pendientes las pruebas formales del baseline para cerrar la validación d
 regresión: UTF-8 en Windows, matching de globs complejos, carga de exclusiones
 provenientes de múltiples ignore files, selección scoped bajo presupuestos
 pequeños y overflow de `ampliado` con más de 10 paths.
-`scripts/.venv_tools` puede reutilizarse para discovery; no es el entorno
-oficial de FitFlow-ai.
+`../FitFlow-ai/python/.venv_tools` es el entorno Python gestionado con uv para
+discovery; no es el entorno oficial de FitFlow-ai.
 
 ## Pruebas de regresión planificadas para baseline
 

@@ -30,3 +30,4 @@ su texto y enlaza el sucesor.
 | 0015 | ContextPackager y retrieval diferido | Accepted pending implementation |
 | 0016 | GitHub/OpenSpec separados | Accepted pending implementation |
 | 0017 | run ledger, FinOps y observer | Accepted pending implementation |
+| 0018 | entorno Python gestionado con uv | Accepted |

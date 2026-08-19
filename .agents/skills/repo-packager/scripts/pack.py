@@ -36,7 +36,7 @@ DEFAULT_EXCLUSIONS = [
     ".git/**",
     ".venv*/**",
     "backend/.venv_backend/**",
-    "scripts/.venv_tools/**",
+    "../FitFlow-ai/python/.venv_tools/**",
     "node_modules/**",
     "**/__pycache__/**",
     "**/.pytest_cache/**",
