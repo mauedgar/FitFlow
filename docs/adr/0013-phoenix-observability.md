@@ -27,7 +27,7 @@ Toda traza debe correlacionar:
 - revisión/fingerprint e índice;
 - query y IDs de chunks, sin secretos ni contenido sensible innecesario;
 - tokens/latencia cuando estén disponibles;
-- estado de review, validación y aceptación humana.
+- estado de review, validación y aceptación del desarrollador.
 
 ## Privacidad
 

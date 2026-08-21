@@ -2,8 +2,8 @@
 document_id: FF-STATE-001
 status: canonical
 machine_context: true
-version: 5.0
-snapshot: 2026-08-18
+version: 5.1
+snapshot: 2026-08-21
 ---
 
 # Estado actual de FitFlow
@@ -32,48 +32,31 @@ snapshot: 2026-08-18
 
 ## Plataforma de asistencia IA
 
-Estado global: `BASELINE_ACCEPTED`.
+FitFlow-ai es un repositorio independiente y la Source of Truth de su estado
+interno. FitFlow solo conserva este resumen de integracion:
 
-- `FF-AI-VNEXT-001` aceptada; `FF-AI-VNEXT-002` (doctor) implementado y en
-  `PENDING_ACCEPTANCE`. `ffai doctor` reporta el toolchain en JSON v2 sin
-  installs: node, npm, python, git, gh, openspec, repomix y opencode
-  `AVAILABLE`; repo-packager y project-profile operativos; LibreOffice
-  `UNREACHABLE` sin soffice en PATH.
-- `FF-AI-VNEXT-003` (contracts v2 Zod + registries loaders) y
-  `FF-AI-VNEXT-004` (State Machine + Run Store) implementados y en
-  `PENDING_ACCEPTANCE`; tests 24/24 PASS en `../FitFlow-ai`.
-- OpenCode CLI `1.18.18` es la superficie automatizada elegida; Desktop queda
-  para uso manual del desarrollador. El adapter vNext y su conformance suite no
-  estan implementados.
-- Los entregables para desarrolladores se producen en `.md` con formato
-  persistente (titulos, tablas y listas). Los `.docx` previos viven en
-  `docs/archive/superseded/`; una skill de conversion `.md` a `.docx` queda
-  planned para despues del MVP.
-- Repomix `1.18.0` esta disponible. `repo-packager` genera paquetes, pero su
-  contrato vNext y sus fallos de exclusion/seleccion aun requieren correccion
-  (`FF-AI-VNEXT-006`, pausado).
-- Node `22.18.0`, OpenSpec `1.9.0` y GitHub CLI `2.97.0` estan disponibles;
-  GitHub esta autenticado. El root OpenSpec y los adapters permanecen pending.
-- `FitFlow-ai` vive como carpeta hermana en `../FitFlow-ai/` (repo propio en
-  preparacion). AI Core lee registries y contractos de `../FitFlow/.ai/`.
-- OpenCode descubrio runtime IDs de FastContext, Qwen y DeepSeek en LM Studio;
-  inferencia, benchmark y rol efectivo quedan `UNVERIFIED`.
-- GitHub Copilot queda deferred y fuera del acceso programatico. El
-  desarrollador es intermediario de cualquier orden manual.
-- LibreOffice `26.2.5.2` convierte DOCX correctamente cuando `soffice` y Poppler
-  se agregan al PATH del proceso; ya no es requerido para la entrega documental
-  porque los entregables se producen en `.md`.
-- LlamaIndex, Qdrant, embeddings, Promptfoo, MCP y Temporal son posteriores a
-  gates explicitos; no se declaran funcionales.
-- `../FitFlow-ai/python/.venv_tools` es un entorno Python local gestionado con
-  uv para discovery, no el entorno oficial de FitFlow-ai.
+- baseline vNext aceptada; `FF-AI-VNEXT-001` a `004` estan `DONE` por decision
+  del desarrollador;
+- `repo-packager` fue reparado e integrado mediante el PR #2 de FitFlow-ai;
+- `FF-AI-VNEXT-005` es el siguiente bloque (`NEXT`) y
+  `FF-AI-VNEXT-006` fue reactivado (`READY`); conformance ContextPackager v2
+  sigue pendiente;
+- Orca controla workspace y sesion; Git worktree aisla la escritura;
+- OpenCode es el Agent Runtime preferido actual e intercambiable; su adapter y
+  conformance siguen pendientes;
+- GitHub reemplaza a Jira para planificacion, integracion y validacion; los
+  adapters GitHub/OpenSpec siguen pendientes;
+- Project Profile, TASK, runs, contratos de intercambio y configuracion
+  especifica permanecen en FitFlow.
+
+El detalle vigente se consulta en `docs/current-state.md` y
+`docs/implementation-roadmap.md` del repositorio FitFlow-ai. No se replica aqui.
 
 ## Deuda activa
 
 - cobertura API integral y fixtures HTTP async compartidas;
 - refactors de fronteras heredadas;
-- implementar contracts y registries v2;
-- corregir y medir `repo-packager` (pausado) antes del Agent MVP;
-- implementar State Machine, persistencia de run y FinOps-as-Code;
-- verificar adapter OpenCode, GitHub/OpenSpec y modelo Explorer;
+- resolver roots portables y consumers cross-repo en `FF-AI-VNEXT-005`;
+- migrar el backlog vNext al ownership de FitFlow-ai sin romper consumidores;
+- verificar adapters OpenCode, GitHub/OpenSpec y modelo Explorer;
 - medir contexto, calidad y retrabajo antes de ampliar autonomia.

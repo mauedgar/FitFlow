@@ -2,8 +2,8 @@
 document_id: FF-ROADMAP-001
 status: canonical
 machine_context: true
-version: 5.0
-updated: 2026-08-18
+version: 5.1
+updated: 2026-08-21
 ---
 
 # Roadmap de FitFlow
@@ -25,21 +25,11 @@ autoridad sobre el producto.
 
 ## Plataforma de desarrollo asistido
 
-| Fase | Tareas | Gate de salida |
-| --- | --- | --- |
-| A - baseline/doctor | FF-AI-VNEXT-001-002 | baseline aceptada y entorno reproducible sin installs |
-| B - contratos/runtime | FF-AI-VNEXT-003-004 | schemas, registries, State Machine y Run Store |
-| C - adapters/contexto | FF-AI-VNEXT-005-006 | Project Profile, sync y ContextPackager compliant |
-| D - decision/roles | FF-AI-VNEXT-007-009 | Router, Model Resolver, Explorer y Agent MVP medidos |
-| E - endurecimiento | FF-AI-VNEXT-010 | fitness functions, CI y Workflow Observer |
-| F - capacidades futuras | FF-AI-VNEXT-011-013 | retrieval, MCP y Temporal tras gates propios |
-
-No avanzar de fase cuando el gate anterior está `FAIL`, `UNAVAILABLE` o
-`BLOCKED` sin decisión explícita.
-
-`FF-AI-VNEXT-006` (ContextPackager) está pausado desde 2026-08-18. La fase C
-solo puede completarse tras reactivar `006`; mientras tanto `FF-AI-VNEXT-008`
-queda desacoplado de `006` y usa `repo-packager` actual con gaps documentados.
+FitFlow-ai posee el roadmap detallado del AI Core. El estado de integracion que
+afecta al producto es: `FF-AI-VNEXT-001` a `004` `DONE`,
+`FF-AI-VNEXT-005` `NEXT` y `FF-AI-VNEXT-006` `READY`. Consultar
+`docs/implementation-roadmap.md` en FitFlow-ai para secuencia, dependencias y
+gates; FitFlow no mantiene una segunda copia.
 
 ## Autonomía
 

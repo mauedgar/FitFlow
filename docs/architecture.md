@@ -2,8 +2,8 @@
 document_id: FF-ARCH-001
 status: canonical
 machine_context: true
-version: 5.0
-updated: 2026-08-18
+version: 5.1
+updated: 2026-08-21
 ---
 
 # Arquitectura de FitFlow
@@ -91,8 +91,17 @@ brokers, CQRS o event sourcing sin necesidad aprobada.
 
 ## Frontera con FitFlow-ai
 
-`FitFlow-ai` puede leer codigo y producir artefactos derivados. No es una
-dependencia del runtime del producto. Sus outputs son regenerables y se guardan
-fuera de `FitFlow`, salvo Project Profile, contratos y artefactos operativos
-versionados en `.ai/`. La integracion se realiza por puertos; ninguna decision
-de tooling cambia las fronteras del producto.
+`FitFlow-ai` es un repositorio hermano independiente. Puede leer codigo y
+producir artefactos derivados, pero no es una dependencia del runtime del
+producto. FitFlow conserva Project Profile, TASK, runs, contratos de
+intercambio y configuracion especifica bajo `.ai/`; el AI Core conserva su
+arquitectura, roadmap, estado, tooling y adapters en FitFlow-ai.
+
+Orca es el Workspace / Session Control Plane y Git worktree es la isolation
+boundary de escritura. OpenCode es el Agent Runtime preferido actual detras de
+`AgentRuntimePort`, por lo que puede reemplazarse sin cambiar las fronteras del
+producto. GitHub es el plano operativo vigente para Issues, PR, Projects y
+Actions; Jira pertenece al baseline reemplazado.
+
+Los outputs derivados son regenerables. La integracion se realiza por puertos y
+ninguna decision de tooling cambia las fronteras del producto.

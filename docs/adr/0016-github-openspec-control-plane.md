@@ -2,8 +2,8 @@
 document_id: FF-ADR-0016
 status: accepted_pending_implementation
 machine_context: true
-version: 1.0
-updated: 2026-08-18
+version: 1.1
+updated: 2026-08-21
 ---
 
 # ADR 0016: GitHub y OpenSpec como capas separadas
@@ -25,5 +25,6 @@ igual autoridad y ser idempotente.
 
 ## Estado
 
-Las CLIs `gh` y `openspec` no estan disponibles en el shell verificado. La
-decision no declara implementados sus adapters.
+Las CLIs `gh` y `openspec` estan disponibles en el baseline verificado. La
+disponibilidad no declara implementados sus adapters, que permanecen pendientes
+en `FF-AI-VNEXT-005`.

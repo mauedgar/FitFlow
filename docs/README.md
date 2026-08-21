@@ -2,8 +2,8 @@
 document_id: FF-DOCS-INDEX-001
 status: canonical
 machine_context: true
-version: 5.0
-updated: 2026-08-18
+version: 5.1
+updated: 2026-08-21
 ---
 
 # Documentacion activa
@@ -15,9 +15,10 @@ updated: 2026-08-18
 | Que esta implementado | `current-state.md` |
 | Que reglas de negocio son estables | `domain.md` |
 | Que evidencia exige una tarea | `quality-and-validation.md` |
-| Que sigue | `roadmap.md` y `ai/roadmap-vnext.md` |
+| Que sigue en el producto | `roadmap.md` |
 | Como migra v4 a vNext | `MIGRATION.md` |
-| Como opera AI Core | `ai/` |
+| Como se integra FitFlow con AI Core | `ai/README.md` |
+| Como opera AI Core | repositorio FitFlow-ai, segun `SOURCE_OF_TRUTH.md` |
 | Por que se tomo una decision | `adr/` |
 
 ## Regla de inclusion

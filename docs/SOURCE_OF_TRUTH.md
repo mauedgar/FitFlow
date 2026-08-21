@@ -2,8 +2,8 @@
 document_id: FF-SOT-001
 status: canonical
 machine_context: true
-version: 5.0
-updated: 2026-08-18
+version: 5.1
+updated: 2026-08-21
 ---
 
 # Source of Truth de FitFlow
@@ -38,6 +38,33 @@ Los JSON aceptados de `.ai/runs/<run_id>/` son la evidencia durable del run.
 SQLite bajo `.ai/local/` es una proyeccion operacional regenerable. Comentarios,
 checks y artifacts de GitHub son visualizacion o transporte, no una segunda
 fuente con igual autoridad.
+
+GitHub reemplaza a Jira en el workflow operativo vigente. Orca controla el
+workspace y la sesion; cada Git worktree es la frontera de aislamiento de
+escritura. OpenCode es el Agent Runtime preferido actual detras de
+`AgentRuntimePort`, no una autoridad del workflow ni una dependencia
+arquitectonica.
+
+## Frontera con FitFlow-ai
+
+FitFlow es autoridad para arquitectura, dominio, estado, calidad y
+configuracion del producto, incluidos Project Profile, TASK, runs y contratos
+de intercambio del consumidor. FitFlow-ai es autoridad para arquitectura,
+roadmap, estado de implementacion, tooling, contexto, adapters, Agent Runtime e
+inferencia del AI Core.
+
+Las fuentes canonicas del AI Core viven en el repositorio independiente
+FitFlow-ai (`https://github.com/mauedgar/tecnotron-ai`). Esta reconciliacion se
+verifico contra el baseline documental `91a4697`:
+
+- `docs/architecture.md`;
+- `docs/current-state.md`;
+- `docs/implementation-roadmap.md`;
+- `docs/compatibility-baseline.md`;
+- `docs/development-pipeline-adapter.md`.
+
+`docs/ai/README.md` clasifica las copias y referencias que permanecen en
+FitFlow. Esas copias no adquieren autoridad sobre el estado interno del AI Core.
 
 ## Contexto derivado
 
