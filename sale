@@ -1,0 +1,902 @@
+[1mdiff --git a/.agents/skills/repo-packager/SKILL.md b/.agents/skills/repo-packager/SKILL.md[m
+[1mdeleted file mode 100644[m
+[1mindex 19c2e22..0000000[m
+[1m--- a/.agents/skills/repo-packager/SKILL.md[m
+[1m+++ /dev/null[m
+[36m@@ -1,133 +0,0 @@[m
+[31m----[m
+[31m-name: repo-packager[m
+[31m-description: Empaqueta contexto de repositorio con PageRank sobre el grafo de imports de Repomix. Úsala cuando necesites un pack reducido (overview), drill-down (mapa fino de una zona) o ampliado (código real de paths concretos). Nunca decide si el contexto alcanza; solo empaqueta lo que se le pide.[m
+[31m----[m
+[31m-[m
+[31m-# Repo Packager[m
+[31m-[m
+[31m-## Descripción[m
+[31m-[m
+[31m-Empaqueta contexto de un repositorio para LLMs usando PageRank local sobre grafo de imports a partir de JSON de Repomix. Se activa con pedidos de contexto reducido, ampliado, drill-down, empaquetar repo, seleccionar archivos relevantes, reducir tokens de código, mapa de dependencias o pack de paths específicos. Entrega packs rankeados o código real sin decidir si son suficientes. El agente controla cuándo pedir cada modo.[m
+[31m-[m
+[31m-## Overview[m
+[31m-[m
+[31m-Skill que prepara packs de contexto de un repositorio. Calcula PageRank una vez sobre el grafo de dependencias (imports) generado a partir de la salida JSON de Repomix con `--compress`. Entrega tres tipos de pack bajo demanda del agente. Nunca decide si el contexto alcanza ni explora por su cuenta.[m
+[31m-[m
+[31m-## Prerequisites[m
+[31m-[m
+[31m-- `npx repomix` disponible (o el JSON ya generado).[m
+[31m-- Python 3 + `networkx` ya disponible en un entorno verificado. No instalarlo[m
+[31m-  como efecto lateral de una ejecución de contexto.[m
+[31m-- Archivo `.repomixignore` (y `.gitignore`) del repo se respetan automáticamente por Repomix; reducen ruido de tests, generated, etc.[m
+[31m-[m
+[31m-## Invocation modes[m
+[31m-[m
+[31m-Usa siempre el script `scripts/pack.py`. Los tres modos son:[m
+[31m-[m
+[31m-### 1. reducido (default / overview)[m
+[31m-[m
+[31m-```bash[m
+[31m-python scripts/pack.py reducido \[m
+[31m-  --json repo.json \[m
+[31m-  --budget 8000 \[m
+[31m-  [--personalize path1 path2 ...] \[m
+[31m-  [--signatures-only][m
+[31m-```[m
+[31m-[m
+[31m-- Calcula PageRank (reutiliza cache si existe).[m
+[31m-- Selecciona archivos hasta el token-budget.[m
+[31m-- Incluye lista de **candidatos a expansión** con score y razón corta.[m
+[31m-- `--signatures-only` entrega solo firmas + imports (aún más ligero).[m
+[31m-[m
+[31m-### 2. ampliado (código real completo)[m
+[31m-[m
+[31m-```bash[m
+[31m-python scripts/pack.py ampliado \[m
+[31m-  --paths path1,path2,dir3 \[m
+[31m-  [--json repo.json][m
+[31m-```[m
+[31m-[m
+[31m-- Ejecuta Repomix **sin** `--compress` solo sobre los paths indicados.[m
+[31m-- Límite duro: máximo 10 paths por llamada.[m
+[31m-- Devuelve código fuente real listo para trabajar.[m
+[31m-[m
+[31m-### 3. drill-down (mapa fino de una zona)[m
+[31m-[m
+[31m-```bash[m
+[31m-python scripts/pack.py drill-down \[m
+[31m-  --json repo.json \[m
+[31m-  --focus path/o/zona \[m
+[31m-  --budget 6000 \[m
+[31m-  [--signatures-only][m
+[31m-```[m
+[31m-[m
+[31m-- Reutiliza el grafo global.[m
+[31m-- Aplica personalización fuerte sobre el focus.[m
+[31m-- Entrega un nuevo pack reducido + sus propios candidatos centrados en esa zona.[m
+[31m-[m
+[31m-## Workflow esperado del agente[m
+[31m-[m
+[31m-1. Generar o reutilizar el JSON base:[m
+[31m-   ```bash[m
+[31m-   npx repomix --style json --compress -o repo.json[m
+[31m-   ```[m
+[31m-2. Pedir **reducido** para obtener el mapa + candidatos.[m
+[31m-3. Según necesidad:[m
+[31m-   - Pedir **drill-down** de una zona para afinar el mapa.[m
+[31m-   - Pedir **ampliado** de paths concretos (puede hacerse directamente, sin reducido previo).[m
+[31m-4. El agente decide el siguiente paso. La skill solo empaqueta lo pedido.[m
+[31m-[m
+[31m-## Output format[m
+[31m-[m
+[31m-Todos los modos imprimen en stdout un bloque claro con:[m
+[31m-[m
+[31m-- Metadata (modo, tokens estimados, archivos incluidos/excluidos).[m
+[31m-- Lista de paths seleccionados + scores (cuando aplica).[m
+[31m-- Lista de candidatos a expansión (reducido y drill-down).[m
+[31m-- Contenido del pack.[m
+[31m-[m
+[31m-El agente debe copiar/pegar o inyectar solo la sección de contenido que necesite.[m
+[31m-[m
+[31m-## Cache y reutilización[m
+[31m-[m
+[31m-- El grafo + ranking se guardan en `.repo-packager-cache/` junto al JSON.[m
+[31m-- Drill-down y personalizaciones posteriores reutilizan el cache.[m
+[31m-- Si el JSON cambia (mtime), se recalcula automáticamente.[m
+[31m-[m
+[31m-## Limits and safeguards[m
+[31m-[m
+[31m-- Ampliado: máximo 10 paths por invocación.[m
+[31m-- Budget del reducido/drill-down es obligatorio y se respeta estrictamente.[m
+[31m-- Ruido ya filtrado por `.repomixignore` del proyecto.[m
+[31m-- El contrato vNext no permite truncado silencioso. Si se piden mas de 10 paths,[m
+[31m-  la salida debe ser `PARTIAL` con `requested`, `included` y `omitted`, o[m
+[31m-  `TOO_MANY_PATHS`. Hasta implementar `FF-AI-VNEXT-006`, cualquier recorte de la[m
+[31m-  version actual se trata como `PARTIAL` y Explorer no puede asumir suficiencia.[m
+[31m-[m
+[31m-## Estado vNext[m
+[31m-[m
+[31m-La skill ya incluye un parche local para cerrar los gaps de exclusiones y[m
+[31m-señalización de estado: se aplica filtro de `.repomixignore`/`.gitignore`, se[m
+[31m-normalizan rutas Windows, se excluyen `.env` y cachés sensibles, y se devuelve[m
+[31m-`PARTIAL`/`EMPTY` cuando el pack queda acotado por budget o límites.[m
+[31m-[m
+[31m-Quedan pendientes las pruebas formales del baseline para cerrar la validación de[m
+[31m-regresión: UTF-8 en Windows, matching de globs complejos, carga de exclusiones[m
+[31m-provenientes de múltiples ignore files, selección scoped bajo presupuestos[m
+[31m-pequeños y overflow de `ampliado` con más de 10 paths.[m
+[31m-`../FitFlow-ai/python/.venv_tools` es el entorno Python gestionado con uv para[m
+[31m-discovery; no es el entorno oficial de FitFlow-ai.[m
+[31m-[m
+[31m-## Pruebas de regresión planificadas para baseline[m
+[31m-[m
+[31m-1. Exclusiones de entorno y secretos: `.env`, `.env.*`, `node_modules`, `__pycache__`, caches, logs y `.repo-packager-cache`.[m
+[31m-2. Integración de `.repomixignore` + `.gitignore` sin duplicar o reasignar patrones.[m
+[31m-3. Rutas con separadores Windows (`\\`) y prefijos `./`.[m
+[31m-4. `reducido`/`drill-down` con budget pequeño que deba devolver `PARTIAL` en lugar de truncar silenciosamente.[m
+[31m-5. `ampliado` con >10 paths: status `PARTIAL`, `requested`, `included` y `omitted` visibles.[m
+[31m-6. Focus scoped: archivos dentro del focus debieran priorizarse sin romper el ranking global.[m
+[31m-7. Smoke end-to-end con `repo.json` real usando `.venv_tools` para evitar dependencia del entorno del sistema.[m
+[31m-[m
+[31m-## Script location[m
+[31m-[m
+[31m-Todos los comandos se ejecutan desde la raíz del skill o indicando la ruta completa a `scripts/pack.py`.[m
+[1mdiff --git a/.agents/skills/repo-packager/assets/README.md b/.agents/skills/repo-packager/assets/README.md[m
+[1mdeleted file mode 100644[m
+[1mindex 6eab93a..0000000[m
+[1m--- a/.agents/skills/repo-packager/assets/README.md[m
+[1m+++ /dev/null[m
+[36m@@ -1 +0,0 @@[m
+[31m-# Assets placeholder\n\nEsta carpeta es para plantillas o archivos que se copian (no se leen como instrucciones).\nPor ahora está vacía a propósito.[m
+[1mdiff --git a/.agents/skills/repo-packager/references/usage-examples.md b/.agents/skills/repo-packager/references/usage-examples.md[m
+[1mdeleted file mode 100644[m
+[1mindex 16a6771..0000000[m
+[1m--- a/.agents/skills/repo-packager/references/usage-examples.md[m
+[1m+++ /dev/null[m
+[36m@@ -1,102 +0,0 @@[m
+[31m-# Ejemplos de uso — repo-packager[m
+[31m-[m
+[31m-## Preparación (una sola vez por repo)[m
+[31m-[m
+[31m-```bash[m
+[31m-# Desde la raíz del repositorio que quieres empaquetar (ej. Fitflow)[m
+[31m-npx repomix --style json --compress -o repo.json[m
+[31m-```[m
+[31m-[m
+[31m-El archivo `repo.json` es la base. El script cachea el grafo en `.repo-packager-cache/`.[m
+[31m-[m
+[31m----[m
+[31m-[m
+[31m-## 1. Contexto reducido (overview)[m
+[31m-[m
+[31m-```bash[m
+[31m-python /ruta/a/repo-packager/scripts/pack.py reducido \[m
+[31m-  --json repo.json \[m
+[31m-  --budget 8000[m
+[31m-```[m
+[31m-[m
+[31m-Con personalización (archivos que el usuario está tocando):[m
+[31m-[m
+[31m-```bash[m
+[31m-python .../pack.py reducido \[m
+[31m-  --json repo.json \[m
+[31m-  --budget 6000 \[m
+[31m-  --personalize src/checkout/CheckoutService.ts src/cart/CartContext.ts[m
+[31m-```[m
+[31m-[m
+[31m-Máxima compresión (solo firmas + imports):[m
+[31m-[m
+[31m-```bash[m
+[31m-python .../pack.py reducido \[m
+[31m-  --json repo.json \[m
+[31m-  --budget 4000 \[m
+[31m-  --signatures-only[m
+[31m-```[m
+[31m-[m
+[31m-**Qué recibe el agente:**[m
+[31m-- Lista de paths seleccionados + score[m
+[31m-- Lista de candidatos a expansión (con razón y tokens estimados)[m
+[31m-- Contenido del pack[m
+[31m-[m
+[31m----[m
+[31m-[m
+[31m-## 2. Drill-down (mapa fino de una zona)[m
+[31m-[m
+[31m-```bash[m
+[31m-python .../pack.py drill-down \[m
+[31m-  --json repo.json \[m
+[31m-  --focus src/checkout \[m
+[31m-  --budget 5000[m
+[31m-```[m
+[31m-[m
+[31m-Útil cuando el overview muestra que la zona importante es `src/checkout` y quieres un mapa más preciso de ese subárbol sin pedir aún el código completo.[m
+[31m-[m
+[31m----[m
+[31m-[m
+[31m-## 3. Ampliado (código real)[m
+[31m-[m
+[31m-```bash[m
+[31m-python .../pack.py ampliado \[m
+[31m-  --paths src/checkout/CheckoutService.ts,src/checkout/hooks,src/payments/PaymentProvider.ts[m
+[31m-```[m
+[31m-[m
+[31m-- Máximo 10 paths.[m
+[31m-- Sin `--compress` → código fuente real.[m
+[31m-- Se puede pedir **directamente**, sin haber pedido reducido antes.[m
+[31m-- Si se solicitan más de 10, tratar cualquier recorte de la implementación[m
+[31m-  actual como `PARTIAL`; no continuar como si el pack fuera completo.[m
+[31m-[m
+[31m----[m
+[31m-[m
+[31m-## Flujo típico del agente[m
+[31m-[m
+[31m-1. Generar / reutilizar `repo.json`[m
+[31m-2. Pedir **reducido** → obtener mapa + candidatos[m
+[31m-3. Decidir:[m
+[31m-   - ¿Alcanza? → trabajar con eso[m
+[31m-   - ¿Necesito afinar una zona? → **drill-down**[m
+[31m-   - ¿Necesito implementación real? → **ampliado** de los paths candidatos relevantes[m
+[31m-4. Repetir solo si es necesario[m
+[31m-[m
+[31m-La skill nunca decide el siguiente paso. Solo empaqueta lo que se le pide.[m
+[31m-[m
+[31m----[m
+[31m-[m
+[31m-## Notas de integración con OpenCode[m
+[31m-[m
+[31m-La skill canónica vive en `FitFlow/.agents/skills/repo-packager/` porque el[m
+[31m-Project Profile y las instrucciones permanecen junto al producto. OpenCode la[m
+[31m-consume mediante el adapter; FitFlow-ai no mantiene una copia editable.[m
+[31m-[m
+[31m-Ejemplo de regla sugerida para el agente:[m
+[31m-[m
+[31m-```[m
+[31m-Cuando necesites contexto de código del core (Fitflow):[m
+[31m-- Usa la skill repo-packager en modo reducido primero.[m
+[31m-- Luego decide si pedir drill-down o ampliado.[m
+[31m-- Nunca envíes el repo completo.[m
+[31m-```[m
+[1mdiff --git a/.agents/skills/repo-packager/scripts/pack.py b/.agents/skills/repo-packager/scripts/pack.py[m
+[1mdeleted file mode 100644[m
+[1mindex 7986ec4..0000000[m
+[1m--- a/.agents/skills/repo-packager/scripts/pack.py[m
+[1m+++ /dev/null[m
+[36m@@ -1,641 +0,0 @@[m
+[31m-#!/usr/bin/env python3[m
+[31m-"""[m
+[31m-repo-packager — empaqueta contexto de repositorio via PageRank + Repomix.[m
+[31m-Modos: reducido | ampliado | drill-down[m
+[31m-"""[m
+[31m-[m
+[31m-from __future__ import annotations[m
+[31m-[m
+[31m-import argparse[m
+[31m-import fnmatch[m
+[31m-import json[m
+[31m-import os[m
+[31m-import re[m
+[31m-import subprocess[m
+[31m-import sys[m
+[31m-import time[m
+[31m-from pathlib import Path, PurePosixPath[m
+[31m-from collections import defaultdict[m
+[31m-from typing import Optional[m
+[31m-[m
+[31m-try:[m
+[31m-    import networkx as nx[m
+[31m-except ImportError:[m
+[31m-    print("ERROR: networkx no instalado. Ejecuta: pip install networkx", file=sys.stderr)[m
+[31m-    sys.exit(1)[m
+[31m-[m
+[31m-# ---------------------------------------------------------------------------[m
+[31m-# Constants & helpers[m
+[31m-# ---------------------------------------------------------------------------[m
+[31m-[m
+[31m-CACHE_DIR_NAME = ".repo-packager-cache"[m
+[31m-MAX_AMPLIADO_PATHS = 10[m
+[31m-CHARS_PER_TOKEN = 4  # rough estimate[m
+[31m-[m
+[31m-DEFAULT_EXCLUSIONS = [[m
+[31m-    ".git/**",[m
+[31m-    ".venv*/**",[m
+[31m-    "backend/.venv_backend/**",[m
+[31m-    "../FitFlow-ai/python/.venv_tools/**",[m
+[31m-    "node_modules/**",[m
+[31m-    "**/__pycache__/**",[m
+[31m-    "**/.pytest_cache/**",[m
+[31m-    "**/.ruff_cache/**",[m
+[31m-    "dist/**",[m
+[31m-    "build/**",[m
+[31m-    "docs/archive/**",[m
+[31m-    ".ai/local/**",[m
+[31m-    ".ai/runs/**",[m
+[31m-    "exports/**",[m
+[31m-    "storage/**",[m
+[31m-    "qdrant_storage/**",[m
+[31m-    ".repo-packager-cache/**",[m
+[31m-    "logs/**",[m
+[31m-    "**/.env",[m
+[31m-    "**/.env.*",[m
+[31m-    "**/*.key",[m
+[31m-    "**/*.pem",[m
+[31m-    "**/*.p12",[m
+[31m-    "**/*.sqlite*",[m
+[31m-][m
+[31m-[m
+[31m-IMPORT_PATTERNS = [[m
+[31m-    # Python[m
+[31m-    re.compile(r"^\s*(?:from\s+([\w.]+)|import\s+([\w.]+))", re.MULTILINE),[m
+[31m-    # JS/TS ESM + CJS[m
+[31m-    re.compile([m
+[31m-        r"""(?:import\s+(?:[\w*{}\s,]+from\s+)?|require\s*\(\s*)['"]([^'"]+)['"]""",[m
+[31m-        re.MULTILINE,[m
+[31m-    ),[m
+[31m-    # Go[m
+[31m-    re.compile(r'^\s*import\s+(?:\(|")([\w./-]+)', re.MULTILINE),[m
+[31m-    # Java / Kotlin-ish[m
+[31m-    re.compile(r"^\s*import\s+([\w.]+)", re.MULTILINE),[m
+[31m-    # Rust[m
+[31m-    re.compile(r"^\s*(?:use|mod)\s+([\w:]+)", re.MULTILINE),[m
+[31m-][m
+[31m-[m
+[31m-[m
+[31m-def estimate_tokens(text: str) -> int:[m
+[31m-    return max(1, len(text) // CHARS_PER_TOKEN)[m
+[31m-[m
+[31m-[m
+[31m-def extract_imports(content: str) -> set[str]:[m
+[31m-    imports: set[str] = set()[m
+[31m-    for pat in IMPORT_PATTERNS:[m
+[31m-        for m in pat.finditer(content):[m
+[31m-            for g in m.groups():[m
+[31m-                if g:[m
+[31m-                    imports.add(g.strip())[m
+[31m-                    break[m
+[31m-    return imports[m
+[31m-[m
+[31m-[m
+[31m-def load_ignore_patterns(repo_root: Path) -> list[str]:[m
+[31m-    patterns = list(DEFAULT_EXCLUSIONS)[m
+[31m-    for ignore_name in (".repomixignore", ".gitignore"):[m
+[31m-        ignore_path = repo_root / ignore_name[m
+[31m-        if not ignore_path.exists():[m
+[31m-            continue[m
+[31m-        with open(ignore_path, "r", encoding="utf-8", errors="replace") as fh:[m
+[31m-            for line in fh:[m
+[31m-                candidate = line.strip()[m
+[31m-                if not candidate or candidate.startswith("#") or candidate.startswith("!"):[m
+[31m-                    continue[m
+[31m-                patterns.append(candidate)[m
+[31m-    return patterns[m
+[31m-[m
+[31m-[m
+[31m-def normalize_repo_path(path: str, repo_root: Optional[Path] = None) -> str:[m
+[31m-    normalized = str(path).replace("\\", "/")[m
+[31m-    if repo_root:[m
+[31m-        try:[m
+[31m-            candidate = Path(normalized)[m
+[31m-            if candidate.is_absolute():[m
+[31m-                rel = candidate.relative_to(repo_root)[m
+[31m-                return rel.as_posix()[m
+[31m-        except Exception:[m
+[31m-            pass[m
+[31m-    if normalized.startswith("./"):[m
+[31m-        return normalized[2:][m
+[31m-    return normalized[m
+[31m-[m
+[31m-[m
+[31m-def path_matches_exclusion(path: str, patterns: list[str], repo_root: Optional[Path] = None) -> bool:[m
+[31m-    relative_path = normalize_repo_path(path, repo_root)[m
+[31m-    candidate_name = PurePosixPath(relative_path).name[m
+[31m-    for raw_pattern in patterns:[m
+[31m-        pattern = raw_pattern.strip().replace("\\", "/")[m
+[31m-        if not pattern or pattern.startswith("#") or pattern.startswith("!"):[m
+[31m-            continue[m
+[31m-        pattern = pattern.lstrip("/")[m
+[31m-        if pattern.startswith("./"):[m
+[31m-            pattern = pattern[2:][m
+[31m-        if pattern.endswith("/"):[m
+[31m-            pattern = pattern.rstrip("/")[m
+[31m-[m
+[31m-        if not pattern:[m
+[31m-            continue[m
+[31m-[m
+[31m-        pattern_variants = {pattern}[m
+[31m-        if "/" not in pattern:[m
+[31m-            pattern_variants.update({f"**/{pattern}"})[m
+[31m-        else:[m
+[31m-            pattern_variants.update({pattern, f"./{pattern}", f"**/{pattern}"})[m
+[31m-[m
+[31m-        if relative_path in pattern_variants:[m
+[31m-            return True[m
+[31m-        if relative_path.startswith(pattern + "/"):[m
+[31m-            return True[m
+[31m-        if relative_path.startswith(f"./{pattern}/"):[m
+[31m-            return True[m
+[31m-        if any(fnmatch.fnmatch(relative_path, variant) for variant in pattern_variants):[m
+[31m-            return True[m
+[31m-        if any(fnmatch.fnmatch(relative_path, f"{variant}/**") for variant in pattern_variants):[m
+[31m-            return True[m
+[31m-        if "/" not in pattern and fnmatch.fnmatch(candidate_name, pattern):[m
+[31m-            return True[m
+[31m-    return False[m
+[31m-[m
+[31m-[m
+[31m-def filter_excluded_files(files: dict[str, str], repo_root: Path, patterns: Optional[list[str]] = None) -> dict[str, str]:[m
+[31m-    active_patterns = patterns or load_ignore_patterns(repo_root)[m
+[31m-    return {[m
+[31m-        path: content[m
+[31m-        for path, content in files.items()[m
+[31m-        if not path_matches_exclusion(path, active_patterns, repo_root)[m
+[31m-    }[m
+[31m-[m
+[31m-[m
+[31m-def resolve_to_file(imp: str, all_files: dict[str, str], current_file: str) -> Optional[str]:[m
+[31m-    imp = imp.replace("\\", "/").lstrip("./")[m
+[31m-    candidates = [][m
+[31m-    for fpath in all_files:[m
+[31m-        stem = Path(fpath).stem[m
+[31m-        name = Path(fpath).name[m
+[31m-        if ([m
+[31m-            fpath == imp[m
+[31m-            or fpath.startswith(imp + ".")[m
+[31m-            or fpath.endswith("/" + imp)[m
+[31m-            or fpath.endswith("/" + imp + ".py")[m
+[31m-            or fpath.endswith("/" + imp + ".ts")[m
+[31m-            or fpath.endswith("/" + imp + ".tsx")[m
+[31m-            or fpath.endswith("/" + imp + ".js")[m
+[31m-            or fpath.endswith("/" + imp + ".jsx")[m
+[31m-            or fpath.endswith("/" + imp + ".go")[m
+[31m-            or fpath.endswith("/" + imp + ".rs")[m
+[31m-            or stem == Path(imp).stem[m
+[31m-            or name == imp[m
+[31m-        ):[m
+[31m-            candidates.append(fpath)[m
+[31m-    if not candidates:[m
+[31m-        return None[m
+[31m-    current_dir = str(Path(current_file).parent)[m
+[31m-    candidates.sort(key=lambda c: (0 if c.startswith(current_dir) else 1, len(c)))[m
+[31m-    return candidates[0][m
+[31m-[m
+[31m-[m
+[31m-def build_graph(files: dict[str, str]) -> nx.DiGraph:[m
+[31m-    G = nx.DiGraph()[m
+[31m-    G.add_nodes_from(files.keys())[m
+[31m-    for src, content in files.items():[m
+[31m-        for imp in extract_imports(content):[m
+[31m-            dst = resolve_to_file(imp, files, src)[m
+[31m-            if dst and dst != src:[m
+[31m-                if G.has_edge(src, dst):[m
+[31m-                    G[src][dst]["weight"] += 1[m
+[31m-                else:[m
+[31m-                    G.add_edge(src, dst, weight=1)[m
+[31m-    return G[m
+[31m-[m
+[31m-[m
+[31m-def compute_pagerank([m
+[31m-    G: nx.DiGraph,[m
+[31m-    personalize: Optional[list[str]] = None,[m
+[31m-    focus: Optional[str] = None,[m
+[31m-) -> dict[str, float]:[m
+[31m-    personalization = None[m
+[31m-    if personalize or focus:[m
+[31m-        personalization = {}[m
+[31m-        boost_nodes = set(personalize or [])[m
+[31m-        if focus:[m
+[31m-            # boost everything under the focus path[m
+[31m-            for n in G.nodes:[m
+[31m-                if n.startswith(focus.rstrip("/") + "/") or n == focus:[m
+[31m-                    boost_nodes.add(n)[m
+[31m-        if boost_nodes:[m
+[31m-            for n in boost_nodes:[m
+[31m-                if n in G:[m
+[31m-                    personalization[n] = 100.0[m
+[31m-            residual = 1.0 / max(len(G) - len(personalization), 1)[m
+[31m-            for n in G:[m
+[31m-                if n not in personalization:[m
+[31m-                    personalization[n] = residual[m
+[31m-    return nx.pagerank(G, alpha=0.85, personalization=personalization, weight="weight")[m
+[31m-[m
+[31m-[m
+[31m-def get_cache_paths(json_path: Path) -> tuple[Path, Path]:[m
+[31m-    cache_dir = json_path.parent / CACHE_DIR_NAME[m
+[31m-    cache_dir.mkdir(exist_ok=True)[m
+[31m-    stem = json_path.stem[m
+[31m-    return cache_dir / f"{stem}.graph.pkl", cache_dir / f"{stem}.rank.json"[m
+[31m-[m
+[31m-[m
+[31m-def load_or_build_graph(json_path: Path, files: dict[str, str]) -> nx.DiGraph:[m
+[31m-    import pickle[m
+[31m-[m
+[31m-    graph_cache, _ = get_cache_paths(json_path)[m
+[31m-    json_mtime = json_path.stat().st_mtime[m
+[31m-[m
+[31m-    if graph_cache.exists():[m
+[31m-        try:[m
+[31m-            with open(graph_cache, "rb") as f:[m
+[31m-                cached = pickle.load(f)[m
+[31m-            if cached.get("mtime") == json_mtime and "graph" in cached:[m
+[31m-                return cached["graph"][m
+[31m-        except Exception:[m
+[31m-            pass[m
+[31m-[m
+[31m-    G = build_graph(files)[m
+[31m-    with open(graph_cache, "wb") as f:[m
+[31m-        pickle.dump({"mtime": json_mtime, "graph": G}, f)[m
+[31m-    return G[m
+[31m-[m
+[31m-[m
+[31m-def reason_for_candidate(fpath: str, score: float, G: nx.DiGraph, selected: set[str]) -> str:[m
+[31m-    in_degree = G.in_degree(fpath, weight="weight") if fpath in G else 0[m
+[31m-    is_neighbor = any(G.has_edge(s, fpath) or G.has_edge(fpath, s) for s in selected)[m
+[31m-    if in_degree >= 3:[m
+[31m-        return "alto indegree (muy importado)"[m
+[31m-    if is_neighbor:[m
+[31m-        return "vecino directo de seleccionados"[m
+[31m-    if score > 0.01:[m
+[31m-        return "score medio-alto"[m
+[31m-    return "candidato residual"[m
+[31m-[m
+[31m-[m
+[31m-def extract_signatures_only(content: str) -> str:[m
+[31m-    """Keep imports + function/class/type signatures, drop bodies."""[m
+[31m-    lines = content.splitlines()[m
+[31m-    kept = [][m
+[31m-    skip_until_dedent = None[m
+[31m-    for line in lines:[m
+[31m-        stripped = line.lstrip()[m
+[31m-        # always keep imports / requires / use / package[m
+[31m-        if re.match([m
+[31m-            r"^(import |from |require\(|use |package |mod |export )", stripped[m
+[31m-        ) or stripped.startswith("//") or stripped.startswith("#"):[m
+[31m-            kept.append(line)[m
+[31m-            continue[m
+[31m-        # keep signatures (heuristic)[m
+[31m-        if re.match([m
+[31m-            r"^(export )?(async )?(function |class |interface |type |const |let |var |def |fn |pub |struct |enum )",[m
+[31m-            stripped,[m
+[31m-        ) or re.match(r"^\s*(public |private |protected |static )", stripped):[m
+[31m-            kept.append(line)[m
+[31m-            # crude body skip for languages with braces[m
+[31m-            if "{" in line and not line.rstrip().endswith("}"):[m
+[31m-                skip_until_dedent = len(line) - len(stripped)[m
+[31m-            continue[m
+[31m-        if skip_until_dedent is not None:[m
+[31m-            current_indent = len(line) - len(line.lstrip()) if line.strip() else 999[m
+[31m-            if current_indent <= skip_until_dedent and line.strip():[m
+[31m-                skip_until_dedent = None[m
+[31m-                if not line.strip().startswith("}"):[m
+[31m-                    kept.append(line)[m
+[31m-            continue[m
+[31m-        # keep top-level declarations without body[m
+[31m-        if stripped and not stripped.startswith((" ", "\t", "}", ")")):[m
+[31m-            if any(k in stripped for k in ("=", ":", "->", "=>")) and len(stripped) < 120:[m
+[31m-                kept.append(line)[m
+[31m-    return "\n".join(kept) if kept else content[:500] + "\n// ... (signatures-only truncated)"[m
+[31m-[m
+[31m-[m
+[31m-# ---------------------------------------------------------------------------[m
+[31m-# Modes[m
+[31m-# ---------------------------------------------------------------------------[m
+[31m-[m
+[31m-def mode_reducido(args: argparse.Namespace) -> None:[m
+[31m-    json_path = Path(args.json)[m
+[31m-    if not json_path.exists():[m
+[31m-        print(f"ERROR: no existe {json_path}", file=sys.stderr)[m
+[31m-        sys.exit(1)[m
+[31m-[m
+[31m-    with open(json_path, encoding="utf-8") as f:[m
+[31m-        data = json.load(f)[m
+[31m-    files: dict[str, str] = data.get("files", {})[m
+[31m-    if not files:[m
+[31m-        print("ERROR: JSON sin clave 'files'", file=sys.stderr)[m
+[31m-        sys.exit(1)[m
+[31m-[m
+[31m-    repo_root = json_path.parent[m
+[31m-    exclusions = load_ignore_patterns(repo_root)[m
+[31m-    files = filter_excluded_files(files, repo_root, exclusions)[m
+[31m-    if not files:[m
+[31m-        print("STATUS: EMPTY")[m
+[31m-        print("No hay archivos relevantes después de aplicar exclusiones de entorno, caches y secrets.")[m
+[31m-        return[m
+[31m-[m
+[31m-    G = load_or_build_graph(json_path, files)[m
+[31m-    ranked = compute_pagerank(G, personalize=args.personalize or None)[m
+[31m-    sorted_files = sorted(ranked.items(), key=lambda x: x[1], reverse=True)[m
+[31m-[m
+[31m-    selected = [][m
+[31m-    total_tokens = 0[m
+[31m-    selected_set = set()[m
+[31m-    for fpath, score in sorted_files:[m
+[31m-        content = files[fpath][m
+[31m-        if args.signatures_only:[m
+[31m-            content = extract_signatures_only(content)[m
+[31m-        toks = estimate_tokens(content)[m
+[31m-        if total_tokens + toks > args.budget:[m
+[31m-            break[m
+[31m-        selected.append((fpath, content, score))[m
+[31m-        selected_set.add(fpath)[m
+[31m-        total_tokens += toks[m
+[31m-[m
+[31m-    ignored_paths = [fpath for fpath, _ in sorted_files if fpath not in selected_set][m
+[31m-[m
+[31m-    # candidates = next ones that did not fit + high-score neighbors[m
+[31m-    candidates = [][m
+[31m-    for fpath, score in sorted_files:[m
+[31m-        if fpath in selected_set:[m
+[31m-            continue[m
+[31m-        if len(candidates) >= 25:[m
+[31m-            break[m
+[31m-        reason = reason_for_candidate(fpath, score, G, selected_set)[m
+[31m-        candidates.append((fpath, score, reason, estimate_tokens(files[fpath])))[m
+[31m-[m
+[31m-    status = "COMPLETE" if not ignored_paths else "PARTIAL"[m
+[31m-[m
+[31m-    # output[m
+[31m-    print("=" * 60)[m
+[31m-    print("MODO: reducido")[m
+[31m-    print(f"Status: {status}")[m
+[31m-    print(f"Archivos incluidos: {len(selected)}  |  Tokens estimados: ~{total_tokens}")[m
+[31m-    print(f"Archivos omitidos por budget: {len(ignored_paths)}  |  Budget: {args.budget}")[m
+[31m-    print(f"Signatures-only: {args.signatures_only}")[m
+[31m-    if args.personalize:[m
+[31m-        print(f"Personalize: {', '.join(args.personalize)}")[m
+[31m-    print("=" * 60)[m
+[31m-[m
+[31m-    print("\n--- PATHS SELECCIONADOS (score) ---")[m
+[31m-    for fpath, _, score in selected:[m
+[31m-        print(f"  {score:.5f}  {fpath}")[m
+[31m-[m
+[31m-    print("\n--- CANDIDATOS A EXPANSIÓN (score | razón | ~tokens) ---")[m
+[31m-    for fpath, score, reason, toks in candidates:[m
+[31m-        print(f"  {score:.5f}  {fpath}  |  {reason}  |  ~{toks} tok")[m
+[31m-[m
+[31m-    print("\n--- CONTENIDO DEL PACK ---\n")[m
+[31m-    for fpath, content, score in selected:[m
+[31m-        print(f"// ===== {fpath}  (PageRank {score:.5f}) =====")[m
+[31m-        print(content)[m
+[31m-        print()[m
+[31m-[m
+[31m-[m
+[31m-def mode_drill_down(args: argparse.Namespace) -> None:[m
+[31m-    # same as reducido but with strong focus personalization[m
+[31m-    args.personalize = (args.personalize or []) + [args.focus][m
+[31m-    # force focus into the personalization heavily via the focus param[m
+[31m-    json_path = Path(args.json)[m
+[31m-    if not json_path.exists():[m
+[31m-        print(f"ERROR: no existe {json_path}", file=sys.stderr)[m
+[31m-        sys.exit(1)[m
+[31m-[m
+[31m-    with open(json_path, encoding="utf-8") as f:[m
+[31m-        data = json.load(f)[m
+[31m-    files: dict[str, str] = data.get("files", {})[m
+[31m-    if not files:[m
+[31m-        print("ERROR: JSON sin clave 'files'", file=sys.stderr)[m
+[31m-        sys.exit(1)[m
+[31m-[m
+[31m-    repo_root = json_path.parent[m
+[31m-    exclusions = load_ignore_patterns(repo_root)[m
+[31m-    files = filter_excluded_files(files, repo_root, exclusions)[m
+[31m-    if not files:[m
+[31m-        print("STATUS: EMPTY")[m
+[31m-        print("No hay archivos relevantes en el foco después de aplicar exclusiones de entorno, caches y secrets.")[m
+[31m-        return[m
+[31m-[m
+[31m-    G = load_or_build_graph(json_path, files)[m
+[31m-    ranked = compute_pagerank(G, personalize=args.personalize, focus=args.focus)[m
+[31m-    sorted_files = sorted(ranked.items(), key=lambda x: x[1], reverse=True)[m
+[31m-[m
+[31m-    selected = [][m
+[31m-    total_tokens = 0[m
+[31m-    selected_set = set()[m
+[31m-    for fpath, score in sorted_files:[m
+[31m-        # prefer files under focus[m
+[31m-        content = files[fpath][m
+[31m-        if args.signatures_only:[m
+[31m-            content = extract_signatures_only(content)[m
+[31m-        toks = estimate_tokens(content)[m
+[31m-        if total_tokens + toks > args.budget:[m
+[31m-            break[m
+[31m-        selected.append((fpath, content, score))[m
+[31m-        selected_set.add(fpath)[m
+[31m-        total_tokens += toks[m
+[31m-[m
+[31m-    ignored_paths = [fpath for fpath, _ in sorted_files if fpath not in selected_set][m
+[31m-[m
+[31m-    candidates = [][m
+[31m-    for fpath, score in sorted_files:[m
+[31m-        if fpath in selected_set:[m
+[31m-            continue[m
+[31m-        if len(candidates) >= 20:[m
+[31m-            break[m
+[31m-        reason = reason_for_candidate(fpath, score, G, selected_set)[m
+[31m-        if fpath.startswith(args.focus.rstrip("/") + "/") or fpath == args.focus:[m
+[31m-            reason = "dentro del focus + " + reason[m
+[31m-        candidates.append((fpath, score, reason, estimate_tokens(files[fpath])))[m
+[31m-[m
+[31m-    status = "COMPLETE" if not ignored_paths else "PARTIAL"[m
+[31m-[m
+[31m-    print("=" * 60)[m
+[31m-    print("MODO: drill-down")[m
+[31m-    print(f"Status: {status}")[m
+[31m-    print(f"Focus: {args.focus}")[m
+[31m-    print(f"Archivos incluidos: {len(selected)}  |  Tokens estimados: ~{total_tokens}")[m
+[31m-    print(f"Archivos omitidos por budget: {len(ignored_paths)}  |  Budget: {args.budget}")[m
+[31m-    print(f"Signatures-only: {args.signatures_only}")[m
+[31m-    print("=" * 60)[m
+[31m-[m
+[31m-    print("\n--- PATHS SELECCIONADOS (score) ---")[m
+[31m-    for fpath, _, score in selected:[m
+[31m-        print(f"  {score:.5f}  {fpath}")[m
+[31m-[m
+[31m-    print("\n--- CANDIDATOS A EXPANSIÓN (score | razón | ~tokens) ---")[m
+[31m-    for fpath, score, reason, toks in candidates:[m
+[31m-        print(f"  {score:.5f}  {fpath}  |  {reason}  |  ~{toks} tok")[m
+[31m-[m
+[31m-    print("\n--- CONTENIDO DEL PACK ---\n")[m
+[31m-    for fpath, content, score in selected:[m
+[31m-        print(f"// ===== {fpath}  (PageRank {score:.5f}) =====")[m
+[31m-        print(content)[m
+[31m-        print()[m
+[31m-[m
+[31m-[m
+[31m-def mode_ampliado(args: argparse.Namespace) -> None:[m
+[31m-    requested_paths = [p.strip() for p in args.paths.split(",") if p.strip()][m
+[31m-    if not requested_paths:[m
+[31m-        print("ERROR: --paths vacío", file=sys.stderr)[m
+[31m-        sys.exit(1)[m
+[31m-[m
+[31m-    status = "COMPLETE"[m
+[31m-    omitted_paths = [][m
+[31m-    if len(requested_paths) > MAX_AMPLIADO_PATHS:[m
+[31m-        status = "PARTIAL"[m
+[31m-        omitted_paths = requested_paths[MAX_AMPLIADO_PATHS:][m
+[31m-        requested_paths = requested_paths[:MAX_AMPLIADO_PATHS][m
+[31m-[m
+[31m-    # Build include pattern for repomix[m
+[31m-    # Repomix accepts --include with globs[m
+[31m-    include_globs = [][m
+[31m-    for p in requested_paths:[m
+[31m-        p = p.rstrip("/")[m
+[31m-        if Path(p).suffix:  # file[m
+[31m-            include_globs.append(p)[m
+[31m-        else:  # directory[m
+[31m-            include_globs.append(f"{p}/**/*")[m
+[31m-[m
+[31m-    include_arg = ",".join(include_globs)[m
+[31m-[m
+[31m-    cmd = [[m
+[31m-        "npx",[m
+[31m-        "repomix",[m
+[31m-        "--style",[m
+[31m-        "json",[m
+[31m-        "--no-file-summary",[m
+[31m-        "--no-directory-structure",[m
+[31m-        "-o",[m
+[31m-        "-",  # stdout[m
+[31m-        "--include",[m
+[31m-        include_arg,[m
+[31m-    ][m
+[31m-    # deliberately NO --compress[m
+[31m-[m
+[31m-    print("=" * 60)[m
+[31m-    print("MODO: ampliado (código real, sin compress)")[m
+[31m-    print(f"Status: {status}")[m
+[31m-    print(f"Paths solicitados: {', '.join(requested_paths)}")[m
+[31m-    if omitted_paths:[m
+[31m-        print(f"Paths omitidos: {', '.join(omitted_paths)}")[m
+[31m-    print(f"Comando: {' '.join(cmd)}")[m
+[31m-    print("=" * 60)[m
+[31m-    print()[m
+[31m-[m
+[31m-    try:[m
+[31m-        result = subprocess.run([m
+[31m-            cmd,[m
+[31m-            capture_output=True,[m
+[31m-            text=True,[m
+[31m-            timeout=120,[m
+[31m-            cwd=os.getcwd(),[m
+[31m-        )[m
+[31m-    except subprocess.TimeoutExpired:[m
+[31m-        print("ERROR: repomix timeout", file=sys.stderr)[m
+[31m-        sys.exit(1)[m
+[31m-    except FileNotFoundError:[m
+[31m-        print("ERROR: npx/repomix no encontrado", file=sys.stderr)[m
+[31m-        sys.exit(1)[m
+[31m-[m
+[31m-    if result.returncode != 0:[m
+[31m-        print("ERROR de repomix:", result.stderr, file=sys.stderr)[m
+[31m-        sys.exit(1)[m
+[31m-[m
+[31m-    try:[m
+[31m-        data = json.loads(result.stdout)[m
+[31m-    except json.JSONDecodeError:[m
+[31m-        # fallback: maybe plain output, just print it[m
+[31m-        print(result.stdout)[m
+[31m-        return[m
+[31m-[m
+[31m-    repo_root = Path.cwd()[m
+[31m-    exclusions = load_ignore_patterns(repo_root)[m
+[31m-    files = filter_excluded_files(data.get("files", {}), repo_root, exclusions)[m
+[31m-    total_tokens = 0[m
+[31m-    print(f"Archivos devueltos: {len(files)}")[m
+[31m-    for fpath, content in files.items():[m
+[31m-        toks = estimate_tokens(content)[m
+[31m-        total_tokens += toks[m
+[31m-        print(f"  ~{toks} tok  {fpath}")[m
+[31m-    print(f"Tokens estimados totales: ~{total_tokens}")[m
+[31m-    print("\n--- CONTENIDO REAL ---\n")[m
+[31m-    for fpath, content in files.items():[m
+[31m-        print(f"// ===== {fpath} =====")[m
+[31m-        print(content)[m
+[31m-        print()[m
+[31m-[m
+[31m-[m
+[31m-# ---------------------------------------------------------------------------[m
+[31m-# CLI[m
+[31m-# ---------------------------------------------------------------------------[m
+[31m-[m
+[31m-def main() -> None:[m
+[31m-    parser = argparse.ArgumentParser([m
+[31m-        description="repo-packager — empaqueta contexto con PageRank + Repomix"[m
+[31m-    )[m
+[31m-    sub = parser.add_subparsers(dest="mode", required=True)[m
+[31m-[m
+[31m-    # reducido[m
+[31m-    p_red = sub.add_parser("reducido", help="Pack rankeado + candidatos")[m
+[31m-    p_red.add_argument("--json", required=True, help="JSON de repomix --style json --compress")[m
+[31m-    p_red.add_argument("--budget", type=int, default=8000, help="Token budget (default 8000)")[m
+[31m-    p_red.add_argument([m
+[31m-        "--personalize",[m
+[31m-        nargs="*",[m
+[31m-        default=[],[m
+[31m-        help="Archivos a potenciar (contexto actual)",[m
+[31m-    )[m
+[31m-    p_red.add_argument([m
+[31m-        "--signatures-only",[m
+[31m-        action="store_true",[m
+[31m-        help="Solo firmas + imports (máxima compresión)",[m
+[31m-    )[m
+[31m-[m
+[31m-    # drill-down[m
+[31m-    p_dd = sub.add_parser("drill-down", help="Mapa fino centrado en una zona")[m
+[31m-    p_dd.add_argument("--json", required=True, help="JSON de repomix --style json --compress")[m
+[31m-    p_dd.add_argument("--focus", required=True, help="Path o directorio a centrar")[m
+[31m-    p_dd.add_argument("--budget", type=int, default=6000, help="Token budget (default 6000)")[m
+[31m-    p_dd.add_argument([m
+[31m-        "--personalize",[m
+[31m-        nargs="*",[m
+[31m-        default=[],[m
+[31m-        help="Archivos extra a potenciar",[m
+[31m-    )[m
+[31m-    p_dd.add_argument([m
+[31m-        "--signatures-only",[m
+[31m-        action="store_true",[m
+[31m-        help="Solo firmas + imports",[m
+[31m-    )[m
+[31m-[m
+[31m-    # ampliado[m
+[31m-    p_amp = sub.add_parser("ampliado", help="Código real de paths concretos (max 10)")[m
+[31m-    p_amp.add_argument([m
+[31m-        "--paths",[m
+[31m-        required=True,[m
+[31m-        help="Lista separada por comas de paths/directorios (máx 10)",[m
+[31m-    )[m
+[31m-    p_amp.add_argument([m
+[31m-        "--json",[m
+[31m-        default=None,[m
+[31m-        help="Opcional, solo para metadata (no se usa el contenido)",[m
+[31m-    )[m
+[31m-[m
+[31m-    args = parser.parse_args()[m
+[31m-[m
+[31m-    if args.mode == "reducido":[m
+[31m-        mode_reducido(args)[m
+[31m-    elif args.mode == "drill-down":[m
+[31m-        mode_drill_down(args)[m
+[31m-    elif args.mode == "ampliado":[m
+[31m-        mode_ampliado(args)[m
+[31m-    else:[m
+[31m-        parser.print_help()[m
+[31m-        sys.exit(1)[m
+[31m-[m
+[31m-[m
+[31m-if __name__ == "__main__":[m
+[31m-    main()[m
+\ No newline at end of file[m
