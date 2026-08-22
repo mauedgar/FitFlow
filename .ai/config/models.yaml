@@ -1,7 +1,5 @@
-schema_version: fitflow-model-registry/v2
-selection_policy: sufficient_capability_lowest_expected_total_cost
-record_effective_runtime_id: true
-unknown_runtime_policy: experimental_only
+schema_version: fitflow-model-registry/v3
+selection_policy: fitflow-model-selection/v1
 entries:
   fastcontext_local_candidate:
     provider: local
@@ -9,10 +7,12 @@ entries:
     display_name: FastContext 1.0 4B-R1
     availability: discovered_local
     trust: experimental
-    quota_pool: local
+    resource_pool: local
     capabilities: [exploration]
     criticality_ceiling: low
+    eligible_roles: [explorer]
     preferred_roles: [explorer]
+    selection_tier: 10
     benchmark_status: untested
     last_verified: 2026-08-18
   qwen25_coder_7b_candidate:
@@ -21,10 +21,12 @@ entries:
     display_name: Qwen2.5-Coder 7B Instruct
     availability: discovered_local
     trust: experimental
-    quota_pool: local
+    resource_pool: local
     capabilities: [coding]
     criticality_ceiling: low
+    eligible_roles: [coder_b, coder_a]
     preferred_roles: [coder_b, coder_a]
+    selection_tier: 10
     benchmark_status: untested
     last_verified: 2026-08-18
   qwen25_coder_3b_candidate:
@@ -33,10 +35,12 @@ entries:
     display_name: Qwen2.5-Coder 3B Instruct
     availability: discovered_local
     trust: experimental
-    quota_pool: local
+    resource_pool: local
     capabilities: [coding, classification]
     criticality_ceiling: low
+    eligible_roles: [coder_b]
     preferred_roles: [coder_b]
+    selection_tier: 20
     benchmark_status: untested
     last_verified: 2026-08-18
   deepseek_r1_8b_candidate:
@@ -45,26 +49,11 @@ entries:
     display_name: DeepSeek R1 0528 Qwen3 8B
     availability: discovered_local
     trust: experimental
-    quota_pool: local
+    resource_pool: local
     capabilities: [reasoning, review]
     criticality_ceiling: low
+    eligible_roles: [reviewer, architect]
     preferred_roles: [reviewer]
+    selection_tier: 10
     benchmark_status: untested
     last_verified: 2026-08-18
-dynamic_sources:
-  - adapter: opencode
-    surface: cli_headless
-    version: 1.18.18
-    status: cli_available_conformance_pending
-    allowed_pools: [zen_included, openrouter_free, cloud_included]
-deferred_sources:
-  github_copilot:
-    status: deferred
-    access_mode: developer_intermediated
-    programmatic_access: false
-    reason: "El desarrollador transmite ordenes manualmente; AI Core no invoca Copilot."
-prohibited:
-  - paid_without_explicit_developer_decision
-  - unknown_model_for_final_review
-  - unbenchmarked_model_above_low_criticality
-  - programmatic_github_copilot
