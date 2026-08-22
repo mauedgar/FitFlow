@@ -66,7 +66,7 @@ Permitido dentro de tasks delimitadas:
 - fixes directamente derivados de failures reproducibles;
 - propuestas fuera de scope sin aplicarlas.
 
-Requiere decision humana:
+Requiere decision del desarrollador:
 - dominio/arquitectura;
 - dependencias base;
 - migraciones destructivas;

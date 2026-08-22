@@ -1,9 +1,10 @@
 ---
 document_id: FF-AI-CLI-001
-status: planned
-machine_context: true
+status: superseded
+machine_context: false
 version: 2.0
 updated: 2026-08-18
+superseded_by: FitFlow-ai/docs/development-pipeline-adapter.md
 ---
 
 # Contrato CLI previsto

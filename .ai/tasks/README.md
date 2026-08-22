@@ -14,6 +14,8 @@ Una task simple puede omitir artefactos no aplicables, pero toda ejecucion
 produce `REVIEW.md`, `VALIDATION.md` y `RESULT.md`. Los JSON del run se guardan
 en `.ai/runs/<run_id>/`.
 
-`FF-AI-000` a `FF-AI-012` son backlog v4 superseded. El roadmap activo esta en
-`docs/ai/roadmap-vnext.md`; el reemplazo machine-readable se registra en
+`FF-AI-000` a `FF-AI-012` son backlog v4 superseded. El roadmap activo del AI
+Core esta en `docs/implementation-roadmap.md` del repositorio FitFlow-ai.
+`.ai/backlog/vnext.yaml` permanece como espejo `MIGRATION_PENDING` hasta adaptar
+sus consumidores; el reemplazo v4 se registra en
 `.ai/tasks/v4-supersession.yaml`.

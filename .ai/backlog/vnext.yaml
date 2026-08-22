@@ -2,7 +2,8 @@ schema_version: fitflow-backlog/v1
 baseline: fitflow-ai/vnext-5.0
 supersedes: [FF-AI-000, FF-AI-001, FF-AI-002, FF-AI-003, FF-AI-004, FF-AI-005, FF-AI-006, FF-AI-007, FF-AI-008, FF-AI-009, FF-AI-010, FF-AI-011, FF-AI-012]
 notes:
-  - "FitFlow-ai vive como carpeta hermana en ../FitFlow-ai/ (repo propio en preparacion por el desarrollador). El codigo de AI Core, doctor, contracts, registries, state machine y run store reside ahi; FitFlow solo referencia rutas ../FitFlow-ai/."
+  - "MIGRATION_PENDING: FitFlow-ai es un repositorio independiente y posee el roadmap y estado detallado del AI Core. Este backlog permanece temporalmente en FitFlow por consumidores y artefactos existentes; su migracion/sincronizacion corresponde a FF-AI-VNEXT-005."
+  - "Source of Truth: FitFlow-ai/docs/implementation-roadmap.md y FitFlow-ai/docs/current-state.md."
 tasks:
   - id: FF-AI-VNEXT-001
     title: Adoptar baseline vNext
@@ -12,29 +13,29 @@ tasks:
   - id: FF-AI-VNEXT-002
     title: Implementar doctor y baseline de compatibilidad
     priority: P0
-    status: PENDING_ACCEPTANCE
+    status: DONE
     depends_on: [FF-AI-VNEXT-001]
   - id: FF-AI-VNEXT-003
     title: Implementar contracts y registries v2
     priority: P0
-    status: PENDING_ACCEPTANCE
+    status: DONE
     depends_on: [FF-AI-VNEXT-002]
   - id: FF-AI-VNEXT-004
     title: Implementar State Machine y Run Store
     priority: P0
-    status: PENDING_ACCEPTANCE
+    status: DONE
     depends_on: [FF-AI-VNEXT-003]
   - id: FF-AI-VNEXT-005
     title: Implementar Project Profile y adapters GitHub/OpenSpec
     priority: P1
-    status: BACKLOG
+    status: READY
     depends_on: [FF-AI-VNEXT-003, FF-AI-VNEXT-004]
   - id: FF-AI-VNEXT-006
     title: Hacer ContextPackager v2 compliant
     priority: P0
-    status: PAUSED
+    status: READY
     depends_on: [FF-AI-VNEXT-003]
-    pause_reason: "Context-packager en pausa por decision del desarrollador 2026-08-18. Mientras tanto 008 usa repo-packager actual con gaps documentados."
+    notes: "Reactivada tras integrar la reparacion de repo-packager en FitFlow-ai PR #2; la conformance ContextPackager v2 sigue pendiente."
   - id: FF-AI-VNEXT-007
     title: Implementar Router, Model Resolver y FinOps
     priority: P1
@@ -45,7 +46,7 @@ tasks:
     priority: P1
     status: BACKLOG
     depends_on: [FF-AI-VNEXT-004, FF-AI-VNEXT-007]
-    notes: "Desacoplado de FF-AI-VNEXT-006 (pausado). Usa repo-packager actual con gaps documentados; conformance ContextPackager v2 se difiere a 006."
+    notes: "La conformance Agent Runtime permanece separada de la conformance ContextPackager v2 de FF-AI-VNEXT-006."
   - id: FF-AI-VNEXT-009
     title: Implementar Agent MVP y documentation sync
     priority: P1

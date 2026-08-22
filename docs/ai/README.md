@@ -2,30 +2,54 @@
 document_id: FF-AI-INDEX-001
 status: canonical
 machine_context: true
-version: 5.0
-updated: 2026-08-18
+version: 6.0
+updated: 2026-08-21
 ---
 
-# Sistema de desarrollo asistido vNext
+# Integracion de FitFlow con AI Core
 
-| Documento | Contrato |
-| --- | --- |
-| `system-overview.md` | flujo, autoridad e invariantes |
-| `ai-core-architecture.md` | puertos, Project Profile y fronteras |
-| `development-pipeline.md` | State Machine y rutas de fallo |
-| `roles-and-model-routing.md` | roles, Router y Model Resolver |
-| `registries.md` | Role, Skill, Model, Workflow y Run Registries |
-| `context-strategy.md` | seleccion y presupuesto de contexto |
-| `context-delivery-pipeline.md` | Explorer y ContextPackager |
-| `context-artifacts.md` | artefactos y persistencia |
-| `validation-pipeline.md` | gates deterministas |
-| `project-profile-and-openspec.md` | configuracion por proyecto y specs |
-| `finops-policy.md` | recursos, cuotas y metricas |
-| `observability-and-evaluation.md` | ledger, observer y evals |
-| `indexing-pipeline.md` | retrieval semantico posterior |
-| `opencode-operating-guide.md` | contrato del adapter OpenCode |
-| `mcp-policy.md` | gate futuro de MCP |
-| `roadmap-vnext.md` | secuencia de implementacion |
+FitFlow-ai es la Source of Truth de arquitectura, roadmap, estado, tooling,
+contexto, adapters, Agent Runtime e inferencia del AI Core. Este directorio no
+mantiene una segunda descripcion canonica de esos componentes.
 
-Configuracion activa v2: `/.ai/config/`. Contratos activos:
-`/.ai/contracts/v2/`. Los artefactos v1 solo sirven para historial y migracion.
+Fuentes canonicas externas: `docs/architecture.md`, `docs/current-state.md`,
+`docs/implementation-roadmap.md`, `docs/compatibility-baseline.md` y
+`docs/development-pipeline-adapter.md` del repositorio
+`https://github.com/mauedgar/tecnotron-ai`, baseline documental `91a4697`.
+
+## Clasificacion
+
+| Documento | Clasificacion | Tratamiento |
+| --- | --- | --- |
+| `README.md` | KEEP | indice de ownership e integracion FitFlow |
+| `system-overview.md` | KEEP | resumen minimo de la relacion producto/AI Core |
+| `project-profile-and-openspec.md` | KEEP | configuracion e integracion especificas de FitFlow |
+| `context-artifacts.md` | MIGRATION_PENDING | contratos/runs permanecen en FitFlow; separar defaults genericos sin romper consumers |
+| `roadmap-vnext.md` | REFERENCE | puntero al roadmap canonico de FitFlow-ai |
+| `references.md` | REFERENCE | referencias tecnicas no autoritativas |
+| `ai-core-architecture.md` | SUPERSEDED | reemplazado por `FitFlow-ai/docs/architecture.md` |
+| `fitflow-ai-layout.md` | SUPERSEDED | reemplazado por arquitectura y estado de FitFlow-ai |
+| `development-pipeline.md` | SUPERSEDED | workflow generico propiedad de FitFlow-ai |
+| `roles-and-model-routing.md` | SUPERSEDED | roles/routing genericos propiedad de FitFlow-ai |
+| `registries.md` | SUPERSEDED | registries del core propiedad de FitFlow-ai |
+| `context-strategy.md` | SUPERSEDED | estrategia generica de contexto propiedad de FitFlow-ai |
+| `context-delivery-pipeline.md` | SUPERSEDED | ContextPackager/repo-packager propiedad de FitFlow-ai |
+| `validation-pipeline.md` | SUPERSEDED | pipeline generico; FitFlow conserva `../quality-and-validation.md` |
+| `cli-contract.md` | SUPERSEDED | CLI y Agent Runtime propiedad de FitFlow-ai |
+| `opencode-operating-guide.md` | SUPERSEDED | adapter Agent Runtime propiedad de FitFlow-ai |
+| `finops-policy.md` | SUPERSEDED | policy generica del core propiedad de FitFlow-ai |
+| `observability-and-evaluation.md` | SUPERSEDED | observer/evals genericos propiedad de FitFlow-ai |
+| `indexing-pipeline.md` | SUPERSEDED | retrieval generico propiedad de FitFlow-ai |
+| `mcp-policy.md` | SUPERSEDED | politica MCP generica propiedad de FitFlow-ai |
+| `codex-operating-guide.md` | ARCHIVE | guia historica ya superseded |
+| `development-pipelines.md` | ARCHIVE | pipeline Jira/Aider historico |
+| `indexer-pipeline.md` | ARCHIVE | Project Index historico |
+| `mcp-future.md` | ARCHIVE | propuesta MCP historica |
+
+`ARCHIVE` clasifica historia conservada en su ubicacion actual; no la promueve
+a contexto activo. `SUPERSEDED` conserva trazabilidad mientras los links y
+consumers se retiran. No se mueven archivos en esta reconciliacion.
+
+Configuracion activa: `/.ai/config/`. Contratos de intercambio:
+`/.ai/contracts/v2/`. El backlog `/.ai/backlog/vnext.yaml` es un espejo
+`MIGRATION_PENDING`, no la autoridad del roadmap de AI Core.

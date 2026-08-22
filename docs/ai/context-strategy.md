@@ -1,9 +1,10 @@
 ---
 document_id: FF-AI-CONTEXT-001
-status: canonical
-machine_context: true
+status: superseded
+machine_context: false
 version: 2.0
 updated: 2026-08-18
+superseded_by: FitFlow-ai/docs/current-state.md
 ---
 
 # Estrategia de contexto

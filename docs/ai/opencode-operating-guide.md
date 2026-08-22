@@ -1,9 +1,10 @@
 ---
 document_id: FF-AI-OPENCODE-001
-status: accepted_pending_implementation
-machine_context: true
+status: superseded
+machine_context: false
 version: 2.0
 updated: 2026-08-18
+superseded_by: FitFlow-ai/docs/development-pipeline-adapter.md
 ---
 
 # Contrato del adapter OpenCode

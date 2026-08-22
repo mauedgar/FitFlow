@@ -2,8 +2,8 @@
 document_id: FF-ADR-0015
 status: accepted_pending_implementation
 machine_context: true
-version: 1.0
-updated: 2026-08-18
+version: 1.1
+updated: 2026-08-21
 supersedes: [FF-ADR-0012]
 ---
 
@@ -27,6 +27,7 @@ contratos, exclusions, lineage y golden evals.
 
 ## Consecuencias
 
-La implementacion actual de `repo-packager` requiere correcciones verificables.
-El grafo XML y los inventarios existentes son hints historicos, no requisitos
-fijos de vNext.
+Las correcciones funcionales de `repo-packager` fueron integradas en FitFlow-ai
+mediante PR #2. La conformance con `ContextPackagerPort` permanece pendiente en
+`FF-AI-VNEXT-006`. El grafo XML y los inventarios existentes son hints
+historicos, no requisitos fijos de vNext.

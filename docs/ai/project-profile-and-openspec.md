@@ -1,18 +1,22 @@
 ---
 document_id: FF-AI-PROJECT-PROFILE-001
-status: accepted_pending_implementation
+status: canonical
 machine_context: true
-version: 1.0
-updated: 2026-08-18
+version: 1.1
+updated: 2026-08-21
 ---
 
 # Project Profile y OpenSpec
 
 ## Project Profile
 
-`.ai/config/project-profile.yaml` adapta AI Core a FitFlow. Declara roots,
-docs, arquitectura, scopes, ownership keys, risk signals, comandos, GitHub
-labels, paths de runs y feature flags.
+`.ai/config/project-profile.yaml` adapta AI Core a FitFlow y permanece bajo
+ownership del producto. Declara roots, docs, arquitectura, scopes, ownership
+keys, risk signals, comandos, GitHub labels, paths de runs y feature flags.
+
+Los paths fisicos actuales no constituyen un resolver cross-repo portable. Su
+resolucion desde Orca o el Project Profile pertenece a `FF-AI-VNEXT-005`; no se
+introduce un segundo resolver en FitFlow.
 
 El core no contiene excepciones especificas de Booking, RRULE, frontend o
 estructura de carpetas. Esas reglas pertenecen al perfil versionado.
@@ -33,6 +37,6 @@ No reemplaza:
 
 ## Estado
 
-Node actual satisface el requisito conocido. La CLI OpenSpec no esta instalada
-en el shell verificado. La adopcion es `accepted_pending_implementation`; no se
-crea estructura OpenSpec hasta ejecutar el bootstrap task autorizado.
+La CLI OpenSpec esta disponible en el baseline verificado. Bootstrap y adapter
+permanecen pendientes en `FF-AI-VNEXT-005`; disponibilidad no equivale a
+integracion implementada.

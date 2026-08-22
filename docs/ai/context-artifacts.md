@@ -1,9 +1,10 @@
 ---
 document_id: FF-AI-ARTIFACTS-001
-status: canonical
+status: review_required
 machine_context: true
 version: 2.0
 updated: 2026-08-18
+ownership_classification: MIGRATION_PENDING
 ---
 
 # Artefactos vNext

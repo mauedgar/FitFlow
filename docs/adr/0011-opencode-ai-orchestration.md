@@ -40,7 +40,7 @@ Flujo:
 
 `PLAN -> EXPLORE -> EXECUTE -> REVIEW -> VALIDATE -> PENDING_ACCEPTANCE`.
 
-Una persona aprueba arquitectura, riesgo alto, dependencias, seguridad,
+El desarrollador aprueba arquitectura, riesgo alto, dependencias, seguridad,
 migraciones destructivas, promoción documental y `DONE`.
 
 ## Reglas
@@ -51,7 +51,7 @@ migraciones destructivas, promoción documental y `DONE`.
 - Reviewer no puede ser la misma ejecución que Coder.
 - Riesgo alto queda bloqueado.
 - Solo se paralelizan ownership keys disjuntas.
-- El adaptador no puede reducir gates ni autoridad humana.
+- El adaptador no puede reducir gates ni autoridad del desarrollador.
 
 ## Consecuencias
 
