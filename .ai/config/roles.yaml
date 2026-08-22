@@ -1,4 +1,4 @@
-schema_version: fitflow-role-registry/v2
+schema_version: fitflow-role-registry/v3
 roles:
   developer_planner:
     status: active
@@ -10,12 +10,12 @@ roles:
     actor_type: model
     writes_product: false
   router:
-    status: active_specification
+    status: active
     actor_type: hybrid
     writes_product: false
     deterministic_first: true
   model_resolver:
-    status: active_specification
+    status: active
     actor_type: deterministic
     writes_product: false
   explorer:
@@ -53,7 +53,7 @@ roles:
     writes_product: docs_only
     promotion_authority: false
   validator:
-    status: active_specification
+    status: active
     actor_type: deterministic
     writes_product: false
 disabled_roles:
@@ -63,3 +63,57 @@ disabled_roles:
   - autonomous_evaluator
   - autonomous_optimizer
   - orchestrator_workers
+routing_policy:
+  id: fitflow-routing-policy/v1
+  matching_order: [task_type, area, risk]
+  rules:
+    - id: documentation
+      precedence: 10
+      match: {task_type: docs}
+      role: doc_curator
+      requirements:
+        capabilities: [documentation]
+        criticality: low
+        minimum_trust: experimental
+        allowed_resource_classes: [local, zero, zero_incremental]
+        allowed_access_modes: [local, included]
+    - id: independent_audit
+      precedence: 10
+      match: {task_type: audit}
+      role: reviewer
+      requirements:
+        capabilities: [review]
+        criticality: low
+        minimum_trust: experimental
+        allowed_resource_classes: [local, zero_incremental]
+        allowed_access_modes: [local, included]
+    - id: low_risk_implementation
+      precedence: 100
+      match: {risk: low}
+      role: coder_b
+      requirements:
+        capabilities: [coding]
+        criticality: low
+        minimum_trust: experimental
+        allowed_resource_classes: [local, zero_incremental]
+        allowed_access_modes: [local, included]
+    - id: medium_risk_implementation
+      precedence: 100
+      match: {risk: medium}
+      role: coder_a
+      requirements:
+        capabilities: [coding]
+        criticality: medium
+        minimum_trust: standard
+        allowed_resource_classes: [local, zero_incremental, quota]
+        allowed_access_modes: [local, included, quota]
+    - id: high_risk_blocked
+      precedence: 100
+      match: {risk: high}
+      role: coder_strong_a
+      requirements:
+        capabilities: [coding, reasoning]
+        criticality: high
+        minimum_trust: trusted
+        allowed_resource_classes: [local]
+        allowed_access_modes: [local]

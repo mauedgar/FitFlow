@@ -1,16 +1,15 @@
 # Configuracion activa
 
-Los archivos de este directorio constituyen la configuracion v2 de baseline
-vNext. `schema_version` identifica cada contrato. La configuracion v1 se
-conserva en Git y en artefactos historicos; no se mezcla dentro de un run v2.
+Los archivos de este directorio constituyen la configuracion activa de baseline
+vNext. `models.yaml` y `roles.yaml` requieren sus schemas v3 estrictos; entradas
+v2 son unsupported. `finops.yaml` conserva v1 con paid API deshabilitada.
 
 `project-profile.yaml` contiene decisiones especificas de FitFlow. AI Core debe
 leer ese perfil mediante un adapter y no duplicar sus valores en codigo.
 
-Los roots fisicos actuales describen la configuracion del producto, pero no son
-un mecanismo portable entre worktrees. Su resolucion desde Orca o el Project
-Profile queda pendiente en `FF-AI-VNEXT-005`; no mover ni duplicar el perfil
-antes de adaptar sus consumidores.
+Los roots fisicos describen los checkouts principales. Worktrees coordinados
+declaran `FF_PROJECT_ROOT`, `FF_AI_CORE_ROOT` y `FF_PROJECT_PROFILE`; esos paths
+temporales no se persisten en esta configuracion.
 
 Los estados `accepted_pending_*`, `reported_*`, `untested` y `null` son
 deliberados: describen capacidades no verificadas sin promoverlas a operativas.
