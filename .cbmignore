@@ -1,0 +1,15 @@
+# Historial operativo; se consulta directamente cuando corresponda
+/.ai/archive/
+/.ai/tasks/
+/docs/archive/
+node_modules/
+# Artefactos locales
+/htmlcov/
+/coverage/
+/uploads/
+/tmp/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+__pycache__
