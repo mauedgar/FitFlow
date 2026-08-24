@@ -10,6 +10,9 @@ on:
 jobs:
   dump-schema:
     runs-on: ubuntu-latest
+    env:
+      # Ephemeral CI-only PostgreSQL credential; not used outside this job.
+      CI_EPHEMERAL_POSTGRES_PASSWORD: fitflow-ci-postgres
 
     services:
       postgres:
@@ -17,7 +20,7 @@ jobs:
         env:
           POSTGRES_DB: fitflow_db
           POSTGRES_USER: fitflow_admin
-          POSTGRES_PASSWORD: ${{ secrets.PG_PASSWORD }}
+          POSTGRES_PASSWORD: ${{ env.CI_EPHEMERAL_POSTGRES_PASSWORD }}
         ports:
           - 5432:5432
         options: >-
@@ -37,13 +40,16 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10
+
       - name: Install backend dependencies
         run: |
-          uv pip install -r backend/requirements_backend.txt
+          uv pip install --system -r backend/requirements_backend.txt
 
       - name: Run Alembic migrations
         env:
-          DATABASE_URL: postgresql+psycopg2://fitflow_admin:159753Lu@localhost:5432/fitflow_db
+          DATABASE_URL: postgresql+psycopg2://fitflow_admin:${{ env.CI_EPHEMERAL_POSTGRES_PASSWORD }}@localhost:5432/fitflow_db
         run: |
           cd backend
           alembic upgrade head
@@ -51,7 +57,7 @@ jobs:
 
       - name: Dump schema.sql
         env:
-          PGPASSWORD: ${{ secrets.PG_PASSWORD }}
+          PGPASSWORD: ${{ env.CI_EPHEMERAL_POSTGRES_PASSWORD }}
         run: |
           pg_dump -h localhost -U fitflow_admin -d fitflow_db \
             --schema-only --no-owner > schema.sql

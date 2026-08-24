@@ -1,7 +1,7 @@
 ---
 id: FF-LOCAL-003
 title: Normalizar modelos ORM al estilo SQLAlchemy 2.x
-status: Ready
+status: Done
 priority: High
 area: backend
 execution_lane: codex

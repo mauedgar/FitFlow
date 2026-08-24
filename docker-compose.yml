@@ -9,7 +9,7 @@ services:
     ports:
       - "8000:8000" # Mapea el puerto 8000 del contenedor a tu máquina
     environment:
-      - DATABASE_URL=postgresql://fitflow_admin:159753Lu@fitflow_postgres:5432/fitflow_db
+      - DATABASE_URL=postgresql://fitflow_admin:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@fitflow_postgres:5432/fitflow_db
       - REDIS_URL=redis://redis:6379/0
     networks:
       - fitflow_network
@@ -38,7 +38,8 @@ services:
     environment:
       POSTGRES_DB: fitflow_db
       POSTGRES_USER: fitflow_admin
-      POSTGRES_PASSWORD: 159753Lu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      # Se toma del .env raiz (ver .env.example). Solo aplica al primer inicio del volumen postgres_data.
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5432:5432"

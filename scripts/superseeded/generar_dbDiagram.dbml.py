@@ -1,4 +1,5 @@
 import logging  # noqa: N999
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from shutil import move
@@ -19,7 +20,14 @@ logging.basicConfig(
 # ---------------------------------------------------------
 # CONFIGURACIÓN DE RUTAS Y CONEXIÓN
 # ---------------------------------------------------------
-URL_CONEXION = "postgresql://fitflow_admin:159753Lu@127.0.0.1:5432/fitflow_db"
+POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "")
+if not POSTGRES_PASSWORD:
+    raise ValueError(
+        "POSTGRES_PASSWORD no está definida. "
+        "Defínela en el entorno local antes de ejecutar este script. "
+        "No se usa literal de contraseña ni URL completa."
+    )
+URL_CONEXION = f"postgresql://fitflow_admin:{POSTGRES_PASSWORD}@127.0.0.1:5432/fitflow_db"
 fecha_hoy = datetime.now(tz=timezone.utc).strftime("%d-%m-%y")
 
 RAIZ_PROYECTO = Path(__file__).resolve().parent.parent

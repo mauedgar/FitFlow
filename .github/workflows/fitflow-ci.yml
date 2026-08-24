@@ -28,7 +28,7 @@ jobs:
 
       - name: Ejecutar Revisor de Arquitectura LLM
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }} # Tu clave guardada de forma segura en GitHub Secrets
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           # En GitHub Actions, obtenemos el Diff de los cambios del commit actual
-          python skills/llm_reviewer.py
+          python scripts/tools/llm_reviewer.py
