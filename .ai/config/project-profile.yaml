@@ -2,8 +2,8 @@ schema_version: fitflow-project-profile/v1
 project_id: fitflow
 baseline: fitflow-ai/vnext-5.0
 roots:
-  product: C:/Proyectos Web/FitFlow
-  ai_core: C:/Proyectos Web/FitFlow-ai
+  product: C:/Proyectos-Web/FitFlow
+  ai_core: C:/Proyectos-Web/FitFlow-ai
 authority:
   source_of_truth: docs/SOURCE_OF_TRUTH.md
   agents: AGENTS.md
@@ -25,5 +25,5 @@ features:
   temporal: false
   orchestrator_workers: false
 environment:
-  reusable_discovery_env: C:/Proyectos Web/FitFlow-ai/python/.venv_tools
+  reusable_discovery_env: C:/Proyectos-Web/FitFlow-ai/python/.venv_tools
   official_ai_core_env: null

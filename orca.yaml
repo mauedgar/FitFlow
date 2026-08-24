@@ -1,0 +1,10 @@
+scripts:
+  setup: |
+    set -e
+    cd "$ORCA_WORKTREE_PATH"
+    cp "$ORCA_ROOT_PATH/.env" "$ORCA_WORKTREE_PATH/.env" 2>/dev/null || true
+    npm install --prefix frontend
+
+worktree:
+  sharedDirectories:
+    - frontend/node_modules
