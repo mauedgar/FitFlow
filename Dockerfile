@@ -1,42 +1,30 @@
-# === ETAPA 1: COMPILACIÓN ===
-FROM python:3.11-slim AS builder
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# === ETAPA 1: COMPILACION ===
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 WORKDIR /app
 
-# 1. Copiar y congelar dependencias globales de la raíz
+# 1. Manifiestos primero: maximiza cache de capas
+COPY pyproject.toml uv.lock ./
+
+# 2. Instalar dependencias (projecto no-paquete: package=false en pyproject.toml)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --no-dev
+    uv sync --frozen --no-dev
 
-# 2. Copiar solo el código de tu aplicación backend
-COPY ./backend /app/backend
-COPY ./pyproject.toml ./uv.lock /app/
+# 3. Copiar el codigo de la aplicacion backend
+COPY backend ./backend
 
-# 3. Finalizar la instalación del proyecto (Generará un .venv limpio en /app/.venv)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
-
-
-# === ETAPA 2: PRODUCCIÓN (Imagen Ligera) ===
+# === ETAPA 2: PRODUCCION (imagen ligera) ===
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# 1. Traer el entorno virtual nativo de Linux (compilado en la etapa 1)
-COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app /app
 
-# 2. Copiar tu código fuente
-COPY ./backend /app/backend
-
-# 3. Configurar las variables para que use este .venv de producción
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app"
 
-# 4. Ajustes finales e inicio
 RUN chmod +x /app/backend/start.sh
+
 EXPOSE 8000
 
 CMD ["/app/backend/start.sh"]

@@ -1,10 +1,13 @@
 #!/bin/sh
-# Salir inmediatamente si un comando falla
 set -e
-# Aplicar las migraciones de la base de datos
+
+cd "$(dirname "$0")"
+
 echo "Applying database migrations..."
 alembic upgrade head
 
-# Iniciar el servidor FastAPI con Uvicorn
 echo "Starting FastAPI server..."
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+if [ "${UVICORN_RELOAD:-0}" = "1" ]; then
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+fi
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000

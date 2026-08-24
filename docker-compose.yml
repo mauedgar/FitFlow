@@ -3,14 +3,15 @@ services:
   backend:
     build: . # Le dice a Docker que construya la imagen usando el Dockerfile en el directorio actual
     container_name: fitflow-backend-1
-    command: /app/start.sh # El comando para iniciar
+    command: /app/backend/start.sh # El comando para iniciar
     volumes:
-      - ./backend:/app # Monta tu código local en el contenedor para desarrollo en vivo
+      - ./backend:/app/backend # Monta tu código local en el contenedor para desarrollo en vivo
     ports:
       - "8000:8000" # Mapea el puerto 8000 del contenedor a tu máquina
     environment:
       - DATABASE_URL=postgresql://fitflow_admin:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@fitflow_postgres:5432/fitflow_db
       - REDIS_URL=redis://redis:6379/0
+      - UVICORN_RELOAD=1
     networks:
       - fitflow_network
     depends_on:
