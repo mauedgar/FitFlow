@@ -2,8 +2,8 @@
 document_id: FF-PROCESS-LIFECYCLE-001
 status: canonical
 machine_context: true
-version: 3.0
-updated: 2026-08-18
+version: 3.1
+updated: 2026-08-24
 ---
 
 # Ciclo de tareas y reportes
@@ -76,3 +76,12 @@ los JSON durables del run.
 El workflow termina en `PENDING_ACCEPTANCE`. El desarrollador revisa diff,
 validacion, review, riesgo y `DocImpact`, integra mediante Git y promueve a
 `DONE`.
+
+## Integracion Git
+
+Reglas vigentes (la definicion completa del ciclo permanece abierta):
+
+- toda tarea inicia en un worktree creado desde `develop`;
+- al finalizar, la feature se integra mediante merge hacia `develop`;
+- `main` recibe solo hitos, mediante PR `develop -> main` con merge commit;
+- los mensajes de commit se escriben en espanol.
