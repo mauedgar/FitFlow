@@ -1,5 +1,6 @@
 # === ETAPA 1: COMPILACIÓN ===
-FROM ghcr.io/astral-sh/uv:latest AS builder
+FROM python:3.11-slim AS builder
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 WORKDIR /app
@@ -16,7 +17,7 @@ COPY ./pyproject.toml ./uv.lock /app/
 
 # 3. Finalizar la instalación del proyecto (Generará un .venv limpio en /app/.venv)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-install-project --no-dev
 
 
 # === ETAPA 2: PRODUCCIÓN (Imagen Ligera) ===
