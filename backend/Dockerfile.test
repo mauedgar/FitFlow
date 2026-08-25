@@ -14,7 +14,12 @@ WORKDIR /app
 COPY backend/requirements_backend.txt backend/requirements_test.txt ./backend/
 RUN uv pip install --system --no-cache-dir --upgrade -r backend/requirements_test.txt
 
-COPY backend/ ./backend/
+COPY backend/__init__.py ./backend/
+COPY backend/app ./backend/app
+COPY backend/alembic/env.py backend/alembic/README backend/alembic/script.py.mako ./backend/alembic/
+COPY backend/alembic/versions ./backend/alembic/versions
+COPY backend/alembic.ini backend/pytest.ini ./backend/
+COPY backend/tests ./backend/tests
 
 WORKDIR /app/backend
 
