@@ -1,0 +1,40 @@
+{
+  "artifact": "RUN_STATE",
+  "schema_version": "fitflow-run-state/v2",
+  "task_id": "FF-IMP-001",
+  "run_id": "FF-IMP-001-20260825-01",
+  "updated_at": "2026-08-25T14:52:35-03:00",
+  "baseline": {
+    "revision": "5cfcd28b7c2aa0d0e871b72036bdfa4fe59e3827",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "Run finalizado sobre working tree sin commit; orca.yaml fue incluido con autorizacion expresa del Developer."
+  },
+  "workflow_id": "bugfix",
+  "current_state": "PENDING_ACCEPTANCE",
+  "next_state": "DONE",
+  "sequence": 9,
+  "retry_counters": {
+    "context": 0,
+    "implementation": 0,
+    "review": 1
+  },
+  "context_deliveries": [],
+  "route_history": [],
+  "validation_history": [
+    {
+      "path": ".ai/runs/FF-IMP-001-20260825-01/validation.json",
+      "hash": "sha256:f5708abd6976a146476d76578b4764530525b1b0df64856a4899afd82d56d0cb",
+      "schema_version": "fitflow-validation-result/v2"
+    }
+  ],
+  "review_history": [
+    {
+      "path": ".ai/runs/FF-IMP-001-20260825-01/review.json",
+      "hash": "sha256:7db684fc62131b94b42d9f3bf869032c839ec9190fc0b504b85b13e2911e53f4",
+      "schema_version": "fitflow-review-result/v2"
+    }
+  ],
+  "blocked_by": [],
+  "last_error": null
+}

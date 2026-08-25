@@ -1,0 +1,78 @@
+{
+  "artifact": "TASK",
+  "schema_version": "fitflow-task/v2",
+  "task_id": "FF-IMP-001",
+  "title": "Eliminar el ciclo de imports de schemas y restaurar startup/collection",
+  "status": "PENDING_ACCEPTANCE",
+  "task_type": "fix",
+  "area": "backend",
+  "scope": "backend",
+  "lane": "ai_orchestrated",
+  "risk": "medium",
+  "priority": "P0",
+  "created_at": "2026-08-25T13:24:37-03:00",
+  "author_role": "planner_ai",
+  "baseline": {
+    "revision": "5cfcd28b7c2aa0d0e871b72036bdfa4fe59e3827",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "La task se materializo en un worktree limpio y el bundle se construyo junto con la implementacion."
+  },
+  "objective": "Eliminar el ciclo de imports Pydantic mediante registros *_refs.py e imports exclusivamente al inicio, preservando contratos publicos y sin cambios de persistencia o dominio.",
+  "in_scope": [
+    ".ai/tasks/FF-IMP-001/**",
+    ".ai/runs/FF-IMP-001-*/**",
+    "backend/app/schemas/class_schedule.py",
+    "backend/app/schemas/class_schedule_refs.py",
+    "backend/app/schemas/gym_class.py",
+    "backend/app/schemas/gym_class_refs.py",
+    "backend/tests/smoke/test_schema_startup.py",
+    "orca.yaml"
+  ],
+  "out_of_scope": [
+    "DB, ORM, CRUD, services, routers y migraciones",
+    "reglas de dominio, enums y dependencias",
+    "frontend, contenido de secretos o .env, ADR y deuda no relacionada"
+  ],
+  "constraints": [
+    "Todos los imports del ciclo permanecen al inicio de los modulos",
+    "Las referencias cruzadas se abstraen exclusivamente mediante *_refs.py",
+    "No se ejecutan migraciones",
+    "El run termina en PENDING_ACCEPTANCE"
+  ],
+  "acceptance_criteria": [
+    {"id": "AC-1", "criterion": "El import de app.main termina con exit code 0", "evidence": "91 rutas; exit code 0."},
+    {"id": "AC-2", "criterion": "Pytest completa collection sin errores de import circular", "evidence": "44 tests recolectados; exit code 0."},
+    {"id": "AC-3", "criterion": "Los contratos Pydantic y tests RRULE y Booking afectados se ejecutan", "evidence": "38 pruebas dirigidas pasan; integraciones recolectan y fallan solo por DB sin inicializar."},
+    {"id": "AC-4", "criterion": "La aplicacion genera el contrato OpenAPI", "evidence": "OpenAPI 3.1.0 con 71 paths; exit code 0."},
+    {"id": "AC-5", "criterion": "Smoke, metadata ORM, Redis y allowed-plan siguen pasando", "evidence": "Incluidos en 38 pruebas dirigidas PASS."},
+    {"id": "AC-6", "criterion": "Ruff, Pyright y alembic heads se ejecutan y registran", "evidence": "Scope cambiado limpio; gates globales FAIL documentados; head e4f5a6b7c8d9."},
+    {"id": "AC-7", "criterion": "No cambian DB, ORM, migraciones ni dominio", "evidence": "Diff task-scoped sin cambios en esas capas."},
+    {"id": "AC-8", "criterion": "Validator y Reviewer independientes producen evidencia", "evidence": "Delegaciones independientes y artefactos v2 del run."}
+  ],
+  "ownership_keys": [
+    "path:.ai/tasks/FF-IMP-001/**",
+    "path:.ai/runs/FF-IMP-001-*/**",
+    "path:backend/app/schemas/class_schedule.py",
+    "path:backend/app/schemas/class_schedule_refs.py",
+    "path:backend/app/schemas/gym_class.py",
+    "path:backend/app/schemas/gym_class_refs.py",
+    "path:backend/tests/smoke/test_schema_startup.py",
+    "path:orca.yaml",
+    "config:orca-worktree-setup"
+  ],
+  "required_docs": [
+    "AGENTS.md",
+    "docs/SOURCE_OF_TRUTH.md",
+    "docs/process/task-lifecycle-and-reporting.md",
+    "docs/process/risk-and-parallelism.md",
+    "docs/quality-and-validation.md"
+  ],
+  "validation_expected": [
+    "Docker build, startup, OpenAPI, collection, directed tests, canonical wrapper, Ruff, Pyright and Alembic topology"
+  ],
+  "document_impact": [
+    "FF-AUD-001 historical views remain stale; discrepancy recorded append-only in FF-IMP-001"
+  ],
+  "depends_on": ["FF-AUD-001"]
+}

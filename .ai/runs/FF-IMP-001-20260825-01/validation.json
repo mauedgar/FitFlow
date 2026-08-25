@@ -1,0 +1,29 @@
+{
+  "artifact": "VALIDATION_RESULT",
+  "schema_version": "fitflow-validation-result/v2",
+  "task_id": "FF-IMP-001",
+  "run_id": "FF-IMP-001-20260825-01",
+  "created_at": "2026-08-25T14:30:15-03:00",
+  "baseline": {
+    "revision": "5cfcd28b7c2aa0d0e871b72036bdfa4fe59e3827",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "La validacion se ejecuto sobre el working tree con la implementacion y el bundle aun sin commit."
+  },
+  "status": "FAIL",
+  "gates": [
+    {"gate_id": "clean-build", "command": "docker compose --project-name fitflow-ff-imp-001 --file docker-compose.test.yml build --no-cache backend_test", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "PASS", "exit_code": 0, "summary": "Imagen limpia construida con Pydantic 2.11.7, Ruff 0.16.4 y Pyright 1.1.411."},
+    {"gate_id": "startup-openapi", "command": "docker compose --project-name fitflow-ff-imp-001 --file docker-compose.test.yml exec --no-TTY backend_test python -c from app.main import app; app.openapi()", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "PASS", "exit_code": 0, "summary": "91 rutas; OpenAPI 3.1.0 con 71 paths."},
+    {"gate_id": "pytest-collection", "command": "docker compose --project-name fitflow-ff-imp-001 --file docker-compose.test.yml exec --no-TTY backend_test python -m pytest --collect-only -q tests", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "PASS", "exit_code": 0, "summary": "44 tests recolectados sin errores de import."},
+    {"gate_id": "directed-tests", "command": "docker compose --project-name fitflow-ff-imp-001 --file docker-compose.test.yml exec --no-TTY backend_test python -m pytest tests/smoke/test_pytest_harness.py tests/smoke/test_schema_startup.py tests/unit/test_orm_metadata.py tests/unit/test_redis_client.py tests/unit/test_pydantic_contracts.py tests/unit/test_rrule_schedule.py tests/unit/test_booking_lifecycle.py tests/unit/test_allowed_plan_access.py", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "PASS", "exit_code": 0, "summary": "38 passed."},
+    {"gate_id": "integration-tests", "command": "docker compose --project-name fitflow-ff-imp-001 --file docker-compose.test.yml exec --no-TTY backend_test python -m pytest tests/integration/test_rrule_generation.py tests/integration/test_booking_database_invariants.py", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "FAIL", "exit_code": 1, "summary": "6 fallos por tablas inexistentes en DB nueva sin alembic_version; migraciones prohibidas."},
+    {"gate_id": "alembic-heads", "command": "docker compose --project-name fitflow-ff-imp-001 --file docker-compose.test.yml exec --no-TTY backend_test alembic heads", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "PASS", "exit_code": 0, "summary": "Head unico e4f5a6b7c8d9."},
+    {"gate_id": "ruff-changed", "command": "C:/Proyectos-Web/FitFlow/backend/.venv_backend/Scripts/python.exe -m ruff check app/schemas/class_schedule.py app/schemas/class_schedule_refs.py app/schemas/gym_class.py app/schemas/gym_class_refs.py tests/smoke/test_schema_startup.py", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle/backend", "status": "PASS", "exit_code": 0, "summary": "All checks passed; Docker raw solo agrega EXE002 por permisos COPY en Windows."},
+    {"gate_id": "ruff-global", "command": "docker compose --project-name fitflow-ff-imp-001 --file docker-compose.test.yml exec --no-TTY backend_test python -m ruff check .", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "FAIL", "exit_code": 1, "summary": "274 hallazgos baseline/out-of-scope, incluidos EXE002 repo-wide."},
+    {"gate_id": "pyright-changed", "command": "docker compose --project-name fitflow-ff-imp-001 --file docker-compose.test.yml exec --no-TTY backend_test pyright app/schemas/class_schedule.py app/schemas/class_schedule_refs.py app/schemas/gym_class.py app/schemas/gym_class_refs.py tests/smoke/test_schema_startup.py", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "PASS", "exit_code": 0, "summary": "0 errors, 0 warnings, 0 informations."},
+    {"gate_id": "pyright-global", "command": "docker compose --project-name fitflow-ff-imp-001 --file docker-compose.test.yml exec --no-TTY backend_test pyright .", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "FAIL", "exit_code": 1, "summary": "35 errores baseline/out-of-scope; ninguno en paths modificados."},
+    {"gate_id": "canonical-wrapper", "command": "powershell.exe -ExecutionPolicy Bypass -File scripts/quality/run_backend_validation.ps1", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "FAIL", "exit_code": 1, "summary": "Reproduce integraciones sobre DB sin tablas, Ruff global 274 y Pyright global 35."},
+    {"gate_id": "orca-compose-config", "command": "docker compose --file docker-compose.test.yml config --quiet", "cwd": "C:/Users/maued/orca/workspaces/FitFlow/fix-FF-IMP-001-schema-import-cycle", "status": "PASS", "exit_code": 0, "summary": "Referencia Compose valida; orca.yaml copia backend/.env sin versionar su contenido."}
+  ],
+  "next_state": "REVIEWING"
+}

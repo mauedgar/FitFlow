@@ -11,35 +11,28 @@ Incluye:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-# Evitar circularidad
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
-from app.core.enums import ActivityType, DifficultyLevel  # noqa: TC001
+from app.core.enums import ActivityType, DifficultyLevel
 from app.schemas.base import IDSchema, SoftDeleteSchema, TimestampSchema
-from app.schemas.class_schedule import ClassSchedulePublic
+from app.schemas.class_schedule_refs import ClassScheduleInResponse, ClassSchedulePublic
+from app.schemas.gym_class_refs import (
+    GymClassBase,
+    GymClassInClassScheduleResponse,
+    GymClassInTeacherResponse,
+    GymClassPublic,
+)
 
-if TYPE_CHECKING:
-    from app.schemas.class_schedule_refs import ClassScheduleInResponse
-
-# --------------------------------------------------------------------------- #
-# 1. Base
-# --------------------------------------------------------------------------- #
-
-class GymClassBase(BaseModel):
-    """Campos comunes de una clase del gimnasio."""
-
-    name: str = Field(..., max_length=100)
-    description: str = Field(..., max_length=1000)
-    duration_minutes: int = Field(..., ge=15, le=240)
-    difficulty: DifficultyLevel | None = None
-    default_capacity: int = Field(..., ge=1)
-    activity_type: ActivityType
-    image_url: HttpUrl | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
+__all__ = [
+    "GymClassBase",
+    "GymClassCreate",
+    "GymClassInClassScheduleResponse",
+    "GymClassInTeacherResponse",
+    "GymClassPublic",
+    "GymClassUpdate",
+    "GymClassWithRelations",
+    "GymClassWithSchedules",
+]
 
 # --------------------------------------------------------------------------- #
 # 2. Creación
@@ -90,19 +83,6 @@ class GymClassWithRelations(IDSchema, GymClassBase, TimestampSchema, SoftDeleteS
 
 
 # --------------------------------------------------------------------------- #
-# 5. Versión pública
-# --------------------------------------------------------------------------- #
-
-class GymClassPublic(IDSchema, GymClassBase):
-    """Versión pública de GymClass.
-
-    No incluye timestamps, soft-delete ni schedules.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# --------------------------------------------------------------------------- #
 # 6. Extensiones públicas
 # --------------------------------------------------------------------------- #
 
@@ -116,18 +96,3 @@ class GymClassWithSchedules(GymClassPublic):
     """
 
     schedules: list[ClassSchedulePublic] = Field(default_factory=list)
-
-# --------------------------------------------------------------------------- #
-# 7. Esquemas compactos para anidamiento
-# --------------------------------------------------------------------------- #
-
-class GymClassInClassScheduleResponse(GymClassBase, IDSchema):
-    """Versión compacta para anidar dentro de ClassSchedule."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class GymClassInTeacherResponse(GymClassBase, IDSchema):
-    """Versión compacta para anidar dentro de TeacherPublic."""
-
-    model_config = ConfigDict(from_attributes=True)
