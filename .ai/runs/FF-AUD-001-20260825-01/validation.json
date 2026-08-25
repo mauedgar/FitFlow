@@ -1,0 +1,97 @@
+{
+  "artifact": "VALIDATION_RESULT",
+  "schema_version": "fitflow-validation-result/v2",
+  "task_id": "FF-AUD-001",
+  "run_id": "FF-AUD-001-20260825-01",
+  "created_at": "2026-08-25T11:17:05-03:00",
+  "baseline": {
+    "revision": "20d26166e5b5a4166eecf95833c18036aae6dc06",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El bundle documental FF-AUD-001 estaba en construccion durante la validacion."
+  },
+  "status": "PASS",
+  "gates": [
+    {
+      "gate_id": "canonical-audit-protocol",
+      "command": "powershell.exe -ExecutionPolicy Bypass -File scripts/quality/run_backend_validation.ps1",
+      "cwd": "C:/Users/maued/orca/workspaces/FitFlow/feat-FF-AUD-001",
+      "status": "FAIL",
+      "exit_code": 1,
+      "duration_ms": null,
+      "summary": "La suite canonica fallo: 10 items, 6 errores de collection por import circular; Ruff y Pyright UNAVAILABLE.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "smoke",
+      "command": "docker compose --project-name fitflow-test --file docker-compose.test.yml exec --no-TTY backend_test python -m pytest tests/smoke -m smoke",
+      "cwd": "C:/Users/maued/orca/workspaces/FitFlow/feat-FF-AUD-001",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": null,
+      "summary": "2 passed.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "orm-metadata",
+      "command": "docker compose --project-name fitflow-test --file docker-compose.test.yml exec --no-TTY backend_test python -m pytest tests/unit/test_orm_metadata.py",
+      "cwd": "C:/Users/maued/orca/workspaces/FitFlow/feat-FF-AUD-001",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": null,
+      "summary": "7 passed; 9 tablas activas.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "redis",
+      "command": "docker compose --project-name fitflow-test --file docker-compose.test.yml exec --no-TTY backend_test python -m pytest tests/unit/test_redis_client.py",
+      "cwd": "C:/Users/maued/orca/workspaces/FitFlow/feat-FF-AUD-001",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": null,
+      "summary": "1 passed.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "product-baseline",
+      "command": "docker compose --project-name fitflow-test --file docker-compose.test.yml exec --no-TTY backend_test python -c \"from app.main import app\"",
+      "cwd": "C:/Users/maued/orca/workspaces/FitFlow/feat-FF-AUD-001",
+      "status": "FAIL",
+      "exit_code": 1,
+      "duration_ms": null,
+      "summary": "ImportError reproducible por ciclo class_schedule -> gym_class -> class_schedule.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "alembic-topology",
+      "command": "docker compose --project-name fitflow-test --file docker-compose.test.yml exec --no-TTY backend_test alembic heads",
+      "cwd": "C:/Users/maued/orca/workspaces/FitFlow/feat-FF-AUD-001",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_ms": null,
+      "summary": "Head unico e4f5a6b7c8d9 y cadena lineal de 16 revisiones.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "ruff",
+      "command": "Ruff check del wrapper canonico",
+      "cwd": "fitflow-test/backend_test",
+      "status": "UNAVAILABLE",
+      "exit_code": null,
+      "duration_ms": null,
+      "summary": "Ruff no esta instalado en la imagen canonica.",
+      "output_artifact": null
+    },
+    {
+      "gate_id": "pyright",
+      "command": "Pyright check del wrapper canonico",
+      "cwd": "fitflow-test/backend_test",
+      "status": "UNAVAILABLE",
+      "exit_code": null,
+      "duration_ms": null,
+      "summary": "Pyright no esta instalado en la imagen canonica.",
+      "output_artifact": null
+    }
+  ],
+  "next_state": "REVIEWING"
+}
