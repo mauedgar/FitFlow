@@ -90,7 +90,7 @@ async def create_class_schedule(
     try:
         window_start = date.today()
         window_end = window_start + timedelta(days=15)
-        await generate_sessions_for_schedule(str(schedule.id), window_start, window_end, current_user, db=db)
+        await generate_sessions_for_schedule(schedule_id=schedule.id, window_start=window_start, window_end=window_end, db=db)
         schedule = await class_schedule_crud.get(db=db, obj_id=schedule.id, include_relations=True)
     except svc_errors.BusinessValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -223,7 +223,7 @@ async def update_class_schedule(
         try:
             window_start = date.today()
             window_end = window_start + timedelta(days=15)
-            await generate_sessions_for_schedule(str(schedule_id), window_start, window_end, current_user, db=db)
+            await generate_sessions_for_schedule(schedule_id=schedule_id, window_start=window_start, window_end=window_end, db=db)
         except svc_errors.BusinessValidationError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
         except Exception as err:

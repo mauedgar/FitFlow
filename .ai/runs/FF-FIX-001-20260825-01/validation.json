@@ -1,0 +1,29 @@
+{
+  "artifact": "VALIDATION_RESULT",
+  "schema_version": "fitflow-validation-result/v2",
+  "task_id": "FF-FIX-001",
+  "run_id": "FF-FIX-001-20260825-01",
+  "created_at": "2026-08-25T16:19:26-03:00",
+  "baseline": {
+    "revision": "78aaa3082d079f39a2bd8da015cc165a81b5cc20",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "Validacion ejecutada sobre working tree con implementacion sin commit; branch fix/FF-FIX-001-session-contract."
+  },
+  "status": "FAIL",
+  "gates": [
+    {"gate_id": "test-db-init", "command": "docker compose --project-name fitflow-test --file docker-compose.test.yml exec --no-TTY backend_test alembic upgrade head && psql to_regclass check", "cwd": "C:/Proyectos-Web/FitFlow", "status": "PASS", "exit_code": 0, "summary": "Gate 3 levantado solo para fitflow_test: version e4f5a6b7c8d9; users y gym_classes presentes."},
+    {"gate_id": "startup-import", "command": "docker compose ... exec backend_test python -c 'import app.main'", "cwd": "C:/Proyectos-Web/FitFlow", "status": "PASS", "exit_code": 0, "summary": "AC1_IMPORT_OK; 91 rutas."},
+    {"gate_id": "directed-integration", "command": "docker compose ... exec backend_test python -m pytest tests/integration/test_rrule_generation.py -v", "cwd": "C:/Proyectos-Web/FitFlow", "status": "PASS", "exit_code": 0, "summary": "2 passed en 9.12s: generacion idempotente y solapamiento rechazado sobre DB real; primera vez verdes."},
+    {"gate_id": "unit-metrics", "command": "docker compose ... exec backend_test python -m pytest tests/unit/test_schedule_metrics.py -v", "cwd": "C:/Proyectos-Web/FitFlow", "status": "PASS", "exit_code": 0, "summary": "4 passed: occupancy y next-session con capacity_snapshot int, None legacy tolerado."},
+    {"gate_id": "full-suite", "command": "docker compose ... exec backend_test python -m pytest tests", "cwd": "C:/Proyectos-Web/FitFlow", "status": "PASS", "exit_code": 0, "summary": "48 passed, 0 failed en 21.45s; los 6 fallos previos por tablas inexistentes desaparecen."},
+    {"gate_id": "pyright-changed", "command": "docker compose ... exec backend_test pyright app/routers/class_schedules.py app/services/class_schedule_service.py tests/integration/test_rrule_generation.py tests/unit/test_schedule_metrics.py", "cwd": "C:/Proyectos-Web/FitFlow", "status": "PASS", "exit_code": 0, "summary": "0 errors, 0 warnings, 0 informations."},
+    {"gate_id": "ruff-diff-lines", "command": "python -m ruff check --output-format=concise <4 archivos> filtrado por lineas 93/226/276/294 y llamadas de test", "cwd": "C:/Proyectos-Web/FitFlow", "status": "PASS", "exit_code": 0, "summary": "Cero hallazgos en lineas modificadas; unico match fue falso positivo del filtro sobre numero de columna."},
+    {"gate_id": "ruff-files", "command": "docker compose ... exec backend_test python -m ruff check app/routers/class_schedules.py app/services/class_schedule_service.py tests/integration/test_rrule_generation.py tests/unit/test_schedule_metrics.py", "cwd": "C:/Proyectos-Web/FitFlow", "status": "FAIL", "exit_code": 1, "summary": "16 hallazgos en lineas no modificadas de archivos propios: EXE002 x4 (artefacto Windows; incluye tambien al archivo nuevo test_schedule_metrics.py), I001 x1, RUF100 x7, DTZ011 x2, F401 x2. Ninguno atribuible al diff."},
+    {"gate_id": "ruff-global", "command": "docker compose ... exec backend_test python -m ruff check .", "cwd": "C:/Proyectos-Web/FitFlow", "status": "FAIL", "exit_code": 1, "summary": "Hallazgos observados 275-276 entre corridas; delta vs baseline 274 atribuido al artefacto EXE002 de bits ejecutables entre worktrees Windows; deuda preexistente."},
+    {"gate_id": "pyright-global", "command": "docker compose ... exec backend_test pyright .", "cwd": "C:/Proyectos-Web/FitFlow", "status": "FAIL", "exit_code": 1, "summary": "29 errores; mejora de -6 vs baseline 35 atribuible al fix int de capacity_snapshot; deuda restante preexistente."},
+    {"gate_id": "alembic-heads", "command": "docker compose ... exec backend_test alembic heads", "cwd": "C:/Proyectos-Web/FitFlow", "status": "PASS", "exit_code": 0, "summary": "Head unico e4f5a6b7c8d9 intacto."},
+    {"gate_id": "canonical-wrapper", "command": "powershell.exe -ExecutionPolicy Bypass -File scripts/quality/run_backend_validation.ps1", "cwd": "C:/Proyectos-Web/FitFlow", "status": "FAIL", "exit_code": 1, "summary": "Seccion pytest 48 passed; wrapper cae unicamente por deuda global Ruff 276 y Pyright 29, misma naturaleza que el baseline."}
+  ],
+  "next_state": "REVIEWING"
+}

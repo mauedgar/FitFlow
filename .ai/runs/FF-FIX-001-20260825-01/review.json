@@ -1,0 +1,60 @@
+{
+  "artifact": "REVIEW_RESULT",
+  "schema_version": "fitflow-review-result/v2",
+  "task_id": "FF-FIX-001",
+  "run_id": "FF-FIX-001-20260825-01",
+  "created_at": "2026-08-25T16:19:26-03:00",
+  "baseline": {
+    "revision": "78aaa3082d079f39a2bd8da015cc165a81b5cc20",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "Revision independiente sobre working tree con implementacion y artefactos sin commit."
+  },
+  "reviewer_role": "reviewer",
+  "independent": true,
+  "verdict": "PASS",
+  "findings": [
+    {
+      "severity": "note",
+      "title": "Fix F1 verificado contra firma y ORM",
+      "body": "Las 6 llamadas actualizadas (routers :93/:226, test x4) coinciden con la firma keyword-only de class_schedule_service.py:317-323; capacity_snapshot es Integer en db/models/class_session.py:59 y la aritmetica int del fix F3 es consistente con el schema y el assert capacity_snapshot == 7 del test de integracion.",
+      "path": "backend/app/services/class_schedule_service.py",
+      "line": 317
+    },
+    {
+      "severity": "note",
+      "title": "Rutas de produccion restauradas",
+      "body": "POST /class-schedules y PUT ?regenerate=true dejan de producir TypeError->500. El servicio nunca uso current_user; eliminarlo de la llamada no cambia comportamiento autorizacion (los endpoints conservan sus dependencias).",
+      "path": "backend/app/routers/class_schedules.py",
+      "line": 93
+    },
+    {
+      "severity": "low",
+      "title": "EXE002 tambien en archivo nuevo",
+      "body": "El hallazgo EXE002 sobre tests/unit/test_schedule_metrics.py corresponde al mismo artefacto Windows de bits ejecutables, pero clasificarlo como preexistente es impreciso: el archivo es nuevo. Corregido en la evidencia.",
+      "path": "backend/tests/unit/test_schedule_metrics.py",
+      "line": 1
+    },
+    {
+      "severity": "low",
+      "title": "Varianza de conteo Ruff global",
+      "body": "Conteos globales observados 275-276 entre corridas por el artefacto EXE002 entre worktrees; registrada la varianza en validation.json en lugar de un numero puntual.",
+      "path": ".ai/runs/FF-FIX-001-20260825-01/validation.json",
+      "line": null
+    },
+    {
+      "severity": "low",
+      "title": "AC-6 falla literal por deuda de archivo",
+      "body": "Pyright task-scoped 0 errores; Ruff en archivos propios conserva 16 hallazgos en lineas no tocadas (cero atribuibles al diff). Limpiar DTZ011 cambiaria semantica horaria (date.today vs UTC) y queda como follow-up; decision documentada, no bloqueante.",
+      "path": "backend/app/routers/class_schedules.py",
+      "line": 91
+    }
+  ],
+  "validation_ref": {
+    "path": ".ai/runs/FF-FIX-001-20260825-01/validation.json",
+    "hash": "sha256:2f6c4510840a84f7011f3e404953497895bb0069c8bf2c791c6508465b23b796",
+    "schema_version": "fitflow-validation-result/v2"
+  },
+  "summary": "PASS sin hallazgos bloqueantes: diff verificado hunk a hunk contra firma vigente y modelo ORM; suite completa 48 passed incluidas las dos integraciones RRULE sobre DB real inicializada (primera vez); pyright task-scoped 0; deuda global preexistente intacta en naturaleza, con Pyright global mejorando 35 -> 29 por el fix int. Evidencia reproducida independientemente.",
+  "next_state": "DOC_SYNC"
+}

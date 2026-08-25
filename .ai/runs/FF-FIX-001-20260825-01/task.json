@@ -1,0 +1,70 @@
+{
+  "artifact": "TASK",
+  "schema_version": "fitflow-task/v2",
+  "task_id": "FF-FIX-001",
+  "title": "Restaurar contrato de generacion de sesiones y consumo de capacity_snapshot",
+  "status": "PENDING_ACCEPTANCE",
+  "task_type": "fix",
+  "area": "backend",
+  "scope": "backend",
+  "lane": "ai_orchestrated",
+  "risk": "medium",
+  "priority": "P0",
+  "created_at": "2026-08-25T16:19:26-03:00",
+  "author_role": "developer",
+  "baseline": {
+    "revision": "78aaa3082d079f39a2bd8da015cc165a81b5cc20",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "La implementacion se ejecuto sobre branch propia desde develop integrado (78aaa30); commit pendiente al cierre del run."
+  },
+  "objective": "Alinear las llamadas de generate_sessions_for_schedule a su firma keyword-only vigente y corregir el consumo int de capacity_snapshot, restaurando POST create y PUT regenerate de ClassSchedule.",
+  "in_scope": [
+    ".ai/tasks/FF-FIX-001/**",
+    ".ai/runs/FF-FIX-001-*/*",
+    "backend/app/routers/class_schedules.py",
+    "backend/app/services/class_schedule_service.py",
+    "backend/tests/integration/test_rrule_generation.py",
+    "backend/tests/unit/test_schedule_metrics.py"
+  ],
+  "out_of_scope": [
+    "Autor o modificacion de migraciones; DB dev/prod",
+    "Deuda global Ruff/Pyright fuera de los archivos propios",
+    "Imports diferidos de client.py/user.py; frontend, dominio y dependencias"
+  ],
+  "constraints": [
+    "Gate 3 levantado exclusivamente para fitflow_test por decision del Developer",
+    "No se restaura el parametro current_user del servicio",
+    "El run termina en PENDING_ACCEPTANCE sin push ni merge"
+  ],
+  "acceptance_criteria": [
+    {"id": "AC-1", "criterion": "import app.main exit 0 en fitflow-test", "evidence": "91 rutas; exit code 0."},
+    {"id": "AC-2", "criterion": "fitflow_test inicializada en e4f5a6b7c8d9 con users y gym_classes", "evidence": "alembic upgrade head exit 0; to_regclass no nulo para ambas tablas."},
+    {"id": "AC-3", "criterion": "test_rrule_generation verde sobre DB real", "evidence": "2 passed en 9.12s."},
+    {"id": "AC-4", "criterion": "Suite completa sin fallos atribuibles al diff", "evidence": "48 passed, 0 failed (baseline previo 38 passed / 6 failed)."},
+    {"id": "AC-5", "criterion": "Consumo int de capacity_snapshot verificado", "evidence": "4 unit tests nuevos en tests/unit/test_schedule_metrics.py pasan."},
+    {"id": "AC-6", "criterion": "Ruff y Pyright task-scoped limpios en archivos tocados", "evidence": "Pyright 0 errors en 4 archivos; Ruff 16 hallazgos PREEXISTENTES en lineas no modificadas (EXE002/I001/RUF100/DTZ011/F401); cero hallazgos en lineas del diff (verificado por salida concise filtrada)."},
+    {"id": "AC-7", "criterion": "Diff restringido a ownership keys sin DB/ORM/migraciones/dominio", "evidence": "git diff --stat limitado a 3 archivos owned + unit test nuevo con enmienda documentada; alembic heads intacto e4f5a6b7c8d9."},
+    {"id": "AC-8", "criterion": "Validator y Reviewer independientes con evidencia", "evidence": "validation.json v2 + review independiente registrado en review.json."}
+  ],
+  "ownership_keys": [
+    "path:.ai/tasks/FF-FIX-001/**",
+    "path:.ai/runs/FF-FIX-001-*/*",
+    "path:backend/app/routers/class_schedules.py",
+    "path:backend/app/services/class_schedule_service.py",
+    "path:backend/tests/integration/test_rrule_generation.py",
+    "path:backend/tests/unit/test_schedule_metrics.py"
+  ],
+  "required_docs": [
+    "AGENTS.md",
+    "docs/SOURCE_OF_TRUTH.md",
+    "docs/process/task-lifecycle-and-reporting.md",
+    "docs/process/risk-and-parallelism.md",
+    "docs/quality-and-validation.md"
+  ],
+  "validation_expected": [
+    "Inicializacion de fitflow_test, integracion RRULE dirigida, suite completa, Ruff/Pyright scope y global, alembic heads, wrapper canonico"
+  ],
+  "document_impact": [],
+  "depends_on": ["FF-IMP-001"]
+}

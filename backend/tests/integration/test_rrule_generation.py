@@ -61,10 +61,10 @@ async def test_generation_is_idempotent_and_preserves_schedule_snapshot() -> Non
         await db.commit()
 
         generated = await generate_sessions_for_schedule(
-            str(schedule.id), start_date, start_date + timedelta(days=15), None, db=db
+            schedule_id=schedule.id, window_start=start_date, window_end=start_date + timedelta(days=15), db=db
         )
         repeated = await generate_sessions_for_schedule(
-            str(schedule.id), start_date, start_date + timedelta(days=15), None, db=db
+            schedule_id=schedule.id, window_start=start_date, window_end=start_date + timedelta(days=15), db=db
         )
         stored = list(
             (
@@ -121,6 +121,6 @@ async def test_generation_rejects_active_teacher_overlap() -> None:
         )
         db.add_all([first, second])
         await db.commit()
-        await generate_sessions_for_schedule(str(first.id), start_date, start_date, None, db=db)
+        await generate_sessions_for_schedule(schedule_id=first.id, window_start=start_date, window_end=start_date, db=db)
         with pytest.raises(svc_errors.BusinessValidationError, match="Solapamiento"):
-            await generate_sessions_for_schedule(str(second.id), start_date, start_date, None, db=db)
+            await generate_sessions_for_schedule(schedule_id=second.id, window_start=start_date, window_end=start_date, db=db)

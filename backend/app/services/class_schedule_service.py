@@ -273,7 +273,7 @@ def get_schedule_occupancy(schedule: "ClassSchedule") -> float:
     if not sessions:
         return 0.0
     total_bookings = sum(getattr(s, "current_bookings_count", 0) or 0 for s in sessions)
-    total_capacity = sum((getattr(s, "capacity_snapshot", {}) or {}).get("capacity", 0) for s in sessions)
+    total_capacity = sum(getattr(s, "capacity_snapshot", 0) or 0 for s in sessions)
     if total_capacity == 0:
         return 0.0
     return float(total_bookings) / float(total_capacity)
@@ -291,7 +291,7 @@ def get_schedule_next_session(schedule: "ClassSchedule") -> NextSessionInfo | No
         return None
 
     next_session = min(future_sessions, key=lambda s: s.starts_at)
-    available = (getattr(next_session, "capacity_snapshot", {}) or {}).get("capacity", 0) - (getattr(next_session, "current_bookings_count", 0) or 0)
+    available = (getattr(next_session, "capacity_snapshot", 0) or 0) - (getattr(next_session, "current_bookings_count", 0) or 0)
     return NextSessionInfo.model_validate(
         {
             "session_id": next_session.id,

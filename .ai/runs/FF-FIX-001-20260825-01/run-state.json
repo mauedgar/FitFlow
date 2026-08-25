@@ -1,0 +1,40 @@
+{
+  "artifact": "RUN_STATE",
+  "schema_version": "fitflow-run-state/v2",
+  "task_id": "FF-FIX-001",
+  "run_id": "FF-FIX-001-20260825-01",
+  "updated_at": "2026-08-25T16:19:26-03:00",
+  "baseline": {
+    "revision": "78aaa3082d079f39a2bd8da015cc165a81b5cc20",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "Run ejecutado sobre branch fix/FF-FIX-001-session-contract desde develop integrado."
+  },
+  "workflow_id": "bugfix",
+  "current_state": "PENDING_ACCEPTANCE",
+  "next_state": "DONE",
+  "sequence": 9,
+  "retry_counters": {
+    "context": 0,
+    "implementation": 0,
+    "review": 0
+  },
+  "context_deliveries": [],
+  "route_history": [],
+  "validation_history": [
+    {
+      "path": ".ai/runs/FF-FIX-001-20260825-01/validation.json",
+      "hash": "sha256:2f6c4510840a84f7011f3e404953497895bb0069c8bf2c791c6508465b23b796",
+      "schema_version": "fitflow-validation-result/v2"
+    }
+  ],
+  "review_history": [
+    {
+      "path": ".ai/runs/FF-FIX-001-20260825-01/review.json",
+      "hash": "sha256:b50fcb620ecf87f325c285b1e4ecdeaaf0116284ced281e619736222b0ab67e7",
+      "schema_version": "fitflow-review-result/v2"
+    }
+  ],
+  "blocked_by": [],
+  "last_error": null
+}
