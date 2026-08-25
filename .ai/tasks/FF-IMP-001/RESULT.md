@@ -4,7 +4,7 @@ task_id: FF-IMP-001
 run_id: FF-IMP-001-20260825-01
 date: 2026-08-25
 status: COMPLETED
-workflow_state: PENDING_ACCEPTANCE
+workflow_state: DONE
 change_scope_status: PASS
 global_validation_status: FAIL
 ---
@@ -69,3 +69,9 @@ comandos terminaron con exit code 0 desde el worktree root.
 Implementacion task-scoped `PASS`, review independiente `PASS`, run
 `COMPLETED` en `PENDING_ACCEPTANCE`. No se hizo commit, push o merge. Solo el
 Developer puede aceptar, integrar y promover a `DONE`.
+
+# Aceptacion (append-only)
+
+- 2026-08-25T15:52:57-03:00 — El Developer acepta. Integracion fast-forward
+  `5cfcd28..78aaa30` en `develop`; promovida a `DONE`. El veredicto previo se
+  conserva sin reescritura.

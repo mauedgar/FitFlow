@@ -3,7 +3,7 @@
   "schema_version": "fitflow-run-state/v2",
   "task_id": "FF-IMP-001",
   "run_id": "FF-IMP-001-20260825-01",
-  "updated_at": "2026-08-25T14:52:35-03:00",
+  "updated_at": "2026-08-25T15:52:57-03:00",
   "baseline": {
     "revision": "5cfcd28b7c2aa0d0e871b72036bdfa4fe59e3827",
     "fingerprint_status": "unavailable",
@@ -11,9 +11,9 @@
     "fingerprint_reason": "Run finalizado sobre working tree sin commit; orca.yaml fue incluido con autorizacion expresa del Developer."
   },
   "workflow_id": "bugfix",
-  "current_state": "PENDING_ACCEPTANCE",
-  "next_state": "DONE",
-  "sequence": 9,
+  "current_state": "DONE",
+  "next_state": null,
+  "sequence": 10,
   "retry_counters": {
     "context": 0,
     "implementation": 0,

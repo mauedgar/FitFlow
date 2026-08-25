@@ -2,7 +2,7 @@
 artifact: TASK
 task_id: FF-IMP-001
 title: Eliminar el ciclo de imports de schemas y restaurar startup/collection
-status: PENDING_ACCEPTANCE
+status: DONE
 task_type: FIX
 scope: backend
 lane: ai_orchestrated
@@ -56,14 +56,14 @@ infiere un timestamp de aceptacion.
 
 # Criterios de aceptacion
 
-- [ ] AC-1: `from app.main import app` termina con exit code 0.
-- [ ] AC-2: pytest completa collection sin errores de import circular.
-- [ ] AC-3: contratos Pydantic, RRULE y Booking afectados se ejecutan.
-- [ ] AC-4: `app.openapi()` genera el contrato en `fitflow-test`.
-- [ ] AC-5: smoke, metadata ORM, Redis y allowed-plan siguen pasando.
-- [ ] AC-6: Ruff, Pyright y `alembic heads` se ejecutan y registran.
-- [ ] AC-7: no cambian DB, ORM, migraciones ni dominio.
-- [ ] AC-8: Validator y Reviewer independientes producen evidencia.
+- [x] AC-1: `from app.main import app` termina con exit code 0.
+- [x] AC-2: pytest completa collection sin errores de import circular.
+- [x] AC-3: contratos Pydantic, RRULE y Booking afectados se ejecutan.
+- [x] AC-4: `app.openapi()` genera el contrato en `fitflow-test`.
+- [x] AC-5: smoke, metadata ORM, Redis y allowed-plan siguen pasando.
+- [x] AC-6: Ruff, Pyright y `alembic heads` se ejecutan y registran.
+- [x] AC-7: no cambian DB, ORM, migraciones ni dominio.
+- [x] AC-8: Validator y Reviewer independientes producen evidencia.
 
 # Documentos requeridos
 
@@ -73,3 +73,11 @@ infiere un timestamp de aceptacion.
 - `docs/process/risk-and-parallelism.md`;
 - `docs/quality-and-validation.md`;
 - artefactos `FF-AUD-001` declarados por el prompt de continuacion.
+
+# Aceptacion
+
+- 2026-08-25T15:52:57-03:00 — El Developer acepta el resultado (fix task-scoped
+  PASS, review independiente PASS; FAIL globales reconocidos como deuda
+  preexistente no bloqueante). Integrada en `develop` via fast-forward
+  `5cfcd28..78aaa30`. Promovida a `DONE`; sin push.
+

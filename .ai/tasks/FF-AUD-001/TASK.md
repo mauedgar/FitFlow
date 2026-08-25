@@ -2,7 +2,7 @@
 artifact: TASK
 task_id: FF-AUD-001
 title: Reconciliar Sprint 6.8 y establecer baseline tecnico verificable
-status: PENDING_ACCEPTANCE
+status: DONE
 task_type: AUDIT
 area: product-baseline
 scope: documentation_validation
@@ -15,8 +15,8 @@ worktree: C:/Users/maued/orca/workspaces/FitFlow/feat-FF-AUD-001
 baseline: 20d2616
 validation: PASS
 review_verdict: ACCEPT_WITH_NON_BLOCKING_FINDINGS
-developer_acceptance: PENDING
-integration: NOT_INTEGRATED
+developer_acceptance: ACCEPTED
+integration: INTEGRATED
 ownership_keys:
   - path:.ai/tasks/FF-AUD-001/**
   - path:.ai/runs/FF-AUD-001-*/**
@@ -96,3 +96,10 @@ La task no autoriza por si sola correcciones de producto. Gate 3 solo queda
 abierto para findings reproducibles, acotados, con ownership, riesgo, criterios
 de aceptacion y estrategia de validacion definidos. Solo el Developer acepta el
 resultado terminal.
+
+# Aceptacion (append-only)
+
+- 2026-08-25T15:52:57-03:00 — El Developer acepta el resultado de la auditoria
+  (`BASELINE_KNOWN`, review `ACCEPT_WITH_NON_BLOCKING_FINDINGS`). Integracion
+  verificada en `develop` mediante `e71625c`; campos `status`,
+  `developer_acceptance` e `integration` actualizados a la realidad verificada.
