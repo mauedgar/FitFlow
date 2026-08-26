@@ -38,7 +38,8 @@ constraints:
   - OpenSpec solo aporta especificaciones y deltas como evidencia
   - repo-packager materializa; ContextPackager y Explorer deciden suficiencia
   - FitFlow y Tecnotron-ai usan worktrees emparejados y ownership disjunto
-  - No se agregan dependencias al manifiesto
+  - No se agregan dependencias al manifiesto del producto; metadata `.opencode`
+    administrada por Orca puede versionarse por ruling del Developer
 acceptance_criteria:
   - id: AC-1
     criterion: El CLI valida Project Profile, Task y registries antes de ejecutar etapas
@@ -79,6 +80,8 @@ ownership_keys:
   - path:FitFlow-ai/scripts/doctor/tests/doctor.test.js
   - path:FitFlow-ai/tests/**
   - path:FitFlow-ai/.opencode/skills/repo-packager/scripts/pack.py
+  - path:FitFlow-ai/.opencode/package.json
+  - path:FitFlow-ai/.opencode/package-lock.json
   - path:FitFlow-ai/package.json
   - path:FitFlow-ai/docs/research/temporary-ox-alpha-free-line.md
 required_docs:

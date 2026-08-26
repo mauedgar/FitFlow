@@ -25,6 +25,10 @@ La validacion final pasa `152/152`, repo-packager `12/12`, contratos y OpenSpec
 strict. El review independiente es `ACCEPT` y el Developer confirmo los cambios
 el 2026-08-26.
 
+La actualizacion observada de `.opencode/package.json` y
+`.opencode/package-lock.json`, administrada por Orca/OpenCode, fue aceptada
+explicitamente dentro del ownership y se versiona con el AI Core.
+
 Quedan fuera de este resultado un adapter de proveedor real, automatizacion de
 merge/cleanup, paid API, Temporal, MCP y retrieval semantico. Los PRs y la
 integracion siguen pendientes; este resultado no declara `DONE`.
