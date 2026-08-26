@@ -115,4 +115,6 @@ Developer. No emite `DONE`, no integra y no limpia los worktrees.
 
 - 2026-08-26: el Developer confirma los cambios y autoriza crear los PRs. La
   validacion y el review son `PASS`/`ACCEPT`; integracion y `DONE` permanecen
-  pendientes.
+  pendientes. PRs abiertos:
+  `https://github.com/mauedgar/tecnotron-ai/pull/21` y
+  `https://github.com/mauedgar/FitFlow/pull/13`.

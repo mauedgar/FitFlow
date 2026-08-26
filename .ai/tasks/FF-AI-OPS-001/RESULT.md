@@ -9,6 +9,9 @@ validation: PASS
 review_verdict: ACCEPT
 developer_acceptance: ACCEPTED
 integration: NOT_INTEGRATED
+pull_requests:
+  - https://github.com/mauedgar/tecnotron-ai/pull/21
+  - https://github.com/mauedgar/FitFlow/pull/13
 ---
 
 # Result FF-AI-OPS-001
