@@ -4,6 +4,7 @@ incremental_budget_usd: 0
 paid_api_enabled: false
 providers:
   local: {available: true}
+  opencode: {available: true}
 resource_pools:
   local:
     enabled: true
@@ -25,3 +26,13 @@ resource_pools:
     capacity_remaining: 0
     rate_limit_remaining: 0
     concurrency_available: 0
+  opencode_zero_incremental:
+    enabled: true
+    available: true
+    resource_class: zero_incremental
+    access_mode: included
+    criticality_ceiling: medium
+    quota_remaining: null
+    capacity_remaining: 1
+    rate_limit_remaining: 1
+    concurrency_available: 1

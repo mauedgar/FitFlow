@@ -57,3 +57,59 @@ entries:
     selection_tier: 10
     benchmark_status: untested
     last_verified: 2026-08-18
+  ox_alpha_opencode:
+    provider: opencode
+    runtime_id: opencode/x-preview-f-free
+    display_name: Ox Alpha
+    availability: unavailable
+    trust: trusted
+    resource_pool: opencode_zero_incremental
+    capabilities: [coding, documentation, reasoning, review]
+    criticality_ceiling: high
+    eligible_roles: [planner_ai, architect, coder_a, coder_strong_a, reviewer]
+    preferred_roles: [planner_ai, architect, coder_strong_a, reviewer]
+    selection_tier: 5
+    benchmark_status: developer_validated_medium_high
+    last_verified: 2026-08-26
+  big_pickle_opencode:
+    provider: opencode
+    runtime_id: opencode/big-pickle
+    display_name: Big Pickle
+    availability: available
+    trust: standard
+    resource_pool: opencode_zero_incremental
+    capabilities: [coding, documentation, reasoning, review]
+    criticality_ceiling: medium
+    eligible_roles: [planner_ai, architect, coder_a, coder_strong_a, reviewer]
+    preferred_roles: [planner_ai, architect, coder_a, coder_strong_a, reviewer]
+    selection_tier: 5
+    benchmark_status: developer_observed_operational
+    last_verified: 2026-08-26
+  hy3_free_opencode:
+    provider: opencode
+    runtime_id: opencode/hy3-free
+    display_name: Hy3 Free
+    availability: available
+    trust: standard
+    resource_pool: opencode_zero_incremental
+    capabilities: [documentation, exploration, reasoning]
+    criticality_ceiling: low
+    eligible_roles: [explorer, doc_curator]
+    preferred_roles: [explorer, doc_curator]
+    selection_tier: 5
+    benchmark_status: bounded_invocation_pass
+    last_verified: 2026-08-26
+  mimo_v25_free_opencode:
+    provider: opencode
+    runtime_id: opencode/mimo-v2.5-free
+    display_name: MiMo V2.5 Free
+    availability: available
+    trust: standard
+    resource_pool: opencode_zero_incremental
+    capabilities: [coding]
+    criticality_ceiling: low
+    eligible_roles: [coder_b]
+    preferred_roles: [coder_b]
+    selection_tier: 5
+    benchmark_status: bounded_invocation_pass
+    last_verified: 2026-08-26

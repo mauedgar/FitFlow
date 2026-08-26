@@ -1,0 +1,24 @@
+schema: spec-driven
+context: |
+  FitFlow is the product repository and owns product configuration, TASK and
+  run artifacts. Tecnotron-ai owns the replaceable AI Core implementation.
+  Orca controls workspace and sessions but never canonical lifecycle state.
+  OpenSpec describes functional behavior and deltas; it never replaces TASK,
+  RunState, ADR, review or Developer acceptance. Paid APIs are disabled.
+rules:
+  proposal:
+    - Keep the proposal under 500 words.
+    - State non-goals explicitly.
+  specs:
+    - Use deterministic, testable SHALL requirements.
+    - Preserve component ownership boundaries.
+  tasks:
+    - Keep implementation tasks bounded by explicit repository paths.
+operations:
+  apply:
+    guidance:
+      - Retrieve only the artifacts and exact source required by the active task.
+      - Record incomplete evidence as PARTIAL or EMPTY, never as PASS.
+  archive:
+    guidance:
+      - Archive only after Developer acceptance and verified integration.
