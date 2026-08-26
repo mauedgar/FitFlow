@@ -3,6 +3,13 @@
 /.ai/tasks/
 /docs/archive/
 node_modules/
+# Entornos y dependencias
+/backend/.venv_backend/
+**/.venv*/
+**/node_modules/
+# Datos, runtime y salidas
+/exports/
+/logs/
 # Artefactos locales
 /htmlcov/
 /coverage/
