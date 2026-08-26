@@ -2,7 +2,7 @@
 artifact: TASK
 task_id: FF-LOCALvNext-000
 title: Reforzar auditoria documental y operativa previa a Fase 3
-status: PENDING_ACCEPTANCE
+status: DONE
 task_type: docs
 area: docs
 scope: docs_tooling
@@ -14,8 +14,10 @@ worktree: C:/Users/maued/orca/workspaces/FitFlow/feat-FF-NEXT-000
 baseline: 046fa1f34d3886c3dbdd4a2f6a5064c0fb2a759e
 validation: PASS
 review_verdict: ACCEPT_WITH_NON_BLOCKING_FINDINGS
-developer_acceptance: PENDING
-integration: NOT_INTEGRATED
+developer_acceptance: ACCEPTED
+integration: INTEGRATED
+integration_target: develop
+integration_revision: 20d26166e5b5a4166eecf95833c18036aae6dc06
 ownership_keys:
   - path:.ai/tasks/FF-LOCALvNext-000/**
   - path:.ai/tasks/FF-LOCALvNext-001-adr-integrity/PLAN.md

@@ -6,7 +6,7 @@ date: 2026-08-25
 baseline: 20d26166e5b5a4166eecf95833c18036aae6dc06
 status: PASS
 product_baseline: FAIL
-next_state: PENDING_ACCEPTANCE
+next_state: DONE
 ---
 
 # Alcance
