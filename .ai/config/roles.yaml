@@ -6,7 +6,7 @@ roles:
     writes_product: false
     terminal_authority: true
   planner_ai:
-    status: disabled
+    status: active_specification
     actor_type: model
     writes_product: false
   router:
@@ -34,7 +34,7 @@ roles:
     writes_product: true
     criticality_ceiling: medium
   coder_strong_a:
-    status: conditional_specification
+    status: active_specification
     actor_type: model
     writes_product: true
     criticality_ceiling: medium

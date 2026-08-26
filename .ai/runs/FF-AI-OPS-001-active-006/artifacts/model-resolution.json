@@ -1,0 +1,1 @@
+{"fallback_used":false,"policy_id":"fitflow-model-selection/v1","reason_code":"MODEL_SELECTED","selected":{"access_mode":"included","pool_id":"opencode_zero_incremental","provider":"opencode","registry_id":"big_pickle_opencode","resource_class":"zero_incremental","runtime_id":"opencode/big-pickle"},"status":"SELECTED"}

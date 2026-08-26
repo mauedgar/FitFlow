@@ -3,7 +3,7 @@ project_id: fitflow
 baseline: fitflow-ai/vnext-5.0
 roots:
   product: C:/Proyectos-Web/FitFlow
-  ai_core: C:/Proyectos-Web/FitFlow-ai
+  ai_core: C:/Proyectos-Web/Tecnotron-ai
 authority:
   source_of_truth: docs/SOURCE_OF_TRUTH.md
   agents: AGENTS.md
@@ -18,7 +18,7 @@ operational:
   local_state: .ai/local/run-state.sqlite
 specification:
   adapter: openspec
-  status: accepted_pending_bootstrap
+  status: active
 features:
   semantic_retrieval: false
   mcp: false
