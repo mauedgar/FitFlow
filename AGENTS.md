@@ -2,8 +2,8 @@
 document_id: FF-AGENTS-001
 status: canonical
 machine_context: true
-version: 5.0
-updated: 2026-08-18
+version: 5.1
+updated: 2026-08-25
 ---
 
 # Reglas para agentes
@@ -36,6 +36,17 @@ Planner o al desarrollador. No armonizar fuentes silenciosamente.
 Solo el desarrollador puede promover a `DONE`. Si falta contexto, volver a
 `EXPLORE`; si falla la implementacion o la validacion, volver a `ROUTE`; si el
 plan o la doctrina son incorrectos, volver a `PLAN`.
+
+## Ciclo de worktree
+
+- Toda task nace de la rama `develop` y se ejecuta en un worktree acotado
+  fuera del checkout principal.
+- El ciclo abre rama local y remota: `git worktree add -b <branch> <ruta>
+  develop` seguido de `git push -u origin <branch>`.
+- Al finalizar (merge o abandono), se cierran ambas: `git worktree remove`,
+  `git branch -d <branch>` y eliminacion de la remota si quedo sin merge.
+- El checkout principal permanece limpio sobre `develop` y solo recibe
+  fast-forward despues del merge; nunca se trabaja directo en el.
 
 ## Autonomia
 
