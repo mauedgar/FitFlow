@@ -4,11 +4,14 @@ task_id: FF-AI-OPS-001
 run_id: FF-AI-OPS-001-active-006
 date: 2026-08-26
 status: COMPLETED
-workflow_state: PENDING_ACCEPTANCE
+workflow_state: DONE
 validation: PASS
 review_verdict: ACCEPT
 developer_acceptance: ACCEPTED
-integration: NOT_INTEGRATED
+integration: INTEGRATED
+integration_revisions:
+  Tecnotron-ai: bf36b061d0e0ba589c5d5bf3cd220ec0f44d7c57
+  FitFlow: 69876f4ea66a7d8d9a54d5e17673a8f6f01e1387
 pull_requests:
   - https://github.com/mauedgar/tecnotron-ai/pull/21
   - https://github.com/mauedgar/FitFlow/pull/13
@@ -29,6 +32,7 @@ La actualizacion observada de `.opencode/package.json` y
 `.opencode/package-lock.json`, administrada por Orca/OpenCode, fue aceptada
 explicitamente dentro del ownership y se versiona con el AI Core.
 
-Quedan fuera de este resultado un adapter de proveedor real, automatizacion de
-merge/cleanup, paid API, Temporal, MCP y retrieval semantico. Los PRs y la
-integracion siguen pendientes; este resultado no declara `DONE`.
+Quedan fuera de este resultado un adapter de proveedor real, paid API, Temporal,
+MCP y retrieval semantico. PR 21 fue integrado en Tecnotron-ai y PR 13 en
+FitFlow; `DOC_SYNC` esta completo y la task alcanza `DONE`. El cleanup de los
+worktrees se ejecuta despues de integrar este cierre documental.

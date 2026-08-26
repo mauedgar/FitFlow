@@ -4,7 +4,7 @@ task_id: FF-AI-OPS-001
 run_id: FF-AI-OPS-001-active-006
 date: 2026-08-26
 status: PASS
-next_state: PENDING_ACCEPTANCE
+next_state: DONE
 ---
 
 # Validation FF-AI-OPS-001

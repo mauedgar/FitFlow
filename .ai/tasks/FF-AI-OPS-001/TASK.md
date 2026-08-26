@@ -3,7 +3,7 @@ artifact: TASK
 schema_version: fitflow-task/v2
 task_id: FF-AI-OPS-001
 title: Activar el workflow operacional determinista y acotado por contexto
-status: PENDING_ACCEPTANCE
+status: DONE
 task_type: tooling
 area: ai_tooling
 scope: mixed
@@ -121,3 +121,7 @@ Developer. No emite `DONE`, no integra y no limpia los worktrees.
   pendientes. PRs abiertos:
   `https://github.com/mauedgar/tecnotron-ai/pull/21` y
   `https://github.com/mauedgar/FitFlow/pull/13`.
+- 2026-08-26: PR 21 fue integrado en `tooling` como
+  `bf36b061d0e0ba589c5d5bf3cd220ec0f44d7c57` y PR 13 fue integrado en
+  `develop` como `69876f4ea66a7d8d9a54d5e17673a8f6f01e1387`. El bundle
+  queda sincronizado y la task alcanza `DONE`.
