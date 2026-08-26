@@ -1,0 +1,65 @@
+{
+  "artifact": "RUN_RESULT",
+  "schema_version": "fitflow-run-result/v2",
+  "task_id": "FF-AUD-001",
+  "run_id": "FF-AUD-001-20260825-01",
+  "created_at": "2026-08-25T11:17:05-03:00",
+  "baseline": {
+    "revision": "20d26166e5b5a4166eecf95833c18036aae6dc06",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El bundle documental FF-AUD-001 fue el unico cambio del worktree durante el run."
+  },
+  "status": "COMPLETED",
+  "current_state": "PENDING_ACCEPTANCE",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "status": "PASS",
+      "evidence": "RESULT.md contiene matriz completa FF-LOCAL-001..010 con estado, evidencia, gap y proxima accion."
+    },
+    {
+      "id": "AC-2",
+      "status": "PASS",
+      "evidence": "VALIDATION.md registra Git, Docker, pytest, startup, ORM, Redis, Alembic, Ruff y Pyright con estados normalizados."
+    },
+    {
+      "id": "AC-3",
+      "status": "PASS",
+      "evidence": "Los bundles historicos permanecen sin cambios; REVIEW/VALIDATION ausentes se marcan MISSING_HISTORICAL."
+    },
+    {
+      "id": "AC-4",
+      "status": "PASS",
+      "evidence": "REVIEW.md independiente: ACCEPT_WITH_NON_BLOCKING_FINDINGS; findings corregidos."
+    },
+    {
+      "id": "AC-5",
+      "status": "PASS",
+      "evidence": "No se modifico producto, DB, ORM, migraciones, dominio, .env, dependencias ni Tecnotron."
+    }
+  ],
+  "artifacts": [
+    {
+      "path": ".ai/runs/FF-AUD-001-20260825-01/validation.json",
+      "hash": "sha256:5d32e94491414a16147dd16e784eecc4f041064721b79316c34da86111d1c42c",
+      "schema_version": "fitflow-validation-result/v2"
+    },
+    {
+      "path": ".ai/runs/FF-AUD-001-20260825-01/review.json",
+      "hash": "sha256:a72364a4aca84f58ead4ffb444a4f849776ee76cd91177bcf430b7b5b072c84d",
+      "schema_version": "fitflow-review-result/v2"
+    }
+  ],
+  "risks": [
+    "El baseline de producto falla startup y collection por un import circular de schemas Pydantic.",
+    "Una migracion historica contiene TRUNCATE CASCADE y tres downgrades son forward-only.",
+    "No existen suites API o concurrency ejecutables; Ruff y Pyright no estan en la imagen canonica."
+  ],
+  "developer_decisions_required": [
+    "Aceptar o rechazar el baseline auditado FF-AUD-001.",
+    "Autorizar como siguiente unidad una task acotada para eliminar el import circular de schemas.",
+    "Mantener bloqueadas correcciones DB/ORM/migraciones/dominio hasta una decision high-risk y evidencia adicional."
+  ],
+  "finops_summary_ref": null
+}

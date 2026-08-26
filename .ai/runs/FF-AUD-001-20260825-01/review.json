@@ -1,0 +1,46 @@
+{
+  "artifact": "REVIEW_RESULT",
+  "schema_version": "fitflow-review-result/v2",
+  "task_id": "FF-AUD-001",
+  "run_id": "FF-AUD-001-20260825-01",
+  "created_at": "2026-08-25T11:17:05-03:00",
+  "baseline": {
+    "revision": "20d26166e5b5a4166eecf95833c18036aae6dc06",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El bundle documental FF-AUD-001 estaba en construccion durante la revision."
+  },
+  "reviewer_role": "reviewer",
+  "independent": true,
+  "verdict": "PASS",
+  "findings": [
+    {
+      "severity": "medium",
+      "title": "Precondicion documental nombrada como Gate 1",
+      "body": "Resuelto: se renombro y vinculo con la evidencia del ciclo preparatorio.",
+      "path": ".ai/tasks/FF-AUD-001/RESULT.md",
+      "line": 119
+    },
+    {
+      "severity": "medium",
+      "title": "Gate 3 de schemas sin criterios explicitos",
+      "body": "Resuelto: se agregaron criterios verificables y estrategia de validacion.",
+      "path": ".ai/tasks/FF-AUD-001/RESULT.md",
+      "line": 79
+    },
+    {
+      "severity": "low",
+      "title": "Salida de comandos resumida",
+      "body": "Resuelto: VALIDATION incorpora extractos de collection y gates dirigidos.",
+      "path": ".ai/tasks/FF-AUD-001/VALIDATION.md",
+      "line": 67
+    }
+  ],
+  "validation_ref": {
+    "path": ".ai/runs/FF-AUD-001-20260825-01/validation.json",
+    "hash": "sha256:5d32e94491414a16147dd16e784eecc4f041064721b79316c34da86111d1c42c",
+    "schema_version": "fitflow-validation-result/v2"
+  },
+  "summary": "Auditoria aceptada con findings no bloqueantes resueltos; el baseline de producto permanece FAIL.",
+  "next_state": "DOC_SYNC"
+}

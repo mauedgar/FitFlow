@@ -1,0 +1,46 @@
+{
+  "artifact": "RUN_RESULT",
+  "schema_version": "fitflow-run-result/v2",
+  "task_id": "FF-IMP-001",
+  "run_id": "FF-IMP-001-20260825-01",
+  "created_at": "2026-08-25T14:52:35-03:00",
+  "baseline": {
+    "revision": "5cfcd28b7c2aa0d0e871b72036bdfa4fe59e3827",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "El resultado se consolido sobre el working tree con implementacion y evidencia sin commit."
+  },
+  "status": "COMPLETED",
+  "current_state": "PENDING_ACCEPTANCE",
+  "acceptance_criteria": [
+    {"id": "AC-1", "status": "PASS", "evidence": "Import app.main exit 0; 91 rutas."},
+    {"id": "AC-2", "status": "PASS", "evidence": "44 tests recolectados sin errores de import."},
+    {"id": "AC-3", "status": "PASS", "evidence": "38 pruebas dirigidas pasan; RRULE y Booking integration recolectan y se ejecutan, con 6 FAIL por DB sin tablas."},
+    {"id": "AC-4", "status": "PASS", "evidence": "OpenAPI 3.1.0 generado con 71 paths."},
+    {"id": "AC-5", "status": "PASS", "evidence": "Smoke, metadata ORM, Redis y allowed-plan incluidos en 38 passed."},
+    {"id": "AC-6", "status": "PASS", "evidence": "Ruff y Pyright task-scoped limpios; globales FAIL documentados; Alembic head e4f5a6b7c8d9."},
+    {"id": "AC-7", "status": "PASS", "evidence": "Diff task-owned sin DB, ORM, migraciones, dominio o dependencias."},
+    {"id": "AC-8", "status": "PASS", "evidence": "Validator independiente y Reviewer independiente con verdict PASS."}
+  ],
+  "artifacts": [
+    {
+      "path": ".ai/runs/FF-IMP-001-20260825-01/validation.json",
+      "hash": "sha256:f5708abd6976a146476d76578b4764530525b1b0df64856a4899afd82d56d0cb",
+      "schema_version": "fitflow-validation-result/v2"
+    },
+    {
+      "path": ".ai/runs/FF-IMP-001-20260825-01/review.json",
+      "hash": "sha256:7db684fc62131b94b42d9f3bf869032c839ec9190fc0b504b85b13e2911e53f4",
+      "schema_version": "fitflow-review-result/v2"
+    }
+  ],
+  "risks": [
+    "El wrapper canonico permanece FAIL por DB no inicializada, Ruff global 274 y Pyright global 35; no son regresiones del diff task-owned.",
+    "client.py y user.py conservan otro patron de imports al final fuera del alcance de esta task."
+  ],
+  "developer_decisions_required": [
+    "Aceptar o rechazar FF-IMP-001 con validacion global FAIL pero fix task-scoped y review independiente PASS.",
+    "Integrar la branch solo tras aceptacion explicita y promover a DONE exclusivamente como Developer."
+  ],
+  "finops_summary_ref": null
+}

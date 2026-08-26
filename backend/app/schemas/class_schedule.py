@@ -9,7 +9,7 @@ Incluye:
 • Esquemas compactos para anidamiento
 """
 
-from __future__ import annotations  # noqa: I001
+from __future__ import annotations
 
 from datetime import date, datetime, time
 from uuid import UUID
@@ -17,9 +17,10 @@ from uuid import UUID
 from dateutil.rrule import rrulestr
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.core.enums import AllowedPlan  # noqa: TC001
+from app.core.enums import AllowedPlan
+from app.schemas.class_schedule_refs import ClassSchedulePublic
 from app.schemas.class_session_refs import ClassSessionInResponse
-from app.schemas.gym_class import GymClassInClassScheduleResponse, GymClassPublic  # noqa: TC001
+from app.schemas.gym_class_refs import GymClassInClassScheduleResponse, GymClassPublic
 from app.schemas.teacher_refs import (
     TeacherInClassScheduleResponse,
     TeacherInScheduleResponseMini,
@@ -134,33 +135,6 @@ class ClassScheduleInternal(ClassScheduleBase):
 
 
 # --------------------------------------------------------------------------- #
-# 5. Esquema público
-# --------------------------------------------------------------------------- #
-
-class ClassSchedulePublic(BaseModel):
-    """Versión pública del horario.
-
-    Usada en:
-        • TeacherPublic
-        • GymClassWithSchedules
-        • listados públicos.
-        * teacher
-        * allowed plan
-    """
-
-    id: UUID
-    rrule: str
-    start_time: time
-    duration_minutes: int
-    capacity: int
-
-    gym_class: GymClassPublic
-    teacher: TeacherInClassScheduleResponse
-    allowed_plan: AllowedPlan | None = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-# --------------------------------------------------------------------------- #
 # 6. Esquema compacto dentro de ClassSession
 # --------------------------------------------------------------------------- #
 
@@ -201,14 +175,3 @@ class ClassScheduleWithNextSession(ClassSchedulePublic):
     """
 
     next_session: NextSessionInfo | None = None
-
-
-# Completa las referencias de GymClass sin introducir un import circular.
-from app.schemas import gym_class as gym_class_schemas  # noqa: E402
-
-gym_class_schemas.GymClassWithRelations.model_rebuild(
-    _types_namespace={"ClassSchedulePublic": ClassSchedulePublic},
-)
-gym_class_schemas.GymClassWithSchedules.model_rebuild(
-    _types_namespace={"ClassSchedulePublic": ClassSchedulePublic},
-)

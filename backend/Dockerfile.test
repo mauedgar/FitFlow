@@ -5,20 +5,23 @@ FROM python:3.11-slim
 COPY --from=uv /uv /uvx /usr/local/bin/
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y libatomic1 \
+    && apt-get install --no-install-recommends -y libatomic1 ca-certificates nodejs npm \
+    && npm install -g ajv-cli ajv-formats \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+
+COPY backend/requirements_backend.txt backend/requirements_test.txt ./backend/
+RUN uv pip install --system --no-cache-dir --upgrade -r backend/requirements_test.txt
+
+COPY backend/__init__.py ./backend/
+COPY backend/app ./backend/app
+COPY backend/alembic/env.py backend/alembic/README backend/alembic/script.py.mako ./backend/alembic/
+COPY backend/alembic/versions ./backend/alembic/versions
+COPY backend/alembic.ini backend/pytest.ini ./backend/
+COPY backend/tests ./backend/tests
+
 WORKDIR /app/backend
-
-COPY backend/requirements_backend.txt backend/requirements_test.txt ./
-RUN uv pip install --system --no-cache-dir --upgrade -r requirements_test.txt
-
-COPY backend/__init__.py ./
-COPY backend/app ./app
-COPY backend/alembic/env.py backend/alembic/README backend/alembic/script.py.mako ./alembic/
-COPY backend/alembic/versions ./alembic/versions
-COPY backend/alembic.ini backend/pytest.ini ./
-COPY backend/tests ./tests
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

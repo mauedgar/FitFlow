@@ -3,7 +3,9 @@ scripts:
     set -e
     cd "$ORCA_WORKTREE_PATH"
     cp "$ORCA_ROOT_PATH/.env" "$ORCA_WORKTREE_PATH/.env" 2>/dev/null || true
+    cp "$ORCA_ROOT_PATH/backend/.env" "$ORCA_WORKTREE_PATH/backend/.env" 2>/dev/null || true
     npm install --prefix frontend
+    docker compose -f docker-compose.test.yml build backend_test
 
 worktree:
   sharedDirectories:

@@ -1,0 +1,60 @@
+{
+  "artifact": "REVIEW_RESULT",
+  "schema_version": "fitflow-review-result/v2",
+  "task_id": "FF-IMP-001",
+  "run_id": "FF-IMP-001-20260825-01",
+  "created_at": "2026-08-25T14:52:35-03:00",
+  "baseline": {
+    "revision": "5cfcd28b7c2aa0d0e871b72036bdfa4fe59e3827",
+    "fingerprint_status": "unavailable",
+    "working_tree_fingerprint": null,
+    "fingerprint_reason": "Revision independiente sobre el working tree sin commit y con los artefactos del run en construccion."
+  },
+  "reviewer_role": "reviewer",
+  "independent": true,
+  "verdict": "PASS",
+  "findings": [
+    {
+      "severity": "note",
+      "title": "Cambio Orca autorizado y validado",
+      "body": "El Developer autorizo incluir la copia de backend/.env en el setup Orca. La referencia docker-compose.test.yml existe y docker compose config --quiet finalizo con exit code 0; el contenido de .env no se versiona.",
+      "path": "orca.yaml",
+      "line": 8
+    },
+    {
+      "severity": "note",
+      "title": "FAIL globales confirmados como baseline",
+      "body": "Ruff global conserva 274 hallazgos, Pyright global 35 errores y las integraciones requieren una DB inicializada. Todos permanecen visibles y ninguno se origina en los paths task-owned.",
+      "path": null,
+      "line": null
+    },
+    {
+      "severity": "low",
+      "title": "Ruff Docker reporta EXE002 por COPY Windows",
+      "body": "Los cinco paths cambiados pasan Ruff local y Docker con EXE002 normalizado. Git conserva modo 100644 en archivos tracked y no hay hallazgos de contenido en el diff.",
+      "path": "backend/app/schemas/gym_class_refs.py",
+      "line": 1
+    },
+    {
+      "severity": "low",
+      "title": "Cobertura de identidad de reexports parcial",
+      "body": "El smoke verifica ClassSchedulePublic y GymClassPublic; las demas clases movidas mantienen definicion unica y __all__, por lo que el refuerzo adicional es opcional.",
+      "path": "backend/tests/smoke/test_schema_startup.py",
+      "line": 19
+    },
+    {
+      "severity": "note",
+      "title": "Otro patron de imports al final permanece fuera de scope",
+      "body": "client.py y user.py conservan imports diferidos y model_rebuild para otro ciclo. No debe ampliarse FF-IMP-001 para corregirlo.",
+      "path": "backend/app/schemas/client.py",
+      "line": 171
+    }
+  ],
+  "validation_ref": {
+    "path": ".ai/runs/FF-IMP-001-20260825-01/validation.json",
+    "hash": "sha256:f5708abd6976a146476d76578b4764530525b1b0df64856a4899afd82d56d0cb",
+    "schema_version": "fitflow-validation-result/v2"
+  },
+  "summary": "PASS: ciclo eliminado exclusivamente con *_refs.py, imports al inicio, flujo lineal, contratos y reexports preservados; startup, OpenAPI, collection y gates dirigidos reproducidos independientemente. El cambio Orca fue autorizado y su Compose validado. FAILs globales permanecen como baseline.",
+  "next_state": "DOC_SYNC"
+}
