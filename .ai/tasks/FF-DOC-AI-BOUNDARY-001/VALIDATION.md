@@ -3,7 +3,7 @@ artifact: VALIDATION
 task_id: FF-DOC-AI-BOUNDARY-001
 date: 2026-08-26
 status: PASS
-next_state: PENDING_ACCEPTANCE
+next_state: DONE
 ---
 
 # Validation FF-DOC-AI-BOUNDARY-001
