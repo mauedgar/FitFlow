@@ -2,7 +2,7 @@
 artifact: TASK
 task_id: FF-DOC-AI-BOUNDARY-001
 title: Delimitar contratos del producto y del AI Core
-status: PENDING_ACCEPTANCE
+status: DONE
 task_type: docs
 scope: docs_tooling
 lane: ai_orchestrated
@@ -22,7 +22,10 @@ ownership_keys:
 validation: PASS
 review_verdict: ACCEPT
 developer_acceptance: ACCEPTED
-integration: NOT_INTEGRATED
+integration: INTEGRATED
+integration_target: develop
+integration_revision: 0d982b8991469532f3cb4a4929b5fb2c8d2c393d
+pull_request: https://github.com/mauedgar/FitFlow/pull/14
 ---
 
 # Objetivo
