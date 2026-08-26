@@ -7,6 +7,7 @@ baseline: 046fa1f34d3886c3dbdd4a2f6a5064c0fb2a759e
 status: PASS
 phase_3_execution: NOT_RUN
 machine_readable_v2: UNAVAILABLE
+next_state: DONE
 ---
 
 # Alcance

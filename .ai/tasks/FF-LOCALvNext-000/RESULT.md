@@ -4,9 +4,13 @@ task_id: FF-LOCALvNext-000
 run_id: FF-LOCALvNext-000-20260825-doc-reconcile
 date: 2026-08-25
 status: PASS
-workflow_state: PENDING_ACCEPTANCE
+workflow_state: DONE
 verdict: DOCUMENTATION_RECONCILIATION_REQUIRED
 phase_3_execution: NOT_RUN
+developer_acceptance: ACCEPTED
+integration: INTEGRATED
+integration_target: develop
+integration_revision: 20d26166e5b5a4166eecf95833c18036aae6dc06
 ---
 
 # Resultado
@@ -100,3 +104,13 @@ No se corrigieron documentos canonicos ni estados Tecnotron desde FitFlow.
 La reconciliacion documental esta implementada y revisada, pero aun requiere
 aceptacion/integracion y un worktree nuevamente limpio. Por lo tanto no se emite
 `PHASE_3_READY` y no se autoriza ejecutar Fase 3.
+
+## Cierre posterior
+
+El veredicto anterior describe el cierre original del run y se preserva como
+evidencia historica. El Developer acepto el ciclo, el bundle fue integrado en
+`develop` por `20d26166e5b5a4166eecf95833c18036aae6dc06` y el worktree
+preparatorio fue retirado. `FF-AUD-001` ejecuto despues la Fase 3 sobre ese mismo
+baseline y registro la precondicion documental como `PASS`. La task alcanza
+`DONE` sin reescribir la evidencia historica ni convertir los `NOT_RUN` o
+`UNAVAILABLE` originales en `PASS`.

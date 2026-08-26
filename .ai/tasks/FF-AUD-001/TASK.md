@@ -17,6 +17,9 @@ validation: PASS
 review_verdict: ACCEPT_WITH_NON_BLOCKING_FINDINGS
 developer_acceptance: ACCEPTED
 integration: INTEGRATED
+integration_target: develop
+integration_revision: e71625ca73cad3c1de2e49d2a3808eb2f4281a19
+acceptance_revision: 2578cd8a839dd3022b1bb102684018f292a0be75
 ownership_keys:
   - path:.ai/tasks/FF-AUD-001/**
   - path:.ai/runs/FF-AUD-001-*/**
@@ -71,15 +74,15 @@ baseline tecnico reproducible de FitFlow sin corregir producto.
 
 # Criterios de aceptacion
 
-- [ ] Las diez tasks tienen estado documental, estado verificado, evidencia,
+- [x] Las diez tasks tienen estado documental, estado verificado, evidencia,
       gaps y proxima accion.
-- [ ] La revalidacion actual se distingue de la evidencia historica.
-- [ ] El baseline registra Git, tests, ORM, Alembic, calidad y entorno DB.
-- [ ] Todo comando conserva cwd, alcance, salida y estado normalizado.
-- [ ] Ningun `FAIL`, `NOT_RUN` o `UNAVAILABLE` se promueve a `PASS`.
-- [ ] Los findings se agrupan por ownership sin proponer fixes prematuros.
-- [ ] Validator y Reviewer independientes producen evidencia.
-- [ ] El ciclo termina en `PENDING_ACCEPTANCE`.
+- [x] La revalidacion actual se distingue de la evidencia historica.
+- [x] El baseline registra Git, tests, ORM, Alembic, calidad y entorno DB.
+- [x] Todo comando conserva cwd, alcance, salida y estado normalizado.
+- [x] Ningun `FAIL`, `NOT_RUN` o `UNAVAILABLE` se promueve a `PASS`.
+- [x] Los findings se agrupan por ownership sin proponer fixes prematuros.
+- [x] Validator y Reviewer independientes producen evidencia.
+- [x] El ciclo termino en `PENDING_ACCEPTANCE` antes de la aceptacion Developer.
 
 # Evidencia requerida
 

@@ -4,10 +4,13 @@ task_id: FF-AUD-001
 run_id: FF-AUD-001-20260825-01
 date: 2026-08-25
 status: COMPLETED
-workflow_state: PENDING_ACCEPTANCE
+workflow_state: DONE
 verdict: BASELINE_KNOWN
-developer_acceptance: PENDING
-integration: NOT_INTEGRATED
+developer_acceptance: ACCEPTED
+integration: INTEGRATED
+integration_target: develop
+integration_revision: e71625ca73cad3c1de2e49d2a3808eb2f4281a19
+acceptance_revision: 2578cd8a839dd3022b1bb102684018f292a0be75
 ---
 
 # Resultado
