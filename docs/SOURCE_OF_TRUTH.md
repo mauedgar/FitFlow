@@ -2,8 +2,8 @@
 document_id: FF-SOT-001
 status: canonical
 machine_context: true
-version: 5.1
-updated: 2026-08-21
+version: 5.2
+updated: 2026-08-25
 ---
 
 # Source of Truth de FitFlow
@@ -65,6 +65,31 @@ verifico contra el baseline documental `91a4697`:
 
 `docs/ai/README.md` clasifica las copias y referencias que permanecen en
 FitFlow. Esas copias no adquieren autoridad sobre el estado interno del AI Core.
+
+### Frontera contractual
+
+FitFlow conserva dos superficies contractuales distintas:
+
+- `backend/app/schemas/` y el OpenAPI generado por FastAPI son contratos de
+  borde del producto. FitFlow es su unica autoridad y puede evolucionarlos
+  mediante su lifecycle de producto.
+- `.ai/contracts/v2/` valida los artefactos operativos intercambiados con el AI
+  Core (`Task`, `RunState`, validacion, review y evidencia). No describe el API
+  web, no ejecuta la maquina de estados y no concede autoridad sobre el runtime
+  de FitFlow-ai.
+
+Los contratos Zod ejecutables, la maquina de estados generica y la politica del
+AI Core pertenecen a FitFlow-ai. Los JSON Schema v2 presentes en FitFlow son el
+contrato consumidor activo para el baseline declarado y permanecen junto a los
+TASK y runs que validan. Esta copia local no se modifica unilateralmente: todo
+cambio requiere una version del contrato productor, validacion de compatibilidad
+en FitFlow y actualizacion explicita del baseline.
+
+El mecanismo de distribucion del contrato (paquete, submodulo u otro artefacto
+versionado) permanece `MIGRATION_PENDING`. Hasta resolverlo, no se infieren
+aliases ni se armonizan divergencias entre Zod y JSON Schema. Esto bloquea la
+evolucion de la integracion operativa afectada, no el desarrollo normal del
+producto desde `develop`.
 
 ## Contexto derivado
 

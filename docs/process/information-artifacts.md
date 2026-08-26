@@ -2,11 +2,23 @@
 document_id: FF-PROCESS-ARTIFACTS-001
 status: canonical
 machine_context: true
-version: 2.0
-updated: 2026-08-18
+version: 2.1
+updated: 2026-08-25
 ---
 
 # Artefactos y trazabilidad
+
+## Alcance contractual
+
+Este documento gobierna los artefactos operativos que FitFlow conserva como
+consumidor del AI Core. No gobierna los schemas Pydantic/OpenAPI del producto ni
+la implementacion interna de FitFlow-ai.
+
+FitFlow-ai define los contratos Zod ejecutables y el runtime generico. FitFlow
+conserva el Project Profile, TASK, runs y evidencia especificos, y los valida
+con el snapshot JSON Schema v2 del baseline declarado. La sincronizacion de
+ambas representaciones permanece `MIGRATION_PENDING`; ninguna divergencia se
+armoniza unilateralmente en este repositorio.
 
 ## Regla comun
 

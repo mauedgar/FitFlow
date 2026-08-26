@@ -1,5 +1,22 @@
 # Contratos serializados
 
+## Autoridad y alcance
+
+Este directorio contiene el contrato consumidor para artefactos operativos del
+AI Core. No contiene los schemas Pydantic/OpenAPI del producto y no ejecuta la
+maquina de estados.
+
+Los contratos Zod ejecutables y el runtime generico pertenecen a FitFlow-ai.
+FitFlow conserva esta representacion JSON Schema para validar sus TASK, runs y
+evidencia contra el baseline declarado. Los archivos v2 no se modifican
+unilateralmente ni se usan para redefinir la politica interna del AI Core.
+
+La distribucion desde FitFlow-ai permanece `MIGRATION_PENDING`; no se ha
+adoptado como canonico npm, submodulo ni otro mecanismo. Toda actualizacion
+requiere version productor, analisis de compatibilidad, validacion del consumidor
+y cambio explicito de baseline. Una divergencia se registra y bloquea el cambio
+afectado; no se corrige mediante aliases silenciosos.
+
 ## Activos
 
 Los runs vNext usan Draft 2020-12 bajo `v2/`. Los schemas v1 en la raiz se
