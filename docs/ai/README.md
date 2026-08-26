@@ -2,8 +2,8 @@
 document_id: FF-AI-INDEX-001
 status: canonical
 machine_context: true
-version: 6.0
-updated: 2026-08-21
+version: 6.1
+updated: 2026-08-25
 ---
 
 # Integracion de FitFlow con AI Core
@@ -53,3 +53,25 @@ consumers se retiran. No se mueven archivos en esta reconciliacion.
 Configuracion activa: `/.ai/config/`. Contratos de intercambio:
 `/.ai/contracts/v2/`. El backlog `/.ai/backlog/vnext.yaml` es un espejo
 `MIGRATION_PENDING`, no la autoridad del roadmap de AI Core.
+
+## Limite entre producto y AI Core
+
+Los schemas Pydantic bajo `backend/app/schemas/` y el OpenAPI de FastAPI son
+contratos del producto web y permanecen bajo autoridad exclusiva de FitFlow.
+No forman parte del AI Core.
+
+Los JSON Schema bajo `/.ai/contracts/v2/` validan el intercambio operativo con
+FitFlow-ai. Son el snapshot consumidor activo del baseline declarado: permiten
+que FitFlow valide TASK, estado de run, routing, contexto, ejecucion, validacion,
+review y evidencia sin importar el runtime del AI Core dentro del producto.
+
+FitFlow-ai conserva autoridad sobre los contratos Zod ejecutables, la maquina
+de estados generica, roles, routing, adapters e inferencia. FitFlow conserva su
+Project Profile, TASK, runs, evidencia y configuracion especifica. Ninguna copia
+local convierte a FitFlow en autoridad sobre la implementacion interna del Core.
+
+La publicacion y sincronizacion de Zod hacia JSON Schema sigue
+`MIGRATION_PENDING`; no existe aqui una decision canonica entre npm, submodulo u
+otro mecanismo versionado. Hasta esa decision, `/.ai/contracts/v2/` no se
+evoluciona unilateralmente y toda divergencia se registra sin inventar
+compatibilidad. Esta restriccion no bloquea el desarrollo web del producto.
