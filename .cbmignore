@@ -15,6 +15,12 @@ node_modules/
 /coverage/
 /uploads/
 /tmp/
+
+# Artefactos generados (no código)
+**/repomix*.xml
+.context/repomix-temp/
+.context/repomix/
+docs/directorios/**/*.mmd
 **/__pycache__/
 **/.pytest_cache/
 **/.ruff_cache/

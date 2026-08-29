@@ -25,5 +25,5 @@ features:
   temporal: false
   orchestrator_workers: false
 environment:
-  reusable_discovery_env: C:/Proyectos-Web/FitFlow-ai/python/.venv_tools
+  reusable_discovery_env: C:/Proyectos-Web/Tecnotron-ai/python/.venv_tools
   official_ai_core_env: null

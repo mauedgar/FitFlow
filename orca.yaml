@@ -7,6 +7,14 @@ scripts:
     npm install --prefix frontend
     docker compose -f docker-compose.test.yml build backend_test
 
+defaultTabs:
+  - title: AI Core
+    command: >-
+      export FF_PROJECT_ROOT="$PWD";
+      export FF_PROJECT_PROFILE="$PWD/.ai/config/project-profile.yaml";
+      export FF_AI_CORE_ROOT="C:/Proyectos-Web/Tecnotron-ai";
+      exec "${SHELL:-bash}"
+
 worktree:
   sharedDirectories:
     - frontend/node_modules
