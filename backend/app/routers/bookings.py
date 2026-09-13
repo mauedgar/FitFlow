@@ -115,6 +115,10 @@ async def create_booking(  # noqa: C901
 
     try:
         # Llamada atómica al CRUD: verifica cupo y duplicado dentro de una transacción
+        # Auth y lecturas previas comparten esta AsyncSession y activan autobegin.
+        # End the read-only phase before handing transaction ownership to the atomic CRUD.
+        if db.in_transaction():
+            await db.commit()
         booking_obj = await booking_crud.create_with_capacity_check(
             db=db,
             client_id=client.id,  # pyright: ignore[reportArgumentType]
