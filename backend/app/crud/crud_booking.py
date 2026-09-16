@@ -54,7 +54,12 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             if include_relations
             else None
         )
-        return await super().get(db, obj_id=obj_id, options=opts)
+        stmt = select(Booking).where(Booking.id == obj_id)
+        if opts:
+            stmt = stmt.options(*opts)
+
+        res = await db.execute(stmt)
+        return res.scalar_one_or_none()
 
     # ------------------------------------------------------------------ #
     # Filtros avanzados

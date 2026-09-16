@@ -19,7 +19,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import (
     require_admin,
-    require_admin_client_or_self,
     require_admin_or_client,
 )
 from app.core.enums import BookingStatus, UserRole
@@ -183,7 +182,7 @@ async def cancel_booking(
     *,
     booking_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
-    current_user: Annotated["User", Depends(require_admin_client_or_self)],
+    current_user: Annotated["User", Depends(require_admin_or_client)],
 ) -> BookingPublic:
     """Cancela una reserva existente.
 
@@ -198,17 +197,21 @@ async def cancel_booking(
     if not booking_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reserva no encontrada.")
 
-    try:
-        client = await client_crud.get_by_user_id(db=db, user_id=current_user.id)  # pyright: ignore[reportArgumentType]
-    except Exception as exc:
-        logger.exception("DB error fetching client for cancel_booking user=%s", current_user.id)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
+    if current_user.role == UserRole.client:
+        try:
+            client = await client_crud.get_by_user_id(db=db, user_id=current_user.id)  # pyright: ignore[reportArgumentType]
+        except Exception as exc:
+            logger.exception("DB error fetching client for cancel_booking user=%s", current_user.id)
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
-    if not client:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado.")
+        if not client:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado.")
 
-    if current_user.role == UserRole.client and booking_obj.client_id != client.id:  # pyright: ignore[reportGeneralTypeIssues]
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No puedes cancelar reservas de otros clientes.")
+        if booking_obj.client_id != client.id:  # pyright: ignore[reportGeneralTypeIssues]
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No puedes cancelar reservas de otros clientes.",
+            )
 
     try:
         validate_booking_cancellation(booking_obj)
