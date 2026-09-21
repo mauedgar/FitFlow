@@ -54,7 +54,6 @@ def calculate_availability(session: ClassSession) -> int:
 
 def update_session_availability(session: ClassSession) -> ClassSession:
     """Actualiza los campos calculados de disponibilidad dentro del modelo ORM."""
-    session.available_spots = calculate_availability(session)  # type: ignore[attr-defined]
     return session
 
 

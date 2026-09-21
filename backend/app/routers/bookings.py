@@ -264,7 +264,7 @@ async def can_book_session(
 
     return SessionCapacity(
         session_id=session.id,  # pyright: ignore[reportArgumentType]
-        capacity=session.class_schedule.capacity,  # pyright: ignore[reportArgumentType]
+        capacity=session.capacity_snapshot,  # pyright: ignore[reportArgumentType]
         used=session.current_bookings_count,
         available=session.available_spots,
     )
