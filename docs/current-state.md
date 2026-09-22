@@ -2,8 +2,8 @@
 document_id: FF-STATE-001
 status: canonical
 machine_context: true
-version: 5.1
-snapshot: 2026-08-21
+version: 5.2
+snapshot: 2026-09-22
 ---
 
 # Estado actual de FitFlow
@@ -17,6 +17,10 @@ snapshot: 2026-08-21
 - Booking admite resolucion por sesion o agenda, protege capacidad, conserva
   cancelaciones y no cuenta reservas canceladas como cupo.
 - ClassSession conserva soft delete administrativo e historia.
+- Booking HTTP usa la capacidad de la `ClassSession` materializada para decidir
+  disponibilidad y preserva el boundary transaccional validado.
+- `GET /class-sessions/{id}/availability` reporta `capacity_snapshot` de la
+  sesion, no la capacidad mutable de la agenda.
 - Front Desk usa un service unico y check-in `confirmed -> attended` con
   `checked_in_at`.
 - La arquitectura objetivo del producto continua siendo monolito modular por
@@ -28,35 +32,28 @@ snapshot: 2026-08-21
 - Pruebas dirigidas de metadata, mappers, RRULE, Booking, cancelacion,
   capacidad, check-in y Redis.
 - Ruff y Pyright existen en la imagen de tests.
-- La suite HTTP integral del MVP no esta demostrada.
+- El vertical HTTP minimo de Booking y ClassSession tiene cobertura API
+  determinista publicada; la evidencia mas reciente del bounded vertical cerro
+  con la suite backend completa en 58 tests `PASS`. Esto no afirma cobertura
+  exhaustiva de todo el producto.
 
 ## Plataforma de asistencia IA
 
-FitFlow-ai es un repositorio independiente y la Source of Truth de su estado
-interno. FitFlow solo conserva este resumen de integracion:
+Tecnotron-ai es un repositorio independiente y autoridad de su arquitectura,
+roadmap, tooling y estado interno. FitFlow conserva unicamente configuracion,
+contratos consumidores y evidencia especifica del producto.
 
-- baseline vNext aceptada; `FF-AI-VNEXT-001` a `004` estan `DONE` por decision
-  del desarrollador;
-- `repo-packager` fue reparado e integrado mediante el PR #2 de FitFlow-ai;
-- `FF-AI-VNEXT-005` es el siguiente bloque (`NEXT`) y
-  `FF-AI-VNEXT-006` fue reactivado (`READY`); conformance ContextPackager v2
-  sigue pendiente;
-- Orca controla workspace y sesion; Git worktree aisla la escritura;
-- OpenCode es el Agent Runtime preferido actual e intercambiable; su adapter y
-  conformance siguen pendientes;
-- GitHub reemplaza a Jira para planificacion, integracion y validacion; los
-  adapters GitHub/OpenSpec siguen pendientes;
 - Project Profile, TASK, runs, contratos de intercambio y configuracion
   especifica permanecen en FitFlow.
-
-El detalle vigente se consulta en `docs/current-state.md` y
-`docs/implementation-roadmap.md` del repositorio FitFlow-ai. No se replica aqui.
+- Orca/OpenCode y otras superficies son implementaciones reemplazables del
+  sistema de desarrollo; no adquieren autoridad sobre FitFlow.
+- El estado interno de Tecnotron no se replica como backlog o roadmap canonico
+  de FitFlow. Las referencias cross-repo deben declarar un ref/commit cuando
+  necesiten un snapshot exacto.
+- Los hallazgos de Programmatic Process son evidencia de investigacion sin
+  transferencia automatica de ownership, lifecycle o arquitectura a FitFlow.
 
 ## Deuda activa
 
 - cobertura API integral y fixtures HTTP async compartidas;
 - refactors de fronteras heredadas;
-- resolver roots portables y consumers cross-repo en `FF-AI-VNEXT-005`;
-- migrar el backlog vNext al ownership de FitFlow-ai sin romper consumidores;
-- verificar adapters OpenCode, GitHub/OpenSpec y modelo Explorer;
-- medir contexto, calidad y retrabajo antes de ampliar autonomia.

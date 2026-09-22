@@ -2,8 +2,8 @@
 document_id: FF-ROADMAP-001
 status: canonical
 machine_context: true
-version: 5.1
-updated: 2026-08-21
+version: 5.2
+updated: 2026-09-22
 ---
 
 # Roadmap de FitFlow
@@ -25,11 +25,14 @@ autoridad sobre el producto.
 
 ## Plataforma de desarrollo asistido
 
-FitFlow-ai posee el roadmap detallado del AI Core. El estado de integracion que
-afecta al producto es: `FF-AI-VNEXT-001` a `004` `DONE`,
-`FF-AI-VNEXT-005` `NEXT` y `FF-AI-VNEXT-006` `READY`. Consultar
-`docs/implementation-roadmap.md` en FitFlow-ai para secuencia, dependencias y
-gates; FitFlow no mantiene una segunda copia.
+Tecnotron-ai posee su roadmap y estado interno. FitFlow no mantiene una segunda
+secuencia de work packages, TASKs o estados de implementacion del sistema de
+desarrollo. FitFlow solo planifica aqui trabajo que modifica el producto o una
+integracion de la cual FitFlow sea owner.
+
+Cuando una tarea de FitFlow dependa de un estado concreto de Tecnotron, debe
+referenciar explicitamente el repositorio y revision observados; esa referencia
+no transfiere ownership ni convierte el roadmap externo en roadmap de FitFlow.
 
 ## Autonomía
 

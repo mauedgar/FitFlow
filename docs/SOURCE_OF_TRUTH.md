@@ -2,8 +2,8 @@
 document_id: FF-SOT-001
 status: canonical
 machine_context: true
-version: 5.2
-updated: 2026-08-25
+version: 5.3
+updated: 2026-09-22
 ---
 
 # Source of Truth de FitFlow
@@ -45,17 +45,22 @@ escritura. OpenCode es el Agent Runtime preferido actual detras de
 `AgentRuntimePort`, no una autoridad del workflow ni una dependencia
 arquitectonica.
 
-## Frontera con FitFlow-ai
+## Frontera con Tecnotron-ai
 
 FitFlow es autoridad para arquitectura, dominio, estado, calidad y
 configuracion del producto, incluidos Project Profile, TASK, runs y contratos
-de intercambio del consumidor. FitFlow-ai es autoridad para arquitectura,
+de intercambio del consumidor. Tecnotron-ai es autoridad para arquitectura,
 roadmap, estado de implementacion, tooling, contexto, adapters, Agent Runtime e
 inferencia del AI Core.
 
-Las fuentes canonicas del AI Core viven en el repositorio independiente
-FitFlow-ai (`https://github.com/mauedgar/tecnotron-ai`). Esta reconciliacion se
-verifico contra el baseline documental `91a4697`:
+La autoridad interna del sistema de desarrollo vive en el repositorio
+independiente Tecnotron-ai (`https://github.com/mauedgar/tecnotron-ai`). FitFlow
+no fija como doctrina un commit permanente de ese repositorio: cualquier
+reconciliacion cross-repo debe declarar el ref/commit exacto que observo. Para
+operacion vigente, el Project Profile resuelve explicitamente el root del AI
+Core y la documentacion de Tecnotron conserva su propia precedencia.
+
+Fuentes canonicas externas del AI Core:
 
 - `docs/architecture.md`;
 - `docs/current-state.md`;
@@ -65,6 +70,12 @@ verifico contra el baseline documental `91a4697`:
 
 `docs/ai/README.md` clasifica las copias y referencias que permanecen en
 FitFlow. Esas copias no adquieren autoridad sobre el estado interno del AI Core.
+
+La investigacion `Programmatic Process` de Developer Lab puede aportar evidencia
+y tecnicas al sistema de desarrollo, pero no es autoridad de producto ni una
+segunda Source of Truth de FitFlow. La adopcion de cualquier relacion o
+mecanismo requiere una decision competente y materializacion explicita en el
+repositorio propietario.
 
 ### Frontera contractual
 
@@ -76,10 +87,10 @@ FitFlow conserva dos superficies contractuales distintas:
 - `.ai/contracts/v2/` valida los artefactos operativos intercambiados con el AI
   Core (`Task`, `RunState`, validacion, review y evidencia). No describe el API
   web, no ejecuta la maquina de estados y no concede autoridad sobre el runtime
-  de FitFlow-ai.
+  de Tecnotron-ai.
 
 Los contratos Zod ejecutables, la maquina de estados generica y la politica del
-AI Core pertenecen a FitFlow-ai. Los JSON Schema v2 presentes en FitFlow son el
+AI Core pertenecen a Tecnotron-ai. Los JSON Schema v2 presentes en FitFlow son el
 contrato consumidor activo para el baseline declarado y permanecen junto a los
 TASK y runs que validan. Esta copia local no se modifica unilateralmente: todo
 cambio requiere una version del contrato productor, validacion de compatibilidad
