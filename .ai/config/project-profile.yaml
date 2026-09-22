@@ -1,5 +1,7 @@
 schema_version: fitflow-project-profile/v1
 project_id: fitflow
+# Legacy compatibility token required by fitflow-project-profile/v1.
+# It is not the current canonical process baseline and does not confer authority.
 baseline: fitflow-ai/vnext-5.0
 roots:
   product: C:/Proyectos-Web/FitFlow

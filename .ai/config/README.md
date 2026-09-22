@@ -46,3 +46,12 @@ configuracion global.
 
 Los estados `accepted_pending_*`, `reported_*`, `untested` y `null` son
 deliberados: describen capacidades no verificadas sin promoverlas a operativas.
+
+## Legacy baseline compatibility field
+
+`project-profile.yaml` and `orchestrator.yaml` still carry
+`baseline: fitflow-ai/vnext-5.0` because the currently integrated strict
+schemas require a string `baseline` field. That value is a compatibility token,
+not the current canonical process baseline and not a source of authority.
+No replacement identifier is inferred until a competent decision establishes
+one.

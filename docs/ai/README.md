@@ -55,8 +55,9 @@ a contexto activo. `SUPERSEDED` conserva trazabilidad mientras los links y
 consumers se retiran. No se mueven archivos en esta reconciliacion.
 
 Configuracion activa: `/.ai/config/`. Contratos de intercambio:
-`/.ai/contracts/v2/`. El backlog `/.ai/backlog/vnext.yaml` es un espejo
-`MIGRATION_PENDING`, no la autoridad del roadmap de AI Core.
+`/.ai/contracts/v2/`. El antiguo backlog vNext de integracion se conserva solo
+como evidencia historica/de migracion en `/.ai/backlog/archive/vnext.yaml`; no
+es roadmap ni estado operativo actual de Tecnotron-ai.
 
 ## Limite entre producto y AI Core
 

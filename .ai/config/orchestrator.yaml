@@ -1,4 +1,6 @@
 schema_version: fitflow-orchestrator/v2
+# Legacy compatibility token required by fitflow-orchestrator/v2.
+# It is not the current canonical process baseline and does not confer authority.
 baseline: fitflow-ai/vnext-5.0
 runtime:
   port: AgentRuntimePort
