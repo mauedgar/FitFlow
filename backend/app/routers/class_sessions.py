@@ -200,7 +200,7 @@ async def get_session_availability(
     session = update_session_availability(session)
     return SessionCapacity(
         session_id=session.id, # pyright: ignore[reportArgumentType]
-        capacity=session.class_schedule.capacity, # pyright: ignore[reportArgumentType]
+        capacity=session.capacity_snapshot, # pyright: ignore[reportArgumentType]
         used=session.current_bookings_count,
         available=session.available_spots,
     )
