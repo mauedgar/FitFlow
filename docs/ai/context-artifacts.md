@@ -17,8 +17,8 @@ ownership_classification: MIGRATION_PENDING
 `.ai/contracts/v2/`.
 
 Estos JSON Schema son contratos consumidores del intercambio operativo con
-FitFlow-ai. No son schemas Pydantic del producto, no describen endpoints web y
-no implementan la maquina de estados. FitFlow-ai conserva la autoridad sobre
+Tecnotron-ai. No son schemas Pydantic del producto, no describen endpoints web y
+no implementan la maquina de estados. Tecnotron-ai conserva la autoridad sobre
 los contratos Zod y el runtime generico; FitFlow conserva los TASK, runs,
 evidencia y Project Profile especificos que los schemas locales validan.
 
@@ -31,7 +31,7 @@ consumidor vigente y no se modifican de forma unilateral.
 
 Un cambio contractual requiere:
 
-1. version nueva o decision explicita en FitFlow-ai;
+1. version nueva o decision explicita en Tecnotron-ai;
 2. clasificacion de compatibilidad para el consumidor;
 3. validacion de los artefactos de FitFlow afectados;
 4. actualizacion explicita del baseline y de esta documentacion.

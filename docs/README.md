@@ -18,7 +18,7 @@ updated: 2026-08-21
 | Que sigue en el producto | `roadmap.md` |
 | Como migra v4 a vNext | `MIGRATION.md` |
 | Como se integra FitFlow con AI Core | `ai/README.md` |
-| Como opera AI Core | repositorio FitFlow-ai, segun `SOURCE_OF_TRUTH.md` |
+| Como opera el sistema de desarrollo | repositorio Tecnotron-ai, segun `SOURCE_OF_TRUTH.md` |
 | Por que se tomo una decision | `adr/` |
 
 ## Regla de inclusion

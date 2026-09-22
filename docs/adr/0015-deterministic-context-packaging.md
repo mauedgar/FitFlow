@@ -27,7 +27,9 @@ contratos, exclusions, lineage y golden evals.
 
 ## Consecuencias
 
-Las correcciones funcionales de `repo-packager` fueron integradas en FitFlow-ai
-mediante PR #2. La conformance con `ContextPackagerPort` permanece pendiente en
-`FF-AI-VNEXT-006`. El grafo XML y los inventarios existentes son hints
-historicos, no requisitos fijos de vNext.
+Las correcciones funcionales de `repo-packager` pertenecen al sistema externo
+Tecnotron-ai. El estado actual de `ContextPackagerPort` se consulta en ese
+repositorio y no se replica como estado de TASK de FitFlow. Para FitFlow, el
+concern no resuelto es la compatibilidad y distribucion del contrato consumidor
+local. El grafo XML y los inventarios existentes son hints historicos, no
+requisitos fijos de vNext.

@@ -11,8 +11,9 @@ supersedes: []
 
 ## Decision
 
-Sustituir `pip` por `uv` para la creacion y gestion de entornos Python, y
-relocalizar el venv de herramientas a `FitFlow-ai/python/.venv_tools`.
+Sustituir `pip` por `uv` para la creacion y gestion de entornos Python. El
+entorno de herramientas externo se resuelve desde el root explicito de
+Tecnotron-ai declarado por Project Profile, no por adyacencia de directorios.
 
 `uv` versiona el interpretador (CPython 3.12.11), crea el venv de forma
 determinista y reproduce dependencias de forma reproducible.
@@ -23,13 +24,15 @@ determinista y reproduce dependencias de forma reproducible.
   `python -m venv` y gestionado con `pip`.
 - Los hooks `pre-commit` y `commit-msg` referenciaban `bin/activate` (path
   Linux) y fallaban en Windows; ademas faltaba `black`, usado por el hook.
-- FitFlow-ai es la carpeta hermana y canonical del AI Core; la doctrina pedia
-  separar herramienta de producto.
+- Tecnotron-ai es el repositorio externo del sistema de desarrollo; la doctrina
+  separa herramienta de producto y resuelve su root de forma explicita.
 
 ## Consecuencias
 
-- El venv pasa a `../FitFlow-ai/python/.venv_tools` (fuera del repo FitFlow).
-- Hooks y referencias usan `Scripts/activate` y la ruta absoluta de la hermana.
+- El venv de herramientas permanece fuera del repo FitFlow y se resuelve desde
+  el root externo configurado en Project Profile.
+- Hooks y referencias usan `Scripts/activate` y la ruta externa resuelta; no
+  infieren un directorio hermano por nombre.
 - `networkx`, `black` y el resto de paquetes del venv anterior se replican con
   `uv pip install -r requirements` (110 paquetes).
 - `scripts/.venv_tools` queda eliminado de FitFlow.

@@ -54,7 +54,9 @@ determinista y control final del desarrollador.
 
 1. Verificar versiones y smoke tests sin instalar dependencias.
 2. Congelar schemas, registries y Project Profile v2.
-3. `repo-packager` fue reparado e integrado en FitFlow-ai mediante PR #2; la
-   conformance ContextPackager v2 permanece pendiente en `FF-AI-VNEXT-006`.
+3. `repo-packager` y ContextPackager v2 son capacidades externas de Tecnotron-ai y
+   su estado interno no se replica como paso de migracion de FitFlow. La
+   sincronizacion/versionado del contrato consumidor local permanece
+   `MIGRATION_PENDING` hasta una decision especifica.
 4. Implementar State Machine y persistencia antes de roles LLM activos.
 5. Medir Router, Explorer y Agent MVP antes de embeddings, MCP o Temporal.

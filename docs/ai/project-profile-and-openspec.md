@@ -14,9 +14,10 @@ updated: 2026-08-21
 ownership del producto. Declara roots, docs, arquitectura, scopes, ownership
 keys, risk signals, comandos, GitHub labels, paths de runs y feature flags.
 
-Los paths fisicos actuales no constituyen un resolver cross-repo portable. Su
-resolucion desde Orca o el Project Profile pertenece a `FF-AI-VNEXT-005`; no se
-introduce un segundo resolver en FitFlow.
+Los paths fisicos no constituyen por si mismos un resolver cross-repo portable.
+FitFlow declara el root externo mediante Project Profile; la resolucion portable
+y adapters genericos pertenecen a Tecnotron-ai. FitFlow no introduce un segundo
+resolver ni duplica el estado interno de esas implementaciones.
 
 El core no contiene excepciones especificas de Booking, RRULE, frontend o
 estructura de carpetas. Esas reglas pertenecen al perfil versionado.
@@ -37,6 +38,6 @@ No reemplaza:
 
 ## Estado
 
-La CLI OpenSpec esta disponible en el baseline verificado. Bootstrap y adapter
-permanecen pendientes en `FF-AI-VNEXT-005`; disponibilidad no equivale a
-integracion implementada.
+La disponibilidad de `gh` u OpenSpec no define el estado interno de los
+adapters de Tecnotron. Este documento gobierna exclusivamente la configuracion e
+integracion especificas de FitFlow.

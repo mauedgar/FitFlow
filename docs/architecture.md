@@ -11,7 +11,7 @@ updated: 2026-08-21
 ## Alcance
 
 Este documento define la arquitectura del producto. La plataforma de asistencia
-vive en el repositorio hermano `FitFlow-ai` y no puede introducir dependencias
+vive en el repositorio externo independiente `Tecnotron-ai` y no puede introducir dependencias
 runtime en FitFlow sin ADR y aprobacion del desarrollador.
 
 ## Baseline
@@ -89,13 +89,13 @@ Evolución gradual a monolito modular, manteniendo una unidad de despliegue,
 límites explícitos y PostgreSQL compartido. No incorporar microservicios,
 brokers, CQRS o event sourcing sin necesidad aprobada.
 
-## Frontera con FitFlow-ai
+## Frontera con Tecnotron-ai
 
-`FitFlow-ai` es un repositorio hermano independiente. Puede leer codigo y
+`Tecnotron-ai` es un repositorio externo independiente. Puede leer codigo y
 producir artefactos derivados, pero no es una dependencia del runtime del
 producto. FitFlow conserva Project Profile, TASK, runs, contratos de
 intercambio y configuracion especifica bajo `.ai/`; el AI Core conserva su
-arquitectura, roadmap, estado, tooling y adapters en FitFlow-ai.
+arquitectura, roadmap, estado, tooling y adapters en Tecnotron-ai.
 
 Orca es el Workspace / Session Control Plane y Git worktree es la isolation
 boundary de escritura. OpenCode es el Agent Runtime preferido actual detras de

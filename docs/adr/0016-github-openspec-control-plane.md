@@ -25,6 +25,7 @@ igual autoridad y ser idempotente.
 
 ## Estado
 
-Las CLIs `gh` y `openspec` estan disponibles en el baseline verificado. La
-disponibilidad no declara implementados sus adapters, que permanecen pendientes
-en `FF-AI-VNEXT-005`.
+La disponibilidad de las CLIs `gh` y `openspec` no define el estado interno de
+los adapters externos. Tecnotron-ai posee su implementacion generica; FitFlow
+conserva solo la seleccion/configuracion del provider y las fronteras especificas
+del producto.

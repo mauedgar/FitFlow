@@ -9,8 +9,8 @@ updated: 2026-08-16
 # Referencias técnicas primarias
 
 - Repomix: <https://github.com/samumakora/repomix>
-- FitFlow-ai: <https://github.com/mauedgar/tecnotron-ai>
-- repo-packager skill: `FitFlow-ai/.opencode/skills/repo-packager/`
+- Tecnotron-ai: <https://github.com/mauedgar/tecnotron-ai>
+- repo-packager skill: `Tecnotron-ai/.opencode/skills/repo-packager/`
 - LlamaIndex Ingestion Pipeline: <https://developers.llamaindex.ai/python/framework/module_guides/loading/ingestion_pipeline/>
 - LlamaIndex ingestion API: <https://developers.llamaindex.ai/python/framework-api-reference/ingestion/>
 - Qdrant collections: <https://qdrant.tech/documentation/manage-data/collections/>
