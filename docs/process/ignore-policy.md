@@ -15,7 +15,6 @@ Excluir siempre:
 ```text
 .git/
 .venv*/
-backend/.venv_backend/
 node_modules/
 __pycache__/
 .pytest_cache/

@@ -25,7 +25,7 @@ test('isExcluded returns true for __pycache__', () => {
 
 test('isExcluded returns true for .venv', () => {
   assert.strictEqual(exclusions.isExcluded('.venv/bin/python', { isDirectory: false }), true);
-  assert.strictEqual(exclusions.isExcluded('backend/.venv_backend/lib/x', { isDirectory: false }), true);
+  assert.strictEqual(exclusions.isExcluded('backend/.venv/lib/x', { isDirectory: false }), true);
 });
 
 test('isExcluded returns true for dist', () => {

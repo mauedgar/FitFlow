@@ -38,7 +38,7 @@ tests reproducibles, sin mezclar cambios de dominio.
 El tooling de test pertenece al contrato declarado del proyecto y debe
 materializarse reproduciblemente mediante `uv` en `backend/.venv`.
 
-`.venv_backend` no es fuente autoritativa del contrato de dependencias.
+`backend/.venv` es el unico entorno Python local canonico; el entorno Python local legacy fue retirado.
 
 ## Exclusiones
 

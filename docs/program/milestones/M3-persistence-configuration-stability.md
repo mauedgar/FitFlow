@@ -26,7 +26,7 @@ drift no explicado y sin reescribir historia aplicada.
 
 El contrato de tooling de test se resuelve fuera de M3 mediante dependencias
 declaradas en `pyproject.toml`/`uv.lock`. M3 no debe volver a depender de
-`.venv_backend` como fuente de verdad.
+un entorno Python legacy como fuente de verdad; `backend/.venv` es el entorno local canonico.
 
 ## Restricciones
 

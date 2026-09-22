@@ -25,7 +25,6 @@ dist-ssr
 .venv*
 .venv_sourcetrail
 .venv_tools
-.venv_backend/
 __pycache__/
 .pytest_cache/
 .mypy_cache/

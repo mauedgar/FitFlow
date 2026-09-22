@@ -56,7 +56,7 @@ Estos findings no reabren M1 y no constituyen por si mismos autorizacion para M2
 - `pyproject.toml` y `uv.lock` son la superficie declarada.
 - dependencias de test deben estar declaradas en `[dependency-groups].dev`.
 - `backend/.venv` es el entorno local canonico.
-- `.venv_backend` queda preservado hasta una decision posterior de retiro.
+- el entorno Python legacy del backend fue retirado despues de validar `backend/.venv` como entorno canonico.
 - no se copian dependencias accidentales desde entornos legacy.
 - upgrades de Python requieren una responsabilidad separada.
 

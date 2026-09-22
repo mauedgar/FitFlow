@@ -2,7 +2,6 @@
 .venv/
 venv/
 env/
-**/.venv_backend/
 **/.venv_tools/
 **/internos/
 **/historico/

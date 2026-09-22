@@ -43,13 +43,11 @@ pip-delete-this-directory.txt
 
 # Virtual environments & local paths
 **/.venv*/
-**/.venv_backend/
 **/.venv_tools/
 **/internos/
 **/historico/
 .continue/
 script/
-backend/.venv_backend/
 scripts/.venv_tools/
 .venv/
 env/
