@@ -16,8 +16,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [currentClient, SetCurrentClient] = useState<Client | null> (null);
+  const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
 
   // Decodifica el accessToken y setea el usuario y rol

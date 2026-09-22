@@ -5,6 +5,7 @@ export enum UserRole {
   ADMIN = "admin",
   TRAINER = "trainer",
   CLIENT = "client",
+  FRONT_DESK = "front_desk",
 }
 
 export enum DifficultyLevel {
@@ -14,9 +15,10 @@ export enum DifficultyLevel {
 }
 
 export enum BookingStatus {
-  CONFIRMED = "CONFIRMED",
-  CANCELLED = "CANCELLED",
-  PENDING = "PENDING",
+  CONFIRMED = "confirmed",
+  CANCELLED = "cancelled",
+  ATTENDED = "attended",
+  NO_SHOW = "no_show",
 }
 
 // --- Schemas Base --- (si se usan en el frontend para herencia de Pydantic)
@@ -72,7 +74,8 @@ export interface Teacher extends TeacherInResponse {
 // Esquema ligero para cuando GymClass es anidado en otra respuesta (ej. ClassSchedule)
 export interface GymClassInResponse {
   id: string;
-  first_name: string;
+  name: string;
+  first_name?: string;
   description: string;
   duration_minutes: number;
   difficulty: DifficultyLevel;
@@ -82,7 +85,8 @@ export interface GymClassInResponse {
 // Esquema completo para una GymClass (ej. en un endpoint GET /gym_classes/{id})
 export interface GymClass {
   id: string;
-  first_name: string;
+  name: string;
+  first_name?: string;
   description: string;
   duration_minutes: number;
   difficulty: DifficultyLevel;
@@ -94,7 +98,7 @@ export interface GymClass {
 
 // Representa los datos necesarios para crear una nueva clase (sin profesores directamente)
 export interface GymClassCreatePayload {
-  first_name: string;
+  name: string;
   description: string;
   duration_minutes: number;
   difficulty: DifficultyLevel;
@@ -107,7 +111,7 @@ export interface GymClassCreatePayload {
 export interface ClassScheduleBase {
   rrule: string;          // RFC 5545, sin DTSTART
   start_time: string;     // String "HH:MM:SS"
-  duration_minutes: string;       // String "HH:MM:SS"
+  duration_minutes: number;       // Minutos enteros del contrato backend
   capacity: number;
   start_date: string;     // String "YYYY-MM-DD"
   end_date?: string;      // String "YYYY-MM-DD"
@@ -165,15 +169,12 @@ export interface BookingBase {
   status: BookingStatus;
 }
 
-// Esquema de respuesta para una reserva (ej. para la lista de mis reservas)
+// Esquema público devuelto por /bookings/me y por creación/cancelación de booking
 export interface Booking extends BookingBase {
   id: string;
-  client_id: string;
-  class_session_id: string;
-  created_at: string; // ISO String
-  // Objetos anidados para mostrar detalles de la sesión y cliente
-  client: ClientInBookingResponse;
-  class_session: ClassSessionInBookingResponse; // Usar la versión ligera o completa según necesidad
+  starts_at: string;
+  ends_at: string;
+  gym_class_name: string;
 }
 
 // Esquema ligero para cuando Booking es anidado (ej. en ClassSession o Client)

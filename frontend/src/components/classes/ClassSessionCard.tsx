@@ -30,7 +30,10 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
   const { isAuthenticated, isClient, userBookings, isLoadingBookings, userRole } = useAuth();
 
   const userAlreadyBooked = userBookings?.some(
-    (b) => b.class_session_id === classSession.id && b.status === BookingStatus.CONFIRMED,
+    (b) =>
+      b.status === BookingStatus.CONFIRMED &&
+      b.starts_at === classSession.starts_at &&
+      b.gym_class_name === (classSession.class_schedule?.gym_class?.name ?? ''),
   );
 
   /* ---------------------------------------------------- */
@@ -41,7 +44,7 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
     onSuccess: () => {
       toast({
         title: '¡Reserva confirmada!',
-        description: `Has reservado un cupo para ${classSession.class_schedule?.gym_class?.first_name ??'la clase'} el ${getFormattedDateTime(classSession.starts_at)}.`,
+        description: `Has reservado un cupo para ${classSession.class_schedule?.gym_class?.name ?? 'la clase'} el ${getFormattedDateTime(classSession.starts_at)}.`,
         status: 'success',
         duration: 5000,
         isClosable: true,

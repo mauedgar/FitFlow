@@ -5,6 +5,7 @@ import {
   type GymClass,
   type GymClassCreatePayload,
   type ClassScheduleInResponse,
+  type ClassScheduleWithNextSession,
   type ClassSession,
   type Booking,
   type BookingCreatePayload,
@@ -51,12 +52,31 @@ const classService = {
 
   async getClassById(id: string): Promise<GymClass> {
     try {
-      const response = await apiClient.get<GymClass>(`/gym-classes/${id}`);
-      return response.data;
+      const [classResponse, schedulesResponse] = await Promise.all([
+        apiClient.get<Omit<GymClass, 'class_schedules'>>(`/gym-classes/${id}/public`),
+        apiClient.get<ClassScheduleInResponse[]>(`/gym-classes/${id}/schedules/public`),
+      ]);
+
+      const classSchedules: ClassScheduleWithNextSession[] = await Promise.all(
+        schedulesResponse.data.map(async (schedule) => {
+          const nextSessionResponse = await apiClient.get<
+            ClassScheduleWithNextSession['next_upcoming_session']
+          >(`/class-schedules/${schedule.id}/next-session`);
+
+          return {
+            ...schedule,
+            next_upcoming_session: nextSessionResponse.data,
+          };
+        }),
+      );
+
+      return {
+        ...classResponse.data,
+        class_schedules: classSchedules,
+      };
     } catch (error) {
       console.error(`Error al obtener la clase con ID ${id}:`, error);
       throw error;
-      // throw new Error('No se pudo cargar la clase');
     }
   },
 
@@ -149,7 +169,7 @@ const classService = {
 
   async cancelBooking(bookingId: string): Promise<void> {
     try {
-      await apiClient.delete(`/bookings/${bookingId}`);
+      await apiClient.post(`/bookings/${bookingId}/cancel`);
     } catch (error) {
       console.error(`Error al cancelar la reserva con ID ${bookingId}:`, error);
       throw error;

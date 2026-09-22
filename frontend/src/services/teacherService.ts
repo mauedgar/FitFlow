@@ -1,5 +1,11 @@
 import apiClient from './api';
-import { type TeacherProfile, type TeacherCreatePayload } from '../types';
+import { type PersonBase, type Teacher } from '../types';
+
+type TeacherProfile = Teacher;
+type TeacherCreatePayload = PersonBase & {
+  bio?: string;
+  cuil?: string;
+};
 
 /**
  * Obtiene la lista de todos los perfiles de profesores.

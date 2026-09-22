@@ -75,7 +75,7 @@ const HomePage = () => {
         return false;
       }
       
-      const bookingDate = new Date(booking.class_session.starts_at);
+      const bookingDate = new Date(booking.starts_at);
       const bookingTimeMs = bookingDate.getTime();
 
       const isInRange = bookingTimeMs >= weekStartTimeMs && bookingTimeMs <= weekEndTimeMs;      

@@ -5,7 +5,7 @@ import {
 } from '@chakra-ui/react';
 import { FaClock, FaTachometerAlt } from 'react-icons/fa';
 // 1. Asegúrate de importar el tipo de dato que vas a recibir.
-import { type GymClass, type ClassScheduleWithNextSession } from '../../types';
+import { DifficultyLevel, type GymClass, type ClassScheduleWithNextSession } from '../../types';
 import ClassScheduleSection from './ClassScheduleSection'; // Nuevo subcomponente
 
 
@@ -33,7 +33,7 @@ export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass, onCl
           <Icon as={FaTachometerAlt} w={6} h={6} color="teal.500" />
           <Box>
             <Text fontSize="sm" color="gray.500">Dificultad</Text>
-            <Badge colorScheme={gymClass.difficulty === "Principante" ? "green" : gymClass.difficulty === "Intermedio" ? "orange" : "red"} variant="solid" fontSize="md">{gymClass.difficulty}</Badge>
+            <Badge colorScheme={gymClass.difficulty === DifficultyLevel.BEGINNER ? "green" : gymClass.difficulty === DifficultyLevel.INTERMEDIATE ? "orange" : "red"} variant="solid" fontSize="md">{gymClass.difficulty}</Badge>
           </Box>
         </HStack>
         <HStack>

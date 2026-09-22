@@ -23,6 +23,7 @@ const TeachersPage = React.lazy(() => import('../pages/admin/TeachersPage'));
 const CrudClassesPage = React.lazy(() => import('../pages/admin/CrudClassesPage'));
 const RootAuthGuard = React.lazy(() => import('../components/auth/RootAuthGuard'));
 const ClassDetailPage = React.lazy(() => import('../pages/ClassDetailPage'));
+const FrontDeskPage = React.lazy(() => import('../pages/FrontDeskPage'));
 
 
 
@@ -52,6 +53,9 @@ export const AppRouter: React.FC = () => {
             <Route path="home" element={<HomePage />} />
             {/* Si tuvieras más rutas para clientes, irían aquí */}
             {/* <Route path="my-profile" element={<ProfilePage />} /> */}
+          </Route>
+          <Route element={<ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FRONT_DESK]} />}>
+            <Route path="front-desk" element={<FrontDeskPage />} />
           </Route>
           {/* Esta ruta se renderiza si ninguna de las anteriores coincide */}
           <Route path="*" element={<NotFoundPage/>}/>

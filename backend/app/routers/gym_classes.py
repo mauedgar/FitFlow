@@ -296,6 +296,7 @@ async def read_public_class_schedules(
     schedules = await class_schedule.get_multi_filtered(
         db=db,
         gym_class_id=class_id,
+        include_relations=True,
     )
     return [to_class_schedule_public(s) for s in schedules]
 

@@ -104,11 +104,18 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   /* ------------------------------------------------------------------
      4. Helpers y valores para el Render
   -------------------------------------------------------------------*/
-  const dayNames = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-  const getDaysOfWeekString = (days: number[] = []) => days.map((d) => dayNames[d] ?? '¿?').join(', ');
   const teacher = classSchedule.teacher;
   const startTime = classSchedule.start_time?.substring(0, 5) ?? '??:??';
-  const endTime = classSchedule.duration_minutes?.substring(0, 5) ?? '??:??';
+  const durationMinutes = classSchedule.duration_minutes;
+  const endTime = (() => {
+    if (!classSchedule.start_time) return '??:??';
+    const [hour, minute] = classSchedule.start_time.split(':').map(Number);
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return '??:??';
+    const totalMinutes = ((hour * 60) + minute + durationMinutes) % (24 * 60);
+    const endHour = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
+    const endMinute = (totalMinutes % 60).toString().padStart(2, '0');
+    return `${endHour}:${endMinute}`;
+  })();
   const days = classSchedule.rrule;
 
   if (!teacher) {
