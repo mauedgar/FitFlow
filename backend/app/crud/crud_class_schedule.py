@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import raiseload, selectinload
 
 from app.crud.base import CRUDBase
 from app.db.models import ClassSchedule, GymClass
@@ -129,6 +129,49 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
 
         res = await db.execute(stmt)
         return list(res.scalars().unique().all())
+
+    async def get_multi_public(
+        self,
+        db: "AsyncSession",
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        gym_class_id: "UUID | None" = None,
+        teacher_id: "UUID | None" = None,
+        active: bool | None = True,
+    ) -> list[ClassSchedule]:
+        """List ClassSchedulePublic rows with their exact relation boundary.
+
+        Public serialization requires gym_class and teacher, while class_sessions
+        must remain unloaded.  Keep this contract separate from the broader
+        operational include_relations=True profile.
+        """
+        stmt = select(ClassSchedule).where(
+            ClassSchedule.deleted_at.is_(None),  # type: ignore[attr-defined]
+        )
+
+        if active is not None:
+            stmt = stmt.where(ClassSchedule.active.is_(active))  # type: ignore[attr-defined]
+
+        if gym_class_id:
+            stmt = stmt.where(ClassSchedule.gym_class_id == gym_class_id)
+
+        if teacher_id:
+            stmt = stmt.where(ClassSchedule.teacher_id == teacher_id)
+
+        stmt = (
+            stmt.options(
+                selectinload(ClassSchedule.gym_class),
+                selectinload(ClassSchedule.teacher),
+                raiseload(ClassSchedule.class_sessions),
+            )
+            .order_by(ClassSchedule.start_time)
+            .offset(skip)
+            .limit(limit)
+        )
+
+        result = await db.execute(stmt)
+        return list(result.scalars().unique().all())
 
     # ------------------------------------------------------------------ #
     # Create / Update / Remove (CRUDBase proporciona create/update/remove básicos)

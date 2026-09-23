@@ -293,10 +293,9 @@ async def read_public_class_schedules(
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> list[ClassSchedulePublic]:
     """Lista horarios públicos de una clase."""
-    schedules = await class_schedule.get_multi_filtered(
+    schedules = await class_schedule.get_multi_public(
         db=db,
         gym_class_id=class_id,
-        include_relations=True,
     )
     return [to_class_schedule_public(s) for s in schedules]
 

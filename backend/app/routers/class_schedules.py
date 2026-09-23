@@ -111,12 +111,11 @@ async def read_public_schedules_first(
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
 ) -> list[ClassSchedulePublic]:
     """Register the static public path before `/{schedule_id}`."""
-    schedules = await class_schedule_crud.get_multi_filtered(
+    schedules = await class_schedule_crud.get_multi_public(
         db=db,
         skip=skip,
         limit=limit,
         active=True,
-        include_relations=True,
     )
     return [to_class_schedule_public(item) for item in schedules]
 
@@ -303,7 +302,7 @@ async def read_public_schedules_by_class(
 ) -> list[ClassSchedulePublic]:
     """Lista horarios públicos de una clase."""
     try:
-        schedules = await class_schedule_crud.get_multi_filtered(
+        schedules = await class_schedule_crud.get_multi_public(
             db=db,
             gym_class_id=class_id,
             active=True,
@@ -329,7 +328,7 @@ async def read_public_schedules_by_teacher(
 ) -> list[ClassSchedulePublic]:
     """Lista horarios públicos de un profesor."""
     try:
-        schedules = await class_schedule_crud.get_multi_filtered(
+        schedules = await class_schedule_crud.get_multi_public(
             db=db,
             teacher_id=teacher_id,
             active=True,
