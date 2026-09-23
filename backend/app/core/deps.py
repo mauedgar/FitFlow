@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status

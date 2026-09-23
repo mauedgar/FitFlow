@@ -19,7 +19,6 @@ from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
 from app.routers import auth as auth_router
 
-
 pytestmark = [
     pytest.mark.api,
     pytest.mark.integration,
