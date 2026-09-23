@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from uuid import UUID
+
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
@@ -70,7 +72,15 @@ async def get_current_user(
             detail="Token sin sujeto válido",
         )
 
-    user = await user_crud.get_by_email(db, email=token_data.sub)
+    try:
+        user_id = UUID(token_data.sub)
+    except ValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token mal formado",
+        ) from err
+
+    user = await user_crud.get(db, obj_id=user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
