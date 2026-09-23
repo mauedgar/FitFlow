@@ -203,3 +203,128 @@ async def test_me_with_valid_missing_user_id_preserves_404_contract(
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json() == {"detail": "Usuario no encontrado"}
+
+# R003 refresh-token HTTP contract
+async def test_refresh_registered_token_returns_access_token_with_same_user_id_subject(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    persisted_auth_user: tuple[uuid.UUID, str, str],
+) -> None:
+    user_id, _email, _password = persisted_auth_user
+    refresh_token = security.create_refresh_token(data={"sub": str(user_id)})
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
+
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        params={"refresh_token": refresh_token},
+    )
+
+    assert response.status_code == status.HTTP_200_OK, response.text
+    body = response.json()
+    assert body["access_token"]
+    payload = security.decode_token(body["access_token"])
+    assert payload is not None
+    assert payload["sub"] == str(user_id)
+
+
+async def test_refresh_with_malformed_token_returns_401(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        params={"refresh_token": "definitely-not-a-jwt"},
+    )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh token inv\u00e1lido o expirado."}
+
+
+async def test_refresh_with_expired_token_returns_401(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expired_token = security.create_access_token(
+        data={"sub": str(uuid.uuid4())},
+        expires_delta=timedelta(seconds=-1),
+    )
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        params={"refresh_token": expired_token},
+    )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh token inv\u00e1lido o expirado."}
+
+
+async def test_refresh_with_unregistered_token_returns_401(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refresh_token = security.create_refresh_token(data={"sub": str(uuid.uuid4())})
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: False)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        params={"refresh_token": refresh_token},
+    )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh token no registrado."}
+
+
+async def test_refresh_with_blacklisted_token_returns_401(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refresh_token = security.create_refresh_token(data={"sub": str(uuid.uuid4())})
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: True)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        params={"refresh_token": refresh_token},
+    )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh token invalidado."}
+
+
+async def test_refresh_blacklist_external_service_error_maps_to_503(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable(_token: str) -> bool:
+        raise auth_router.ExternalServiceError("Redis no est\u00e1 disponible.")
+
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", unavailable)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        params={"refresh_token": "opaque-refresh-token"},
+    )
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert response.json() == {"detail": "Redis no est\u00e1 disponible."}
+
+
+async def test_refresh_token_store_external_service_error_maps_to_503(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    refresh_token = security.create_refresh_token(data={"sub": str(uuid.uuid4())})
+
+    def unavailable(_token: str) -> bool:
+        raise auth_router.ExternalServiceError("Redis no est\u00e1 disponible.")
+
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", unavailable)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        params={"refresh_token": refresh_token},
+    )
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert response.json() == {"detail": "Redis no est\u00e1 disponible."}
+
+
+async def test_refresh_requires_query_parameter_contract(
+    api_client: httpx.AsyncClient,
+) -> None:
+    response = await api_client.post(f"{settings.API_V1_STR}/auth/refresh")
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
