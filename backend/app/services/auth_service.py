@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from app.core.security import decode_token
 from app.crud.crud_user import user as user_crud
@@ -21,11 +22,10 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
 
     Lanza AuthError en cualquier fallo de autenticación o estado.
     """
-    # Obtener sesión si no fue pasada
     if db is None:
         gen = get_async_session()
         try:
-            db = await gen.__anext__()  # avanzar el generator para obtener AsyncSession
+            db = await gen.__anext__()
         except StopAsyncIteration as err:
             msg = "No se pudo obtener sesión de DB."
             raise AuthError(msg) from err
@@ -45,7 +45,13 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
         msg_2 = "Token sin sujeto válido."
         raise AuthError(msg_2)
 
-    user = await user_crud.get_by_email(db=db, email=token_data.sub)
+    try:
+        user_id = UUID(token_data.sub)
+    except ValueError:
+        user = await user_crud.get_by_email(db=db, email=token_data.sub)
+    else:
+        user = await user_crud.get(db=db, obj_id=user_id)
+
     if not user:
         msg_3 = "Usuario no encontrado."
         raise AuthError(msg_3)
@@ -54,5 +60,4 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
         msg_4 = "Usuario inactivo."
         raise AuthError(msg_4)
 
-    # Normalizar a schema público
     return UserPublic.model_validate(user)
