@@ -5,10 +5,7 @@ from __future__ import annotations
 from typing import Annotated, NoReturn
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.deps import require_admin_or_front_desk
+from app.core.deps import require_admin_or_front_desk, require_current_user
 from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.class_schedule import ClassSchedulePublic
@@ -19,13 +16,37 @@ from app.schemas.front_desk import (
     FrontDeskSessionView,
     SessionCapacity,
 )
+from app.schemas.user import UserPublic
 from app.services import front_desk_service
 from app.services.class_schedule_service import to_class_schedule_public
-from app.services.errors import BusinessValidationError, ConflictError, NotFoundError
+from app.services.errors import (
+    BusinessValidationError,
+    ConflictError,
+    NotFoundError,
+    PermissionDeniedError,
+)
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/front-desk", tags=["front-desk"])
 FrontDeskUser = Annotated[User, Depends(require_admin_or_front_desk)]
 Database = Annotated[AsyncSession, Depends(get_async_session)]
+
+
+async def _require_front_desk_classes_user(
+    user: Annotated[UserPublic, Depends(require_current_user)],
+) -> UserPublic:
+    """Map the existing Front Desk role guard to this route's HTTP boundary."""
+    try:
+        return await require_admin_or_front_desk(user)
+    except PermissionDeniedError as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+
+
+FrontDeskClassesUser = Annotated[
+    UserPublic,
+    Depends(_require_front_desk_classes_user),
+]
 
 
 def _raise_domain_error(exc: Exception) -> NoReturn:
@@ -98,7 +119,10 @@ async def check_in_booking(
 
 
 @router.get("/classes", response_model=list[FrontDeskClassView])
-async def get_active_classes(db: Database, _: FrontDeskUser) -> list[FrontDeskClassView]:
+async def get_active_classes(
+    db: Database,
+    _: FrontDeskClassesUser,
+) -> list[FrontDeskClassView]:
     return await front_desk_service.get_active_classes(db)
 
 
