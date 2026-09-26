@@ -17,17 +17,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import require_admin
+from app.core.deps import require_admin, require_current_user
 from app.core.enums import MembershipStatus
 from app.crud.crud_client import client
 from app.crud.crud_membership import membership
-from app.db.session import get_async_session
 from app.db.models.user import User
-from app.services.membership_service import (
-    to_membership_public,
-    to_membership_with_client,
-    to_membership_with_stats,
-)
+from app.db.session import get_async_session
 from app.schemas.membership import (
     MembershipCreate,
     MembershipPublic,
@@ -35,9 +30,29 @@ from app.schemas.membership import (
     MembershipWithClient,
     MembershipWithStats,
 )
+from app.schemas.user import UserPublic
+from app.services.errors import PermissionDeniedError
+from app.services.membership_service import (
+    to_membership_public,
+    to_membership_with_client,
+    to_membership_with_stats,
+)
 
 # ruff: noqa: ARG001
 router = APIRouter(prefix="/memberships", tags=["memberships"])
+
+
+async def _require_membership_admin(
+    user: Annotated[UserPublic, Depends(require_current_user)],
+) -> UserPublic:
+    """Map the existing admin role guard to the selected Membership HTTP boundary."""
+    try:
+        return await require_admin(user)
+    except PermissionDeniedError as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+
+
+MembershipAdminUser = Annotated[UserPublic, Depends(_require_membership_admin)]
 
 
 # --------------------------------------------------------------------------- #
@@ -104,7 +119,7 @@ async def read_memberships(  # noqa: PLR0913
 async def read_active_memberships(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: MembershipAdminUser,
 ) -> list[MembershipPublic]:
     """Lista membresías activas."""
     memberships = await membership.get_multi_filtered(
@@ -120,7 +135,7 @@ async def read_active_memberships(
 async def read_membership_stats(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: MembershipAdminUser,
 ) -> list[MembershipWithStats]:
     """Devuelve estadísticas básicas de todas las membresías.
 
@@ -139,7 +154,7 @@ async def read_membership_by_id(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     membership_id: UUID,
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: MembershipAdminUser,
 ) -> MembershipWithClient:
     """Obtiene una membresía con datos del cliente.
 
