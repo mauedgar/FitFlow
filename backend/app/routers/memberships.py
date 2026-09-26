@@ -98,6 +98,40 @@ async def read_memberships(  # noqa: PLR0913
 
 
 # --------------------------------------------------------------------------- #
+# Memberships activas
+# --------------------------------------------------------------------------- #
+@router.get("/active", response_model=list[MembershipPublic])
+async def read_active_memberships(
+    *,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[User, Depends(require_admin)],
+) -> list[MembershipPublic]:
+    """Lista membresías activas."""
+    memberships = await membership.get_multi_filtered(
+        db=db,
+        status=MembershipStatus.active,
+    )
+    return [to_membership_public(m) for m in memberships]
+
+# --------------------------------------------------------------------------- #
+# Estadísticas de membresías
+# --------------------------------------------------------------------------- #
+@router.get("/stats", response_model=list[MembershipWithStats])
+async def read_membership_stats(
+    *,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[User, Depends(require_admin)],
+) -> list[MembershipWithStats]:
+    """Devuelve estadísticas básicas de todas las membresías.
+
+    Incluye:
+        • total de reservas
+        • reservas futuras
+    """
+    memberships = await membership.get_multi(db=db)
+    return [to_membership_with_stats(m) for m in memberships]
+
+# --------------------------------------------------------------------------- #
 # Obtener Membership por ID (admin)
 # --------------------------------------------------------------------------- #
 @router.get("/{membership_id}", response_model=MembershipWithClient)
@@ -190,39 +224,3 @@ async def read_memberships_by_client_public(
         client_id=client_id,
     )
     return [to_membership_public(m) for m in memberships]
-
-
-# --------------------------------------------------------------------------- #
-# Memberships activas
-# --------------------------------------------------------------------------- #
-@router.get("/active", response_model=list[MembershipPublic])
-async def read_active_memberships(
-    *,
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin)],
-) -> list[MembershipPublic]:
-    """Lista membresías activas."""
-    memberships = await membership.get_multi_filtered(
-        db=db,
-        status=MembershipStatus.active,
-    )
-    return [to_membership_public(m) for m in memberships]
-
-
-# --------------------------------------------------------------------------- #
-# Estadísticas de membresías
-# --------------------------------------------------------------------------- #
-@router.get("/stats", response_model=list[MembershipWithStats])
-async def read_membership_stats(
-    *,
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin)],
-) -> list[MembershipWithStats]:
-    """Devuelve estadísticas básicas de todas las membresías.
-
-    Incluye:
-        • total de reservas
-        • reservas futuras
-    """
-    memberships = await membership.get_multi(db=db)
-    return [to_membership_with_stats(m) for m in memberships]
