@@ -1,11 +1,11 @@
 ---
 document_id: FF-PROGRAM-POST-REBASELINE-001
-status: canonical_post_m1
+status: canonical_post_m2
 machine_context: true
-version: 1.1
-baseline_commit: f152b8336245b01da1cea75da81b5a3c4e1a8420
-baseline_tree: de30558227849afed1f24ef548b6eb29d73ecdad
-reconciled: 2026-09-22
+version: 1.2
+baseline_commit: 60903101384713f8b1c51d18644ac134fab8f87c
+baseline_tree: 580a13d9a8f4dd14ea3b52cc605552e7f2ff47c5
+reconciled: 2026-09-28
 ---
 
 # Programa actual de FitFlow
@@ -13,66 +13,104 @@ reconciled: 2026-09-22
 ## Proposito
 
 Este documento mantiene el programa accionable de FitFlow despues del cierre
-publicado de M1. `docs/roadmap.md` conserva las prioridades macro; este programa
+competente de M2. `docs/roadmap.md` conserva las prioridades macro; este programa
 organiza milestones ejecutables sin reabrir responsabilidades ya cerradas.
 
 El repositorio es la fuente primaria. Los TASK historicos, runs, conversaciones
 y artefactos locales son evidencia subordinada al baseline vigente.
 
-## Baseline post-M1 confirmado
+## Baseline post-M2 confirmado
 
-- `develop` publicado en `f152b8336245b01da1cea75da81b5a3c4e1a8420`.
-- tree publicado `de30558227849afed1f24ef548b6eb29d73ecdad`.
-- `FITFLOW-M1-OPERATIONAL-MVP-CERTIFICATION`:
-  `ACCEPTED_INTEGRATED_AND_REMOTELY_PUBLISHED`.
-- M1 no se reabre por findings no bloqueantes.
-- El browser E2E no quedo establecido y no fue blocker de M1.
-- El runtime local canonico usa `backend/.venv` y Python 3.11.3.
-- `uv` es el dependency manager primario para materializacion reproducible.
-- `pip` queda como herramienta diagnostica cuando resulte util.
+- `develop` publicado en `60903101384713f8b1c51d18644ac134fab8f87c`.
+- tree publicado `580a13d9a8f4dd14ea3b52cc605552e7f2ff47c5`.
+- M1 permanece `CLOSED`.
+- M2 queda `CLOSED`.
+- `Product_implementation_frontier` de M2:
+  `COMPLETE_FOR_CURRENT_M2_SCOPE`.
+- R001-R009 permanecen cerrados.
+- no existe evidencia actual que requiera iniciar R010.
+- M3 permanece planificado pero `NOT_SELECTED`; su implementacion no fue iniciada.
+- el runtime local canonico usa `backend/.venv` y Python 3.11.
+- `uv` permanece como dependency manager primario para materializacion reproducible.
 
 ## Cierre de M1
 
-TaskCycle cerrado:
+M1 permanece cerrado. Su cierre no se reabre por el cierre de M2 ni por findings
+diferidos no bloqueantes.
 
-`CURRENT-FITFLOW-M1-OPERATIONAL-VERTICAL-CERTIFICATION-001`
+## Cierre de M2
 
-Estado de producto:
+Milestone:
 
-`ACCEPTED_INTEGRATED_AND_REMOTELY_PUBLISHED`
+`M2 - API and async boundary hardening`
 
-Findings no bloqueantes preservados como inputs futuros:
+Estado:
 
-| Finding | Clasificacion post-M1 |
+`CLOSED`
+
+Baseline terminal de Product:
+
+`60903101384713f8b1c51d18644ac134fab8f87c`
+
+La secuencia R001-R009 es terminal y forma el frente de implementacion M2
+aceptado. La verificacion final fresca del baseline integrado demostro:
+
+- correspondencia exacta local/remoto sobre `develop`;
+- worktree limpio;
+- `fitflow_test` como base efectiva de test;
+- Alembic en el unico head `e4f5a6b7c8d9`;
+- regresion backend completa: `110 passed`;
+- contratos HTTP M2 dirigidos: `52 passed`.
+
+La cobertura demostrada es suficiente para el scope M2 actual. Esto no afirma
+cobertura combinatoria exhaustiva de todas las rutas HTTP ni ausencia global de
+N+1.
+
+## Evidencia diferida preservada
+
+| Finding | Disposicion al cierre M2 |
 | --- | --- |
-| NB-R001-001 - `include_relations` sobrecarga `class_sessions` | M2 input |
-| NB-DEFERRED-001 - rutas publicas alternativas de ClassSchedule conservan hazard latente de relation loading | M2 input |
-| NB-DEFERRED-002 - vocabulario frontend `TRAINER` diverge de backend `teacher` | M2 input |
+| contratos HTTP directos restantes con cobertura dispersa | `DEFERRED_NON_BLOCKING` |
+| evaluacion global de N+1 | `DEFERRED_NON_BLOCKING` |
+| lifecycle HTTP de aplicacion controlado de forma global | `DEFERRED_NON_BLOCKING` |
+| `NB-DEFERRED-002` - frontend `TRAINER` vs backend `teacher` | `DEFERRED_NON_BLOCKING` |
 
-Estos findings no reabren M1 y no constituyen por si mismos autorizacion para M2.
+La frontera publica de ClassSchedule si tiene evidencia concreta de loader
+explicito y conteo acotado de queries; esa evidencia no se generaliza a una
+afirmacion global de ausencia de N+1.
 
-## Contrato local de dependencias
+Invariante de gobierno:
 
-- `pyproject.toml` y `uv.lock` son la superficie declarada.
-- dependencias de test deben estar declaradas en `[dependency-groups].dev`.
-- `backend/.venv` es el entorno local canonico.
-- el entorno Python legacy del backend fue retirado despues de validar `backend/.venv` como entorno canonico.
-- no se copian dependencias accidentales desde entornos legacy.
-- upgrades de Python requieren una responsabilidad separada.
+`finding != decision != authorization`
+
+Ningun finding diferido autoriza automaticamente trabajo adicional ni crea R010.
+
+## R009
+
+El cierre de R009 se preserva como hecho de Product:
+
+```yaml
+R009_Phase_2B:
+  closure_mode:
+    FITFLOW_NATIVE_RECONCILIATION
+```
+
+No se atribuye ese cierre a Tecnotron Recipe B.
 
 ## Milestones
 
 1. **M1 - Operational MVP certification and minimal completion**
-   - estado: `CLOSED`;
-   - producto: `ACCEPTED_INTEGRATED_AND_REMOTELY_PUBLISHED`.
+   - estado: `CLOSED`.
 
 2. **M2 - API and async boundary hardening**
-   - estado: `ELIGIBLE_NOT_SELECTED`;
-   - incluye deuda API/async previamente reconciliada y findings post-M1;
-   - requiere seleccion y autorizacion separadas.
+   - estado: `CLOSED`;
+   - Product implementation frontier: `COMPLETE_FOR_CURRENT_M2_SCOPE`;
+   - baseline terminal: `60903101384713f8b1c51d18644ac134fab8f87c`.
 
 3. **M3 - Persistence and configuration stability**
-   - estado: `PLANNED`.
+   - estado: `PLANNED / NOT_SELECTED`;
+   - baseline post-M2 disponible;
+   - implementacion: `NOT_STARTED`.
 
 4. **M4 - Staging / beta readiness**
    - estado: `PLANNED`;
@@ -83,12 +121,11 @@ Estos findings no reabren M1 y no constituyen por si mismos autorizacion para M2
 
 ## Seleccion de siguiente responsabilidad
 
-Este documento no selecciona M2 ni crea un nuevo Product TaskCycle.
+Este cierre no selecciona M3, no inicializa un Product TaskCycle M3 y no crea
+R010.
 
-La siguiente responsabilidad de desarrollo debe seleccionarse en
-`ADV-FITFLOW-DEVELOPMENT` despues de reconciliar la materializacion post-M1 y,
-si corresponde, publicar este estado programatico/contractual mediante un gate
-separado.
+La siguiente responsabilidad debe volver a `ADV-FITFLOW-DEVELOPMENT` para
+seleccion explicita a partir del baseline post-M2.
 
 ## Reconciliacion posterior a cada milestone
 
