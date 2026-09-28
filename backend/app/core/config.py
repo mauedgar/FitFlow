@@ -136,6 +136,15 @@ class Settings(BaseSettings):
     # -----------------------------------------------------------------------
     LOG_LEVEL: str = "INFO"
 
+    @field_validator("LOG_LEVEL")
+    @classmethod
+    def validate_log_level(cls, value: str) -> str:
+        """Normalize supported Python log levels and reject silent mistakes."""
+        normalized = value.upper()
+        if normalized not in {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}:
+            raise ValueError("LOG_LEVEL must be CRITICAL, ERROR, WARNING, INFO, or DEBUG")
+        return normalized
+
     # -----------------------------------------------------------------------
     # PAGINACIÓN
     # -----------------------------------------------------------------------
