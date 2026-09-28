@@ -25,7 +25,7 @@ const classService = {
       formData.append('username', payload.username);
       formData.append('password', payload.password);
 
-      const response = await apiClient.post<TokenResponse>('/login/token', formData, {
+      const response = await apiClient.post<TokenResponse>('/auth/token', formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
