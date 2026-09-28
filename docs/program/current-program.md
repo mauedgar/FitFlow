@@ -1,10 +1,10 @@
 ---
 document_id: FF-PROGRAM-POST-REBASELINE-001
-status: canonical_post_m2
+status: canonical_post_m3
 machine_context: true
-version: 1.2
-baseline_commit: 60903101384713f8b1c51d18644ac134fab8f87c
-baseline_tree: 580a13d9a8f4dd14ea3b52cc605552e7f2ff47c5
+version: 1.3
+baseline_commit: cc86f1bf0744394be4ac6357ea6117280a33c5f7
+baseline_tree: 62535be814a19ae22b764bd32a3826ead7373709
 reconciled: 2026-09-28
 ---
 
@@ -13,23 +13,24 @@ reconciled: 2026-09-28
 ## Proposito
 
 Este documento mantiene el programa accionable de FitFlow despues del cierre
-competente de M2. `docs/roadmap.md` conserva las prioridades macro; este programa
+competente de M3. `docs/roadmap.md` conserva las prioridades macro; este programa
 organiza milestones ejecutables sin reabrir responsabilidades ya cerradas.
 
 El repositorio es la fuente primaria. Los TASK historicos, runs, conversaciones
 y artefactos locales son evidencia subordinada al baseline vigente.
 
-## Baseline post-M2 confirmado
+## Baseline M3 confirmado
 
-- `develop` publicado en `60903101384713f8b1c51d18644ac134fab8f87c`.
-- tree publicado `580a13d9a8f4dd14ea3b52cc605552e7f2ff47c5`.
+- `develop` tiene como baseline terminal de Product M3
+  `cc86f1bf0744394be4ac6357ea6117280a33c5f7`.
+- tree terminal de Product M3: `62535be814a19ae22b764bd32a3826ead7373709`.
 - M1 permanece `CLOSED`.
-- M2 queda `CLOSED`.
-- `Product_implementation_frontier` de M2:
-  `COMPLETE_FOR_CURRENT_M2_SCOPE`.
-- R001-R009 permanecen cerrados.
-- no existe evidencia actual que requiera iniciar R010.
-- M3 permanece planificado pero `NOT_SELECTED`; su implementacion no fue iniciada.
+- M2 permanece `CLOSED`.
+- M3 queda `CLOSED` por satisfaccion de su criterio de cierre.
+- R001 permanece `CLOSED_PASS`; su clasificacion fue `A_TEST_CONTRACT_ONLY`.
+- R002 permanece `CLOSED_PASS_NO_PRODUCT_DELTA`; no requirio candidato ni Phase 2.
+- no existe evidencia actual que requiera iniciar R003.
+- M4 permanece `PLANNED / NOT_SELECTED`.
 - el runtime local canonico usa `backend/.venv` y Python 3.11.
 - `uv` permanece como dependency manager primario para materializacion reproducible.
 
@@ -65,6 +66,41 @@ aceptado. La verificacion final fresca del baseline integrado demostro:
 La cobertura demostrada es suficiente para el scope M2 actual. Esto no afirma
 cobertura combinatoria exhaustiva de todas las rutas HTTP ni ausencia global de
 N+1.
+
+## Cierre de M3
+
+Milestone:
+
+`M3 - Persistence and configuration stability`
+
+Estado:
+
+`CLOSED`
+
+Baseline terminal de Product:
+
+`cc86f1bf0744394be4ac6357ea6117280a33c5f7`
+
+El criterio de cierre M3 se considera satisfecho para el scope canonico
+demostrado. La evidencia acumulada establece:
+
+- reconstruccion limpia de base desde vacio hasta Alembic head: `PASS`;
+- Alembic head unico: `e4f5a6b7c8d9`;
+- topologia de migraciones: `SINGLE_LINEAR_CHAIN`;
+- drift Alembic inesperado: `NOT_DEMONSTRATED`;
+- aislamiento de base de test: `DEMONSTRATED`;
+- `FF-FOLLOW-08`: `SATISFIED_BY_R002_NO_PRODUCT_DELTA`;
+- `FF-FOLLOW-09`: `SATISFIED_BY_EXISTING_FORWARD_HISTORY`, con forward replay `PASS`;
+- `FF-FOLLOW-10`: `SATISFIED_BY_R001`, clasificado `A_TEST_CONTRACT_ONLY`;
+- no se demostro una dependencia implicita no documentada que bloquee el criterio.
+
+R001 y R002 permanecen terminales y no se reabren. La evidencia actual no
+requiere R003. El cierre de M3 no selecciona M4.
+
+La friccion observada por shadowing del CLI de Alembic en una superficie de
+ejecucion especifica permanece clasificada como `HARNESS_RUNTIME_FRICTION`; no
+constituye un Product gap ni invalida la evidencia competente de reconstruccion
+y drift ya demostrada.
 
 ## Evidencia diferida preservada
 
@@ -108,24 +144,26 @@ No se atribuye ese cierre a Tecnotron Recipe B.
    - baseline terminal: `60903101384713f8b1c51d18644ac134fab8f87c`.
 
 3. **M3 - Persistence and configuration stability**
-   - estado: `PLANNED / NOT_SELECTED`;
-   - baseline post-M2 disponible;
-   - implementacion: `NOT_STARTED`.
+   - estado: `CLOSED`;
+   - baseline terminal de Product: `cc86f1bf0744394be4ac6357ea6117280a33c5f7`;
+   - R001 y R002 terminales;
+   - R003 no requerido por la evidencia actual.
 
 4. **M4 - Staging / beta readiness**
-   - estado: `PLANNED`;
-   - depende del cierre competente de M2 y M3 o excepciones explicitas.
+   - estado: `PLANNED / NOT_SELECTED`;
+   - su seleccion requiere una decision Developer/control separada.
 
 5. **M5 - Post-MVP domain growth**
    - estado: `DEFERRED_POST_MVP`.
 
 ## Seleccion de siguiente responsabilidad
 
-Este cierre no selecciona M3, no inicializa un Product TaskCycle M3 y no crea
-R010.
+Este cierre no inicializa R003 y no selecciona M4.
 
-La siguiente responsabilidad debe volver a `ADV-FITFLOW-DEVELOPMENT` para
-seleccion explicita a partir del baseline post-M2.
+`M3 CLOSED. Next milestone selection pending Developer/control decision.`
+
+La siguiente responsabilidad debe volver a `ADV-FITFLOW-DEVELOPMENT` para una
+seleccion explicita desde el baseline terminal M3.
 
 ## Reconciliacion posterior a cada milestone
 
