@@ -14,8 +14,10 @@ Incluye:
 """
 
 from pathlib import Path
+from typing import Self
+from urllib.parse import urlparse
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine.url import URL, make_url
 
@@ -87,6 +89,24 @@ class Settings(BaseSettings):
     # REDIS
     # -----------------------------------------------------------------------
     REDIS_URL: str | None = None
+
+    @model_validator(mode="after")
+    def validate_staging_contract(self) -> Self:
+        """Reject development defaults that are unsafe in staging."""
+        if self.ENV != "staging":
+            return self
+
+        if self.DEBUG:
+            raise ValueError("DEBUG must be false in staging")
+        if self.REDIS_URL is None:
+            raise ValueError("REDIS_URL is required in staging")
+        if not self.BACKEND_CORS_ORIGINS:
+            raise ValueError("BACKEND_CORS_ORIGINS is required in staging")
+
+        local_hosts = {"localhost", "127.0.0.1", "::1"}
+        if any(urlparse(origin).hostname in local_hosts for origin in self.BACKEND_CORS_ORIGINS):
+            raise ValueError("localhost CORS origins are forbidden in staging")
+        return self
 
     # -----------------------------------------------------------------------
     # VALIDADORES

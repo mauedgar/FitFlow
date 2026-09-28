@@ -11,20 +11,12 @@ app = FastAPI(
     docs_url=f"{settings.API_V1_STR}/docs",
     redoc_url=f"{settings.API_V1_STR}/redoc",
 )
-# ⭐ 2. Define de dónde permites peticiones
-# Para desarrollo, puedes permitir tu servidor de Vite.
-# En producción, aquí iría la URL de tu dominio.
-origins = [
-    "http://localhost:5173", # La URL de tu app de React con Vite
-    "http://localhost:3000", # Por si usas Create React App
-]
-# ⭐ 3. Añade el middleware a tu aplicación
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"], # Permite todos los métodos (GET, POST, etc.)
-    allow_headers=["*"], # Permite todos los encabezados
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 # Incluimos el enrutador de la v1 con un prefijo
 app.include_router(api_router, prefix=settings.API_V1_STR)
