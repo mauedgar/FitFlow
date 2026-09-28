@@ -93,12 +93,14 @@ $StateDirectory = [IO.Path]::GetFullPath($StateDirectory)
 [IO.Directory]::CreateDirectory($StateDirectory) | Out-Null
 $statePath = Join-Path $StateDirectory "deployment-state.json"
 
-$resolvedRevision = (& git -C $repositoryRoot rev-parse --verify "$Revision`^{commit}").Trim()
-if ($LASTEXITCODE -ne 0 -or $resolvedRevision -notmatch "^[0-9a-f]{40}$") {
+$resolvedRevision = Invoke-CapturedChecked -Program "git" -Arguments @(
+    "-C", $repositoryRoot, "rev-parse", "--verify", "$Revision`^{commit}"
+)
+if ($resolvedRevision -notmatch "^[0-9a-f]{40}$") {
     throw "Revision is not a resolvable Git commit: $Revision"
 }
-$headRevision = (& git -C $repositoryRoot rev-parse HEAD).Trim()
-if ($LASTEXITCODE -ne 0 -or $headRevision -ne $resolvedRevision) {
+$headRevision = Invoke-CapturedChecked -Program "git" -Arguments @("-C", $repositoryRoot, "rev-parse", "HEAD")
+if ($headRevision -ne $resolvedRevision) {
     throw "The checked-out HEAD must equal the requested revision. Use an isolated worktree for $resolvedRevision."
 }
 if (& git -C $repositoryRoot status --porcelain --untracked-files=no) {
