@@ -29,9 +29,12 @@ services:
       retries: 12
 
   backend:
+    image: fitflow-backend:${FITFLOW_REVISION:-unversioned}
     build:
       context: .
       dockerfile: Dockerfile
+    labels:
+      org.opencontainers.image.revision: ${FITFLOW_REVISION:-unversioned}
     restart: unless-stopped
     environment:
       ENV: staging
@@ -60,11 +63,14 @@ services:
       start_period: 10s
 
   frontend:
+    image: fitflow-frontend:${FITFLOW_REVISION:-unversioned}
     build:
       context: frontend
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    labels:
+      org.opencontainers.image.revision: ${FITFLOW_REVISION:-unversioned}
     restart: unless-stopped
     ports:
       - "${STAGING_FRONTEND_PORT:-18080}:8080"
