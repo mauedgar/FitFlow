@@ -27,6 +27,21 @@ function Invoke-Checked {
     }
 }
 
+function Invoke-CapturedChecked {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Program,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    $output = & $Program @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command failed ($LASTEXITCODE): $Program $($Arguments -join ' ')"
+    }
+    return ($output -join "`n").Trim()
+}
+
 function Get-RequiredEnvironmentValue {
     param([Parameter(Mandatory = $true)][string]$Name)
 
@@ -127,16 +142,14 @@ Invoke-Checked -Program "docker" -Arguments ($composeArguments + @("config", "--
 
 $databaseRevisionBefore = $null
 if ($Action -eq "rollback") {
-    $databaseRevisionBefore = (& docker @($composeArguments + @("exec", "-T", "backend", "alembic", "current"))).Trim()
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not read the live database revision before rollback."
-    }
+    $databaseRevisionBefore = Invoke-CapturedChecked -Program "docker" -Arguments (
+        $composeArguments + @("exec", "-T", "backend", "alembic", "current")
+    )
 
     Invoke-Checked -Program "docker" -Arguments ($composeArguments + @("build", "backend"))
-    $targetHead = (& docker @($composeArguments + @("run", "--rm", "--no-deps", "backend", "alembic", "heads"))).Trim()
-    if ($LASTEXITCODE -ne 0) {
-        throw "Could not read the rollback target Alembic head."
-    }
+    $targetHead = Invoke-CapturedChecked -Program "docker" -Arguments (
+        $composeArguments + @("run", "--rm", "--no-deps", "backend", "alembic", "heads")
+    )
     $databaseRevisionId = ($databaseRevisionBefore -split "\s+")[0]
     $targetRevisionId = ($targetHead -split "\s+")[0]
     if ($databaseRevisionId -ne $targetRevisionId) {
@@ -163,10 +176,9 @@ if ($live.status -ne "alive" -or $ready.status -ne "ready" -or $frontend.StatusC
     throw "Post-release verification failed."
 }
 
-$databaseRevisionAfter = (& docker @($composeArguments + @("exec", "-T", "backend", "alembic", "current"))).Trim()
-if ($LASTEXITCODE -ne 0) {
-    throw "Could not verify the database revision after release."
-}
+$databaseRevisionAfter = Invoke-CapturedChecked -Program "docker" -Arguments (
+    $composeArguments + @("exec", "-T", "backend", "alembic", "current")
+)
 
 $priorRevision = $null
 if ($null -ne $previousState) {
