@@ -145,12 +145,12 @@ Invoke-Checked -Program "docker" -Arguments ($composeArguments + @("config", "--
 $databaseRevisionBefore = $null
 if ($Action -eq "rollback") {
     $databaseRevisionBefore = Invoke-CapturedChecked -Program "docker" -Arguments (
-        $composeArguments + @("exec", "-T", "backend", "alembic", "current")
+        $composeArguments + @("exec", "-T", "--workdir", "/app/backend", "backend", "alembic", "current")
     )
 
     Invoke-Checked -Program "docker" -Arguments ($composeArguments + @("build", "backend"))
     $targetHead = Invoke-CapturedChecked -Program "docker" -Arguments (
-        $composeArguments + @("run", "--rm", "--no-deps", "backend", "alembic", "heads")
+        $composeArguments + @("run", "--rm", "--no-deps", "--workdir", "/app/backend", "backend", "alembic", "heads")
     )
     $databaseRevisionId = ($databaseRevisionBefore -split "\s+")[0]
     $targetRevisionId = ($targetHead -split "\s+")[0]
@@ -179,7 +179,7 @@ if ($live.status -ne "alive" -or $ready.status -ne "ready" -or $frontend.StatusC
 }
 
 $databaseRevisionAfter = Invoke-CapturedChecked -Program "docker" -Arguments (
-    $composeArguments + @("exec", "-T", "backend", "alembic", "current")
+    $composeArguments + @("exec", "-T", "--workdir", "/app/backend", "backend", "alembic", "current")
 )
 
 $priorRevision = $null
