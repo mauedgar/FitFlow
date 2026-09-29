@@ -45,9 +45,9 @@ SCHEDULE_ID = UUID("00000000-0000-4000-8000-000000000402")
 SESSION_ID = UUID("00000000-0000-4000-8000-000000000403")
 MEMBERSHIP_ID = UUID("00000000-0000-4000-8000-000000000501")
 
-CLIENT_EMAIL = "m4-wave-b-client@smoke.fitflow.invalid"
-TEACHER_EMAIL = "m4-wave-b-teacher@smoke.fitflow.invalid"
-FRONT_DESK_EMAIL = "m4-wave-b-front-desk@smoke.fitflow.invalid"
+CLIENT_EMAIL = "m4-wave-b-client@example.com"
+TEACHER_EMAIL = "m4-wave-b-teacher@example.com"
+FRONT_DESK_EMAIL = "m4-wave-b-front-desk@example.com"
 SMOKE_PASSWORD = "FitFlow-Smoke-Only-2026!"
 
 

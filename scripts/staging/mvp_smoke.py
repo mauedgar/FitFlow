@@ -10,8 +10,8 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-CLIENT_EMAIL = "m4-wave-b-client@smoke.fitflow.invalid"
-FRONT_DESK_EMAIL = "m4-wave-b-front-desk@smoke.fitflow.invalid"
+CLIENT_EMAIL = "m4-wave-b-client@example.com"
+FRONT_DESK_EMAIL = "m4-wave-b-front-desk@example.com"
 SMOKE_PASSWORD = "FitFlow-Smoke-Only-2026!"
 GYM_CLASS_ID = "00000000-0000-4000-8000-000000000401"
 SESSION_ID = "00000000-0000-4000-8000-000000000403"

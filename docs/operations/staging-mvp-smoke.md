@@ -30,7 +30,7 @@ frontend and API proxy
 ## Fixture boundary
 
 `backend/scripts/staging_smoke_seed.py` owns a reserved set of fixed UUIDs and
-`@smoke.fitflow.invalid` identities. It refuses to run unless both conditions
+`m4-wave-b-*@example.com` identities. It refuses to run unless both conditions
 hold:
 
 - application configuration has `ENV=staging`;

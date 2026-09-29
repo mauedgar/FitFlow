@@ -23,7 +23,7 @@ $seedArguments = $composeArguments + @(
     "exec", "-T",
     "-e", "FITFLOW_SMOKE_ALLOW_FIXTURE_RESET=1",
     "--workdir", "/app/backend",
-    "backend", "python", "scripts/staging_smoke_seed.py"
+    "backend", "python", "-m", "scripts.staging_smoke_seed"
 )
 & docker @seedArguments
 if ($LASTEXITCODE -ne 0) {
