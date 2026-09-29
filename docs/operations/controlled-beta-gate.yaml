@@ -1,0 +1,118 @@
+schema_version: fitflow-controlled-beta-gate/v1
+gate_id: FITFLOW-M4-R007-CONTROLLED-BETA-GATE
+milestone: M4_STAGING_AND_BETA_READINESS
+responsibility: R007
+authority:
+  allowed_outcomes:
+    - READY_FOR_BETA_DECISION
+    - NOT_READY_FOR_BETA_DECISION
+  forbidden_outcome: LAUNCH_BETA
+  launch_authority: false
+
+entry_conditions:
+  - id: immutable_candidate
+    requirement: Full candidate commit and tree are recorded and the worktree is clean.
+  - id: staging_configuration
+    requirement: Staging configuration is explicit, fail-closed, and secrets remain external to Git.
+  - id: isolated_topology
+    requirement: PostgreSQL, Redis, backend, and frontend are healthy in the staging topology.
+  - id: migration_head
+    requirement: Migration-first startup succeeds and the live database is at the candidate Alembic head.
+  - id: release_rehearsal
+    requirement: Deploy and same-revision redeploy pass for the candidate configuration.
+  - id: rollback_boundary
+    requirement: Application rollback is rehearsed without database downgrade and with exact schema compatibility.
+  - id: mvp_smoke
+    requirement: The R006 HTTP smoke passes twice from reset fixture-owned state.
+  - id: regression
+    requirement: The bounded backend and frontend regression suite passes.
+  - id: evidence_identity
+    requirement: Evidence names the exact candidate revision, configuration digest, commands, and outcomes.
+
+required_staging_evidence:
+  R002_configuration:
+    - staging config tests
+    - rendered Compose config
+  R003_runtime:
+    - healthy Compose service state
+    - migration head
+    - frontend root and API proxy
+  R004_observability:
+    - liveness response
+    - readiness response covering PostgreSQL and Redis
+    - backend startup, access, and error logs at configured LOG_LEVEL
+  R005_release:
+    - deployment-state.json with revision and configuration digest
+    - deploy result
+    - redeploy result
+    - rollback result with migrations_downgraded false
+  R006_vertical:
+    - two complete MVP smoke passes
+
+known_limitations_requiring_explicit_acceptance:
+  - Evidence is provider-neutral and local; it is not evidence of an external staging deployment.
+  - Observability is limited to process/access/error logs plus liveness and dependency readiness; no metrics or alerting service is established.
+  - Smoke data is synthetic and validates the demonstrated vertical, not production-scale load or every Product path.
+  - Automated application rollback supports exact Alembic-head equality only; database downgrade is unsupported.
+
+operator_checks:
+  - Confirm deployed image revision labels match the candidate commit.
+  - Confirm deployment-state configuration digest matches approved secret/config material.
+  - Confirm all four Compose services are healthy.
+  - Confirm liveness is alive and readiness is ready.
+  - Confirm the live Alembic revision is the candidate head.
+  - Inspect backend startup, access, warning, and error logs without exposing secrets.
+  - Re-run the deterministic MVP smoke and retain its exact output.
+  - Confirm a named operator and response channel before any separately authorized beta.
+
+observation_signals:
+  - backend process liveness
+  - PostgreSQL and Redis dependency readiness
+  - Compose restart and health status
+  - migration startup outcome
+  - HTTP status and access logs
+  - authentication login, refresh, logout, and 5xx failures
+  - booking capacity, conflict, and 5xx failures
+  - front-desk read/check-in failures
+
+incident_conditions:
+  - readiness returns 503 or a required container becomes unhealthy
+  - migration-first startup fails
+  - repeated authentication, booking, or front-desk 5xx responses occur
+  - booking capacity or persisted state differs from the demonstrated vertical
+  - revision or configuration identity cannot be established
+  - secrets or sensitive data appear in logs or responses
+
+stop_conditions:
+  - any incident condition remains unresolved
+  - rollback safety checks fail
+  - retained data would require destructive reset or ambiguous migration recovery
+  - the named operator or response channel is unavailable
+  - a security-sensitive behavior lacks an explicit Developer decision
+
+rollback_trigger:
+  - candidate application regression with healthy retained PostgreSQL state
+  - repeated critical-vertical failure after one bounded redeploy
+  - security or data-integrity concern requiring traffic/admission stop
+
+data_reset_policy:
+  fixture: Only reserved R006 fixture IDs may be reset by the smoke gate.
+  retained_beta_data: No automated reset, volume deletion, or Alembic downgrade is authorized.
+  recovery: A reviewed restoration or forward-fix plan requires separate Developer authority.
+
+support_boundary:
+  established: Repository procedures expose health, logs, release identity, rollback checks, and stop conditions.
+  unresolved: Operator identity, response channel, response window, and escalation owner require Developer decisions.
+
+external_decisions_remaining:
+  - hosting provider and external infrastructure
+  - public URL, DNS, and TLS
+  - beta participants and admission policy
+  - operator, support channel, response window, and escalation owner
+  - backup/restore policy for retained beta data
+  - explicit acceptance of known limitations
+  - explicit LAUNCH_BETA authorization
+
+evaluation:
+  READY_FOR_BETA_DECISION: All technical entry conditions pass and remaining external decisions are explicitly listed for the Developer.
+  NOT_READY_FOR_BETA_DECISION: Any technical entry condition fails, evidence identity is incomplete, or a stop condition is active.
