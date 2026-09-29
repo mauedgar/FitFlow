@@ -12,6 +12,17 @@ from pydantic import BaseModel
 TOKEN_TYPE_BEARER = "bearer"
 
 
+class RefreshTokenRequest(BaseModel):
+    """Refresh-token request transported in the JSON body.
+
+    Keeping the credential out of query parameters prevents the supported
+    refresh/logout flows from placing it in request URLs or access-log query
+    strings.
+    """
+
+    refresh_token: str
+
+
 class Token(BaseModel):
     """Representa un token de acceso emitido por el sistema.
 
