@@ -1,0 +1,27 @@
+checkpoint:
+  responsibility: R005
+  classification: IMPLEMENTED_PASS
+  demonstrated_gap: No repeatable revision-identified deploy, redeploy, or conservative rollback operator existed.
+  implementation:
+    - revision-tagged backend and frontend Compose images
+    - fail-closed deploy, same-revision redeploy, and application rollback operator
+    - provider-neutral release runbook and external runtime state
+  changed_paths:
+    - .ai/tasks/TASKCYCLE-FITFLOW-M4-WAVE-B-BETA-OPERATIONALIZATION-001/TASK.md
+    - docker-compose.staging.yml
+    - docs/operations/staging-release-runbook.md
+    - scripts/staging/release.ps1
+  validation:
+    deploy: PASS
+    redeploy: PASS
+    rollback: PASS_WITH_DEFINED_DB_BOUNDARY
+    migration_boundary: Exact live/target Alembic-head equality; no downgrade and no volume deletion.
+    database_revision: e4f5a6b7c8d9
+  implementation_commits:
+    - 8c7b55fa63d9777b3fbecfd58bbfe0b4d630b69c
+    - ded67d744c00ac446ea1aa6b4838a83810b971f5
+    - fa60b0898b2446b7c4057792240e03c2392aee14
+    - d7c4b344fd6e8e8f0835e527cc21f57303ff15c5
+  commit: d7c4b344fd6e8e8f0835e527cc21f57303ff15c5
+  tree: 6078e211b699c5b21d95bc8c35eb27279e220908
+  next_subresponsibility_allowed: R006

@@ -1,6 +1,6 @@
 ---
 task_id: TASKCYCLE-FITFLOW-M4-WAVE-B-BETA-OPERATIONALIZATION-001
-status: EXECUTING
+status: PENDING_ACCEPTANCE
 task_type: tooling
 area: mixed
 scope: mixed

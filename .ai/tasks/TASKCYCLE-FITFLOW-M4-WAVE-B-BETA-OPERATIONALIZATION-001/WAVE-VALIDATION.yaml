@@ -1,0 +1,23 @@
+Wave_validation:
+  R005: PASS
+  R006: PASS
+  R007: PASS
+  development_regression: PASS
+  test_regression: PASS
+  staging_like_clean_start: PASS
+  migration_to_head: PASS
+  deploy_procedure_rehearsal: PASS
+  redeploy_rehearsal: PASS
+  rollback_procedure_rehearsal: PASS_WITH_DEFINED_DB_BOUNDARY
+  MVP_vertical_smoke: PASS
+  smoke_repeatability: PASS
+  liveness: PASS
+  readiness: PASS
+  logging_visibility: PASS
+  beta_gate_evidence_binding: PASS
+  beta_gate_current_decision: NOT_READY_FOR_BETA_DECISION
+  beta_gate_active_stop_condition: refresh_token_query_visible_in_access_logs
+  unexpected_scope_delta: NONE
+  candidate_before_evidence_freeze:
+    commit: 380ba3d988687ab917258644fddef5e594e2e407
+    tree: d97d7b7e615cc568c9473e5fe59e1a714d75ab23

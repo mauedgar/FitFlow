@@ -1,0 +1,29 @@
+checkpoint:
+  responsibility: R006
+  classification: IMPLEMENTED_PASS
+  demonstrated_gap: No deterministic deployed-runtime MVP vertical smoke or bounded fixture reset existed.
+  implementation:
+    - fixed-ID staging-only fixture bootstrap
+    - real HTTP smoke through the Nginx API proxy
+    - authentication, Redis refresh/logout, class/session, booking, capacity, and front-desk check-in assertions
+  changed_paths:
+    - backend/scripts/staging_smoke_seed.py
+    - docs/operations/staging-mvp-smoke.md
+    - scripts/staging/mvp_smoke.py
+    - scripts/staging/smoke.ps1
+  validation:
+    runtime_starts_cleanly: PASS
+    bootstrap_deterministic: PASS
+    authentication: PASS
+    critical_vertical: PASS
+    frontend_backend_path: PASS
+    database_state: PASS
+    Redis_dependent_auth: PASS
+    repeatability: PASS_TWO_CONSECUTIVE_RUNS
+  implementation_commits:
+    - 996388778dda5bb794b14cb9cc4ef049e843fa6c
+    - 711a8c4817000b1ce6849fcba05c32e60f58e414
+  terminal_validation_correction: 380ba3d988687ab917258644fddef5e594e2e407
+  commit: 711a8c4817000b1ce6849fcba05c32e60f58e414
+  tree: f58e272e6b649e88de1a037b9b043bec4a70b9c3
+  next_subresponsibility_allowed: R007

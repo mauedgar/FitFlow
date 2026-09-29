@@ -1,0 +1,22 @@
+checkpoint:
+  responsibility: R007
+  classification: IMPLEMENTED_PASS
+  demonstrated_gap: No evidence-bound controlled-beta admission, observation, incident, stop, or rollback decision gate existed.
+  implementation:
+    - machine-readable controlled-beta gate
+    - operator procedure bound to R002-R006 evidence
+    - explicit external decisions and forbidden launch authority
+  changed_paths:
+    - docs/operations/controlled-beta-gate.md
+    - docs/operations/controlled-beta-gate.yaml
+  validation:
+    evidence_binding: PASS
+    unsupported_infrastructure_assumptions: NONE
+    launch_authority: false
+    technical_gate_contract: PASS
+    current_beta_decision: NOT_READY_FOR_BETA_DECISION
+    active_stop_condition: Refresh tokens are present in query strings and visible in access logs.
+  implementation_commit: 830c729a1ed64339d33d3beae7f3d329cb6212c2
+  commit: 830c729a1ed64339d33d3beae7f3d329cb6212c2
+  tree: 1a86788dda5efe0721e8bbf9427fd0ceb146946d
+  next_subresponsibility_allowed: TERMINAL_WAVE_VALIDATION
