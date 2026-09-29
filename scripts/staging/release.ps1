@@ -143,6 +143,10 @@ $configurationValues = [ordered]@{
     STAGING_FRONTEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_FRONTEND_PORT" -DefaultValue "18080")
     VITE_API_BASE_URL = (Get-EnvironmentValueOrDefault -Name "VITE_API_BASE_URL" -DefaultValue "/api/v1")
 }
+foreach ($entry in $configurationValues.GetEnumerator()) {
+    [Environment]::SetEnvironmentVariable([string]$entry.Key, [string]$entry.Value, "Process")
+}
+[Environment]::SetEnvironmentVariable("COMPOSE_DISABLE_ENV_FILE", "1", "Process")
 $configurationMaterial = foreach ($entry in $configurationValues.GetEnumerator()) {
     "$($entry.Key)=$($entry.Value)"
 }
