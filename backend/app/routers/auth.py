@@ -27,7 +27,7 @@ from app.core.token_store import (
 )
 from app.db.models.user import User
 from app.db.session import get_async_session
-from app.schemas.token import Token, TokenPair
+from app.schemas.token import RefreshTokenRequest, Token, TokenPair
 from app.schemas.user import UserPublic
 from app.services.errors import ExternalServiceError
 from app.services.user_service import get_by_email as user_get_by_email, to_user_public
@@ -76,9 +76,10 @@ async def login_for_tokens(
 @router.post("/refresh", response_model=Token, status_code=status.HTTP_200_OK)
 async def refresh_access_token(
     *,
-    refresh_token: str,
+    token_request: RefreshTokenRequest,
 ) -> Token:
     """Renueva el Access Token usando un Refresh Token válido."""
+    refresh_token = token_request.refresh_token
     try:
         blacklisted = is_token_blacklisted(refresh_token)
     except ExternalServiceError as exc:
@@ -108,13 +109,14 @@ async def refresh_access_token(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def logout(
     *,
-    refresh_token: str,
+    token_request: RefreshTokenRequest,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     """Logout real: invalida refresh token en Redis + blacklist.
 
     Requiere autenticación para evitar invalidaciones arbitrarias.
     """
+    refresh_token = token_request.refresh_token
     payload = security.decode_token(refresh_token)
     if payload is None or "sub" not in payload:
         logger.warning("Logout attempted with invalid refresh token")
