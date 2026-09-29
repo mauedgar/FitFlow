@@ -16,8 +16,10 @@ configure DNS or TLS, publish images, or deploy externally.
 
 The release identity is the full Git commit. Backend and frontend images are
 tagged and labelled with `FITFLOW_REVISION`. The operator script refuses a
-requested revision that is not the checked-out `HEAD`, or a checkout with
-tracked or untracked changes. Use one clean, isolated Git worktree per revision.
+requested revision that is not the checked-out `HEAD`, a checkout with tracked
+or untracked changes, or a checkout containing Git-ignored untracked files
+inside the Docker-copied `backend/` or `frontend/` source trees. Use one clean,
+isolated Git worktree per revision.
 
 ## Configuration material
 
@@ -39,7 +41,8 @@ reproduce it.
 
 ## Prerequisites
 
-- a clean isolated worktree at the exact release commit;
+- a clean isolated worktree at the exact release commit, with no Git-ignored
+  untracked files inside the Docker-copied `backend/` or `frontend/` trees;
 - Git, PowerShell 7+, Docker Engine, and Docker Compose;
 - populated staging configuration in process environment or an untracked file;
 - exclusive operator ownership of Compose project `fitflow-staging`;
@@ -119,7 +122,8 @@ database recovery. Do not infer compatibility from a successful image build.
 
 Safe automated conditions:
 
-- clean target source and immutable full commit identity;
+- clean target source, including no ignored untracked files in Docker-copied
+  source trees, and immutable full commit identity;
 - known configuration material and configuration digest;
 - healthy PostgreSQL and Redis;
 - exact live/target Alembic revision equality;

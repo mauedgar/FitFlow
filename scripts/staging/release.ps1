@@ -125,6 +125,13 @@ if ($worktreeStatus) {
     throw "Tracked or untracked files are dirty; refusing to build an unidentified release."
 }
 
+$ignoredBuildInputs = Invoke-CapturedChecked -Program "git" -Arguments @(
+    "-C", $repositoryRoot, "ls-files", "--others", "--ignored", "--exclude-standard", "--", "backend", "frontend"
+)
+if ($ignoredBuildInputs) {
+    throw "Git-ignored files exist inside Docker-copied source trees; refusing to build an unidentified release."
+}
+
 $configurationValues = [ordered]@{
     POSTGRES_DB = (Get-EnvironmentValueOrDefault -Name "POSTGRES_DB" -DefaultValue "fitflow_staging")
     POSTGRES_USER = (Get-EnvironmentValueOrDefault -Name "POSTGRES_USER" -DefaultValue "fitflow_staging")
