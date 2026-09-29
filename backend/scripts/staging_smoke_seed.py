@@ -8,8 +8,6 @@ import os
 from datetime import UTC, datetime, time, timedelta
 from uuid import UUID
 
-from sqlalchemy import delete
-
 from app.core.config import settings
 from app.core.enums import (
     ActivityType,
@@ -34,6 +32,7 @@ from app.db.models import (
     User,
 )
 from app.db.session import AsyncSessionLocal, engine
+from sqlalchemy import delete
 
 CLIENT_USER_ID = UUID("00000000-0000-4000-8000-000000000101")
 CLIENT_ID = UUID("00000000-0000-4000-8000-000000000102")

@@ -155,7 +155,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         run(args.frontend_url, args.backend_url)
-    except Exception as exc:
+    except (AssertionError, KeyError, OSError, TypeError, ValueError) as exc:
         print(f"FAIL {exc}", file=sys.stderr)
         return 1
     print("PASS FitFlow staging MVP vertical smoke")
