@@ -50,7 +50,7 @@ async def _post_logout(
 ) -> httpx.Response:
     return await api_client.post(
         f"{settings.API_V1_STR}/auth/logout",
-        params={"refresh_token": refresh_token},
+        json={"refresh_token": refresh_token},
     )
 
 
@@ -83,6 +83,7 @@ async def test_logout_owner_deletes_refresh_then_blacklists(
     response = await _post_logout(api_client, refresh_token)
 
     assert response.status_code == status.HTTP_204_NO_CONTENT
+    assert response.request.url.query == b""
     assert response.content == b""
     assert events == [
         ("delete", refresh_token),
@@ -108,6 +109,8 @@ async def test_logout_malformed_refresh_token_returns_400_without_state_change(
     response = await _post_logout(api_client, "definitely-not-a-jwt")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.request.url.query == b""
+    assert "definitely-not-a-jwt" not in response.text
     assert response.json() == {"detail": "Refresh token inválido."}
     assert events == []
 
