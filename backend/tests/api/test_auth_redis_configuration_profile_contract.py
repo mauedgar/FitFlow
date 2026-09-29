@@ -114,7 +114,7 @@ async def test_refresh_returns_503_when_redis_is_unconfigured(
 
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        params={"refresh_token": "opaque-refresh-token"},
+        json={"refresh_token": "opaque-refresh-token"},
     )
 
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -131,7 +131,7 @@ async def test_logout_returns_503_when_redis_is_unconfigured(
 
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/logout",
-        params={"refresh_token": refresh_token},
+        json={"refresh_token": refresh_token},
     )
 
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -155,7 +155,7 @@ async def test_refresh_returns_503_when_configured_redis_is_unavailable(
 
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        params={"refresh_token": "opaque-refresh-token"},
+        json={"refresh_token": "opaque-refresh-token"},
     )
 
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
