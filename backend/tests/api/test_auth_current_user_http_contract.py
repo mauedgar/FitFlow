@@ -217,10 +217,11 @@ async def test_refresh_registered_token_returns_access_token_with_same_user_id_s
 
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        params={"refresh_token": refresh_token},
+        json={"refresh_token": refresh_token},
     )
 
     assert response.status_code == status.HTTP_200_OK, response.text
+    assert response.request.url.query == b""
     body = response.json()
     assert body["access_token"]
     payload = security.decode_token(body["access_token"])
@@ -235,9 +236,11 @@ async def test_refresh_with_malformed_token_returns_401(
     monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        params={"refresh_token": "definitely-not-a-jwt"},
+        json={"refresh_token": "definitely-not-a-jwt"},
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.request.url.query == b""
+    assert "definitely-not-a-jwt" not in response.text
     assert response.json() == {"detail": "Refresh token inv\u00e1lido o expirado."}
 
 
@@ -252,7 +255,7 @@ async def test_refresh_with_expired_token_returns_401(
     monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        params={"refresh_token": expired_token},
+        json={"refresh_token": expired_token},
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json() == {"detail": "Refresh token inv\u00e1lido o expirado."}
@@ -267,7 +270,7 @@ async def test_refresh_with_unregistered_token_returns_401(
     monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: False)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        params={"refresh_token": refresh_token},
+        json={"refresh_token": refresh_token},
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json() == {"detail": "Refresh token no registrado."}
@@ -282,7 +285,7 @@ async def test_refresh_with_blacklisted_token_returns_401(
     monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        params={"refresh_token": refresh_token},
+        json={"refresh_token": refresh_token},
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json() == {"detail": "Refresh token invalidado."}
@@ -298,7 +301,7 @@ async def test_refresh_blacklist_external_service_error_maps_to_503(
     monkeypatch.setattr(auth_router, "is_token_blacklisted", unavailable)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        params={"refresh_token": "opaque-refresh-token"},
+        json={"refresh_token": "opaque-refresh-token"},
     )
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert response.json() == {"detail": "Redis no est\u00e1 disponible."}
@@ -317,14 +320,20 @@ async def test_refresh_token_store_external_service_error_maps_to_503(
     monkeypatch.setattr(auth_router, "is_refresh_token_valid", unavailable)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
-        params={"refresh_token": refresh_token},
+        json={"refresh_token": refresh_token},
     )
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert response.json() == {"detail": "Redis no est\u00e1 disponible."}
 
 
-async def test_refresh_requires_query_parameter_contract(
+async def test_refresh_rejects_query_only_refresh_token_transport(
     api_client: httpx.AsyncClient,
 ) -> None:
-    response = await api_client.post(f"{settings.API_V1_STR}/auth/refresh")
+    query_token = "r008-query-token-must-not-be-consumed"
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        params={"refresh_token": query_token},
+    )
+
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert query_token not in response.text
