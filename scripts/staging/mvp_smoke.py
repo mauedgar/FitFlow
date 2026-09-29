@@ -40,8 +40,10 @@ def request(
         status = exc.code
         raw = exc.read()
     if status != expected:
-        detail = raw.decode("utf-8", errors="replace")
-        raise AssertionError(f"{method} {url} returned {status}, expected {expected}: {detail}")
+        safe_url = url.split("?", 1)[0]
+        raise AssertionError(
+            f"{method} {safe_url} returned {status}, expected {expected}"
+        )
     if not raw:
         return status, None
     content = raw.decode("utf-8")

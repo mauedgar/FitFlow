@@ -17,7 +17,7 @@ configure DNS or TLS, publish images, or deploy externally.
 The release identity is the full Git commit. Backend and frontend images are
 tagged and labelled with `FITFLOW_REVISION`. The operator script refuses a
 requested revision that is not the checked-out `HEAD`, or a checkout with
-tracked modifications. Use one clean, isolated Git worktree per revision.
+tracked or untracked changes. Use one clean, isolated Git worktree per revision.
 
 ## Configuration material
 
@@ -29,9 +29,13 @@ file. Never commit the populated file. Required values are:
 - `BACKEND_CORS_ORIGINS`.
 
 The remaining non-secret inputs and defaults are documented in
-`.env.staging.example`. The operator records only a SHA-256 digest of the three
-required values, not their contents. Preserve the exact configuration revision
-outside Git if a later application rollback must reproduce it.
+`.env.staging.example`. The operator records a SHA-256 digest of the effective
+deployment-affecting configuration: `POSTGRES_DB`, `POSTGRES_USER`,
+`POSTGRES_PASSWORD`, `SECRET_KEY`, `BACKEND_CORS_ORIGINS`, `LOG_LEVEL`,
+`STAGING_BACKEND_PORT`, `STAGING_FRONTEND_PORT`, and `VITE_API_BASE_URL`. Secret
+contents are never written to deployment state. Preserve the exact approved
+configuration material outside Git if a later application rollback must
+reproduce it.
 
 ## Prerequisites
 

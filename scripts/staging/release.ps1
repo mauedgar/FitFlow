@@ -52,6 +52,21 @@ function Get-RequiredEnvironmentValue {
     return $value
 }
 
+function Get-EnvironmentValueOrDefault {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [Parameter(Mandatory = $true)]
+        [string]$DefaultValue
+    )
+
+    $value = [Environment]::GetEnvironmentVariable($Name, "Process")
+    if ([string]::IsNullOrEmpty($value)) {
+        return $DefaultValue
+    }
+    return $value
+}
+
 function Import-EnvironmentFile {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -103,14 +118,26 @@ $headRevision = Invoke-CapturedChecked -Program "git" -Arguments @("-C", $reposi
 if ($headRevision -ne $resolvedRevision) {
     throw "The checked-out HEAD must equal the requested revision. Use an isolated worktree for $resolvedRevision."
 }
-if (& git -C $repositoryRoot status --porcelain --untracked-files=no) {
-    throw "Tracked files are dirty; refusing to build an unidentified release."
+$worktreeStatus = Invoke-CapturedChecked -Program "git" -Arguments @(
+    "-C", $repositoryRoot, "status", "--porcelain", "--untracked-files=all"
+)
+if ($worktreeStatus) {
+    throw "Tracked or untracked files are dirty; refusing to build an unidentified release."
 }
 
-$requiredNames = @("POSTGRES_PASSWORD", "SECRET_KEY", "BACKEND_CORS_ORIGINS")
-$configurationMaterial = foreach ($name in $requiredNames) {
-    $value = Get-RequiredEnvironmentValue -Name $name
-    "$name=$value"
+$configurationValues = [ordered]@{
+    POSTGRES_DB = (Get-EnvironmentValueOrDefault -Name "POSTGRES_DB" -DefaultValue "fitflow_staging")
+    POSTGRES_USER = (Get-EnvironmentValueOrDefault -Name "POSTGRES_USER" -DefaultValue "fitflow_staging")
+    POSTGRES_PASSWORD = (Get-RequiredEnvironmentValue -Name "POSTGRES_PASSWORD")
+    SECRET_KEY = (Get-RequiredEnvironmentValue -Name "SECRET_KEY")
+    BACKEND_CORS_ORIGINS = (Get-RequiredEnvironmentValue -Name "BACKEND_CORS_ORIGINS")
+    LOG_LEVEL = (Get-EnvironmentValueOrDefault -Name "LOG_LEVEL" -DefaultValue "INFO")
+    STAGING_BACKEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_BACKEND_PORT" -DefaultValue "18000")
+    STAGING_FRONTEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_FRONTEND_PORT" -DefaultValue "18080")
+    VITE_API_BASE_URL = (Get-EnvironmentValueOrDefault -Name "VITE_API_BASE_URL" -DefaultValue "/api/v1")
+}
+$configurationMaterial = foreach ($entry in $configurationValues.GetEnumerator()) {
+    "$($entry.Key)=$($entry.Value)"
 }
 $configurationHash = Get-Sha256 -Value ($configurationMaterial -join "`n")
 
@@ -166,10 +193,8 @@ if ($Action -eq "redeploy") {
 }
 Invoke-Checked -Program "docker" -Arguments ($composeArguments + $upArguments)
 
-$backendPort = [Environment]::GetEnvironmentVariable("STAGING_BACKEND_PORT", "Process")
-if ([string]::IsNullOrWhiteSpace($backendPort)) { $backendPort = "18000" }
-$frontendPort = [Environment]::GetEnvironmentVariable("STAGING_FRONTEND_PORT", "Process")
-if ([string]::IsNullOrWhiteSpace($frontendPort)) { $frontendPort = "18080" }
+$backendPort = $configurationValues.STAGING_BACKEND_PORT
+$frontendPort = $configurationValues.STAGING_FRONTEND_PORT
 
 $live = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/health/live" -TimeoutSec 10
 $ready = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/health/ready" -TimeoutSec 10
