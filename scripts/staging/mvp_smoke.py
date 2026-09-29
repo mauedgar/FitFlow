@@ -85,9 +85,12 @@ def run(frontend_url: str, backend_url: str) -> None:
     client_refresh = client_tokens["refresh_token"]
     _, current_user = request("GET", f"{api_url}/auth/me", token=client_access)
     assert current_user["email"] == CLIENT_EMAIL
+    refresh_payload = json.dumps({"refresh_token": client_refresh}).encode()
     _, refreshed = request(
         "POST",
-        f"{api_url}/auth/refresh?{urlencode({'refresh_token': client_refresh})}",
+        f"{api_url}/auth/refresh",
+        body=refresh_payload,
+        content_type="application/json",
     )
     assert refreshed["access_token"]
     print("PASS client authentication and Redis-backed refresh")
@@ -139,14 +142,21 @@ def run(frontend_url: str, backend_url: str) -> None:
     assert checked_in["status"] == "attended"
     print("PASS front-desk observation, capacity, and check-in transition")
 
-    refresh_query = urlencode({"refresh_token": client_refresh})
     request(
         "POST",
-        f"{api_url}/auth/logout?{refresh_query}",
+        f"{api_url}/auth/logout",
+        body=refresh_payload,
         token=client_access,
+        content_type="application/json",
         expected=204,
     )
-    request("POST", f"{api_url}/auth/refresh?{refresh_query}", expected=401)
+    request(
+        "POST",
+        f"{api_url}/auth/refresh",
+        body=refresh_payload,
+        content_type="application/json",
+        expected=401,
+    )
     print("PASS Redis-backed logout invalidation")
 
 
