@@ -106,6 +106,19 @@ class FrontDeskBookingView(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# FALLBACK BOOKING
+# --------------------------------------------------------------------------- #
+
+class FrontDeskFallbackBookingResult(BaseModel):
+    """Outcome of ensuring a normal Booking for an identified Front Desk Client."""
+
+    created: bool
+    booking: FrontDeskBookingView
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
 # CLASE ACTIVA (vista operativa)
 # --------------------------------------------------------------------------- #
 

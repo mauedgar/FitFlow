@@ -12,6 +12,7 @@ from sqlalchemy.orm.interfaces import ORMOption
 
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.core.timezone import LOCAL_TZ
+from app.crud.crud_booking import booking as booking_crud
 from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_client import client as client_crud
 from app.crud.crud_gym_class import gym_class
@@ -21,9 +22,12 @@ from app.schemas.front_desk import (
     FrontDeskClassView,
     FrontDeskClientLookupView,
     FrontDeskDayView,
+    FrontDeskFallbackBookingResult,
     FrontDeskSessionView,
     SessionCapacity,
 )
+from app.services.booking_service import to_booking_internal, validate_booking_creation
+from app.services.class_schedule_service import validate_membership_access
 from app.services.errors import BusinessValidationError, ConflictError, NotFoundError
 
 
@@ -81,6 +85,90 @@ async def get_client_by_document(
         document_number=stored_document_number,
         full_name=f"{client.first_name} {client.last_name}",
         email=client.user.email,
+    )
+
+
+async def _get_booking_for_front_desk(
+    db: AsyncSession,
+    booking_id: UUID,
+) -> Booking:
+    stmt = (
+        select(Booking)
+        .where(Booking.id == booking_id)
+        .options(selectinload(Booking.client).selectinload(Client.user))
+    )
+    booking = (await db.execute(stmt)).scalar_one_or_none()
+    if booking is None:
+        msg = "Reserva no encontrada."
+        raise NotFoundError(msg)
+    return booking
+
+
+async def ensure_fallback_booking(
+    db: AsyncSession,
+    *,
+    session_id: UUID,
+    client_id: UUID,
+) -> FrontDeskFallbackBookingResult:
+    """Return an existing Booking or create one through the ordinary Booking contract."""
+    session = await _get_session(db, session_id)
+
+    existing = next(
+        (
+            booking
+            for booking in session.bookings
+            if booking.client_id == client_id
+            and booking.status != BookingStatus.cancelled
+        ),
+        None,
+    )
+    if existing is not None:
+        return FrontDeskFallbackBookingResult(
+            created=False,
+            booking=to_frontdesk_booking_view(existing),
+        )
+
+    client = await client_crud.get_with_relations(db, client_id=client_id)
+    if client is None:
+        msg = "Cliente no encontrado."
+        raise NotFoundError(msg)
+
+    membership = client.membership
+    validate_booking_creation(session, membership)
+    validate_membership_access(membership, session.class_schedule)
+
+    booking_internal = to_booking_internal(
+        client_id=client.id,  # pyright: ignore[reportArgumentType]
+        session=session,
+        status=BookingStatus.confirmed,
+    )
+
+    if db.in_transaction():
+        await db.commit()
+
+    try:
+        booking = await booking_crud.create_with_capacity_check(
+            db,
+            client_id=client.id,
+            session_id=session.id,
+            obj_in=booking_internal,
+        )
+        created = True
+    except ConflictError:
+        existing_after_conflict = await booking_crud.get_by_client_and_session(
+            db,
+            client_id=client.id,
+            session_id=session.id,
+        )
+        if existing_after_conflict is None:
+            raise
+        booking = existing_after_conflict
+        created = False
+
+    loaded = await _get_booking_for_front_desk(db, booking.id)
+    return FrontDeskFallbackBookingResult(
+        created=created,
+        booking=to_frontdesk_booking_view(loaded),
     )
 
 

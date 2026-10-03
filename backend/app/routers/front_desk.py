@@ -14,6 +14,7 @@ from app.schemas.front_desk import (
     FrontDeskClassView,
     FrontDeskClientLookupView,
     FrontDeskDayView,
+    FrontDeskFallbackBookingResult,
     FrontDeskSessionView,
     SessionCapacity,
 )
@@ -70,6 +71,27 @@ async def get_client_by_document(
     try:
         return await front_desk_service.get_client_by_document(db, document_number)
     except (NotFoundError, BusinessValidationError) as exc:
+        _raise_domain_error(exc)
+
+
+@router.post(
+    "/sessions/{session_id}/clients/{client_id}/booking",
+    response_model=FrontDeskFallbackBookingResult,
+)
+async def ensure_fallback_booking(
+    session_id: UUID,
+    client_id: UUID,
+    db: Database,
+    _: FrontDeskClassesUser,
+) -> FrontDeskFallbackBookingResult:
+    """Ensure an ordinary Booking exists without performing check-in."""
+    try:
+        return await front_desk_service.ensure_fallback_booking(
+            db,
+            session_id=session_id,
+            client_id=client_id,
+        )
+    except (NotFoundError, ConflictError, BusinessValidationError) as exc:
         _raise_domain_error(exc)
 
 
