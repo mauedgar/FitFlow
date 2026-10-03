@@ -113,7 +113,7 @@ async def create_booking(  # noqa: C901
     )
 
     try:
-        # Llamada atómica al CRUD: verifica cupo y duplicado dentro de una transacción
+        # Llamada atómica al CRUD: bloquea la sesión y verifica duplicado dentro de una transacción
         # Auth y lecturas previas comparten esta AsyncSession y activan autobegin.
         # End the read-only phase before handing transaction ownership to the atomic CRUD.
         if db.in_transaction():
@@ -128,7 +128,7 @@ async def create_booking(  # noqa: C901
         # Si la sesión desapareció entre checks
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ConflictError as exc:
-        # Duplicado u overbooking detectado en la transacción
+        # Duplicado o estado no reservable detectado en la transacción
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except BusinessValidationError as exc:
         # Validaciones de negocio que el CRUD pudiera propagar
@@ -243,9 +243,10 @@ async def can_book_session(
     session_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
 ) -> SessionCapacity:
-    """Devuelve la capacidad disponible de una sesión.
+    """Devuelve métricas de capacidad de referencia y demanda de una sesión.
 
-    Útil para validar si un cliente puede reservar.
+    available se mantiene acotado a cero para reporting y no constituye una
+    política de admisión ni determina por sí solo si una reserva puede crearse.
     """
     try:
         session = await class_session_crud.get(db=db, obj_id=session_id, include_relations=True)

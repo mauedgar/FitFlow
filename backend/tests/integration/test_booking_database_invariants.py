@@ -185,10 +185,38 @@ async def test_soft_deleting_session_preserves_booking_history() -> None:
 @pytest.mark.integration
 @pytest.mark.concurrency
 @pytest.mark.asyncio
-async def test_last_capacity_is_protected_by_row_lock() -> None:
+async def test_reference_capacity_does_not_block_concurrent_clients() -> None:
     session_id, client_ids = await _session_with_clients(client_count=2)
 
     async def reserve(client_id: uuid.UUID) -> str:
+        async with AsyncSessionLocal() as db:
+            payload = BookingCreateInternal(
+                client_id=client_id,
+                class_session_id=session_id,
+                created_at=datetime.now(UTC),
+                status=BookingStatus.confirmed,
+            )
+            await booking_crud.create_with_capacity_check(
+                db,
+                client_id=client_id,
+                session_id=session_id,
+                obj_in=payload,
+            )
+            return "created"
+
+    results = await asyncio.gather(*(reserve(client_id) for client_id in client_ids))
+    assert results == ["created", "created"]
+    assert await _count_bookings(session_id) == 2
+
+
+@pytest.mark.integration
+@pytest.mark.concurrency
+@pytest.mark.asyncio
+async def test_same_client_concurrent_booking_is_serialized_by_row_lock() -> None:
+    session_id, client_ids = await _session_with_clients()
+    client_id = client_ids[0]
+
+    async def reserve() -> str:
         async with AsyncSessionLocal() as db:
             payload = BookingCreateInternal(
                 client_id=client_id,
@@ -207,7 +235,7 @@ async def test_last_capacity_is_protected_by_row_lock() -> None:
                 return "conflict"
             return "created"
 
-    results = await asyncio.gather(*(reserve(client_id) for client_id in client_ids))
+    results = await asyncio.gather(reserve(), reserve())
     assert sorted(results) == ["conflict", "created"]
     assert await _count_bookings(session_id) == 1
 

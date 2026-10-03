@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.enums import BookingStatus, ClassSessionStatus
@@ -175,7 +175,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         return res.scalars().first()
 
     # ------------------------------------------------------------------ #
-    # Creación atómica con verificación de capacidad
+    # Creación atómica con bloqueo de sesión y verificación de duplicados
     # ------------------------------------------------------------------ #
     async def create_with_capacity_check(
         self,
@@ -185,7 +185,11 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         session_id: "UUID",
         obj_in: "BookingCreateInternal",  # o BookingCreateInternal según tu flujo
     ) -> Booking:
-        """Crea una reserva de forma atómica verificando capacidad y duplicados.
+        """Crea una reserva de forma atómica bloqueando la sesión y evitando duplicados.
+
+        capacity_snapshot es capacidad de referencia/observabilidad y no impone
+        un techo de admisión por defecto. El bloqueo de fila se conserva para
+        serializar las comprobaciones de integridad de la reserva.
 
         Parámetros
         ----------
@@ -208,7 +212,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         NotFoundError
             Si la ClassSession no existe.
         ConflictError
-            Si no hay cupo o ya existe reserva duplicada.
+            Si la sesión no admite reservas o ya existe una reserva activa duplicada.
         """
         async with db.begin():  # abre transacción
             q = select(ClassSession).where(ClassSession.id == session_id).with_for_update()
@@ -223,17 +227,6 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
                 or session.status not in {ClassSessionStatus.scheduled, ClassSessionStatus.open}
             ):
                 raise ConflictError("La sesión no admite reservas.")
-
-            capacity = int(session.capacity_snapshot) # pyright: ignore[reportArgumentType]
-            count_stmt = select(func.count(Booking.id)).where(
-                Booking.class_session_id == session_id,
-                Booking.status != BookingStatus.cancelled,
-            )
-            current = int((await db.scalar(count_stmt)) or 0)
-            available = capacity - current
-            if available <= 0:
-                msg_0 = "No hay lugares disponibles para esta sesión."
-                raise ConflictError(msg_0)
 
             # verificar duplicado
             q2 = select(Booking).where(

@@ -13,11 +13,15 @@ from app.services.booking_service import (
 from app.services.errors import BusinessValidationError, ConflictError
 
 
-def _session(status: ClassSessionStatus) -> ClassSession:
+def _session(
+    status: ClassSessionStatus,
+    *,
+    available_spots: int = 1,
+) -> ClassSession:
     return cast(ClassSession, SimpleNamespace(
         status=status,
         starts_at=datetime.now(UTC) + timedelta(days=1),
-        available_spots=1,
+        available_spots=available_spots,
     ))
 
 
@@ -25,6 +29,20 @@ def _session(status: ClassSessionStatus) -> ClassSession:
 def test_future_scheduled_or_open_session_can_be_booked(status: ClassSessionStatus) -> None:
     membership = cast(Membership, SimpleNamespace(status=MembershipStatus.active))
     validate_booking_creation(_session(status), membership)
+
+
+def test_reference_capacity_does_not_block_booking() -> None:
+    membership = cast(Membership, SimpleNamespace(status=MembershipStatus.active))
+    validate_booking_creation(
+        _session(ClassSessionStatus.scheduled, available_spots=0),
+        membership,
+    )
+
+
+def test_inactive_membership_still_rejects_booking() -> None:
+    membership = cast(Membership, SimpleNamespace(status=MembershipStatus.expired))
+    with pytest.raises(BusinessValidationError):
+        validate_booking_creation(_session(ClassSessionStatus.scheduled), membership)
 
 
 @pytest.mark.parametrize("status", [ClassSessionStatus.closed, ClassSessionStatus.cancelled, ClassSessionStatus.completed])

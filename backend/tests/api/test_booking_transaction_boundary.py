@@ -196,6 +196,61 @@ async def test_booking_creation_hands_off_real_auth_transaction(
 @pytest.mark.api
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_booking_creation_allows_reference_capacity_overflow() -> None:
+    session_id, access_token = await _booking_fixture()
+
+    async with AsyncSessionLocal() as db:
+        class_session = await db.get(ClassSession, session_id)
+        assert class_session is not None
+        class_session.capacity_snapshot = 1
+
+        token = uuid.uuid4().hex
+        existing_user = User(
+            email=f"booking-capacity-existing-{token}@example.com",
+            hashed_password="not-a-real-password",
+            role=UserRole.client,
+        )
+        existing_client = Client(
+            first_name="Existing",
+            last_name="Booking",
+            document_number=f"existing-{token}",
+            user=existing_user,
+        )
+        db.add(existing_client)
+        await db.flush()
+        db.add(
+            Booking(
+                client_id=existing_client.id,
+                class_session_id=session_id,
+                status=BookingStatus.confirmed,
+            )
+        )
+        await db.commit()
+
+    response = await _post_booking(
+        session_id=session_id,
+        access_token=access_token,
+    )
+    assert response.status_code == status.HTTP_201_CREATED, response.text
+
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://fitflow.test",
+    ) as client:
+        capacity_response = await client.get(
+            f"{settings.API_V1_STR}/bookings/sessions/{session_id}/can-book"
+        )
+
+    assert capacity_response.status_code == status.HTTP_200_OK, capacity_response.text
+    assert capacity_response.json()["capacity"] == 1
+    assert capacity_response.json()["used"] == 2
+    assert capacity_response.json()["available"] == 0
+
+
+@pytest.mark.api
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_duplicate_booking_still_maps_to_http_409() -> None:
     session_id, access_token = await _booking_fixture()
 

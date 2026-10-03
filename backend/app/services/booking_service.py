@@ -67,20 +67,6 @@ def validate_session_future(session: "ClassSession") -> None:
         raise BusinessValidationError(msg)
 
 
-def validate_session_capacity(session: "ClassSession") -> None:
-    """Debe haber cupos disponibles."""
-    if session.available_spots <= 0:  # type: ignore[attr-defined]
-        msg = "No hay lugares disponibles para esta sesión."
-        raise BusinessValidationError(msg)
-
-
-def validate_no_overbooking(session: "ClassSession") -> None:
-    """Evita condiciones de carrera cuando dos reservas llegan simultáneamente."""
-    if session.current_bookings_count >= session.capacity_snapshot:  # type: ignore[attr-defined]
-        msg = "La sesión se llenó mientras procesábamos tu reserva."
-        raise ConflictError(msg)
-
-
 # --------------------------------------------------------------------------- #
 # 3. Validación de duplicación de reservas
 # --------------------------------------------------------------------------- #
@@ -147,8 +133,9 @@ def calculate_availability(session: "ClassSession") -> int:
 def update_session_availability(session: "ClassSession") -> "ClassSession":
     """Actualiza los campos calculados de disponibilidad dentro del modelo ORM.
 
-    Nota: esta función muta el objeto en memoria. Para evitar race conditions,
-    la verificación final de cupo debe hacerse en el CRUD con una transacción.
+    Nota: esta función muta el objeto en memoria. La disponibilidad es una métrica
+    de referencia/reporting; la integridad transaccional de la reserva se mantiene
+    en el CRUD sin convertir la capacidad de referencia en un techo de admisión.
     """
     session.available_spots = calculate_availability(session)  # type: ignore[attr-defined]
     return session
@@ -171,10 +158,6 @@ def validate_booking_creation(session: "ClassSession", membership: "Membership |
     """Valida si una reserva puede ser creada en una sesión."""
     validate_session_active(session)
     validate_session_future(session)
-
-    if session.available_spots <= 0:
-        msg_0 = "No hay lugares disponibles para esta sesión."
-        raise BusinessValidationError(msg_0)
 
     if membership is None or membership.status != MembershipStatus.active: # pyright: ignore[reportGeneralTypeIssues]
         msg_1 = "Necesitas una membresía activa para reservar."
