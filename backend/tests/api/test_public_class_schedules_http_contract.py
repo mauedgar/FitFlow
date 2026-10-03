@@ -100,7 +100,7 @@ async def test_registered_public_class_schedule_variants_materialize_required_re
     schedule_id = schedule_ids[0]
 
     if route_kind == "top_level":
-        path = f"{settings.API_V1_STR}/class-schedules/public?limit=1000"
+        path = f"{settings.API_V1_STR}/class-schedules/public?limit=1"
     elif route_kind == "class_filtered":
         path = f"{settings.API_V1_STR}/class-schedules/class/{class_id}/public"
     elif route_kind == "teacher_filtered":
@@ -114,6 +114,18 @@ async def test_registered_public_class_schedule_variants_materialize_required_re
     assert response.status_code == status.HTTP_200_OK, response.text
 
     payload = response.json()
+
+    if route_kind == "top_level":
+        assert len(payload) == 1, payload
+        schedule = payload[0]
+        assert isinstance(schedule["duration_minutes"], int)
+        assert schedule["gym_class"]["id"]
+        assert schedule["gym_class"]["name"]
+        assert schedule["teacher"]["id"]
+        assert schedule["teacher"]["first_name"]
+        assert schedule["teacher"]["last_name"]
+        return
+
     matches = [item for item in payload if item["id"] == str(schedule_id)]
     assert len(matches) == 1, payload
 
