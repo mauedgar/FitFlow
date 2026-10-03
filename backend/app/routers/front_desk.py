@@ -12,6 +12,7 @@ from app.schemas.class_schedule import ClassSchedulePublic
 from app.schemas.front_desk import (
     FrontDeskBookingView,
     FrontDeskClassView,
+    FrontDeskClientLookupView,
     FrontDeskDayView,
     FrontDeskSessionView,
     SessionCapacity,
@@ -57,6 +58,19 @@ def _raise_domain_error(exc: Exception) -> NoReturn:
     if isinstance(exc, BusinessValidationError):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     raise exc
+
+
+@router.get("/clients/by-document", response_model=FrontDeskClientLookupView)
+async def get_client_by_document(
+    document_number: str,
+    db: Database,
+    _: FrontDeskClassesUser,
+) -> FrontDeskClientLookupView:
+    """Resolve exactamente un Client por document_number para Front Desk."""
+    try:
+        return await front_desk_service.get_client_by_document(db, document_number)
+    except (NotFoundError, BusinessValidationError) as exc:
+        _raise_domain_error(exc)
 
 
 @router.get("/sessions/today", response_model=FrontDeskDayView)

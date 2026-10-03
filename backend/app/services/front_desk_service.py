@@ -13,11 +13,13 @@ from sqlalchemy.orm.interfaces import ORMOption
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.core.timezone import LOCAL_TZ
 from app.crud.crud_class_schedule import class_schedule
+from app.crud.crud_client import client as client_crud
 from app.crud.crud_gym_class import gym_class
 from app.db.models import Booking, ClassSchedule, ClassSession, Client
 from app.schemas.front_desk import (
     FrontDeskBookingView,
     FrontDeskClassView,
+    FrontDeskClientLookupView,
     FrontDeskDayView,
     FrontDeskSessionView,
     SessionCapacity,
@@ -49,6 +51,37 @@ async def _get_session(db: AsyncSession, session_id: UUID) -> ClassSession:
         msg = "ClassSession no encontrada."
         raise NotFoundError(msg)
     return session
+
+
+async def get_client_by_document(
+    db: AsyncSession,
+    document_number: str,
+) -> FrontDeskClientLookupView:
+    """Resolve exactamente un Client usando document_number normalizado."""
+    normalized = document_number.strip()
+    if not normalized:
+        msg = "El número de documento es obligatorio."
+        raise BusinessValidationError(msg)
+
+    client = await client_crud.get_by_document_number(
+        db,
+        document_number=normalized,
+    )
+    if client is None:
+        msg_0 = "Cliente no encontrado."
+        raise NotFoundError(msg_0)
+
+    stored_document_number = client.document_number
+    if stored_document_number is None:
+        msg_1 = "Cliente no encontrado."
+        raise NotFoundError(msg_1)
+
+    return FrontDeskClientLookupView(
+        id=client.id,
+        document_number=stored_document_number,
+        full_name=f"{client.first_name} {client.last_name}",
+        email=client.user.email,
+    )
 
 
 async def get_sessions_today(

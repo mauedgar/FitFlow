@@ -19,6 +19,21 @@ from app.core.enums import (
 )
 
 # --------------------------------------------------------------------------- #
+# CLIENT LOOKUP
+# --------------------------------------------------------------------------- #
+
+class FrontDeskClientLookupView(BaseModel):
+    """Identidad mínima de Client para operaciones de Front Desk."""
+
+    id: UUID
+    document_number: str
+    full_name: str
+    email: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --------------------------------------------------------------------------- #
 # CAPACIDAD DE SESIÓN
 # --------------------------------------------------------------------------- #
 

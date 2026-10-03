@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+
 class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
     """CRUD especializado para perfiles de cliente."""
 
@@ -47,6 +48,24 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
 
         res = await db.execute(stmt)
         return res.scalars().first()
+
+    async def get_by_document_number(
+        self,
+        db: AsyncSession,
+        *,
+        document_number: str,
+    ) -> Client | None:
+        """Resolve exactamente un Client por document_number."""
+        stmt = (
+            select(Client)
+            .where(
+                Client.document_number == document_number,
+                Client.deleted_at.is_(None),  # type: ignore[attr-defined]
+            )
+            .options(selectinload(Client.user))
+        )
+        res = await db.execute(stmt)
+        return res.scalar_one_or_none()
 
     async def get_with_relations(
         self,
