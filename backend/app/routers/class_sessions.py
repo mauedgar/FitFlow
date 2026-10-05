@@ -18,8 +18,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import require_admin, require_admin_or_front_desk
-from app.core.enums import ClassSessionStatus
+from app.core.deps import require_admin, require_admin_or_front_desk, require_current_user
+from app.core.enums import ClassSessionStatus, UserRole
 from app.core.timezone import LOCAL_TZ
 from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_class_session import class_session
@@ -28,6 +28,7 @@ from app.db.models.class_schedule import ClassSchedule
 from app.db.models.class_session import ClassSession
 from app.db.models.user import User
 from app.services.class_session_service import (
+    get_weekly_schedule_demand,
     to_class_session_response,
     update_session_availability,
 )
@@ -37,8 +38,31 @@ from app.schemas.class_session import (
     ClassSessionUpdate,
 )
 from app.schemas.front_desk import SessionCapacity
+from app.schemas.user import UserPublic
+from app.schemas.weekly_demand import WeeklyScheduleDemandView
 
 router = APIRouter(prefix="/class-sessions", tags=["class-sessions"])
+
+
+async def _require_weekly_demand_user(
+    user: Annotated[UserPublic, Depends(require_current_user)],
+) -> UserPublic:
+    """Restrict weekly demand to the accepted authenticated consumer roles."""
+    if user.role not in {UserRole.admin, UserRole.front_desk, UserRole.client}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Este recurso requiere uno de los siguientes roles: "
+                "admin, front_desk, client."
+            ),
+        )
+    return user
+
+
+WeeklyDemandUser = Annotated[
+    UserPublic,
+    Depends(_require_weekly_demand_user),
+]
 
 
 # --------------------------------------------------------------------------- #
@@ -98,6 +122,20 @@ async def read_class_sessions(  # noqa: PLR0913
     res = await db.execute(stmt)
     sessions = res.scalars().unique().all()
     return [to_class_session_response(update_session_availability(s)) for s in sessions]
+
+
+# --------------------------------------------------------------------------- #
+# Demanda semanal esperada (lectura autenticada)
+# --------------------------------------------------------------------------- #
+@router.get("/weekly-demand", response_model=WeeklyScheduleDemandView)
+async def read_weekly_schedule_demand(
+    *,
+    week_start: date,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: WeeklyDemandUser,
+) -> WeeklyScheduleDemandView:
+    """Return expected demand for one seven-day local calendar window."""
+    return await get_weekly_schedule_demand(db, week_start=week_start)
 
 
 # --------------------------------------------------------------------------- #

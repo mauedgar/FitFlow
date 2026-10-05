@@ -11,18 +11,23 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
+from datetime import date, datetime, time, timedelta, timezone
 
-from app.core.enums import ClassSessionStatus
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.enums import BookingStatus, ClassSessionStatus
+from app.core.timezone import LOCAL_TZ
+from app.db.models import ClassSchedule, ClassSession
 from app.schemas.class_session import (
     ClassSessionInResponse,
     ClassSessionWithRelations,
 )
-
-if TYPE_CHECKING:
-    from app.db.models import ClassSchedule, ClassSession
-
+from app.schemas.weekly_demand import (
+    WeeklyScheduleDemandItem,
+    WeeklyScheduleDemandView,
+)
 
 # --------------------------------------------------------------------------- #
 # 1. Transformación automática: ClassSession → ClassSessionInResponse
@@ -38,6 +43,81 @@ def to_class_session_response(session: ClassSession) -> ClassSessionInResponse:
         status=session.status, # pyright: ignore[reportArgumentType]
         current_bookings_count=session.current_bookings_count,  # type: ignore[attr-defined]
         available_spots=calculate_availability(session),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 2. Demanda semanal esperada
+# --------------------------------------------------------------------------- #
+
+async def get_weekly_schedule_demand(
+    db: AsyncSession,
+    *,
+    week_start: date,
+) -> WeeklyScheduleDemandView:
+    """Return factual Booking demand for active/future sessions in one local week."""
+    local_start = datetime.combine(week_start, time.min, tzinfo=LOCAL_TZ)
+    local_end = local_start + timedelta(days=7)
+    starts_at = local_start.astimezone(timezone.utc)
+    ends_at = local_end.astimezone(timezone.utc)
+    now = datetime.now(tz=timezone.utc)
+
+    stmt = (
+        select(ClassSession)
+        .where(
+            ClassSession.active.is_(True),
+            ClassSession.deleted_at.is_(None),
+            ClassSession.status.in_(
+                [ClassSessionStatus.scheduled, ClassSessionStatus.open]
+            ),
+            ClassSession.starts_at >= starts_at,
+            ClassSession.starts_at < ends_at,
+            ClassSession.ends_at > now,
+        )
+        .options(
+            selectinload(ClassSession.class_schedule).selectinload(
+                ClassSchedule.gym_class
+            ),
+            selectinload(ClassSession.bookings),
+        )
+        .order_by(ClassSession.starts_at, ClassSession.id)
+    )
+    sessions = (await db.execute(stmt)).scalars().unique().all()
+
+    items: list[WeeklyScheduleDemandItem] = []
+    for session in sessions:
+        active_booking_count = sum(
+            booking.status != BookingStatus.cancelled
+            for booking in session.bookings
+        )
+        reference_capacity = session.capacity_snapshot
+        booking_occupancy_ratio = (
+            active_booking_count / reference_capacity
+            if reference_capacity > 0
+            else None
+        )
+        activity = session.class_schedule.gym_class
+
+        items.append(
+            WeeklyScheduleDemandItem(
+                session_id=session.id,
+                class_schedule_id=session.class_schedule_id,
+                activity_id=activity.id,
+                activity_name=activity.name,
+                activity_type=activity.activity_type,
+                starts_at=session.starts_at,
+                ends_at=session.ends_at,
+                status=session.status,
+                active_booking_count=active_booking_count,
+                reference_capacity=reference_capacity,
+                booking_occupancy_ratio=booking_occupancy_ratio,
+            )
+        )
+
+    return WeeklyScheduleDemandView(
+        week_start=week_start,
+        week_end_exclusive=week_start + timedelta(days=7),
+        items=items,
     )
 
 
