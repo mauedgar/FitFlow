@@ -15,7 +15,7 @@ class WeeklyScheduleDemandItem(BaseModel):
 
     session_id: UUID
     class_schedule_id: UUID
-    activity_id: UUID
+    gym_class_id: UUID
     activity_name: str
     activity_type: ActivityType
     starts_at: datetime

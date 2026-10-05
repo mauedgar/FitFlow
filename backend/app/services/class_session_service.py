@@ -102,7 +102,7 @@ async def get_weekly_schedule_demand(
             WeeklyScheduleDemandItem(
                 session_id=session.id,
                 class_schedule_id=session.class_schedule_id,
-                activity_id=activity.id,
+                gym_class_id=activity.id,
                 activity_name=activity.name,
                 activity_type=activity.activity_type,
                 starts_at=session.starts_at,

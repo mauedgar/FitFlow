@@ -319,7 +319,7 @@ async def test_weekly_demand_reports_factual_unclamped_booking_demand(
     assert target["active_booking_count"] == 2
     assert target["reference_capacity"] == 1
     assert target["booking_occupancy_ratio"] == 2.0
-    assert target["activity_id"]
+    assert target["gym_class_id"]
     assert target["activity_name"]
     assert target["activity_type"] == ActivityType.group_class.value
 
