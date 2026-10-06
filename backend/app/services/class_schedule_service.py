@@ -20,7 +20,7 @@ from dateutil.rrule import rrulestr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.enums import AllowedPlan, ClassSessionStatus, MembershipPlan
+from app.core.enums import ActivityType, AllowedPlan, ClassSessionStatus, MembershipPlan
 from app.core.timezone import LOCAL_TZ
 from app.crud.crud_class_schedule import (
     class_schedule as crud_class_schedule,
@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 
     from app.db.models.class_schedule import ClassSchedule
     from app.db.models.class_session import ClassSession
+    from app.db.models.gym_class import GymClass
     from app.schemas.user import UserPublic
 
 # ruff: noqa: UP037
@@ -146,12 +147,29 @@ def validate_schedule_active(schedule: "ClassSchedule") -> None:
         raise svc_errors.BusinessValidationError(msg)
 
 
+def validate_teacher_assignment(
+    *,
+    gym_class: "GymClass",
+    teacher_id: UUID | None,
+) -> None:
+    """Require a Teacher for every activity except explicitly open gym."""
+    if gym_class.activity_type is ActivityType.open_gym:
+        return
+    if teacher_id is None:
+        msg = "Las actividades dirigidas requieren profesor asignado."
+        raise svc_errors.BusinessValidationError(msg)
+
+
 def validate_schedule_integrity(schedule: "ClassSchedule") -> None:
-    """Valida integridad mínima del schedule (clase, profesor, capacity)."""
+    """Valida integridad mínima del schedule según su tipo de actividad."""
     if schedule.gym_class is None:
         msg = "El horario no tiene clase asignada."
         raise svc_errors.BusinessValidationError(msg)
-    if schedule.teacher is None:
+    validate_teacher_assignment(
+        gym_class=schedule.gym_class,
+        teacher_id=schedule.teacher_id,
+    )
+    if schedule.teacher_id is not None and schedule.teacher is None:
         msg = "El horario no tiene profesor asignado."
         raise svc_errors.BusinessValidationError(msg)
     if schedule.capacity is None or int(schedule.capacity) < 1: # pyright: ignore[reportArgumentType]
@@ -374,18 +392,17 @@ async def generate_sessions_for_schedule(
 
         ends_at = starts_at + timedelta(minutes=schedule.duration_minutes)
 
-        has_conflict = await crud_class_session.teacher_has_conflict(
-            db,
-            teacher_id=schedule.teacher_id,
-            excluded_schedule_id=schedule.id,
-            starts_at=starts_at,
-            ends_at=ends_at,
-        )
-        if has_conflict:
-            msg = "Solapamiento detectado para el profesor."
-            raise svc_errors.BusinessValidationError(
-                msg,
+        if schedule.teacher_id is not None:
+            has_conflict = await crud_class_session.teacher_has_conflict(
+                db,
+                teacher_id=schedule.teacher_id,
+                excluded_schedule_id=schedule.id,
+                starts_at=starts_at,
+                ends_at=ends_at,
             )
+            if has_conflict:
+                msg = "Solapamiento detectado para el profesor."
+                raise svc_errors.BusinessValidationError(msg)
 
         sessions_data.append(
             {

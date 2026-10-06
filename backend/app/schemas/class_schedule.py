@@ -70,7 +70,7 @@ class ClassScheduleCreate(ClassScheduleBase):
     """Esquema para crear un horario recurrente."""
 
     gym_class_id: UUID
-    teacher_id: UUID
+    teacher_id: UUID | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -115,9 +115,9 @@ class ClassScheduleWithRelations(ClassScheduleBase):
 
     id: UUID
     gym_class_id: UUID
-    teacher_id: UUID
+    teacher_id: UUID | None
     gym_class: GymClassInClassScheduleResponse
-    teacher: TeacherInClassScheduleResponse
+    teacher: TeacherInClassScheduleResponse | None
 
     future_sessions: list[ClassSessionInResponse] = Field(default_factory=list)
 
@@ -142,7 +142,7 @@ class ClassScheduleInClassSessionResponse(BaseModel):
     """Versión compacta del horario dentro de una sesión."""
 
     gym_class: GymClassPublic
-    teacher: TeacherInScheduleResponseMini
+    teacher: TeacherInScheduleResponseMini | None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -100,7 +100,7 @@ async def test_registered_public_class_schedule_variants_materialize_required_re
     schedule_id = schedule_ids[0]
 
     if route_kind == "top_level":
-        path = f"{settings.API_V1_STR}/class-schedules/public?limit=1"
+        path = f"{settings.API_V1_STR}/class-schedules/public?limit=1000"
     elif route_kind == "class_filtered":
         path = f"{settings.API_V1_STR}/class-schedules/class/{class_id}/public"
     elif route_kind == "teacher_filtered":
@@ -114,17 +114,6 @@ async def test_registered_public_class_schedule_variants_materialize_required_re
     assert response.status_code == status.HTTP_200_OK, response.text
 
     payload = response.json()
-
-    if route_kind == "top_level":
-        assert len(payload) == 1, payload
-        schedule = payload[0]
-        assert isinstance(schedule["duration_minutes"], int)
-        assert schedule["gym_class"]["id"]
-        assert schedule["gym_class"]["name"]
-        assert schedule["teacher"]["id"]
-        assert schedule["teacher"]["first_name"]
-        assert schedule["teacher"]["last_name"]
-        return
 
     matches = [item for item in payload if item["id"] == str(schedule_id)]
     assert len(matches) == 1, payload
@@ -173,6 +162,7 @@ async def test_public_loader_is_explicit_without_class_sessions_and_has_bounded_
                 assert "class_sessions" in state.unloaded
 
                 assert schedule.gym_class.id == class_id
+                assert schedule.teacher is not None
                 assert schedule.teacher.id is not None
                 with pytest.raises(InvalidRequestError):
                     _ = schedule.class_sessions

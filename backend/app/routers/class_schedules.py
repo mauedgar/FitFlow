@@ -40,6 +40,7 @@ from app.services.class_schedule_service import (
     generate_sessions_for_schedule,
     get_schedule_next_session,
     to_class_schedule_public,
+    validate_teacher_assignment,
 )
 
 #ruff :noqa: TRY301,B904
@@ -68,9 +69,14 @@ async def create_class_schedule(
         if not gym_class:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"GymClass {schedule_in.gym_class_id} no existe.")
 
-        teacher = await teacher_crud.get(db=db, obj_id=schedule_in.teacher_id)
-        if not teacher:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Teacher {schedule_in.teacher_id} no existe.")
+        validate_teacher_assignment(
+            gym_class=gym_class,
+            teacher_id=schedule_in.teacher_id,
+        )
+        if schedule_in.teacher_id is not None:
+            teacher = await teacher_crud.get(db=db, obj_id=schedule_in.teacher_id)
+            if not teacher:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Teacher {schedule_in.teacher_id} no existe.")
 
         schedule = await class_schedule_crud.create(db=db, obj_in=schedule_in, created_by=getattr(current_user, "id", None))
     except svc_errors.BusinessValidationError as exc:
@@ -201,6 +207,28 @@ async def update_class_schedule(
         if not schedule:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Horario no encontrado.")
 
+        effective_gym_class_id = schedule_in.gym_class_id or schedule.gym_class_id
+        gym_class = await gym_class_crud.get(db=db, obj_id=effective_gym_class_id)
+        if not gym_class:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"GymClass {effective_gym_class_id} no existe.",
+            )
+
+        effective_teacher_id = (
+            schedule_in.teacher_id
+            if "teacher_id" in schedule_in.model_fields_set
+            else schedule.teacher_id
+        )
+        validate_teacher_assignment(
+            gym_class=gym_class,
+            teacher_id=effective_teacher_id,
+        )
+        if effective_teacher_id is not None:
+            teacher = await teacher_crud.get(db=db, obj_id=effective_teacher_id)
+            if not teacher:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Teacher {effective_teacher_id} no existe.")
+
         updated = await class_schedule_crud.update(
             db=db,
             db_obj=schedule,
@@ -229,7 +257,17 @@ async def update_class_schedule(
             logger.exception("Error regenerando sesiones para ClassSchedule %s", schedule_id)
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error regenerando sesiones") from err
 
-    return ClassScheduleWithRelations.model_validate(updated)
+    updated_with_relations = await class_schedule_crud.get(
+        db=db,
+        obj_id=updated.id,
+        include_relations=True,
+    )
+    if updated_with_relations is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Schedule actualizado no disponible.",
+        )
+    return ClassScheduleWithRelations.model_validate(updated_with_relations)
 
 
 # --------------------------------------------------------------------------- #

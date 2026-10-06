@@ -59,10 +59,10 @@ class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
         ForeignKey("gym_classes.id", ondelete="CASCADE"),
         nullable=False,
     )
-    teacher_id: Mapped[uuid.UUID] = mapped_column(
+    teacher_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("teachers.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
@@ -104,7 +104,7 @@ class ClassSchedule(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
         lazy="raise",
     )
 
-    teacher: Mapped["Teacher"] = relationship(  # noqa: UP037
+    teacher: Mapped["Teacher | None"] = relationship(  # noqa: UP037
         "Teacher",
         back_populates="class_schedules",
         lazy="raise",

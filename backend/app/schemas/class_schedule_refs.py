@@ -14,7 +14,7 @@ class ClassScheduleInResponse(BaseModel):
     """Horario compacto anidado dentro de otra respuesta."""
 
     id: UUID
-    teacher: TeacherInClassScheduleResponse
+    teacher: TeacherInClassScheduleResponse | None
     rrule: str
     start_time: time
     duration_minutes: int
@@ -34,7 +34,7 @@ class ClassSchedulePublic(BaseModel):
     duration_minutes: int
     capacity: int
     gym_class: GymClassPublic
-    teacher: TeacherInClassScheduleResponse
+    teacher: TeacherInClassScheduleResponse | None
     allowed_plan: AllowedPlan | None = None
 
     model_config = ConfigDict(from_attributes=True)

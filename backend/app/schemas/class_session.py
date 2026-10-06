@@ -163,7 +163,7 @@ class ClassSessionWithRelations(ClassSessionBase):
 
     class_schedule: ClassSchedulePublic
     gym_class: GymClassPublic
-    teacher: TeacherInClassScheduleResponse
+    teacher: TeacherInClassScheduleResponse | None
 
     bookings: list[BookingPublic] = Field(default_factory=list)
 

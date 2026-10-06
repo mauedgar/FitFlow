@@ -58,14 +58,14 @@ class FrontDeskSessionView(BaseModel):
     id: UUID
     class_schedule_id: UUID
     gym_class_id: UUID
-    teacher_id: UUID
+    teacher_id: UUID | None
 
     starts_at: datetime
     ends_at: datetime
     status: ClassSessionStatus
 
     gym_class_name: str
-    teacher_full_name: str
+    teacher_full_name: str | None
 
     capacity_snapshot: int
     current_bookings_count: int
