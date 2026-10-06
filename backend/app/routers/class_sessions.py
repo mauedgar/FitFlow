@@ -18,28 +18,35 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import require_admin, require_admin_or_front_desk, require_current_user
+from app.core.deps import (
+    require_admin,
+    require_admin_or_front_desk,
+    require_current_user,
+)
 from app.core.enums import ClassSessionStatus, UserRole
 from app.core.timezone import LOCAL_TZ
 from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_class_session import class_session
-from app.db.session import get_async_session
+from app.crud.crud_client import client as client_crud
 from app.db.models.class_schedule import ClassSchedule
 from app.db.models.class_session import ClassSession
 from app.db.models.user import User
-from app.services.class_session_service import (
-    get_weekly_schedule_demand,
-    to_class_session_response,
-    update_session_availability,
-)
+from app.db.session import get_async_session
 from app.schemas.class_session import (
     ClassSessionCreate,
     ClassSessionInResponse,
     ClassSessionUpdate,
 )
+from app.schemas.client_weekly_agenda import ClientWeeklyAgendaView
 from app.schemas.front_desk import SessionCapacity
 from app.schemas.user import UserPublic
 from app.schemas.weekly_demand import WeeklyScheduleDemandView
+from app.services.class_session_service import (
+    get_client_weekly_agenda,
+    get_weekly_schedule_demand,
+    to_class_session_response,
+    update_session_availability,
+)
 
 router = APIRouter(prefix="/class-sessions", tags=["class-sessions"])
 
@@ -62,6 +69,24 @@ async def _require_weekly_demand_user(
 WeeklyDemandUser = Annotated[
     UserPublic,
     Depends(_require_weekly_demand_user),
+]
+
+
+async def _require_client_weekly_agenda_user(
+    user: Annotated[UserPublic, Depends(require_current_user)],
+) -> UserPublic:
+    """Restrict the client weekly agenda to the authenticated Client role."""
+    if user.role != UserRole.client:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Este recurso requiere el rol client.",
+        )
+    return user
+
+
+ClientWeeklyAgendaUser = Annotated[
+    UserPublic,
+    Depends(_require_client_weekly_agenda_user),
 ]
 
 
@@ -136,6 +161,36 @@ async def read_weekly_schedule_demand(
 ) -> WeeklyScheduleDemandView:
     """Return expected demand for one seven-day local calendar window."""
     return await get_weekly_schedule_demand(db, week_start=week_start)
+
+
+# --------------------------------------------------------------------------- #
+# Agenda semanal del cliente autenticado
+# --------------------------------------------------------------------------- #
+@router.get("/weekly-agenda", response_model=ClientWeeklyAgendaView)
+async def read_client_weekly_agenda(
+    *,
+    week_start: date,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: ClientWeeklyAgendaUser,
+) -> ClientWeeklyAgendaView:
+    """Return the authenticated Client's eligible weekly agenda."""
+    client = await client_crud.get_by_user_id(
+        db=db,
+        user_id=current_user.id,  # pyright: ignore[reportArgumentType]
+        include_relations=True,
+    )
+    if client is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente no encontrado.",
+        )
+
+    return await get_client_weekly_agenda(
+        db,
+        client_id=client.id,  # pyright: ignore[reportArgumentType]
+        membership=client.membership,
+        week_start=week_start,
+    )
 
 
 # --------------------------------------------------------------------------- #

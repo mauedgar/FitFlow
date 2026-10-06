@@ -12,22 +12,30 @@ Incluye:
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.enums import BookingStatus, ClassSessionStatus
+from app.core.enums import BookingStatus, ClassSessionStatus, MembershipStatus
 from app.core.timezone import LOCAL_TZ
-from app.db.models import ClassSchedule, ClassSession
+from app.db.models import ClassSchedule, ClassSession, Membership
 from app.schemas.class_session import (
     ClassSessionInResponse,
     ClassSessionWithRelations,
+)
+from app.schemas.client_weekly_agenda import (
+    ClientWeeklyAgendaBookingState,
+    ClientWeeklyAgendaItem,
+    ClientWeeklyAgendaView,
 )
 from app.schemas.weekly_demand import (
     WeeklyScheduleDemandItem,
     WeeklyScheduleDemandView,
 )
+from app.services.class_schedule_service import validate_membership_access
+from app.services.errors import BusinessValidationError
 
 # --------------------------------------------------------------------------- #
 # 1. Transformación automática: ClassSession → ClassSessionInResponse
@@ -50,12 +58,12 @@ def to_class_session_response(session: ClassSession) -> ClassSessionInResponse:
 # 2. Demanda semanal esperada
 # --------------------------------------------------------------------------- #
 
-async def get_weekly_schedule_demand(
+async def _get_weekly_schedule_demand_sessions(
     db: AsyncSession,
     *,
     week_start: date,
-) -> WeeklyScheduleDemandView:
-    """Return factual Booking demand for active/future sessions in one local week."""
+) -> list[ClassSession]:
+    """Load the exact active/future session set used by weekly demand reads."""
     local_start = datetime.combine(week_start, time.min, tzinfo=LOCAL_TZ)
     local_end = local_start + timedelta(days=7)
     starts_at = local_start.astimezone(timezone.utc)
@@ -82,39 +90,119 @@ async def get_weekly_schedule_demand(
         )
         .order_by(ClassSession.starts_at, ClassSession.id)
     )
-    sessions = (await db.execute(stmt)).scalars().unique().all()
+    return list((await db.execute(stmt)).scalars().unique().all())
 
-    items: list[WeeklyScheduleDemandItem] = []
-    for session in sessions:
-        active_booking_count = sum(
-            booking.status != BookingStatus.cancelled
+
+def _to_weekly_schedule_demand_item(
+    session: ClassSession,
+) -> WeeklyScheduleDemandItem:
+    """Project one occurrence with the canonical A1 expected-demand semantics."""
+    active_booking_count = sum(
+        booking.status != BookingStatus.cancelled
+        for booking in session.bookings
+    )
+    reference_capacity = session.capacity_snapshot
+    booking_occupancy_ratio = (
+        active_booking_count / reference_capacity
+        if reference_capacity > 0
+        else None
+    )
+    activity = session.class_schedule.gym_class
+
+    return WeeklyScheduleDemandItem(
+        session_id=session.id,
+        class_schedule_id=session.class_schedule_id,
+        gym_class_id=activity.id,
+        activity_name=activity.name,
+        activity_type=activity.activity_type,
+        starts_at=session.starts_at,
+        ends_at=session.ends_at,
+        status=session.status,
+        active_booking_count=active_booking_count,
+        reference_capacity=reference_capacity,
+        booking_occupancy_ratio=booking_occupancy_ratio,
+    )
+
+
+async def get_weekly_schedule_demand(
+    db: AsyncSession,
+    *,
+    week_start: date,
+) -> WeeklyScheduleDemandView:
+    """Return factual Booking demand for active/future sessions in one local week."""
+    sessions = await _get_weekly_schedule_demand_sessions(db, week_start=week_start)
+    items = [_to_weekly_schedule_demand_item(session) for session in sessions]
+
+    return WeeklyScheduleDemandView(
+        week_start=week_start,
+        week_end_exclusive=week_start + timedelta(days=7),
+        items=items,
+    )
+
+
+def _membership_allows_agenda_session(
+    membership: Membership | None,
+    session: ClassSession,
+) -> bool:
+    """Return whether an active Membership/Plan permits this occurrence."""
+    if membership is None or membership.status != MembershipStatus.active:  # pyright: ignore[reportGeneralTypeIssues]
+        return False
+
+    try:
+        validate_membership_access(membership, session.class_schedule)
+    except BusinessValidationError:
+        return False
+    return True
+
+
+def _own_active_booking(
+    session: ClassSession,
+    *,
+    client_id: UUID,
+) -> ClientWeeklyAgendaBookingState | None:
+    """Project the Client's current non-cancelled Booking, if one exists."""
+    own_booking = next(
+        (
+            booking
             for booking in session.bookings
-        )
-        reference_capacity = session.capacity_snapshot
-        booking_occupancy_ratio = (
-            active_booking_count / reference_capacity
-            if reference_capacity > 0
-            else None
-        )
-        activity = session.class_schedule.gym_class
+            if booking.client_id == client_id  # pyright: ignore[reportGeneralTypeIssues]
+            and booking.status != BookingStatus.cancelled
+        ),
+        None,
+    )
+    if own_booking is None:
+        return None
+    return ClientWeeklyAgendaBookingState(
+        booking_id=own_booking.id,  # pyright: ignore[reportArgumentType]
+        status=own_booking.status,  # pyright: ignore[reportArgumentType]
+    )
 
+
+async def get_client_weekly_agenda(
+    db: AsyncSession,
+    *,
+    client_id: UUID,
+    membership: Membership | None,
+    week_start: date,
+) -> ClientWeeklyAgendaView:
+    """Compose eligible weekly offerings, own Booking state, and A1 demand."""
+    sessions = await _get_weekly_schedule_demand_sessions(db, week_start=week_start)
+
+    items: list[ClientWeeklyAgendaItem] = []
+    for session in sessions:
+        if not _membership_allows_agenda_session(membership, session):
+            continue
+
+        demand = _to_weekly_schedule_demand_item(session)
         items.append(
-            WeeklyScheduleDemandItem(
-                session_id=session.id,
-                class_schedule_id=session.class_schedule_id,
-                gym_class_id=activity.id,
-                activity_name=activity.name,
-                activity_type=activity.activity_type,
-                starts_at=session.starts_at,
-                ends_at=session.ends_at,
-                status=session.status,
-                active_booking_count=active_booking_count,
-                reference_capacity=reference_capacity,
-                booking_occupancy_ratio=booking_occupancy_ratio,
+            ClientWeeklyAgendaItem(
+                **demand.model_dump(),
+                membership_plan_eligible=True,
+                own_booking=_own_active_booking(session, client_id=client_id),
             )
         )
 
-    return WeeklyScheduleDemandView(
+    return ClientWeeklyAgendaView(
         week_start=week_start,
         week_end_exclusive=week_start + timedelta(days=7),
         items=items,
