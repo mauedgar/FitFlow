@@ -98,6 +98,10 @@ jobs:
       - name: Install backend test dependencies
         run: python -m pip install -r backend/requirements_test.txt
 
+      - name: Bootstrap fresh database schema
+        working-directory: backend
+        run: alembic upgrade head
+
       - name: Run FitFlow deterministic validation
         id: validation
         continue-on-error: true
