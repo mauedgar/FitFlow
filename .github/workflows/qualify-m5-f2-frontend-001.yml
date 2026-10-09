@@ -1,0 +1,39 @@
+name: FitFlow M5 F2 client weekly agenda candidate qualification
+on:
+  push:
+    branches:
+      - qualification/fitflow-m5-f2-frontend-001
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact immutable F2 candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 0a19dfee1b65f36a5b61e060ec7998a32b7cd815
+          persist-credentials: false
+      - name: Verify subject commit and tree
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "0a19dfee1b65f36a5b61e060ec7998a32b7cd815"
+          test "$(git rev-parse 'HEAD^{tree}')" = "320f0e0a5f6e7584833eeae80168786d76e9d6e3"
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+      - name: Frontend typecheck and build
+        working-directory: frontend
+        run: npm run build
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
