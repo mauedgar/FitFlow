@@ -103,18 +103,16 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
   /* ---------------------------------------------------- */
   /* 3.  Estado del botón                                 */
   /* ---------------------------------------------------- */
-  const isFull        = classSession.available_spots <= 0;
+  const referenceCapacityReached = classSession.available_spots <= 0;
   const isPast        = new Date(classSession.starts_at) < new Date();
   const pendingReq    = bookSessionMutation.isPending || isLoadingBookings;
 
-  const buttonDisabled = isPast || isFull || userAlreadyBooked || pendingReq || !isAuthenticated || !isClient;
+  const buttonDisabled = isPast || userAlreadyBooked || pendingReq || !isAuthenticated || !isClient;
 
   const buttonLabel = isPast
     ? 'Sesión finalizada'
     : userAlreadyBooked
     ? 'Reservado'
-    : isFull
-    ? 'Lleno'
     : 'Reservar Ahora';
 
   /* ---------------------------------------------------- */
@@ -130,11 +128,11 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
         {!isPast && (
           <Badge
             colorScheme={
-              isFull ? 'red' : classSession.available_spots <= 3 ? 'orange' : 'green'
+              referenceCapacityReached ? 'purple' : classSession.available_spots <= 3 ? 'orange' : 'green'
             }
             fontSize="sm"
           >
-            {isFull ? 'Lleno' : `${classSession.available_spots} cupos`}
+            {referenceCapacityReached ? 'Referencia alcanzada · reservas abiertas' : `${classSession.available_spots} cupos de referencia`}
           </Badge>
         )}
       </Flex>

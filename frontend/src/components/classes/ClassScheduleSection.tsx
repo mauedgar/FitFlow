@@ -34,7 +34,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { isAuthenticated, isClient, userRole } = useAuth();
+  const { isAuthenticated, isClient, userRole, userBookings, isLoadingBookings } = useAuth();
 
   /* ------------------------------------------------------------------
      2. Mutación para reservar (sin cambios)
@@ -65,15 +65,21 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   const nextSession = classSchedule?.next_upcoming_session;
 
   const isAvailable = !!nextSession; 
-  const isFull = isAvailable ? nextSession.available_spots <= 0 : true;
+  const referenceCapacityReached = isAvailable && nextSession.available_spots <= 0;
+  const userAlreadyBooked = !!nextSession && userBookings?.some(
+    (booking) =>
+      booking.status === BookingStatus.CONFIRMED &&
+      booking.starts_at === nextSession.starts_at &&
+      booking.gym_class_name === gymClassName,
+  );
 
   // Pre-calculamos las propiedades de la Badge para un render más limpio
   const getBadgeProps = () => {
     if (!isAvailable) {
       return { text: 'No disponible por ahora', colorScheme: 'gray' };
     }
-    if (isFull) {
-      return { text: 'Próxima fecha sin cupos', colorScheme: 'red' };
+    if (referenceCapacityReached) {
+      return { text: 'Referencia alcanzada · reservas abiertas', colorScheme: 'purple' };
     }
     
     const nextDate = getFormattedDate(new Date(nextSession.starts_at));
@@ -88,9 +94,9 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   const badgeProps = getBadgeProps();
 
   // Lógica de deshabilitación del botón
-  const pendingMutation = bookScheduleMutation.isPending;
-  const buttonDisabled = pendingMutation || !isAuthenticated || !isClient || !isAvailable || isFull;
-  const buttonLabel = 'Reservar'; // Texto fijo
+  const pendingMutation = bookScheduleMutation.isPending || isLoadingBookings;
+  const buttonDisabled = pendingMutation || !isAuthenticated || !isClient || !isAvailable || userAlreadyBooked;
+  const buttonLabel = userAlreadyBooked ? 'Reservado' : 'Reservar';
 
   const handleBookClick = () => {
     if (!isAuthenticated) { navigate('/login'); return; }
