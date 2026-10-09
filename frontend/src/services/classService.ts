@@ -9,7 +9,8 @@ import {
   type ClassSession,
   type Booking,
   type BookingCreatePayload,
-  type TokenResponse
+  type TokenResponse,
+  type ClientWeeklyAgendaView
 } from '../types';
 
 interface LoginPayload {
@@ -144,6 +145,14 @@ const classService = {
       console.error(`Error al obtener la sesión de clase con ID ${id}:`, error);
       throw error;
     }
+  },
+
+  // Read-only authenticated Client projection for a seven-day local calendar window.
+  async getClientWeeklyAgenda(weekStart: string): Promise<ClientWeeklyAgendaView> {
+    const response = await apiClient.get<ClientWeeklyAgendaView>('/class-sessions/weekly-agenda', {
+      params: { week_start: weekStart },
+    });
+    return response.data;
   },
 
   // --- Booking Endpoints ---

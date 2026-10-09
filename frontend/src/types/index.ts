@@ -217,3 +217,32 @@ export interface FastAPIErrorResponse {
 export interface FastAPIAuthErrorResponse {
   detail: string; // Para errores como "Email o contraseña incorrectos"
 }
+
+ 
+// Terminal backend /class-sessions/weekly-agenda Client read projection.
+export interface ClientWeeklyAgendaBookingState {
+  booking_id: string;
+  status: BookingStatus;
+}
+
+export interface ClientWeeklyAgendaItem {
+  session_id: string;
+  class_schedule_id: string;
+  gym_class_id: string;
+  activity_name: string;
+  activity_type: string;
+  starts_at: string;
+  ends_at: string;
+  status: string;
+  active_booking_count: number;
+  reference_capacity: number | null;
+  booking_occupancy_ratio: number | null;
+  membership_plan_eligible: boolean;
+  own_booking: ClientWeeklyAgendaBookingState | null;
+}
+
+export interface ClientWeeklyAgendaView {
+  week_start: string;
+  week_end_exclusive: string;
+  items: ClientWeeklyAgendaItem[];
+}
