@@ -1,0 +1,44 @@
+name: FitFlow M5 F1 frontend qualification
+on:
+  push:
+    branches:
+      - qualification/fitflow-m5-f1-frontend-001
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact F1 candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 127f02ef4c7e373a01223a305b5ece3be8e87915
+          persist-credentials: false
+
+      - name: Verify immutable candidate identity
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "127f02ef4c7e373a01223a305b5ece3be8e87915"
+          test "$(git rev-parse 'HEAD^{tree}')" = "323a647331bcbc7c8ed1865a5210d5e33d57ab4e"
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      - name: Frontend typecheck and build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
