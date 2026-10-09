@@ -1,0 +1,40 @@
+name: FitFlow M5 F1 repaired frontend qualification
+
+on:
+  push:
+    branches:
+      - qualification/fitflow-m5-f1-repair-001
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout immutable repaired subject
+        uses: actions/checkout@v4
+        with:
+          ref: de22f483261363786d9fa7b9671c2820629c92fd
+          persist-credentials: false
+      - name: Verify exact commit and tree
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "de22f483261363786d9fa7b9671c2820629c92fd"
+          test "$(git rev-parse 'HEAD^{tree}')" = "5fc21b9b26a6d7723c1ac32768895a6fb70c2c64"
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+      - name: Typecheck and frontend build
+        working-directory: frontend
+        run: npm run build
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
