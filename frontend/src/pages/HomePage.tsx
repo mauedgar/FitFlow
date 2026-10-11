@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/useAuth';
 import classService from '../services/classService';
+import { currentBusinessWeek } from '../utils/businessTimezone';
 
 import WeeklyCalendar from '../components/dashboard/WeeklyCalendar';
 import NotificationPanel from '../components/dashboard/NotificationPanel';
@@ -15,26 +16,11 @@ import PaymentReminder from '../components/dashboard/PaymentReminder';
 import DocumentReminder from '../components/dashboard/DocumentReminder';
 import UpcomingEvents from '../components/dashboard/UpcomingEvents';
 
-// Use local calendar dates rather than UTC ISO slicing for the backend's local week.
-const localDateKey = (date: Date): string =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-
-const currentLocalWeek = (): Date[] => {
-  const today = new Date();
-  const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  return Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(monday);
-    day.setDate(monday.getDate() + index);
-    return day;
-  });
-};
-
 const HomePage = () => {
   const navigate = useNavigate();
   const { currentUser, isAuthenticated, isClient } = useAuth();
-  const weekDays = React.useMemo(currentLocalWeek, []);
-  const weekStart = localDateKey(weekDays[0]);
+  const weekDays = React.useMemo(() => currentBusinessWeek(), []);
+  const weekStart = weekDays[0];
 
   const agendaQuery = useQuery({
     queryKey: ['clientWeeklyAgenda', weekStart, currentUser?.email],

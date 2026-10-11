@@ -35,7 +35,7 @@ The remaining non-secret inputs and defaults are documented in
 those same values into the Compose process environment, and then records a
 SHA-256 digest of them: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
 `SECRET_KEY`, `BACKEND_CORS_ORIGINS`, `LOG_LEVEL`, `STAGING_BACKEND_PORT`,
-`STAGING_FRONTEND_PORT`, and `VITE_API_BASE_URL`. The operator also forces
+`STAGING_FRONTEND_PORT`, and `VITE_API_BASE_URL`, plus `FITFLOW_TIMEZONE` (default `America/Argentina/Buenos_Aires`). The backend receives `FITFLOW_TIMEZONE`; the frontend Docker build arg `VITE_FITFLOW_TIMEZONE` is sourced from that same value. The release script rejects a conflicting `VITE_FITFLOW_TIMEZONE` process override and invalid timezone identifiers. The frontend reads this value only at build time, so a timezone change requires a new image build. The operator also forces
 `COMPOSE_DISABLE_ENV_FILE=1` before invoking Compose, so Compose does not load the
 default project `.env`; the values represented by `configuration_sha256` are the
 explicit process-environment inputs consumed for interpolation. `-EnvFile` is

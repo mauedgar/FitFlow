@@ -142,7 +142,19 @@ $configurationValues = [ordered]@{
     STAGING_BACKEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_BACKEND_PORT" -DefaultValue "18000")
     STAGING_FRONTEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_FRONTEND_PORT" -DefaultValue "18080")
     VITE_API_BASE_URL = (Get-EnvironmentValueOrDefault -Name "VITE_API_BASE_URL" -DefaultValue "/api/v1")
+    FITFLOW_TIMEZONE = (Get-EnvironmentValueOrDefault -Name "FITFLOW_TIMEZONE" -DefaultValue "America/Argentina/Buenos_Aires")
 }
+# A Vite build-time override must never contradict the backend's Product timezone.
+$requestedFrontendTimezone = [Environment]::GetEnvironmentVariable("VITE_FITFLOW_TIMEZONE", "Process")
+if (-not [string]::IsNullOrEmpty($requestedFrontendTimezone) -and $requestedFrontendTimezone -cne $configurationValues.FITFLOW_TIMEZONE) {
+    throw "VITE_FITFLOW_TIMEZONE must exactly equal FITFLOW_TIMEZONE."
+}
+try {
+    [void][TimeZoneInfo]::FindSystemTimeZoneById([string]$configurationValues.FITFLOW_TIMEZONE)
+} catch {
+    throw "FITFLOW_TIMEZONE must be a valid IANA timezone: $($configurationValues.FITFLOW_TIMEZONE)"
+}
+[Environment]::SetEnvironmentVariable("VITE_FITFLOW_TIMEZONE", $configurationValues.FITFLOW_TIMEZONE, "Process")
 foreach ($entry in $configurationValues.GetEnumerator()) {
     [Environment]::SetEnvironmentVariable([string]$entry.Key, [string]$entry.Value, "Process")
 }

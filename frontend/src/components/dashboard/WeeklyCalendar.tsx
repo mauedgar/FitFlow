@@ -6,19 +6,12 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BookingStatus, type ClientWeeklyAgendaItem } from '../../types';
 import classService from '../../services/classService';
+import { businessDateKey, businessDayLabel, businessTimeLabel } from '../../utils/businessTimezone';
 
 interface WeeklyCalendarProps {
-  weekDays: Date[];
+  weekDays: string[];
   items: ClientWeeklyAgendaItem[];
 }
-
-const isSameLocalDay = (left: Date, right: Date): boolean =>
-  left.getFullYear() === right.getFullYear() &&
-  left.getMonth() === right.getMonth() &&
-  left.getDate() === right.getDate();
-
-const timeLabel = (iso: string): string =>
-  new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ weekDays, items }) => {
   const toast = useToast();
@@ -60,12 +53,12 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ weekDays, items }) => {
   return (
     <Grid templateColumns={{ base: '1fr', md: 'repeat(7, minmax(0, 1fr))' }} gap={2}>
       {weekDays.map((day) => {
-        const dayItems = items.filter((item) => isSameLocalDay(new Date(item.starts_at), day));
+        const dayItems = items.filter((item) => businessDateKey(new Date(item.starts_at)) === day);
         return (
-          <GridItem key={day.toDateString()} minW={0}>
+          <GridItem key={day} minW={0}>
             <Box borderWidth="1px" borderRadius="md" p={2} minH="150px">
               <Heading size="xs" mb={3}>
-                {day.toLocaleDateString([], { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                {businessDayLabel(day)}
               </Heading>
               {dayItems.length === 0 ? (
                 <Text fontSize="xs" color="gray.500">Sin ofertas elegibles</Text>
@@ -76,13 +69,14 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ weekDays, items }) => {
                     const hasBooking = ownBooking !== null;
                     const canCancel = ownBooking?.status === BookingStatus.CONFIRMED;
                     const canReserve = !hasBooking && item.membership_plan_eligible &&
-                      item.status === 'scheduled' && new Date(item.starts_at) > new Date();
+                      (item.status === 'scheduled' || item.status === 'open') &&
+                      new Date(item.starts_at) > new Date();
                     const capacityReached = item.reference_capacity !== null &&
                       item.active_booking_count >= item.reference_capacity;
                     return (
                       <Box key={item.session_id} borderWidth="1px" borderRadius="md" p={2} bg={hasBooking ? 'blue.50' : 'gray.50'}>
                         <Text fontSize="xs" fontWeight="bold">{item.activity_name}</Text>
-                        <Text fontSize="xs">{timeLabel(item.starts_at)} – {timeLabel(item.ends_at)}</Text>
+                        <Text fontSize="xs">{businessTimeLabel(item.starts_at)} – {businessTimeLabel(item.ends_at)}</Text>
                         <Text fontSize="xs" color="gray.600">
                           Demanda: {item.active_booking_count}
                           {item.reference_capacity !== null ? ` / ref. ${item.reference_capacity}` : ''}
