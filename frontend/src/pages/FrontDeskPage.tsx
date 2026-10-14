@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Badge,
   Box,
@@ -20,6 +20,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookingStatus } from '../types';
 import { businessTimeLabel } from '../utils/businessTimezone';
+import { isCurrentLookupIntent, nextLookupIntent, type LookupIntent } from '../utils/frontDeskLookupIntent';
 import frontDeskService, {
   type FrontDeskBooking,
   type FrontDeskClientLookup,
@@ -28,6 +29,9 @@ import frontDeskService, {
 
 const FrontDeskPage: React.FC = () => {
   const [documentNumber, setDocumentNumber] = useState('');
+  // Revision increments at each edit and at each submitted request.
+  // Ref updates synchronously so a late response cannot reidentify an old client.
+  const lookupIntentRef = useRef<LookupIntent>({ revision: 0, document: '' });
   const [client, setClient] = useState<FrontDeskClientLookup | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [preparedBooking, setPreparedBooking] = useState<FrontDeskBooking | null>(null);
@@ -36,13 +40,15 @@ const FrontDeskPage: React.FC = () => {
 
   // A document lookup is the entry point; session selection cannot identify a client.
   const lookupMutation = useMutation({
-    mutationFn: (document: string) => frontDeskService.getClientByDocument(document),
-    onSuccess: (resolved) => {
+    mutationFn: (intent: LookupIntent) => frontDeskService.getClientByDocument(intent.document),
+    onSuccess: (resolved, intent) => {
+      if (!isCurrentLookupIntent(lookupIntentRef.current, intent)) return;
       setClient(resolved);
       setSelectedSessionId(null);
       setPreparedBooking(null);
     },
-    onError: () => {
+    onError: (_error, intent) => {
+      if (!isCurrentLookupIntent(lookupIntentRef.current, intent)) return;
       setClient(null);
       setSelectedSessionId(null);
       setPreparedBooking(null);
@@ -158,7 +164,9 @@ const FrontDeskPage: React.FC = () => {
             setClient(null);
             setSelectedSessionId(null);
             setPreparedBooking(null);
-            lookupMutation.mutate(documentNumber.trim());
+            const intent = nextLookupIntent(lookupIntentRef.current, documentNumber);
+            lookupIntentRef.current = intent;
+            lookupMutation.mutate(intent);
           }
         }}>
           <VStack align="stretch" spacing={3}>
@@ -167,6 +175,7 @@ const FrontDeskPage: React.FC = () => {
               <Input
                 value={documentNumber}
                 onChange={(event) => {
+                  lookupIntentRef.current = nextLookupIntent(lookupIntentRef.current, event.target.value);
                   setDocumentNumber(event.target.value);
                   setClient(null);
                   setSelectedSessionId(null);
