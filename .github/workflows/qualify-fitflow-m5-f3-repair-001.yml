@@ -1,0 +1,62 @@
+name: FitFlow F3 repaired candidate qualification
+on:
+  push:
+    branches:
+      - qualification/fitflow-m5-f3-repair-001
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact F3 repaired subject
+        uses: actions/checkout@v4
+        with:
+          ref: 3f819a2a3590de72db68ca4e1c4a268bc2323671
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact candidate and full range
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "3f819a2a3590de72db68ca4e1c4a268bc2323671"
+          test "$(git rev-parse HEAD^{tree})" = "c6ff16a42aed14034f37f0e9ba12a5745879d44a"
+          test "$(git rev-parse HEAD^)" = "7f78255fff5ad38db93e5a95d946ae4aa34492c6"
+          test "$(git rev-parse HEAD^^)" = "6f42315b2a26e435ddfe18558c02b36aae5dff23"
+          test "$(git diff --name-only 6f42315b2a26e435ddfe18558c02b36aae5dff23 HEAD | sort | tr '\n' ' ')" = "frontend/src/pages/FrontDeskPage.tsx frontend/src/services/frontDeskService.ts frontend/src/utils/frontDeskLookupIntent.ts frontend/tests/frontDeskLookupIntent.test.cjs "
+          echo "F3_REPAIR_EXACT_IDENTITY_PASS"
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: npm ci from existing lock
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Deterministic stale-document lookup regression
+        working-directory: frontend
+        run: node tests/frontDeskLookupIntent.test.cjs
+      - name: TypeScript and Vite build
+        working-directory: frontend
+        run: npm run build
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
+      - name: Front Desk non-regression wiring
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const service = fs.readFileSync('frontend/src/services/frontDeskService.ts','utf8');
+          const page = fs.readFileSync('frontend/src/pages/FrontDeskPage.tsx','utf8');
+          assert(service.includes('/front-desk/clients/by-document'));
+          assert(service.includes('/clients/${clientId}/booking'));
+          assert(service.includes('/bookings/${bookingId}/check-in'));
+          assert(page.includes('isCurrentLookupIntent'));
+          assert(page.includes('lookupIntentRef.current = nextLookupIntent(lookupIntentRef.current, event.target.value)'));
+          assert(page.includes('BookingStatus.CONFIRMED'));
+          console.log('F3_FRONTDESK_NONREGRESSION_WIRING_PASS');
+          NODE
