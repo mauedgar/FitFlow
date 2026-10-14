@@ -1,0 +1,59 @@
+name: FitFlow F3 frontend validation exact subject
+on:
+  push:
+    branches:
+      - qualification/fitflow-m5-f3-frontend-001
+permissions:
+  contents: read
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout frozen F3 candidate
+        uses: actions/checkout@v4
+        with:
+          ref: 7f78255fff5ad38db93e5a95d946ae4aa34492c6
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact Git identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "7f78255fff5ad38db93e5a95d946ae4aa34492c6"
+          test "$(git rev-parse HEAD^{tree})" = "d68c6d18a0b40de9a6a76b1cae12b9056356d768"
+          test "$(git rev-parse HEAD^)" = "6f42315b2a26e435ddfe18558c02b36aae5dff23"
+          test "$(git diff --name-only HEAD^ HEAD | sort | tr '\n' ' ')" = "frontend/src/pages/FrontDeskPage.tsx frontend/src/services/frontDeskService.ts "
+          echo "F3_EXACT_SUBJECT_GUARD_PASS"
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend from lockfile
+        working-directory: frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Frontend TypeScript and production build
+        working-directory: frontend
+        run: npm run build
+      - name: Frontend ESLint
+        working-directory: frontend
+        run: npm run lint
+      - name: Front Desk read-only contract wiring assertions
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const service = fs.readFileSync('frontend/src/services/frontDeskService.ts','utf8');
+          const page = fs.readFileSync('frontend/src/pages/FrontDeskPage.tsx','utf8');
+          assert(service.includes('/front-desk/clients/by-document'));
+          assert(service.includes('/clients/\u0024{clientId}/booking'));
+          assert(service.includes('/bookings/\u0024{bookingId}/check-in'));
+          assert(page.includes('getClientByDocument'));
+          assert(page.includes('ensureFallbackBooking'));
+          assert(page.includes('frontDeskService.checkIn'));
+          assert(page.includes('BookingStatus.CONFIRMED'));
+          assert(page.includes('client !== null'));
+          console.log('F3_STATIC_CONTRACT_WIRING_PASS');
+          NODE
