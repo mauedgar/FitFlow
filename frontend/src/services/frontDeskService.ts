@@ -5,12 +5,12 @@ export interface FrontDeskSession {
   id: string;
   class_schedule_id: string;
   gym_class_id: string;
-  teacher_id: string;
+  teacher_id: string | null;
   starts_at: string;
   ends_at: string;
   status: string;
   gym_class_name: string;
-  teacher_full_name: string;
+  teacher_full_name: string | null;
   capacity_snapshot: number;
   current_bookings_count: number;
   available_spots: number;
@@ -33,15 +33,45 @@ export interface FrontDeskDay {
   sessions: FrontDeskSession[];
 }
 
+export interface FrontDeskClientLookup {
+  id: string;
+  document_number: string;
+  full_name: string;
+  email: string;
+}
+
+export interface FrontDeskFallbackBookingResult {
+  created: boolean;
+  booking: FrontDeskBooking;
+}
+
 const frontDeskService = {
   async getToday(): Promise<FrontDeskDay> {
     const response = await apiClient.get<FrontDeskDay>('/front-desk/sessions/today');
     return response.data;
   },
 
+  async getClientByDocument(documentNumber: string): Promise<FrontDeskClientLookup> {
+    const response = await apiClient.get<FrontDeskClientLookup>(
+      '/front-desk/clients/by-document',
+      { params: { document_number: documentNumber } },
+    );
+    return response.data;
+  },
+
   async getSessionBookings(sessionId: string): Promise<FrontDeskBooking[]> {
     const response = await apiClient.get<FrontDeskBooking[]>(
       `/front-desk/sessions/${sessionId}/bookings`,
+    );
+    return response.data;
+  },
+
+  async ensureFallbackBooking(
+    sessionId: string,
+    clientId: string,
+  ): Promise<FrontDeskFallbackBookingResult> {
+    const response = await apiClient.post<FrontDeskFallbackBookingResult>(
+      `/front-desk/sessions/${sessionId}/clients/${clientId}/booking`,
     );
     return response.data;
   },
