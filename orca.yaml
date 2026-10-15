@@ -4,3 +4,8 @@
 scripts:
   setup: |
     echo "[FF] Workspace prepared. Dependencies and credentials are task-scoped."
+
+# Keep the familiar AI Core tab, but do not bind a machine-specific root or spawn a model.
+defaultTabs:
+  - title: AI Core
+    command: 'echo "[FF] Provide authorized FF_AI_CORE_ROOT from the station profile before running AI Core."'
