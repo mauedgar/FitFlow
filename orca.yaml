@@ -1,20 +1,11 @@
+# FF — portable Orca workspace configuration.
+# This setup hook intentionally does not provision secrets, dependencies, or services.
+# Orca selects the native shell from the physical checkout (Windows or WSL).
 scripts:
   setup: |
-    set -e
-    cd "$ORCA_WORKTREE_PATH"
-    cp "$ORCA_ROOT_PATH/.env" "$ORCA_WORKTREE_PATH/.env" 2>/dev/null || true
-    cp "$ORCA_ROOT_PATH/backend/.env" "$ORCA_WORKTREE_PATH/backend/.env" 2>/dev/null || true
-    npm install --prefix frontend
-    docker compose -f docker-compose.test.yml build backend_test
+    echo "[FF] Workspace prepared. Dependencies and credentials are task-scoped."
 
+# Keep the familiar AI Core tab, but do not bind a machine-specific root or spawn a model.
 defaultTabs:
   - title: AI Core
-    command: >-
-      export FF_PROJECT_ROOT="$PWD";
-      export FF_PROJECT_PROFILE="$PWD/.ai/config/project-profile.yaml";
-      export FF_AI_CORE_ROOT="C:/Proyectos-Web/Tecnotron-ai";
-      exec "${SHELL:-bash}"
-
-worktree:
-  sharedDirectories:
-    - frontend/node_modules
+    command: 'echo "[FF] Provide authorized FF_AI_CORE_ROOT from the station profile before running AI Core."'
