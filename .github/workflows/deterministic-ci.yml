@@ -143,6 +143,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: ${{ hashFiles('.tecnotron-contract-v0/package-lock.json') != '' && 'npm' || '' }}
+          cache-dependency-path: .tecnotron-contract-v0/package-lock.json
 
       - name: Install pinned contract runtime
         if: always()
