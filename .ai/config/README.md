@@ -28,21 +28,23 @@ temporales no se persisten en esta configuracion.
 
 ## Inyeccion en worktrees Orca
 
-`orca.yaml` usa la superficie soportada `defaultTabs[].command`. La pestaña
-`AI Core` toma su checkout de FitFlow desde el directorio inicial de la terminal,
-deriva de este el Profile activo e inyecta el checkout `tools` de Tecnotron-ai.
-No consulta topologia de directorios hermanos ni lee `.env` para resolver estos
-valores. En una ejecucion coordinada, `FF_AI_CORE_ROOT` debe identificar el
-checkout de Tecnotron-ai autorizado por el Developer.
+`orca.yaml` conserva `defaultTabs[].command` y la pestaña visible `AI Core`,
+pero sus comandos automaticos solo muestran instrucciones. No inyectan roots
+historicos, no leen ni copian `.env`, no instalan dependencias ni inician Docker,
+agentes o modelos. El runtime Windows/WSL se selecciona explicitamente en Orca.
 
-Para un smoke sin secretos ni instalacion de dependencias, el worktree se crea
-con `--setup skip`, que evita ejecutar el setup de producto y conserva su
-lifecycle independiente. Si la politica local de Orca no autoejecuta comandos
-versionados, `orca worktree create` aun materializa el `defaultTab` y la terminal
-se inicia por la superficie soportada `orca terminal create --title "AI Core"
---command <defaultTabs[0].command>`. La validacion comprueba solo presencia y
-coherencia de paths; la politica local no se cambia ni se convierte en
-configuracion global.
+Antes de ejecutar AI Core, la tarea autorizada debe recibir `FF_PROJECT_ROOT`,
+`FF_PROJECT_PROFILE` y `FF_AI_CORE_ROOT` desde el binding de estacion vigente.
+Los valores deben identificar los checkouts y el Profile competentes; no se
+deducen de directorios hermanos ni se heredan de una ruta historica sin verificar.
+Este cambio de hooks no migra los roots del Project Profile versionado.
+
+Usar `--setup skip` cuando la tarea no autorice preparacion. Las dependencias
+se preparan por decision explicita, con `node_modules` y entornos virtuales
+aislados por worktree y sistema operativo. Se puede reutilizar la cache npm
+nativa del usuario, no directorios de dependencias Windows/WSL ni `.venv`.
+La politica local de Orca debe omitir setup indiscriminado y esperar su
+finalizacion antes de iniciar un agente cuando se autorice preparacion.
 
 Los estados `accepted_pending_*`, `reported_*`, `untested` y `null` son
 deliberados: describen capacidades no verificadas sin promoverlas a operativas.

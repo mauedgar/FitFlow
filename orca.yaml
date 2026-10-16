@@ -1,20 +1,10 @@
+# Portable, informational-only workspace preparation.
+# Select the native runtime in Orca; provision dependencies only for an authorized task.
 scripts:
   setup: |
-    set -e
-    cd "$ORCA_WORKTREE_PATH"
-    cp "$ORCA_ROOT_PATH/.env" "$ORCA_WORKTREE_PATH/.env" 2>/dev/null || true
-    cp "$ORCA_ROOT_PATH/backend/.env" "$ORCA_WORKTREE_PATH/backend/.env" 2>/dev/null || true
-    npm install --prefix frontend
-    docker compose -f docker-compose.test.yml build backend_test
+    echo "[FF] Workspace ready. Explicit task preparation required; dependencies and credentials are isolated."
 
+# Keep the visible tab without binding a machine-specific root or starting an agent.
 defaultTabs:
   - title: AI Core
-    command: >-
-      export FF_PROJECT_ROOT="$PWD";
-      export FF_PROJECT_PROFILE="$PWD/.ai/config/project-profile.yaml";
-      export FF_AI_CORE_ROOT="C:/Proyectos-Web/Tecnotron-ai";
-      exec "${SHELL:-bash}"
-
-worktree:
-  sharedDirectories:
-    - frontend/node_modules
+    command: 'echo "[FF] Supply authorized FF_PROJECT_ROOT, FF_PROJECT_PROFILE and FF_AI_CORE_ROOT before running AI Core."'
