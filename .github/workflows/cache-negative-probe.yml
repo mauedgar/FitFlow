@@ -1,0 +1,50 @@
+name: FitFlow cache negative-path probe (isolated)
+
+on:
+  push:
+    branches:
+      - ci/fitflow-cache-negative-probe-20261016
+
+permissions:
+  contents: read
+
+jobs:
+  missing-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated probe
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Simulate pinned contract checkout failure
+        id: simulated_checkout
+        shell: bash
+        continue-on-error: true
+        run: exit 42
+
+      - name: Assert the lockfile is absent
+        shell: bash
+        run: test ! -e .tecnotron-contract-v0/package-lock.json
+
+      - name: Set up Node 22 with production cache guard
+        if: always()
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: ${{ hashFiles('.tecnotron-contract-v0/package-lock.json') != '' && 'npm' || '' }}
+          cache-dependency-path: .tecnotron-contract-v0/package-lock.json
+
+      - name: Verify missing-lock guard and preserved Node setup
+        if: always()
+        shell: bash
+        env:
+          GUARD_HASH: ${{ hashFiles('.tecnotron-contract-v0/package-lock.json') }}
+          CHECKOUT_OUTCOME: ${{ steps.simulated_checkout.outcome }}
+        run: |
+          set -euo pipefail
+          test "$GUARD_HASH" = ""
+          test "$CHECKOUT_OUTCOME" = "failure"
+          node --version
+          echo "NEGATIVE_CACHE_GUARD_PASS: missing lock disables npm cache, setup-node remains usable"
