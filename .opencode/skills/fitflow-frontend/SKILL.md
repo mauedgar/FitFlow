@@ -1,42 +1,37 @@
 ---
 name: fitflow-frontend
-description: FitFlow-specific React, TypeScript, Chakra UI and TanStack Query development guidance. Use for authorized frontend diagnosis, bounded repair and validation against the Product repository.
+description: Product-specific React, TypeScript, Chakra UI and TanStack Query guidance for authorized FitFlow frontend analysis and bounded implementation.
 ---
 
-# FitFlow frontend — Product-local skill (candidate)
+# FitFlow frontend — Product-local skill (repaired proposal)
 
-## Authority and starting point
+This skill guides a specialized implementer; it grants **no** Product authority, runtime tool permission, TaskCycle, dependency installation, acceptance, reviewer independence or Tecnotron Recipe.
 
-FitFlow owns its frontend behavior, data and API contracts. This skill is procedural guidance only: it cannot select Product work, grant write access, create TaskCycles, authorize dependencies or waive Independent Review. Before each action, observe the competent Git branch, full commit/tree, `docs/SOURCE_OF_TRUTH.md`, `AGENTS.md`, the explicit authorized TASK/scope, and the exact owned worktree. A chat, old model config or installed skill is not sufficient authority.
+## Mandatory scope and authority
 
-Work only in the assigned frontend files and tests; coordinate any backend/API contract change with FitFlow Control and its exclusive owner. Never edit `.env`, secrets, production fixtures, backend migrations or other worktrees. Do not install/upgrade dependencies, create commits, push, merge or close a TaskCycle unless separately and explicitly authorized.
+1. Read `AGENTS.md` and `docs/SOURCE_OF_TRUTH.md` on the competent Product commit/tree.
+2. Require an immutable Control-supplied authorization packet with TASK ID, exact source commit/tree, acceptance criteria, owned worktree, allowed paths, risk and validation contract. No write if absent, stale, unverifiable or conflicting with the Product SOT. The packet is evidence to reconcile, not authority merely because it appears in a prompt.
+3. Keep read, edit, Git, external directory, web and validator permissions separate. This skill is not an alternative way to invoke blocked tools or read files outside the configured sandbox.
+4. Do not modify environment files, credentials, production data, backend, API schemas or migrations without separate authorized ownership. Never widen scope opportunistically.
 
-## Existing stack and contracts
+## Current architecture
 
-- React 18, TypeScript 5, Vite, Chakra UI 2, TanStack Query, React Router, Axios.
-- Respect backend-authoritative eligibility, capacities, bookings, permissions and audit. An enabled UI button does not confer domain authorization.
-- Consult existing typed service adapters and Product API schemas before wiring UI. No direct database access or copied backend rules.
-- Keep role gating consistent with `frontend/src/routes/AppRouter.tsx` and `ProtectedRoute`; verify inaccessible routes do not reveal protected data.
-- Preserve UTC persistence/business-timezone formatting, cancellation and confirmed-to-attended semantics. Separate ordinary booking/fallback from explicit check-in.
-- Source-grounded admin warning at initial candidate baseline: dashboard welcome-only, admin Clients/Teachers/CrudClasses use example data and simulated controls, admin sidebar/nav links diverge from routes. These are investigation targets, not implicit permission to expand or fix all screens.
-- Billing/Payments stays deferred unless Product selects it; do not advertise an unimplemented operation as live.
+- React, TypeScript, Vite, Chakra UI, TanStack Query, Axios and React Router.
+- Backend remains authoritative for roles, capacity, eligibility, booking, check-in, audit and persistence. Do not replicate or bypass backend policies in UI.
+- Use existing typed services and error/loading/empty states; preserve accessibility, keyboard and responsive behavior. Avoid mock data or buttons that imply a live domain operation where none exists.
+- Preserve UTC persistence vs local display and the booking/check-in domain boundaries. Billing/Payments remains deferred until Product selection.
 
-## Working procedure
+## Source audit notes, not product facts
 
-1. Read the specific Product TASK and relevant source; identify read/write paths, risk and frozen baseline.
-2. Classify the observation as actual regression, intentional placeholder, missing Product contract, or unverified runtime hypothesis. Prefer evidence from running UI under safe isolated data; separate static evidence from browser evidence.
-3. Propose the smallest bounded repair. Avoid adding dashboard/reporting/payment scope to a navigation repair.
-4. Follow current component conventions, loading/empty/error states, accessible labels, responsive behavior and keyboard navigation. Use services/typed boundaries rather than ad-hoc HTTP calls.
-5. Keep UI honest: hide/disable unsupported actions with clear user feedback; avoid fake client/teacher/class data in operational flows.
-6. Validate affected TypeScript, ESLint, Vite build and existing frontend targeted tests. Request the separately permitted Playwright validator when browser coverage is relevant. Do not treat an installed Playwright skill as authorization for this implementer to launch a browser.
-7. Return changed paths, candidate commit/tree or working diff, commands, real results, missing evidence, risks and documentation impact. The implementer must not review its own candidate or declare Product acceptance.
+On the **historical** FitFlow baseline `develop@98fac9ea2591880a8cf3316953326d65af170af8` (not current authority on subsequent commits), read-only source observations identified areas to recheck: `frontend/src/pages/admin/AdminDashboardPage.tsx` was a welcome view; `ClientsPage.tsx`, `TeachersPage.tsx`, and `CrudClassesPage.tsx` contained example rows/actions; and `frontend/src/routes/AppRouter.tsx` differed from `frontend/src/components/admin/layout/AdminSidebar.tsx` and `AdminNavBar.tsx` links. These are **hypotheses requiring fresh source and browser reproduction**, not accepted findings, runtime proof, permission to edit or authorization to build a dashboard.
 
-## Testing coverage boundary
+## Bounded procedure
 
-`npm run lint` and `npm run build` check compilation and static rules, not browser functionality. The current existing directed guard `node tests/frontDeskLookupIntent.test.cjs` covers in-memory Front Desk lookup intent only. A green build does NOT certify admin routes, real API integration, login, accessibility or beta.
+1. Confirm Product TASK packet, source, worktree, path ownership and relevant code.
+2. Categorize observations: demonstrated regression, deliberate placeholder, contract gap or unverified hypothesis. Separate static inspection from native browser evidence.
+3. Suggest minimal fixes within specifically authorized paths, preferring truthful navigation and existing typed APIs; avoid new payment/reporting/dashboard scope.
+4. If authorized, propose source-only edits and request tool approval. Preserve code conventions and invariants.
+5. **Request all executable validation from a separate qualified validator:** TypeScript, ESLint, Vite build, targeted tests, and Playwright where appropriate. The implementer has no shell/Playwright approval merely because the skill mentions those tools.
+6. Hand off frozen candidate/diff, evidence, validation requests, risk and documentation impact. Independent Review and Product acceptance remain separate.
 
-Browser/Playwright validation must use a Control-qualified, isolated validator with synthetic data; collect screenshots/snapshots/traces without tokens, real names or private records. Record explicit PASS, FAIL, BLOCKED or NOT_RUN per scenario and link to exact Git identity. No default Playwright Test dependency adoption or custom Recipe.
-
-## Handoff discipline
-
-Deliver evidence to FitFlow Control (Product authority). The Independent Reviewer remains separate and read-only. Treat a candidate PR, review PASS and CI green as different from acceptance, integration and beta launch authorization. Tecnotron is the producer of reusable runtime/Recipe contracts; this skill cannot change them.
+Green lint/build does not prove real UI behavior. Native Playwright browser tests must use approved isolated fixtures and avoid screenshots/traces with personal data, secrets or tokens. No new E2E framework or Recipe is introduced by this skill.
