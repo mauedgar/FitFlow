@@ -6,7 +6,6 @@ import {
   Icon,
   Menu,
   MenuButton,
-  MenuDivider,
   MenuItem,
   MenuList,
   Spacer,
@@ -19,12 +18,6 @@ import {
   FiUsers,
   FiLogOut,
   FiBriefcase,
-  FiClipboard,
-  FiBookOpen,
-  FiBarChart2,
-  FiCalendar,
-  FiSettings,
-  FiDollarSign,
 } from 'react-icons/fi';
 import { ChevronDownIcon } from '@chakra-ui/icons';
 
@@ -35,8 +28,6 @@ const adminMenus = [
     icon: FiUsers,
     subitems: [
       { label: "Ver Clientes", to: "/admin/clients", icon: FiUsers },
-      { label: "Agregar Cliente", to: "/admin/clients/create", icon: FiUsers },
-      { label: "Membresías", to: "/admin/clients/memberships", icon: FiUsers },
     ]
   },
   {
@@ -44,64 +35,6 @@ const adminMenus = [
     icon: FiBriefcase,
     subitems: [
       { label: "Ver Profesores", to: "/admin/teachers", icon: FiBriefcase },
-      { label: "Agregar Profesor", to: "/admin/teachers/create", icon: FiBriefcase },
-      { label: "Horarios", to: "/admin/teachers/schedules", icon: FiBriefcase },
-    ]
-  },
-  {
-    label: "Clases",
-    icon: FiClipboard,
-    subitems: [
-      { label: "Gestionar Clases", to: "/admin/classes", icon: FiClipboard },
-      { label: "Crear Nueva Clase", to: "/admin/classes/create", icon: FiClipboard },
-      { label: "Programar Horarios", to: "/admin/classes/schedules", icon: FiClipboard },
-    ]
-  },
-  {
-    label: "Reservas",
-    icon: FiBookOpen,
-    subitems: [
-      { label: "Ver Reservas", to: "/admin/bookings", icon: FiBookOpen },
-      { label: "Lista de Espera", to: "/admin/bookings/waitlist", icon: FiBookOpen },
-      { label: "Cancelaciones", to: "/admin/bookings/cancelled", icon: FiBookOpen },
-    ]
-  },
-  {
-    label: "Informes",
-    icon: FiBarChart2,
-    subitems: [
-      { label: "Alumnos por Clase", to: "/admin/reports/attendance", icon: FiBarChart2 },
-      { label: "Clases Populares", to: "/admin/reports/popular-classes", icon: FiBarChart2 },
-      { label: "Ingresos Mensuales", to: "/admin/reports/revenue", icon: FiBarChart2 },
-      { label: "Ocupación de Horarios", to: "/admin/reports/schedule-usage", icon: FiBarChart2 },
-    ]
-  },
-  {
-    label: "Calendario",
-    icon: FiCalendar,
-    subitems: [
-      { label: "Vista Semanal", to: "/admin/calendar/weekly", icon: FiCalendar },
-      { label: "Vista Mensual", to: "/admin/calendar/monthly", icon: FiCalendar },
-      { label: "Eventos Especiales", to: "/admin/calendar/events", icon: FiCalendar },
-    ]
-  },
-  {
-    label: "Herramientas",
-    icon: FiSettings,
-    subitems: [
-      { label: "Envío Masivo Email", to: "/admin/tools/bulk-email", icon: FiSettings },
-      { label: "Check-in Manual", to: "/admin/tools/manual-checkin", icon: FiSettings },
-      { label: "Backup de Datos", to: "/admin/tools/backup", icon: FiSettings },
-      { label: "Configuración", to: "/admin/tools/settings", icon: FiSettings },
-    ]
-  },
-  {
-    label: "Facturación",
-    icon: FiDollarSign,
-    subitems: [
-      { label: "Ver Facturas", to: "/admin/billing/invoices", icon: FiDollarSign },
-      { label: "Pagos Pendientes", to: "/admin/billing/pending", icon: FiDollarSign },
-      { label: "Descuentos", to: "/admin/billing/discounts", icon: FiDollarSign },
     ]
   },
 ];
@@ -189,13 +122,6 @@ const AdminNavBar: React.FC = () => {
           </HStack>
         </MenuButton>
         <MenuList>
-          <MenuItem as={RouterLink} to="/admin/profile">
-            Mi Perfil
-          </MenuItem>
-          <MenuItem as={RouterLink} to="/admin/settings">
-            Configuración
-          </MenuItem>
-          <MenuDivider />
           <MenuItem
             onClick={handleLogout}
             color="red.500"
