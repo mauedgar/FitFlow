@@ -2,9 +2,15 @@
 # Select the native runtime in Orca; provision dependencies only for an authorized task.
 scripts:
   setup: |
-    echo "[FF] Workspace ready. Explicit task preparation required; dependencies and credentials are isolated."
+    echo "[FF] Workspace visible. Preparation, credentials and processes remain explicit."
 
-# Keep the visible tab without binding a machine-specific root or starting an agent.
+# Visible roles only. Every process is started explicitly by the developer or an authorized task.
 defaultTabs:
-  - title: AI Core
-    command: 'echo "[FF] Supply authorized FF_PROJECT_ROOT, FF_PROJECT_PROFILE and FF_AI_CORE_ROOT before running AI Core."'
+  - title: '01 · FF · Control'
+    command: 'echo "[FF/Control] Reobserve Issue, baseline, DoD, ownership and effects. No process started."'
+  - title: '02 · FF · App'
+    command: 'echo "[FF/App] Start the authorized stack explicitly; discover its URL with orca ports."'
+  - title: '03 · FF · Playwright'
+    command: 'echo "[FF/Playwright] Use an ephemeral named session and headed browser only after the App URL is known."'
+  - title: '04 · FF · Logs'
+    command: 'echo "[FF/Logs] Observe explicit task logs and preserve evidence; no watcher was started."'
