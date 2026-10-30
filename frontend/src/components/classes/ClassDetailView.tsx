@@ -30,14 +30,14 @@ export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass, onCl
 
       <SimpleGrid columns={{ base: 1, md: 3 }} gap={10}>
         <HStack>
-          <Icon w={6} h={6} color="teal.500" asChild><FaTachometerAlt /></Icon>
+          <Icon w={6} h={6} color="teal.500" as={FaTachometerAlt} />
           <Box>
             <Text fontSize="sm" color="gray.500">Dificultad</Text>
             <Badge colorPalette={gymClass.difficulty === DifficultyLevel.BEGINNER ? "green" : gymClass.difficulty === DifficultyLevel.INTERMEDIATE ? "orange" : "red"} variant="solid" fontSize="md">{gymClass.difficulty}</Badge>
           </Box>
         </HStack>
         <HStack>
-          <Icon w={6} h={6} color="teal.500" asChild><FaClock /></Icon>
+          <Icon w={6} h={6} color="teal.500" as={FaClock} />
           <Box>
             <Text fontSize="sm" color="gray.500">Duración</Text>
             <Text fontSize="lg" fontWeight="bold">{gymClass.duration_minutes} min</Text>

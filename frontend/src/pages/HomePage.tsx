@@ -57,7 +57,7 @@ const HomePage = () => {
                 <Card.Body>
                   <HStack justify="space-between" mb={4}>
                     <Heading size="md" display="flex" alignItems="center">
-                      <Icon mr={2} asChild><FiCalendar /></Icon>
+                      <Icon mr={2} as={FiCalendar} />
                       Agenda semanal
                     </Heading>
                     <Badge colorPalette="blue" fontSize="sm" px={2} py={1}>

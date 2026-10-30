@@ -85,11 +85,11 @@ const ClassCard: React.FC<ClassCardProps> = ({ gymClass, onClick }) => {
       {/* 5. <CardFooter> para información secundaria y acciones. */}
       <Card.Footer>
         <VStack gap={3} align="stretch" w="100%"><HStack color="gray.700">
-            <Icon w={4} h={4} asChild><FaClock /></Icon>
+            <Icon w={4} h={4} as={FaClock} />
             <Text fontSize="sm" fontWeight="medium">Duración: {duration_minutes ?? 'N/A'} min</Text>
           </HStack>
           <Separator borderColor="gray.200" /><HStack color="gray.700">
-            <Icon w={4} h={4} asChild><FaCalendarAlt /></Icon>
+            <Icon w={4} h={4} as={FaCalendarAlt} />
             <Text fontSize="sm" fontWeight="medium">Multiples horarios disponibles</Text>
           </HStack></VStack>
       </Card.Footer>
