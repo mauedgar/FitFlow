@@ -541,7 +541,7 @@ async def test_membership_stats_live_booking_relations_are_preloaded(
     ("uq_users_other_unique", False),
     (None, False),
 ])
-def test_email_unique_error_classifier_only_matches_email_index(
+async def test_email_unique_error_classifier_only_matches_email_index(
     constraint_name: str | None, expected: bool,
 ) -> None:
     class PGUniqueException(Exception):
@@ -557,7 +557,7 @@ def test_email_unique_error_classifier_only_matches_email_index(
     assert users_router._is_email_unique_violation(error) is expected
 
 
-def test_email_unique_error_classifier_rejects_non_unique_sqlstate() -> None:
+async def test_email_unique_error_classifier_rejects_non_unique_sqlstate() -> None:
     class PGForeignKeyException(Exception):
         sqlstate = "23503"
         constraint_name = "ix_users_email"
