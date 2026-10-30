@@ -5,7 +5,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query'; // ⭐ Importamos useMutation
 import { useAuth } from '../context/useAuth'; // ⭐ Importamos el contexto de Auth
 import classService from '../services/classService'; // ⭐ Usaremos classService para el login
-import { UserRole, type FastAPIAuthErrorResponse, type TokenResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
+import { UserRole, type TokenResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
 import { AxiosError } from 'axios'; // ⭐ Para un manejo de errores más específico
 import { type TokenPayload } from '../types';
 import {jwtDecode} from 'jwt-decode'
@@ -52,23 +52,13 @@ const LoginPage = () => {
 
     // Callback que se ejecuta si la mutación falla
     onError: (error) => {
-      let errorMessage = "Ocurrió un error inesperado al iniciar sesión.";
-      if (error.response?.data) {
-        // Intentamos castear a un tipo de error de autenticación específico
-        const errorData = error.response.data as FastAPIAuthErrorResponse;
-
-        if (errorData.detail) { // Ahora TypeScript sabe que 'detail' puede existir
-          errorMessage = errorData.detail;
-        } else {
-          // Si el detalle no es un string (ej. un objeto de errores de validación, aunque raro para login)
-          // Puedes intentar un casteo más general si tu API devuelve diferentes formatos
-          errorMessage = JSON.stringify(error.response.data);
-        }
-      } else if (error.message === "Network Error") {
-        errorMessage = "Error de red. Asegúrate de que el servidor está corriendo.";
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
+      // El objeto AxiosError puede contener credenciales en config.data.
+      // No se registra ni se muestra información arbitraria del servidor.
+      const errorMessage = error.response?.status === 401
+        ? "Email o contraseña incorrectos."
+        : error.message === "Network Error"
+          ? "Error de red. Asegúrate de que el servidor está corriendo."
+          : "Ocurrió un error inesperado al iniciar sesión.";
 
       toaster.create({
         title: "Error al iniciar sesión",
@@ -77,7 +67,6 @@ const LoginPage = () => {
         duration: 5000,
         closable: true,
       });
-      console.error('Error de login:', error);
     },
   });
 

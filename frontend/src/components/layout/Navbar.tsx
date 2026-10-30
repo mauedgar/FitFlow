@@ -102,13 +102,13 @@ export const Navbar = () => {
               <Drawer.Header borderBottomWidth="1px"><Drawer.Title>Menú</Drawer.Title></Drawer.Header>
               <Drawer.Body>
                 <VStack gap={4} align="stretch" mt={4}>
-                  <Link onClick={() => handleDrawerNavigate('/')}>Inicio</Link>
+                  <Link asChild><RouterLink to="/" onClick={onClose}>Inicio</RouterLink></Link>
                   {userRole === 'client' && (
-                  <Link onClick={() => handleDrawerNavigate('/home')}>
+                  <Link asChild><RouterLink to="/home" onClick={onClose}>
                     Mi Perfil
-                  </Link>
+                  </RouterLink></Link>
                   )}
-                  <Link onClick={() => handleDrawerNavigate('/classes')}>Clases</Link>
+                  <Link asChild><RouterLink to="/classes" onClick={onClose}>Clases</RouterLink></Link>
                   <Spacer />
 
                   {/* 5. BOTONES DINÁMICOS PARA MÓVIL */}

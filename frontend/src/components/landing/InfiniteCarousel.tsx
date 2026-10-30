@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Box, Button, Flex, Heading, Text, VStack, HStack } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 // Los mismos datos que ya teníamos
 const carouselSlides = [
@@ -56,17 +56,19 @@ const slideVariants = {
 const InfiniteCarousel = () => {
   // 2. Estado para saber qué diapositiva está activa
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   // 3. useEffect para el cambio automático de diapositiva
   useEffect(() => {
-    const slideInterval = setInterval(() => {
-      // Usamos el operador de módulo para volver al inicio
-      setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
-    }, 6000); // Cambia cada 6 segundos
+    if (isPaused || shouldReduceMotion) return;
 
-    // Limpiamos el intervalo cuando el componente se desmonta
+    const slideInterval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
+    }, 6000);
+
     return () => clearInterval(slideInterval);
-  }, []); // El array vacío asegura que esto solo se ejecute una vez
+  }, [isPaused, shouldReduceMotion]);
 
   // Función para cambiar de diapositiva manualmente
   const goToSlide = (slideIndex: number) => {
@@ -74,16 +76,29 @@ const InfiniteCarousel = () => {
   };
 
   return (
-    <Box position="relative" width="full" height="calc(100vh - 64px)" overflow="hidden">
+    <Box
+      position="relative"
+      width="full"
+      height="calc(100vh - 64px)"
+      overflow="hidden"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocusCapture={() => setIsPaused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setIsPaused(false);
+        }
+      }}
+    >
       {/* 4. AnimatePresence es la clave para animar la salida de un componente */}
       <AnimatePresence initial={false} mode="wait">
         <motion.div
           key={currentSlide} // La key es crucial para que AnimatePresence detecte el cambio
           variants={slideVariants}
-          initial="enter"
+          initial={shouldReduceMotion ? false : "enter"}
           animate="center"
           exit="exit"
-          transition={{
+          transition={shouldReduceMotion ? { duration: 0 } : {
             x: { type: 'spring', stiffness: 300, damping: 30 },
             opacity: { duration: 0.3 },
           }}
