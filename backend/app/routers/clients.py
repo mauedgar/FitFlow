@@ -16,6 +16,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.deps import (
     require_admin,
@@ -24,6 +25,7 @@ from app.core.deps import (
 )
 from app.core.enums import UserRole
 from app.crud.crud_client import client
+from app.db.models.client import Client
 from app.crud.crud_user import user as user_crud
 from app.db.models.user import User
 from app.db.session import get_async_session
@@ -88,7 +90,12 @@ async def read_clients(
     current_user: Annotated[User, Depends(require_admin)],
 ) -> list[ClientPublic]:
     """Lista clientes en versión pública (admin)."""
-    clients = await client.get_multi(db=db, skip=skip, limit=limit)
+    clients = await client.get_multi(
+        db=db,
+        skip=skip,
+        limit=limit,
+        options=[selectinload(Client.user)],
+    )
     return [to_client_public(c) for c in clients]
 
 

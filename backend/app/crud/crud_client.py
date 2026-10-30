@@ -37,13 +37,17 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         include_relations: bool = False,
     ) -> Client | None:
         """Obtiene un perfil de cliente a partir del ID de un usuario."""
-        stmt = select(Client).join(Client.user).where(User.id == user_id)
+        stmt = (
+            select(Client)
+            .join(Client.user)
+            .where(User.id == user_id)
+            .options(selectinload(Client.user))
+        )
 
         if include_relations:
             stmt = stmt.options(
                 selectinload(Client.bookings),
                 selectinload(Client.membership),
-                selectinload(Client.user),
             )
 
         res = await db.execute(stmt)

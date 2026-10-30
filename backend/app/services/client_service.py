@@ -34,11 +34,12 @@ def to_client_public(client: Client) -> ClientPublic:
     """Versión pública del cliente."""
     return ClientPublic(
         id=client.id, # pyright: ignore[reportArgumentType]
-        full_name=client.full_name, # pyright: ignore[reportAttributeAccessIssue]
-        email=client.user.email, # pyright: ignore[reportArgumentType]
-        phone=client.phone, # pyright: ignore[reportAttributeAccessIssue]
-        avatar_url=client.avatar_url, # pyright: ignore[reportAttributeAccessIssue]
-        created_at=client.created_at, # pyright: ignore[reportArgumentType]
+        full_name=f"{client.first_name} {client.last_name}".strip(),
+        email=client.user.email,
+        # Person has no phone field; preserve the nullable API contract.
+        phone=None,
+        avatar_url=client.profile_image_url,
+        created_at=client.created_at.isoformat() if client.created_at is not None else None,
     )
 
 # --------------------------------------------------------------------------- #
