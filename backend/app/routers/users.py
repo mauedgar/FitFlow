@@ -11,10 +11,12 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import require_admin_or_self_guard
@@ -37,6 +39,25 @@ from app.crud.crud_user import user as user_crud
 router = APIRouter(prefix="/users", tags=["users"])
 
 
+def _is_email_unique_violation(exc: IntegrityError) -> bool:
+    """Only map the known email index violation to the duplicate-email response."""
+    orig = exc.orig
+    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    if sqlstate != "23505":
+        return False
+
+    # asyncpg's native cause exposes constraint_name; its SQLAlchemy adapter
+    # may only surface it in the stable PostgreSQL diagnostic message.
+    cause = getattr(orig, "__cause__", None)
+    constraint_name = getattr(orig, "constraint_name", None) or getattr(
+        cause, "constraint_name", None
+    )
+    if constraint_name is None:
+        match = re.search(r'unique constraint "([^"]+)"', str(orig))
+        constraint_name = match.group(1) if match else None
+    return constraint_name == "ix_users_email"
+
+
 # --------------------------------------------------------------------------- #
 # Registrar usuario
 # --------------------------------------------------------------------------- #
@@ -53,11 +74,20 @@ async def register_user(
         • La contraseña se hashea automáticamente.
         • El rol por defecto es CLIENT.
     """
-    existing = await user_crud.get_by_email(db=db, email=user_in.email)
+    existing = await user_crud.get_by_email(
+        db=db, email=user_in.email, include_deleted=True
+    )
     if existing:
         raise HTTPException(400, "El email ya está registrado.")
 
-    user = await user_crud.create(db=db, obj_in=user_in)
+    try:
+        user = await user_crud.create(db=db, obj_in=user_in)
+    except IntegrityError as exc:
+        # A concurrent registration can pass the precheck; UNIQUE remains SOT.
+        await db.rollback()
+        if _is_email_unique_violation(exc):
+            raise HTTPException(400, "El email ya está registrado.") from exc
+        raise
     return to_user_public(user)
 
 

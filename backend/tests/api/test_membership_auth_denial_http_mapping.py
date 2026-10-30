@@ -10,7 +10,6 @@ import httpx
 import pytest
 from fastapi import status
 
-from app.core.deps import require_current_user
 from app.core.enums import UserRole
 from app.db.session import get_async_session
 from app.main import app
@@ -32,7 +31,7 @@ async def isolated_membership_dependencies() -> AsyncIterator[None]:
         yield
     finally:
         app.dependency_overrides.pop(get_async_session, None)
-        app.dependency_overrides.pop(require_current_user, None)
+        app.dependency_overrides.pop(memberships_router._require_membership_current_user, None)
 
 
 async def _request_for_role(
@@ -67,7 +66,7 @@ async def _request_for_role(
                 active=True,
             )
 
-        app.dependency_overrides[require_current_user] = override_current_user
+        app.dependency_overrides[memberships_router._require_membership_current_user] = override_current_user
         headers["Authorization"] = "Bearer synthetic"
 
     return await api_client.get(path, headers=headers)

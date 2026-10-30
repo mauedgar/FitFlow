@@ -57,9 +57,12 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         *,
         email: str,
         include_relations: bool = False,
+        include_deleted: bool = False,
     ) -> User | None:
-        """Obtiene un usuario por su email."""
+        """Look up by email; registration can opt into checking reserved deleted emails."""
         stmt = select(User).where(User.email == email)
+        if not include_deleted:
+            stmt = stmt.where(User.deleted_at.is_(None))
 
         if include_relations:
             stmt = stmt.options(selectinload(User.person_profile))

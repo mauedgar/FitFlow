@@ -10,7 +10,6 @@ import httpx
 import pytest
 from fastapi import status
 
-from app.core.deps import require_current_user
 from app.core.enums import UserRole
 from app.db.session import get_async_session
 from app.main import app
@@ -34,12 +33,12 @@ async def isolated_membership_dependencies() -> AsyncIterator[None]:
         )
 
     app.dependency_overrides[get_async_session] = override_db
-    app.dependency_overrides[require_current_user] = override_admin
+    app.dependency_overrides[memberships_router._require_membership_current_user] = override_admin
     try:
         yield
     finally:
         app.dependency_overrides.pop(get_async_session, None)
-        app.dependency_overrides.pop(require_current_user, None)
+        app.dependency_overrides.pop(memberships_router._require_membership_current_user, None)
 
 
 @pytest.mark.parametrize(

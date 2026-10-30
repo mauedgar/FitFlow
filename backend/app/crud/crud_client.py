@@ -14,7 +14,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from app.db.models import Client, Membership, User
+from app.db.models import Booking, ClassSchedule, ClassSession, Client, Membership, User
+from app.db.models.person import Person
 from app.schemas.client import ClientCreate, ClientUpdate
 
 if TYPE_CHECKING:
@@ -23,12 +24,41 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
+def _client_detail_options():
+    """All relations consumed by client detail, booking and membership projections."""
+    return [
+        selectinload(Client.user),
+        selectinload(Client.membership),
+        selectinload(Client.bookings)
+        .selectinload(Booking.class_session)
+        .selectinload(ClassSession.class_schedule)
+        .selectinload(ClassSchedule.gym_class),
+    ]
+
+
 class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
     """CRUD especializado para perfiles de cliente."""
 
     # ------------------------------------------------------------------ #
     # Búsquedas específicas
     # ------------------------------------------------------------------ #
+    async def get_multi_visible(
+        self, db: AsyncSession, *, skip: int = 0, limit: int = 100
+    ) -> list[Client]:
+        """Admin listing: hide deleted accounts and clients, use stable ordering."""
+        stmt = (
+            select(Client)
+            .join(Client.user)
+            .where(Client.deleted_at.is_(None), User.deleted_at.is_(None))
+            .options(selectinload(Client.user))
+            .order_by(Client.id)
+            .offset(skip)
+            .limit(limit)
+        )
+        res = await db.execute(stmt)
+        return list(res.scalars().unique().all())
+
+
     async def get_by_user_id(
         self,
         db: AsyncSession,
@@ -37,14 +67,19 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         include_relations: bool = False,
     ) -> Client | None:
         """Obtiene un perfil de cliente a partir del ID de un usuario."""
-        stmt = select(Client).join(Client.user).where(User.id == user_id)
+        stmt = (
+            select(Client)
+            .join(Client.user)
+            .where(
+                User.id == user_id,
+                User.deleted_at.is_(None),
+                Client.deleted_at.is_(None),
+            )
+            .options(selectinload(Client.user))
+        )
 
         if include_relations:
-            stmt = stmt.options(
-                selectinload(Client.bookings),
-                selectinload(Client.membership),
-                selectinload(Client.user),
-            )
+            stmt = stmt.options(*_client_detail_options())
 
         res = await db.execute(stmt)
         return res.scalars().first()
@@ -72,17 +107,22 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         db: AsyncSession,
         *,
         client_id: UUID,
+        for_update: bool = False,
     ) -> Client | None:
-        """Obtiene un cliente con todas sus relaciones cargadas."""
+        """Read complete detail; optionally lock account and profile for an update."""
         stmt = (
             select(Client)
-            .where(Client.id == client_id, Client.deleted_at.is_(None))  # type: ignore[attr-defined]
-            .options(
-                selectinload(Client.bookings),
-                selectinload(Client.membership),
-                selectinload(Client.user),
+            .join(Client.user)
+            .where(
+                Client.id == client_id,
+                Client.deleted_at.is_(None),
+                User.deleted_at.is_(None),
             )
+            .options(*_client_detail_options())
         )
+        if for_update:
+            # Serialize account soft-deletes and profile updates until commit.
+            stmt = stmt.with_for_update(of=(User, Person, Client))
 
         res = await db.execute(stmt)
         return res.scalars().first()
