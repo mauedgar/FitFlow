@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import (
@@ -146,8 +146,8 @@ async def create_client_for_user(
 async def read_clients(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    skip: int = 0,
-    limit: int = 100,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     current_user: Annotated[User, Depends(_require_clients_admin)],
 ) -> list[ClientPublic]:
     """Lista clientes en versión pública (admin)."""
@@ -287,16 +287,21 @@ async def update_client(
     current_user: Annotated[User, Depends(_require_clients_admin_or_client)],
 ) -> ClientWithRelations:
     """Actualiza el perfil privado del cliente."""
-    client_ = await client.get_with_relations(db=db, client_id=client_id)
+    client_ = await client.get_with_relations(
+        db=db, client_id=client_id, for_update=True,
+    )
     if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
     _require_admin_or_owner(current_user, client_)
-    await client.update(db=db, db_obj=client_, obj_in=client_in)
-    refreshed = await client.get_with_relations(db=db, client_id=client_id)
-    if refreshed is None:
-        raise HTTPException(404, "Cliente no encontrado.")
-    return to_client_with_relations(refreshed)
+    for field, value in client_in.model_dump(exclude_unset=True).items():
+        setattr(client_, field, value)
+    # Keep the account/profile row locks through flush and response projection.
+    # If the projection raises, closing the session rolls back the uncommitted write.
+    await db.flush()
+    result = to_client_with_relations(client_)
+    await db.commit()
+    return result
 
 
 # --------------------------------------------------------------------------- #

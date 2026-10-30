@@ -57,7 +57,7 @@ def http_clients(monkeypatch):
     async def get(*, db, obj_id):
         return profile if obj_id == profile_id else None
 
-    async def get_with_relations(*, db, client_id):
+    async def get_with_relations(*, db, client_id, for_update=False):
         return profile if client_id == profile_id else None
 
     async def get_multi_visible(*, db, skip, limit):

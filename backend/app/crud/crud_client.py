@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
 from app.db.models import Booking, ClassSchedule, ClassSession, Client, Membership, User
+from app.db.models.person import Person
 from app.schemas.client import ClientCreate, ClientUpdate
 
 if TYPE_CHECKING:
@@ -106,8 +107,9 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         db: AsyncSession,
         *,
         client_id: UUID,
+        for_update: bool = False,
     ) -> Client | None:
-        """Obtiene un cliente con todas sus relaciones cargadas."""
+        """Read complete detail; optionally lock account and profile for an update."""
         stmt = (
             select(Client)
             .join(Client.user)
@@ -118,6 +120,9 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
             )
             .options(*_client_detail_options())
         )
+        if for_update:
+            # Serialize account soft-deletes and profile updates until commit.
+            stmt = stmt.with_for_update(of=(User, Person, Client))
 
         res = await db.execute(stmt)
         return res.scalars().first()

@@ -15,6 +15,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import require_admin_or_self_guard
@@ -59,7 +60,17 @@ async def register_user(
     if existing:
         raise HTTPException(400, "El email ya está registrado.")
 
-    user = await user_crud.create(db=db, obj_in=user_in)
+    try:
+        user = await user_crud.create(db=db, obj_in=user_in)
+    except IntegrityError as exc:
+        # A concurrent registration can pass the precheck; UNIQUE remains SOT.
+        await db.rollback()
+        sqlstate = getattr(exc.orig, "sqlstate", None) or getattr(
+            exc.orig, "pgcode", None
+        )
+        if sqlstate == "23505":
+            raise HTTPException(400, "El email ya está registrado.") from exc
+        raise
     return to_user_public(user)
 
 

@@ -9,6 +9,8 @@ import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
+from sqlalchemy import text, update
+from sqlalchemy.exc import DBAPIError
 
 import httpx
 import pytest
@@ -26,6 +28,8 @@ from app.db.models import (
     Booking, ClassSchedule, ClassSession, Client, GymClass, Membership, User,
 )
 from app.db.session import AsyncSessionLocal, engine
+from app.crud.crud_client import client as crud_client
+from app.crud.crud_user import user as crud_user
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
@@ -444,3 +448,68 @@ async def test_registration_denies_duplicate_email_of_soft_deleted_user(
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
     assert response.json() == {"detail": "El email ya está registrado."}
+
+
+@pytest.mark.parametrize("params", [
+    {"skip": -1}, {"limit": 0}, {"limit": -1}, {"limit": 1001},
+])
+async def test_admin_list_rejects_invalid_page_bounds(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+    params: dict[str, int],
+) -> None:
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/clients/",
+        params=params,
+        headers=headers(profile_fixture, "admin"),
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
+
+
+async def test_locked_client_detail_blocks_concurrent_account_soft_delete(
+    profile_fixture: ClientProfileFixture,
+) -> None:
+    """A separate session cannot soft-delete User while Client PUT owns its lock."""
+    async with AsyncSessionLocal() as owner_db, AsyncSessionLocal() as other_db:
+        target = await crud_client.get_with_relations(
+            db=owner_db,
+            client_id=profile_fixture.profile_id,
+            for_update=True,
+        )
+        assert target is not None
+        await other_db.execute(text("SET LOCAL lock_timeout = '250ms'"))
+        with pytest.raises(DBAPIError) as failure:
+            await other_db.execute(
+                update(User)
+                .where(User.id == profile_fixture.owner_id)
+                .values(deleted_at=datetime.now(timezone.utc))
+            )
+        assert getattr(failure.value.orig, "sqlstate", None) == "55P03"
+        await other_db.rollback()
+        await owner_db.rollback()
+
+
+async def test_registration_unique_collision_after_precheck_is_http_400(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Simulate two registrars passing precheck; exercise PostgreSQL UNIQUE."""
+    async def skipped_precheck(*, db, email, include_relations=False, include_deleted=False):
+        return None
+
+    monkeypatch.setattr(crud_user, "get_by_email", skipped_precheck)
+    result = await api_client.post(
+        f"{settings.API_V1_STR}/users/register",
+        json={
+            "email": profile_fixture.owner_email,
+            "password": "SafeContractOnly-42",
+        },
+    )
+    assert result.status_code == status.HTTP_400_BAD_REQUEST, result.text
+    assert result.json() == {"detail": "El email ya está registrado."}
+    async with AsyncSessionLocal() as db:
+        existing = await db.scalar(
+            select(User).where(User.email == profile_fixture.owner_email)
+        )
+        assert existing is not None
