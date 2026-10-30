@@ -16,11 +16,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.deps import require_admin, require_current_user
 from app.core.enums import MembershipStatus
 from app.crud.crud_client import client
 from app.crud.crud_membership import membership
+from app.db.models import Booking, Client, Membership
 from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.membership import (
@@ -143,7 +145,14 @@ async def read_membership_stats(
         • total de reservas
         • reservas futuras
     """
-    memberships = await membership.get_multi(db=db)
+    memberships = await membership.get_multi(
+        db=db,
+        options=[
+            selectinload(Membership.client)
+            .selectinload(Client.bookings)
+            .selectinload(Booking.class_session),
+        ],
+    )
     return [to_membership_with_stats(m) for m in memberships]
 
 # --------------------------------------------------------------------------- #

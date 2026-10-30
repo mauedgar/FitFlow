@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
 from uuid import UUID
 
@@ -36,6 +37,25 @@ from app.schemas.user import (
 from app.crud.crud_user import user as user_crud
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _is_email_unique_violation(exc: IntegrityError) -> bool:
+    """Only map the known email index violation to the duplicate-email response."""
+    orig = exc.orig
+    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    if sqlstate != "23505":
+        return False
+
+    # asyncpg's native cause exposes constraint_name; its SQLAlchemy adapter
+    # may only surface it in the stable PostgreSQL diagnostic message.
+    cause = getattr(orig, "__cause__", None)
+    constraint_name = getattr(orig, "constraint_name", None) or getattr(
+        cause, "constraint_name", None
+    )
+    if constraint_name is None:
+        match = re.search(r'unique constraint "([^"]+)"', str(orig))
+        constraint_name = match.group(1) if match else None
+    return constraint_name == "ix_users_email"
 
 
 # --------------------------------------------------------------------------- #
@@ -65,10 +85,7 @@ async def register_user(
     except IntegrityError as exc:
         # A concurrent registration can pass the precheck; UNIQUE remains SOT.
         await db.rollback()
-        sqlstate = getattr(exc.orig, "sqlstate", None) or getattr(
-            exc.orig, "pgcode", None
-        )
-        if sqlstate == "23505":
+        if _is_email_unique_violation(exc):
             raise HTTPException(400, "El email ya está registrado.") from exc
         raise
     return to_user_public(user)

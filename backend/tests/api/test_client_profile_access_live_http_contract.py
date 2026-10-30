@@ -5,6 +5,7 @@ SQLAlchemy ORM mappings, and real FastAPI ASGI routing. No external credentials.
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ from app.db.models import (
 from app.db.session import AsyncSessionLocal, engine
 from app.crud.crud_client import client as crud_client
 from app.crud.crud_user import user as crud_user
+from app.routers import users as users_router
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
@@ -513,3 +515,165 @@ async def test_registration_unique_collision_after_precheck_is_http_400(
             select(User).where(User.email == profile_fixture.owner_email)
         )
         assert existing is not None
+
+
+async def test_membership_stats_live_booking_relations_are_preloaded(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+) -> None:
+    """Existing Membership with a real Booking must render without lazy raises."""
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/memberships/stats",
+        headers=headers(profile_fixture, "admin"),
+    )
+    assert response.status_code == status.HTTP_200_OK, response.text
+    actual = next(
+        (item for item in response.json() if item["id"] == str(profile_fixture.membership_id)),
+        None,
+    )
+    assert actual is not None
+    assert actual["total_bookings"] == 1
+    assert str(profile_fixture.booking_id) in actual["upcoming_bookings"]
+
+
+@pytest.mark.parametrize("constraint_name, expected", [
+    ("ix_users_email", True),
+    ("uq_users_other_unique", False),
+    (None, False),
+])
+def test_email_unique_error_classifier_only_matches_email_index(
+    constraint_name: str | None, expected: bool,
+) -> None:
+    class PGUniqueException(Exception):
+        sqlstate = "23505"
+
+        def __init__(self, name: str | None):
+            super().__init__(f'duplicate key value violates unique constraint "{name}"')
+            self.constraint_name = name
+
+    error = __import__("sqlalchemy").exc.IntegrityError(
+        "INSERT INTO users", {}, PGUniqueException(constraint_name),
+    )
+    assert users_router._is_email_unique_violation(error) is expected
+
+
+def test_email_unique_error_classifier_rejects_non_unique_sqlstate() -> None:
+    class PGForeignKeyException(Exception):
+        sqlstate = "23503"
+        constraint_name = "ix_users_email"
+
+    error = __import__("sqlalchemy").exc.IntegrityError(
+        "INSERT INTO users", {}, PGForeignKeyException(),
+    )
+    assert not users_router._is_email_unique_violation(error)
+
+
+async def test_concurrent_http_put_then_delete_serializes_client_profile(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PUT holds row locks; an actual concurrent HTTP DELETE follows its commit."""
+    from app.crud.crud_client import client as crud_client_local
+
+    locked = asyncio.Event()
+    continue_put = asyncio.Event()
+    delete_started = asyncio.Event()
+    original_detail = crud_client_local.get_with_relations
+    original_get = crud_client_local.get
+
+    async def paused_detail(*, db, client_id, for_update=False):
+        result = await original_detail(db=db, client_id=client_id, for_update=for_update)
+        if for_update:
+            locked.set()
+            await asyncio.wait_for(continue_put.wait(), timeout=10)
+        return result
+
+    async def observed_delete_get(*, db, obj_id, **kwargs):
+        result = await original_get(db=db, obj_id=obj_id, **kwargs)
+        if obj_id == profile_fixture.profile_id:
+            delete_started.set()
+        return result
+
+    monkeypatch.setattr(crud_client_local, "get_with_relations", paused_detail)
+    monkeypatch.setattr(crud_client_local, "get", observed_delete_get)
+    url = f"{settings.API_V1_STR}/clients/{profile_fixture.profile_id}"
+    admin_headers = headers(profile_fixture, "admin")
+    put_task = asyncio.create_task(api_client.put(
+        url, json={"first_name": "BeforeDelete"}, headers=admin_headers
+    ))
+    delete_task = None
+    try:
+        await asyncio.wait_for(locked.wait(), timeout=10)
+        delete_task = asyncio.create_task(api_client.delete(url, headers=admin_headers))
+        await asyncio.wait_for(delete_started.wait(), timeout=10)
+        assert not put_task.done()
+        assert not delete_task.done()
+    finally:
+        continue_put.set()
+    response_put = await asyncio.wait_for(put_task, timeout=15)
+    assert response_put.status_code == status.HTTP_200_OK, response_put.text
+    assert delete_task is not None
+    response_delete = await asyncio.wait_for(delete_task, timeout=15)
+    assert response_delete.status_code == status.HTTP_202_ACCEPTED, response_delete.text
+    async with AsyncSessionLocal() as db:
+        saved = await db.scalar(
+            select(Client).where(Client.id == profile_fixture.profile_id)
+        )
+        assert saved is not None
+        assert saved.first_name == "BeforeDelete"
+        assert saved.deleted_at is not None
+
+
+async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deletion acquires row lock first; concurrent PUT must observe 404 afterward."""
+    from app.crud.crud_client import client as crud_client_local
+
+    deleting = asyncio.Event()
+    allow_delete_commit = asyncio.Event()
+    original_remove = crud_client_local.remove
+
+    async def paused_remove(*, db, db_obj, hard=False):
+        assert not hard
+        db_obj.deleted_at = datetime.now(timezone.utc)
+        db_obj.active = False
+        db.add(db_obj)
+        await db.flush()
+        deleting.set()
+        await asyncio.wait_for(allow_delete_commit.wait(), timeout=10)
+        await db.commit()
+        await db.refresh(db_obj)
+
+    monkeypatch.setattr(crud_client_local, "remove", paused_remove)
+    url = f"{settings.API_V1_STR}/clients/{profile_fixture.profile_id}"
+    admin_headers = headers(profile_fixture, "admin")
+    delete_task = asyncio.create_task(api_client.delete(url, headers=admin_headers))
+    put_task = None
+    try:
+        await asyncio.wait_for(deleting.wait(), timeout=10)
+        put_task = asyncio.create_task(
+            api_client.put(
+                url, json={"first_name": "MustNotPersist"}, headers=admin_headers
+            )
+        )
+        # A finite observation: the PUT cannot return before deletion releases locks.
+        await asyncio.sleep(0.05)
+        assert not put_task.done()
+    finally:
+        allow_delete_commit.set()
+    delete_response = await asyncio.wait_for(delete_task, timeout=15)
+    assert delete_response.status_code == status.HTTP_202_ACCEPTED, delete_response.text
+    assert put_task is not None
+    put_response = await asyncio.wait_for(put_task, timeout=15)
+    assert put_response.status_code == status.HTTP_404_NOT_FOUND, put_response.text
+    async with AsyncSessionLocal() as db:
+        saved = await db.scalar(
+            select(Client).where(Client.id == profile_fixture.profile_id)
+        )
+        assert saved is not None
+        assert saved.deleted_at is not None
+        assert saved.first_name == "Ana"
