@@ -40,7 +40,7 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         stmt = (
             select(Client)
             .join(Client.user)
-            .where(User.id == user_id)
+            .where(User.id == user_id, Client.deleted_at.is_(None))
             .options(selectinload(Client.user))
         )
 

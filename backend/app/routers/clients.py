@@ -20,8 +20,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.deps import (
     require_admin,
-    require_admin_client_or_self,
-    require_admin_or_self_guard,
+    require_admin_or_client,
+    require_client,
 )
 from app.core.enums import UserRole
 from app.crud.crud_client import client
@@ -50,6 +50,15 @@ from app.services.client_service import (
 # ruff: noqa: ARG001
 
 router = APIRouter(prefix="/clients", tags=["clients"])
+
+
+def _require_admin_or_owner(user: User, client_profile: Client) -> None:
+    """Compare an account ID with the profile's user_id, not its person ID."""
+    if user.role != UserRole.admin and user.id != client_profile.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado.",
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -100,31 +109,13 @@ async def read_clients(
 
 
 # --------------------------------------------------------------------------- #
-# Obtener Client por ID (privado)
-# --------------------------------------------------------------------------- #
-@router.get("/{client_id}", response_model=ClientWithRelations)
-async def read_client_by_id(
-    *,
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-    client_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_or_self_guard)],
-) -> ClientWithRelations:
-    """Obtiene detalles privados de un cliente."""
-    client_ = await client.get(db=db, obj_id=client_id)
-    if not client_:
-        raise HTTPException(404, "Cliente no encontrado.")
-
-    return ClientWithRelations.model_validate(client_)
-
-
-# --------------------------------------------------------------------------- #
 # Perfil del cliente actual (público)
 # --------------------------------------------------------------------------- #
 @router.get("/me", response_model=ClientPublic)
 async def read_my_profile(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin_client_or_self)],
+    current_user: Annotated[User, Depends(require_client)],
 ) -> ClientPublic:
     """Devuelve el perfil público del cliente actual."""
     client_ = await client.get_by_user_id(db=db, user_id=current_user.id) # pyright: ignore[reportArgumentType]
@@ -141,7 +132,7 @@ async def read_my_profile(
 async def read_my_bookings(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin_client_or_self)],
+    current_user: Annotated[User, Depends(require_client)],
 ) -> ClientWithBookings:
     """Devuelve el perfil del cliente con sus reservas públicas."""
     client_ = await client.get_by_user_id(
@@ -162,7 +153,7 @@ async def read_my_bookings(
 async def read_my_membership(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin_client_or_self)],
+    current_user: Annotated[User, Depends(require_client)],
 ) -> ClientWithMembership:
     """Devuelve el perfil del cliente con su membresía activa."""
     client_ = await client.get_by_user_id(
@@ -183,7 +174,7 @@ async def read_my_membership(
 async def read_my_stats(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin_client_or_self)],
+    current_user: Annotated[User, Depends(require_client)],
 ) -> ClientWithStats:
     """Devuelve estadísticas básicas del cliente."""
     client_ = await client.get_by_user_id(
@@ -204,7 +195,7 @@ async def read_my_stats(
 async def read_my_activity(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin_client_or_self)],
+    current_user: Annotated[User, Depends(require_client)],
 ) -> ClientWithActivity:
     """Devuelve la actividad completa del cliente."""
     client_ = await client.get_by_user_id(
@@ -219,6 +210,25 @@ async def read_my_activity(
 
 
 # --------------------------------------------------------------------------- #
+# Obtener Client por ID (privado)
+# --------------------------------------------------------------------------- #
+@router.get("/{client_id}", response_model=ClientWithRelations)
+async def read_client_by_id(
+    *,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    client_id: UUID,
+    current_user: Annotated[User, Depends(require_admin_or_client)],
+) -> ClientWithRelations:
+    """Obtiene detalles privados de un cliente."""
+    client_ = await client.get(db=db, obj_id=client_id)
+    if not client_:
+        raise HTTPException(404, "Cliente no encontrado.")
+
+    _require_admin_or_owner(current_user, client_)
+    return ClientWithRelations.model_validate(client_)
+
+
+# --------------------------------------------------------------------------- #
 # Actualizar Client
 # --------------------------------------------------------------------------- #
 @router.put("/{client_id}", response_model=ClientWithRelations)
@@ -227,13 +237,14 @@ async def update_client(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     client_id: UUID,
     client_in: ClientUpdate,
-    current_user: Annotated[User, Depends(require_admin_client_or_self)],
+    current_user: Annotated[User, Depends(require_admin_or_client)],
 ) -> ClientWithRelations:
     """Actualiza el perfil privado del cliente."""
     client_ = await client.get(db=db, obj_id=client_id)
     if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
+    _require_admin_or_owner(current_user, client_)
     updated = await client.update(db=db, db_obj=client_, obj_in=client_in)
     return ClientWithRelations.model_validate(updated)
 
