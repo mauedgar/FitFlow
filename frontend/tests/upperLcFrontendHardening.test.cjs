@@ -27,7 +27,7 @@ test('Mobile navigation uses semantic RouterLink destinations rather than inert 
 test('Carousel pauses autoplay on pointer or focus and respects reduced motion', () => {
   const source = load('components/landing/InfiniteCarousel.tsx');
   for (const token of ['useReducedMotion', 'onMouseEnter', 'onMouseLeave',
-      'onFocusCapture', 'onBlurCapture', 'isPaused || shouldReduceMotion',
+      'onFocusCapture', 'onBlurCapture', 'setIsHovered', 'setIsFocusWithin', 'isHovered || isFocusWithin || shouldReduceMotion',
       'shouldReduceMotion ? { duration: 0 }']) {
     assert.ok(source.includes(token), 'missing ' + token);
   }

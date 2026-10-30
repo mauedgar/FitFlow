@@ -56,19 +56,20 @@ const slideVariants = {
 const InfiniteCarousel = () => {
   // 2. Estado para saber qué diapositiva está activa
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocusWithin, setIsFocusWithin] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 
   // 3. useEffect para el cambio automático de diapositiva
   useEffect(() => {
-    if (isPaused || shouldReduceMotion) return;
+    if (isHovered || isFocusWithin || shouldReduceMotion) return;
 
     const slideInterval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
     }, 6000);
 
     return () => clearInterval(slideInterval);
-  }, [isPaused, shouldReduceMotion]);
+  }, [isHovered, isFocusWithin, shouldReduceMotion]);
 
   // Función para cambiar de diapositiva manualmente
   const goToSlide = (slideIndex: number) => {
@@ -81,12 +82,12 @@ const InfiniteCarousel = () => {
       width="full"
       height="calc(100vh - 64px)"
       overflow="hidden"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onFocusCapture={() => setIsPaused(true)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocusCapture={() => setIsFocusWithin(true)}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setIsPaused(false);
+          setIsFocusWithin(false);
         }
       }}
     >
