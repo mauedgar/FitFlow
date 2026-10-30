@@ -38,7 +38,7 @@ const ClassesPage: React.FC = () => {
   };
 
   return (
-    <Container maxW="container.xl" py={10}>
+    <Container maxW="80rem" py={10}>
       <Heading as="h1" size="2xl" mb={8} textAlign="center" color="gray.700">
         Nuestro Catálogo de Clases
       </Heading>

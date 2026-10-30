@@ -1,24 +1,21 @@
 // src/components/dashboard/NotificationPanel.tsx
 import React from 'react';
-import { 
-  Card, CardBody, VStack, Text, Progress, 
-  Skeleton, Alert, AlertIcon 
-} from '@chakra-ui/react';
+import { Card, VStack, Text, Progress, Skeleton, Alert } from '@chakra-ui/react';
 import { useAuth } from '../../context/useAuth';
 import { BookingStatus } from '../../types';
 
 const NotificationPanel: React.FC = () => {
   const { userBookings = [], isLoadingBookings } = useAuth();
-  
+
   // 🚀 Usar los datos que ya están en cache del AuthContext
   // No hacer queries adicionales innecesarias
-  
+
   const monthlyStats = React.useMemo(() => {
     if (!userBookings) return { current: 0, limit: 10, percentage: 0 };
-    
+
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
-    
+
     const classesThisMonth = userBookings.filter(booking => {
       const bookingDate = new Date(booking.starts_at);
       return (
@@ -30,7 +27,7 @@ const NotificationPanel: React.FC = () => {
 
     const monthlyLimit = 10; // Esto vendría de tu API de perfil/plan
     const percentage = Math.min((classesThisMonth / monthlyLimit) * 100, 100);
-    
+
     return {
       current: classesThisMonth,
       limit: monthlyLimit,
@@ -40,15 +37,15 @@ const NotificationPanel: React.FC = () => {
 
   if (isLoadingBookings) {
     return (
-      <Card size="sm">
-        <CardBody>
-          <VStack spacing={3} align="stretch">
+      <Card.Root size="sm">
+        <Card.Body>
+          <VStack gap={3} align="stretch">
             <Skeleton height="16px" />
             <Skeleton height="8px" />
             <Skeleton height="12px" />
           </VStack>
-        </CardBody>
-      </Card>
+        </Card.Body>
+      </Card.Root>
     );
   }
 
@@ -57,34 +54,37 @@ const NotificationPanel: React.FC = () => {
   const colorScheme = isNearLimit ? "orange" : percentage > 60 ? "yellow" : "green";
 
   return (
-    <Card size="sm">
-      <CardBody>
-        <VStack spacing={3} align="stretch">
+    <Card.Root size="sm">
+      <Card.Body>
+        <VStack gap={3} align="stretch">
           <Text fontWeight="bold" fontSize="sm">Estado de Cuenta</Text>
-          
-          <Progress 
-            value={percentage} 
-            colorScheme={colorScheme} 
-            size="sm" 
+
+          <Progress.Root
+            value={percentage}
+            colorPalette={colorScheme}
+            size="sm"
             borderRadius="full"
-            bg="gray.100"
-          />
-          
+            bg="gray.100">
+            <Progress.Track>
+              <Progress.Range />
+            </Progress.Track>
+          </Progress.Root>
+
           <Text fontSize="xs" color="gray.600">
             {current} de {limit} clases utilizadas este mes
           </Text>
-          
+
           {isNearLimit && (
-            <Alert status="warning" size="sm" borderRadius="md">
-              <AlertIcon boxSize={3} />
+            <Alert.Root status="warning" size="sm" borderRadius="md">
+              <Alert.Indicator boxSize={3} />
               <Text fontSize="xs">
                 Te quedan {limit - current} clases este mes
               </Text>
-            </Alert>
+            </Alert.Root>
           )}
         </VStack>
-      </CardBody>
-    </Card>
+      </Card.Body>
+    </Card.Root>
   );
 };
 

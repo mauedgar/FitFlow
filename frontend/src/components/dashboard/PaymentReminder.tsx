@@ -1,6 +1,6 @@
 // src/components/dashboard/PaymentReminder.tsx
 import React from 'react';
-import { Alert, AlertIcon, AlertTitle, AlertDescription, Box } from '@chakra-ui/react';
+import { Alert, Box } from '@chakra-ui/react';
 
 const PaymentReminder: React.FC = () => {
   // Esto vendría de tu API
@@ -10,15 +10,15 @@ const PaymentReminder: React.FC = () => {
   if (!hasPaymentDue) return null;
 
   return (
-    <Alert status="warning" borderRadius="md">
-      <AlertIcon />
+    <Alert.Root status="warning" borderRadius="md">
+      <Alert.Indicator />
       <Box fontSize="sm">
-        <AlertTitle>¡Cuota por vencer!</AlertTitle>
-        <AlertDescription>
+        <Alert.Title>¡Cuota por vencer!</Alert.Title>
+        <Alert.Description>
           Tu cuota vence en {daysUntilDue} días
-        </AlertDescription>
+        </Alert.Description>
       </Box>
-    </Alert>
+    </Alert.Root>
   );
 };
 

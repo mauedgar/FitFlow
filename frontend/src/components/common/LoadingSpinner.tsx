@@ -4,11 +4,10 @@ import { Box, Spinner, Text, VStack } from '@chakra-ui/react';
 const LoadingSpinner: React.FC = () => {
   return (
     <Box textAlign="center" py={10} px={6}>
-      <VStack spacing={4}>
+      <VStack gap={4}>
         <Spinner
-          thickness="4px"
-          speed="0.65s"
-          emptyColor="gray.200"
+          borderWidth="4px"
+          animationDuration="0.65s"
           color="blue.500"
           size="xl"
         />

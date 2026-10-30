@@ -1,17 +1,18 @@
+import { toaster } from '../ui/toaster-store';
 import React from 'react';
 import {
   Box, Heading, Text, VStack, HStack, Icon,
-  Flex, Button, useToast, Alert, AlertIcon, Badge,
+   Flex, Button, Alert, Badge,
 } from '@chakra-ui/react';
 import { FaUserGraduate, FaCalendarWeek, FaHourglassHalf } from 'react-icons/fa';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { AxiosError } from 'axios';
 
-import {    
+import {
   BookingStatus,
-  type BookingCreatePayload, 
-  type ClassScheduleWithNextSession 
+  type BookingCreatePayload,
+  type ClassScheduleWithNextSession
 } from '../../types';
 import classService from '../../services/classService';
 import { useAuth } from '../../context/useAuth';
@@ -31,7 +32,6 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   /* ------------------------------------------------------------------
      1. Hooks esenciales
   -------------------------------------------------------------------*/
-  const toast = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isAuthenticated, isClient, userRole } = useAuth();
@@ -42,10 +42,10 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   const bookScheduleMutation = useMutation({
     mutationFn: (payload: BookingCreatePayload) => classService.createBooking(payload),
     onSuccess: () => {
-      toast({
+      toaster.create({
         title: '¡Cupo reservado!',
         description: `Has reservado tu cupo recurrente para ${gymClassName}. Revisa tu calendario.`,
-        status: 'success', duration: 5000, isClosable: true,
+        type: 'success', duration: 5000, closable: true,
       });
       queryClient.invalidateQueries({ queryKey: ['myBookings'] });
       queryClient.invalidateQueries({ queryKey: ['gymClasses'] });
@@ -54,7 +54,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
     onError: (err: unknown) => {
       const axiosErr = err as AxiosError<{ detail?: string }>;
       const msg = axiosErr.response?.data?.detail || 'Error al procesar la reserva.';
-      toast({ title: 'No se pudo completar la reserva', description: msg, status: 'error', duration: 6000, isClosable: true });
+      toaster.create({ title: 'No se pudo completar la reserva', description: msg, type: 'error', duration: 6000, closable: true });
       if (axiosErr.response?.status === 401) navigate('/login');
     },
   });
@@ -64,7 +64,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   -------------------------------------------------------------------*/
   const nextSession = classSchedule?.next_upcoming_session;
 
-  const isAvailable = !!nextSession; 
+  const isAvailable = !!nextSession;
   const referenceCapacityReached = isAvailable && nextSession.available_spots <= 0;
   // Pre-calculamos las propiedades de la Badge para un render más limpio
   const getBadgeProps = () => {
@@ -74,10 +74,10 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
     if (referenceCapacityReached) {
       return { text: 'Referencia alcanzada · reservas abiertas', colorScheme: 'purple' };
     }
-    
+
     const nextDate = getFormattedDate(new Date(nextSession.starts_at));
     const text = `Próximo inicio: ${nextDate}`;
-    
+
     if (nextSession.available_spots <= 3) {
       return { text, colorScheme: 'orange' };
     }
@@ -94,7 +94,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   const handleBookClick = () => {
     if (!isAuthenticated) { navigate('/login'); return; }
     if (!isClient) {
-      toast({ title: 'Acción no permitida', description: 'Solo los clientes pueden reservar.', status: 'warning', duration: 3000, isClosable: true });
+      toaster.create({ title: 'Acción no permitida', description: 'Solo los clientes pueden reservar.', type: 'warning', duration: 3000, closable: true });
       return;
     }
     bookScheduleMutation.mutate({ class_schedule_id: classSchedule.id, status: BookingStatus.CONFIRMED });
@@ -118,7 +118,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
   const days = classSchedule.rrule;
 
   if (!teacher) {
-    return <Alert status="warning" my={4}><AlertIcon />Falta información del instructor.</Alert>;
+    return <Alert.Root status="warning" my={4}><Alert.Indicator /><Alert.Content><Alert.Description>Falta información del instructor.</Alert.Description></Alert.Content></Alert.Root>;
   }
 
   /* ------------------------------------------------------------------
@@ -128,7 +128,7 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
     <Box p={4} borderWidth="1px" borderRadius="lg" bg="white" shadow="sm">
       <Flex direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'center' }}>
         {/* --- LADO IZQUIERDO: Información del Horario --- */}
-        <VStack align="stretch" spacing={2} mb={{ base: 4, md: 0 }}>
+        <VStack align="stretch" gap={2} mb={{ base: 4, md: 0 }}>
           <Heading as="h4" size="sm">{gymClassName} – Horario Recurrente</Heading>
           <HStack><Icon as={FaCalendarWeek} color="blue.500" /><Text fontWeight="medium">Días: {days}</Text></HStack>
           <HStack><Icon as={FaHourglassHalf} color="blue.500" /><Text>Horario: {startTime} – {endTime} hs</Text></HStack>
@@ -136,18 +136,18 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
         </VStack>
 
         {/* --- LADO DERECHO: Acciones de Reserva --- */}
-        <VStack spacing={2} align={{ base: 'stretch', md: 'flex-end' }}>
+        <VStack gap={2} align={{ base: 'stretch', md: 'flex-end' }}>
           {/* ⭐ NUEVA BADGE DE ESTADO */}
-          <Badge colorScheme={badgeProps.colorScheme} variant="subtle" px={3} py={1} borderRadius="md">
+          <Badge colorPalette={badgeProps.colorScheme} variant="subtle" px={3} py={1} borderRadius="md">
             {badgeProps.text}
           </Badge>
 
           <Button
-            colorScheme="teal"
+            colorPalette="teal"
             w={{ base: '100%', md: 'auto' }}
             onClick={handleBookClick}
-            isDisabled={buttonDisabled}
-            isLoading={pendingMutation}
+            disabled={buttonDisabled}
+            loading={pendingMutation}
           >
             {buttonLabel}
           </Button>
@@ -159,9 +159,9 @@ const ClassScheduleSection: React.FC<ClassScheduleSectionProps> = ({
           )}
         </VStack>
       </Flex>
-      
+
       {/* --- SECCIÓN DE SESIONES FUTURAS (COMENTADA) --- */}
-      {/* 
+      {/*
         <Divider my={4} />
         TODO: Sprint X - Habilitar la vista de sesiones individuales futuras.
               Esta sección requeriría una query separada para traer las ClassSession

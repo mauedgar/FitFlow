@@ -40,7 +40,7 @@ const ActivitiesSection = () => {
         px={{ base: 4, md: 8 }}
       >
         <GridItem position={{ lg: 'sticky' }} top="100px" alignSelf="start" height="auto">
-          <VStack spacing={6} align="start" textAlign={{ base: "center", lg: "left" }}>
+          <VStack gap={6} align="start" textAlign={{ base: "center", lg: "left" }}>
             <Heading as="h2" size={{ base: '2xl', md: '3xl' }} color="gray.800">
               Todas las actividades que buscas.
             </Heading>
@@ -51,7 +51,7 @@ const ActivitiesSection = () => {
         </GridItem>
 
         <GridItem>
-          <VStack spacing={8}>
+          <VStack gap={8}>
             {activitiesData.map((activity, index) => (
               <Box
                 key={index}

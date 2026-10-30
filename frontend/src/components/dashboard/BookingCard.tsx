@@ -1,7 +1,8 @@
+import { toaster } from '../ui/toaster-store';
 // src/components/dashboard/BookingCard.tsx
 import React from 'react';
 import {
-  Box, Text, HStack, VStack, Icon, IconButton, useToast,
+  Box, Text, HStack, VStack, Icon, IconButton,
   Flex, Stack, useBreakpointValue, Button
 } from '@chakra-ui/react';
 import { FiClock, FiX, FiMapPin } from 'react-icons/fi';
@@ -16,7 +17,6 @@ interface BookingCardProps {
 }
 
 const BookingCard: React.FC<BookingCardProps> = ({ booking, compact = false }) => {
-  const toast = useToast();
   const queryClient = useQueryClient();
   const isMobile = useBreakpointValue({ base: true, md: false });
 
@@ -29,18 +29,18 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, compact = false }) =
   const cancelMutation = useMutation({
     mutationFn: () => classService.cancelBooking(booking.id),
     onSuccess: () => {
-      toast({
+      toaster.create({
         title: 'Reserva cancelada',
-        status: 'success',
+        type: 'success',
         duration: 3000,
       });
       queryClient.invalidateQueries({ queryKey: ['myBookings'] });
     },
     onError: () => {
-      toast({
+      toaster.create({
         title: 'Error al cancelar',
         description: 'No se pudo cancelar la reserva',
-        status: 'error',
+        type: 'error',
         duration: 3000,
       });
     }
@@ -60,17 +60,17 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, compact = false }) =
         transition="all 0.2s"
         onClick={() => {
           if (isMobile) {
-            toast({
+            toaster.create({
               title: className,
               description: `${startTime} - ${endTime} hs`,
-              status: 'info',
+              type: 'info',
               duration: 4000,
-              isClosable: true,
+              closable: true,
             });
           }
         }}
       >
-        <Text fontWeight="bold" color="blue.700" mb={1} noOfLines={1} fontSize={{ base: "xs", md: "sm" }}>
+        <Text fontWeight="bold" color="blue.700" mb={1} lineClamp={1} fontSize={{ base: "xs", md: "sm" }}>
           {className}
         </Text>
         <HStack justify="space-between">
@@ -82,18 +82,18 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, compact = false }) =
 
   return (
     <Box p={{ base: 3, md: 4 }} borderWidth="1px" borderRadius="md" bg="white" shadow="sm" _hover={{ shadow: 'md' }} transition="all 0.2s">
-      <Stack direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'start' }} spacing={{ base: 3, md: 4 }}>
-        <VStack align="start" spacing={2} flex={1}>
-          <Text fontSize={{ base: "md", md: "lg" }} fontWeight="bold" noOfLines={2}>
+      <Stack direction={{ base: 'column', md: 'row' }} justify="space-between" align={{ base: 'stretch', md: 'start' }} gap={{ base: 3, md: 4 }}>
+        <VStack align="start" gap={2} flex={1}>
+          <Text fontSize={{ base: "md", md: "lg" }} fontWeight="bold" lineClamp={2}>
             {className}
           </Text>
-          <VStack align="start" spacing={1} w="100%">
+          <VStack align="start" gap={1} w="100%">
             <HStack fontSize={{ base: "sm", md: "md" }} color="gray.600">
-              <Icon as={FiClock} boxSize={{ base: 3, md: 4 }} />
+              <Icon boxSize={{ base: 3, md: 4 }} as={FiClock} />
               <Text>{getFormattedDateTime(booking.starts_at)} - {endTime} hs</Text>
             </HStack>
             <HStack fontSize={{ base: "sm", md: "md" }} color="gray.600">
-              <Icon as={FiMapPin} boxSize={{ base: 3, md: 4 }} />
+              <Icon boxSize={{ base: 3, md: 4 }} as={FiMapPin} />
               <Text>Sala principal</Text>
             </HStack>
           </VStack>
@@ -101,11 +101,22 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, compact = false }) =
 
         <Flex direction={{ base: 'row', md: 'column' }} justify={{ base: 'flex-end', md: 'start' }} align={{ base: 'center', md: 'end' }} gap={2}>
           {isMobile ? (
-            <Button size="sm" colorScheme="red" variant="outline" leftIcon={<FiX />} onClick={() => cancelMutation.mutate()} isLoading={cancelMutation.isPending} minW="100px">
-              Cancelar
-            </Button>
+            <Button
+              size="sm"
+              colorPalette="red"
+              variant="outline"
+              onClick={() => cancelMutation.mutate()}
+              loading={cancelMutation.isPending}
+              minW="100px"><FiX />Cancelar
+                          </Button>
           ) : (
-            <IconButton aria-label="Cancelar reserva" icon={<FiX />} size="sm" colorScheme="red" variant="ghost" onClick={() => cancelMutation.mutate()} isLoading={cancelMutation.isPending} />
+            <IconButton
+              aria-label="Cancelar reserva"
+              size="sm"
+              colorPalette="red"
+              variant="ghost"
+              onClick={() => cancelMutation.mutate()}
+              loading={cancelMutation.isPending}><FiX /></IconButton>
           )}
         </Flex>
       </Stack>

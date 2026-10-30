@@ -9,9 +9,9 @@ interface ClassListProps {
   onClassSelect: (classId: string) => void; // Prop para notificar la selección
 }
 
-const ClassList: React.FC<ClassListProps> = ({ classes , onClassSelect}) => {    
+const ClassList: React.FC<ClassListProps> = ({ classes , onClassSelect}) => {
   return (
-    <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={8} p={5}>
+    <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={8} p={5}>
       {classes.map((classItem) => (
         <ClassCard key={classItem.id} gymClass={classItem} onClick={() => onClassSelect(classItem.id)}/>
       ))}

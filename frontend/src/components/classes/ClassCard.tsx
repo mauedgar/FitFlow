@@ -1,9 +1,6 @@
 import React from 'react';
 import {
   Card,
-  CardHeader,
-  CardBody,
-  CardFooter,
   Heading,
   Text,
   Flex,
@@ -11,8 +8,9 @@ import {
   VStack,
   HStack,
   Icon,
-  StackDivider,
-  Image, // Importamos Image para el fondo visual
+  // Importamos Image para el fondo visual
+  Image,
+  Separator,
 } from '@chakra-ui/react';
 import { FaCalendarAlt, FaClock } from 'react-icons/fa';
 import { type GymClass } from '../../types'; // Asumo que esta es la ruta correcta
@@ -38,7 +36,7 @@ const ClassCard: React.FC<ClassCardProps> = ({ gymClass, onClick }) => {
 
   return (
     // 1. Usamos el componente <Card> semántico. Viene con estilos base.
-    <Card
+    <Card.Root
       direction="column"
       overflow="hidden"
       variant="outline" // Un estilo sutil
@@ -60,14 +58,14 @@ const ClassCard: React.FC<ClassCardProps> = ({ gymClass, onClick }) => {
       />
 
       {/* 3. <CardHeader> para el título y metadatos principales. */}
-      <CardHeader>
+      <Card.Header>
         <Flex justify="space-between" align="center" gap={4}>
-          <Heading size="md" noOfLines={2}>
+          <Heading size="md" lineClamp={2}>
             {name}
           </Heading>
           <Badge
             flexShrink={0} // Evita que el badge se encoja si el título es largo
-            colorScheme={difficultyColorScheme[difficulty] || 'gray'}
+            colorPalette={difficultyColorScheme[difficulty] || 'gray'}
             variant="solid" // Un estilo más prominente
             borderRadius="full"
             px={3}
@@ -75,34 +73,27 @@ const ClassCard: React.FC<ClassCardProps> = ({ gymClass, onClick }) => {
             {difficulty}
           </Badge>
         </Flex>
-      </CardHeader>
+      </Card.Header>
 
       {/* 4. <CardBody> para el contenido principal, como la descripción. */}
-      <CardBody py={0}>
-        <Text fontSize="sm" color="gray.600" noOfLines={3}>
+      <Card.Body py={0}>
+        <Text fontSize="sm" color="gray.600" lineClamp={3}>
           {description}
         </Text>
-      </CardBody>
+      </Card.Body>
 
       {/* 5. <CardFooter> para información secundaria y acciones. */}
-      <CardFooter>
-        <VStack
-          divider={<StackDivider borderColor="gray.200" />} // ¡Un separador elegante!
-          spacing={3}
-          align="stretch"
-          w="100%"
-        >
-          <HStack color="gray.700">
-            <Icon as={FaClock} w={4} h={4} />
+      <Card.Footer>
+        <VStack gap={3} align="stretch" w="100%"><HStack color="gray.700">
+            <Icon w={4} h={4} as={FaClock} />
             <Text fontSize="sm" fontWeight="medium">Duración: {duration_minutes ?? 'N/A'} min</Text>
           </HStack>
-          <HStack color="gray.700">
-            <Icon as={FaCalendarAlt} w={4} h={4} />
+          <Separator borderColor="gray.200" /><HStack color="gray.700">
+            <Icon w={4} h={4} as={FaCalendarAlt} />
             <Text fontSize="sm" fontWeight="medium">Multiples horarios disponibles</Text>
-          </HStack>
-        </VStack>
-      </CardFooter>
-    </Card>
+          </HStack></VStack>
+      </Card.Footer>
+    </Card.Root>
   );
 };
 

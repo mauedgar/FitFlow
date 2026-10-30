@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Box, Button, Flex, Heading, Text, VStack, HStack } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 // Los mismos datos que ya teníamos
 const carouselSlides = [
@@ -56,17 +56,20 @@ const slideVariants = {
 const InfiniteCarousel = () => {
   // 2. Estado para saber qué diapositiva está activa
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocusWithin, setIsFocusWithin] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   // 3. useEffect para el cambio automático de diapositiva
   useEffect(() => {
-    const slideInterval = setInterval(() => {
-      // Usamos el operador de módulo para volver al inicio
-      setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
-    }, 6000); // Cambia cada 6 segundos
+    if (isHovered || isFocusWithin || shouldReduceMotion) return;
 
-    // Limpiamos el intervalo cuando el componente se desmonta
+    const slideInterval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
+    }, 6000);
+
     return () => clearInterval(slideInterval);
-  }, []); // El array vacío asegura que esto solo se ejecute una vez
+  }, [isHovered, isFocusWithin, shouldReduceMotion]);
 
   // Función para cambiar de diapositiva manualmente
   const goToSlide = (slideIndex: number) => {
@@ -74,16 +77,29 @@ const InfiniteCarousel = () => {
   };
 
   return (
-    <Box position="relative" width="full" height="calc(100vh - 64px)" overflow="hidden">
+    <Box
+      position="relative"
+      width="full"
+      height="calc(100vh - 64px)"
+      overflow="hidden"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onFocusCapture={() => setIsFocusWithin(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setIsFocusWithin(false);
+        }
+      }}
+    >
       {/* 4. AnimatePresence es la clave para animar la salida de un componente */}
       <AnimatePresence initial={false} mode="wait">
         <motion.div
           key={currentSlide} // La key es crucial para que AnimatePresence detecte el cambio
           variants={slideVariants}
-          initial="enter"
+          initial={shouldReduceMotion ? false : "enter"}
           animate="center"
           exit="exit"
-          transition={{
+          transition={shouldReduceMotion ? { duration: 0 } : {
             x: { type: 'spring', stiffness: 300, damping: 30 },
             opacity: { duration: 0.3 },
           }}
@@ -98,9 +114,9 @@ const InfiniteCarousel = () => {
             height="100%"
             align="center"
             justify="center"
-            bgImage={`url(${carouselSlides[currentSlide].image})`}
-            bgPosition="center"
-            bgSize="cover"
+            backgroundImage={`url(${carouselSlides[currentSlide].image})`}
+            backgroundPosition="center"
+            backgroundSize="cover"
           >
             <Box position="absolute" top="0" left="0" right="0" bottom="0" bg="blackAlpha.600" />
             <VStack
@@ -108,7 +124,7 @@ const InfiniteCarousel = () => {
               align="center"
               color="white"
               textAlign="center"
-              spacing={6}
+              gap={6}
               position="relative"
               px={4}
               zIndex={2}
@@ -119,9 +135,9 @@ const InfiniteCarousel = () => {
               <Text fontSize={{ base: 'lg', md: '2xl' }} maxWidth="700px" textShadow="1px 1px 3px rgba(0,0,0,0.5)">
                 {carouselSlides[currentSlide].subtitle}
               </Text>
-              <Button as={RouterLink} to={carouselSlides[currentSlide].link} colorScheme="teal" size="lg" mt={4}>
-                {carouselSlides[currentSlide].buttonText}
-              </Button>
+              <Button colorPalette="teal" size="lg" mt={4} asChild><RouterLink to={carouselSlides[currentSlide].link}>
+                  {carouselSlides[currentSlide].buttonText}
+                </RouterLink></Button>
             </VStack>
           </Flex>
         </motion.div>
@@ -130,23 +146,22 @@ const InfiniteCarousel = () => {
       {/* 5. La "barra de desplazamiento" (puntos de navegación) */}
       <HStack
         justify="center"
-        spacing={4}
+        gap={4}
         position="absolute"
         bottom="40px"
         width="full"
         zIndex={3}
       >
-        {carouselSlides.map((_, index) => (
+        {carouselSlides.map((slide, index) => (
           <Box
-            key={index}
-            as="button"
-            width={currentSlide === index ? '24px' : '12px'} // El punto activo es más ancho
+            key={slide.link}
+            // El punto activo es más ancho
+            width={currentSlide === index ? '24px' : '12px'}
             height="12px"
             borderRadius="full"
             bg={currentSlide === index ? 'teal.400' : 'whiteAlpha.600'}
-            onClick={() => goToSlide(index)}
             transition="all 0.3s ease-in-out"
-          />
+            asChild><button type="button" aria-label={`Ir a la diapositiva ${index + 1}: ${slide.title}`} aria-current={currentSlide === index ? 'true' : undefined} onClick={() => goToSlide(index)} /></Box>
         ))}
       </HStack>
     </Box>

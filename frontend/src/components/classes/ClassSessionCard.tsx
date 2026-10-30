@@ -1,7 +1,8 @@
+import { toaster } from '../ui/toaster-store';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import {
-  Box, Text, Button, Badge, useToast, Flex, Spacer,
+  Box, Text, Button, Badge,  Flex, Spacer,
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { type ClassSession, BookingStatus, type BookingCreatePayload } from '../../types';
@@ -20,7 +21,6 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
   classSession,
   onCloseModal,
 }) => {
-  const toast     = useToast();
   const navigate  = useNavigate();
   const queryClient = useQueryClient();
 
@@ -42,12 +42,12 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
   const bookSessionMutation = useMutation({
     mutationFn: (payload: BookingCreatePayload) => classService.createBooking(payload),
     onSuccess: () => {
-      toast({
+      toaster.create({
         title: '¡Reserva confirmada!',
         description: `Has reservado un cupo para ${classSession.class_schedule?.gym_class?.name ?? 'la clase'} el ${getFormattedDateTime(classSession.starts_at)}.`,
-        status: 'success',
+        type: 'success',
         duration: 5000,
-        isClosable: true,
+        closable: true,
       });
       // Re–frescar cache
       queryClient.invalidateQueries({ queryKey: ['classSessions'] });
@@ -60,13 +60,13 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
       const status   = axiosErr.response?.status;
       const data      = axiosErr.response?.data;
       const rawErrorMessage = JSON.stringify(data);
-      
-      toast({
+
+      toaster.create({
         title: 'Error de reserva',
         description: rawErrorMessage,
-        status: 'error',
+        type: 'error',
         duration: 10000,
-        isClosable: true,
+        closable: true,
       });
 
       if (status === 401 || status === 403) navigate('/login');
@@ -75,23 +75,23 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
 
   const handleBookClick = () => {
     if (!isAuthenticated) {
-      toast({
+      toaster.create({
         title: 'Inicia sesión',
         description: 'Debes iniciar sesión para reservar una clase.',
-        status: 'info',
+        type: 'info',
         duration: 3000,
-        isClosable: true,
+        closable: true,
       });
       navigate('/login');
       return;
     }
     if (!isClient) {
-      toast({
+      toaster.create({
         title: 'Permiso denegado',
         description: 'Solo los clientes pueden reservar clases.',
-        status: 'warning',
+        type: 'warning',
         duration: 3000,
-        isClosable: true,
+        closable: true,
       });
       return;
     }
@@ -127,7 +127,7 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
         <Spacer />
         {!isPast && (
           <Badge
-            colorScheme={
+            colorPalette={
               referenceCapacityReached ? 'purple' : classSession.available_spots <= 3 ? 'orange' : 'green'
             }
             fontSize="sm"
@@ -142,12 +142,12 @@ const ClassSessionCard: React.FC<ClassSessionCardProps> = ({
       </Text>
 
       <Button
-        colorScheme="teal"
+        colorPalette="teal"
         size="sm"
         w="100%"
         onClick={handleBookClick}
-        isDisabled={buttonDisabled}
-        isLoading={pendingReq}
+        disabled={buttonDisabled}
+        loading={pendingReq}
       >
         {buttonLabel}
       </Button>

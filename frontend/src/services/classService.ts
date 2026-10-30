@@ -21,22 +21,16 @@ interface LoginPayload {
 const classService = {
   // --- Autenticación ---
   async login(payload: LoginPayload): Promise<TokenResponse> {
-    try {
-      const formData = new URLSearchParams();
-      formData.append('username', payload.username);
-      formData.append('password', payload.password);
+    const formData = new URLSearchParams();
+    formData.append('username', payload.username);
+    formData.append('password', payload.password);
 
-      const response = await apiClient.post<TokenResponse>('/auth/token', formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error al hacer login:', error);
-      throw error;
-      // throw new Error('No se pudo iniciar sesión');
-    }
+    const response = await apiClient.post<TokenResponse>('/auth/token', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+    return response.data;
   },
 
   // --- GymClass Endpoints ---
