@@ -12,7 +12,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.core.deps import require_current_user
+from app.routers import clients as clients_router
 from app.core.enums import UserRole
 from app.crud.crud_client import client as crud_client
 from app.db.session import get_async_session
@@ -48,7 +48,7 @@ def http_clients(monkeypatch):
             email="ana@example.com", active=True,
         )
 
-    app.dependency_overrides[require_current_user] = current_user
+    app.dependency_overrides[clients_router._require_clients_current_user] = current_user
     app.dependency_overrides[get_async_session] = lambda: object()
 
     async def get_by_user_id(*, db, user_id, include_relations=False):
