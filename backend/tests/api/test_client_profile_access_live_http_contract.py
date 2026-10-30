@@ -635,10 +635,13 @@ async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
 
     deleting = asyncio.Event()
     allow_delete_commit = asyncio.Event()
+    put_entered = asyncio.Event()
     original_remove = crud_client_local.remove
+    original_detail = crud_client_local.get_with_relations
+    put_backend_pid: int | None = None
 
     async def paused_remove(*, db, db_obj, hard=False):
-        # Lock the real database row; leave the actual soft-delete to CRUDBase.
+        # Use the real DELETE route and production CRUD.remove after this lock.
         assert not hard
         await db.execute(
             select(Client.id)
@@ -649,14 +652,23 @@ async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
         await asyncio.wait_for(allow_delete_commit.wait(), timeout=15)
         return await original_remove(db=db, db_obj=db_obj, hard=hard)
 
+    async def identified_put_detail(*, db, client_id, for_update=False):
+        nonlocal put_backend_pid
+        if for_update and client_id == profile_fixture.profile_id:
+            # The same AsyncSession/connection executes the blocked SELECT.
+            put_backend_pid = await db.scalar(text("SELECT pg_backend_pid()"))
+            put_entered.set()
+        return await original_detail(
+            db=db, client_id=client_id, for_update=for_update,
+        )
+
     async def assert_put_is_waiting_on_delete_lock():
-        # Observe PostgreSQL's lock manager, not just an HTTP task or timer.
+        assert put_backend_pid is not None
         query = text(
             """
             SELECT EXISTS (
                 SELECT 1 FROM pg_stat_activity
-                WHERE datname = current_database()
-                  AND pid <> pg_backend_pid()
+                WHERE pid = :pid AND datname = current_database()
                   AND wait_event_type = 'Lock'
                   AND cardinality(pg_blocking_pids(pid)) > 0
                   AND query ILIKE '%FOR UPDATE%'
@@ -666,13 +678,14 @@ async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
         )
         async with AsyncSessionLocal() as observer:
             for _ in range(100):
-                if await observer.scalar(query):
+                if await observer.scalar(query, {"pid": put_backend_pid}):
                     return
                 await observer.rollback()
                 await asyncio.sleep(0.05)
-        pytest.fail("PUT never reached a PostgreSQL FOR UPDATE lock wait")
+        pytest.fail("The specific PUT backend never waited on DELETE's row lock")
 
     monkeypatch.setattr(crud_client_local, "remove", paused_remove)
+    monkeypatch.setattr(crud_client_local, "get_with_relations", identified_put_detail)
     url = f"{settings.API_V1_STR}/clients/{profile_fixture.profile_id}"
     admin_headers = headers(profile_fixture, "admin")
     delete_task = asyncio.create_task(api_client.delete(url, headers=admin_headers))
@@ -684,16 +697,22 @@ async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
                 url, json={"first_name": "MustNotPersist"}, headers=admin_headers
             )
         )
+        await asyncio.wait_for(put_entered.wait(), timeout=10)
         await asyncio.wait_for(assert_put_is_waiting_on_delete_lock(), timeout=12)
-        assert not put_task.done(), "PUT must still be waiting on DELETE's row lock"
-        assert not delete_task.done(), "DELETE must still hold its row lock"
+        assert not put_task.done(), "PUT must wait on DELETE's row lock"
+        assert not delete_task.done(), "DELETE must hold its lock"
+        allow_delete_commit.set()
+        delete_response = await asyncio.wait_for(delete_task, timeout=15)
+        assert delete_response.status_code == status.HTTP_202_ACCEPTED, delete_response.text
+        put_response = await asyncio.wait_for(put_task, timeout=15)
+        assert put_response.status_code == status.HTTP_404_NOT_FOUND, put_response.text
     finally:
         allow_delete_commit.set()
-    delete_response = await asyncio.wait_for(delete_task, timeout=15)
-    assert delete_response.status_code == status.HTTP_202_ACCEPTED, delete_response.text
-    assert put_task is not None
-    put_response = await asyncio.wait_for(put_task, timeout=15)
-    assert put_response.status_code == status.HTTP_404_NOT_FOUND, put_response.text
+        tasks = [task for task in (put_task, delete_task) if task is not None]
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
     async with AsyncSessionLocal() as db:
         saved = await db.scalar(
             select(Client).where(Client.id == profile_fixture.profile_id)
@@ -701,3 +720,46 @@ async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
         assert saved is not None
         assert saved.deleted_at is not None
         assert saved.first_name == "Ana"
+
+
+@pytest.mark.parametrize("credential", [
+    "missing", "invalid", "expired", "missing_user", "deleted_user",
+])
+async def test_membership_admin_routes_reject_bad_jwt_as_http_401(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+    credential: str,
+) -> None:
+    if credential == "missing":
+        request_headers = {}
+    elif credential == "invalid":
+        request_headers = {"Authorization": "Bearer not-a-valid-jwt"}
+    elif credential == "expired":
+        request_headers = {"Authorization": "Bearer " + create_access_token(
+            {"sub": str(profile_fixture.owner_id), "role": UserRole.client.value},
+            expires_delta=timedelta(seconds=-1),
+        )}
+    elif credential == "missing_user":
+        request_headers = {"Authorization": "Bearer " + create_access_token(
+            {"sub": str(uuid.uuid4()), "role": UserRole.admin.value},
+        )}
+    else:
+        request_headers = headers(profile_fixture, "deleted_user")
+
+    for path in ("/memberships/", "/memberships/stats", "/memberships/active"):
+        response = await api_client.get(
+            f"{settings.API_V1_STR}{path}", headers=request_headers,
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
+        assert response.headers.get("www-authenticate") == "Bearer"
+
+
+async def test_membership_stats_rejects_valid_non_admin_role(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+) -> None:
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/memberships/stats",
+        headers=headers(profile_fixture, "owner"),
+    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN, response.text

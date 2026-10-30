@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import require_admin, require_current_user
+from app.core.deps import oauth2_scheme, require_admin, require_current_user
 from app.core.enums import MembershipStatus
 from app.crud.crud_client import client
 from app.crud.crud_membership import membership
@@ -33,7 +33,7 @@ from app.schemas.membership import (
     MembershipWithStats,
 )
 from app.schemas.user import UserPublic
-from app.services.errors import PermissionDeniedError
+from app.services.errors import AuthError, PermissionDeniedError
 from app.services.membership_service import (
     to_membership_public,
     to_membership_with_client,
@@ -44,8 +44,23 @@ from app.services.membership_service import (
 router = APIRouter(prefix="/memberships", tags=["memberships"])
 
 
+async def _require_membership_current_user(
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> UserPublic:
+    """Return HTTP 401 for missing, invalid, expired or deleted identities."""
+    try:
+        return await require_current_user(db=db, token=token)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+
 async def _require_membership_admin(
-    user: Annotated[UserPublic, Depends(require_current_user)],
+    user: Annotated[UserPublic, Depends(_require_membership_current_user)],
 ) -> UserPublic:
     """Map the existing admin role guard to the selected Membership HTTP boundary."""
     try:
@@ -65,7 +80,7 @@ async def create_membership(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     membership_in: MembershipCreate,
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: MembershipAdminUser,
 ) -> MembershipPublic:
     """Crea una membresía para un cliente.
 
@@ -93,7 +108,7 @@ async def read_memberships(  # noqa: PLR0913
     client_id: UUID | None = None,
     status: str | None = None,
     plan: str | None = None,
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: MembershipAdminUser,
 ) -> list[MembershipPublic]:
     """Lista membresías en versión pública (admin).
 
@@ -191,7 +206,7 @@ async def update_membership(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     membership_id: UUID,
     membership_in: MembershipUpdate,
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: MembershipAdminUser,
 ) -> MembershipPublic:
     """Actualiza una membresía.
 
@@ -218,7 +233,7 @@ async def delete_membership(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     membership_id: UUID,
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: MembershipAdminUser,
 ) -> dict[str, str]:
     """Elimina una membresía (soft delete)."""
     membershipp = await membership.get(db=db, obj_id=membership_id)
