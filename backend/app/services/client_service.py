@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from app.schemas.client import (
     ClientPublic,
+    ClientWithRelations,
     ClientWithActivity,
     ClientWithBookings,
     ClientWithMembership,
@@ -62,16 +63,39 @@ def to_client_with_bookings(client: Client) -> ClientWithBookings:
 
 def to_client_with_membership(client: Client) -> ClientWithMembership:
     """Extiende el cliente con su membresía activa."""
-    membership: Membership | None = client.membership
+    from app.services.membership_service import to_membership_public
 
+    membership: Membership | None = client.membership
     return ClientWithMembership(
         **to_client_public(client).model_dump(),
-        membership=membership, # pyright: ignore[reportArgumentType]
+        membership=to_membership_public(membership) if membership is not None else None,
     )
 
 
 # --------------------------------------------------------------------------- #
-# 4. Actividad del cliente (día, semana, futuras, pasadas)
+# 4. Contrato privado de cliente (proyección ORM explícita)
+# --------------------------------------------------------------------------- #
+
+def to_client_with_relations(client: Client) -> ClientWithRelations:
+    """Serializa las reservas y membresía con sus campos derivados reales."""
+    from app.services.membership_service import to_membership_public
+
+    membership = client.membership
+    return ClientWithRelations(
+        id=client.id,
+        first_name=client.first_name,
+        last_name=client.last_name,
+        document_number=client.document_number,
+        address=client.address,
+        medical_fit_url=client.medical_fit_url,
+        profile_image_url=client.profile_image_url,
+        bookings=[to_booking_public(booking) for booking in client.bookings],
+        membership=to_membership_public(membership) if membership is not None else None,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 5. Actividad del cliente (día, semana, futuras, pasadas)
 # --------------------------------------------------------------------------- #
 
 def get_client_bookings_today(client: Client) -> list[Booking]:

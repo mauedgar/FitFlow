@@ -14,13 +14,25 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from app.db.models import Client, Membership, User
+from app.db.models import Booking, ClassSchedule, ClassSession, Client, Membership, User
 from app.schemas.client import ClientCreate, ClientUpdate
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncSession
+
+
+def _client_detail_options():
+    """All relations consumed by client detail, booking and membership projections."""
+    return [
+        selectinload(Client.user),
+        selectinload(Client.membership),
+        selectinload(Client.bookings)
+        .selectinload(Booking.class_session)
+        .selectinload(ClassSession.class_schedule)
+        .selectinload(ClassSchedule.gym_class),
+    ]
 
 
 class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
@@ -40,15 +52,16 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         stmt = (
             select(Client)
             .join(Client.user)
-            .where(User.id == user_id, Client.deleted_at.is_(None))
+            .where(
+                User.id == user_id,
+                User.deleted_at.is_(None),
+                Client.deleted_at.is_(None),
+            )
             .options(selectinload(Client.user))
         )
 
         if include_relations:
-            stmt = stmt.options(
-                selectinload(Client.bookings),
-                selectinload(Client.membership),
-            )
+            stmt = stmt.options(*_client_detail_options())
 
         res = await db.execute(stmt)
         return res.scalars().first()
@@ -80,12 +93,13 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         """Obtiene un cliente con todas sus relaciones cargadas."""
         stmt = (
             select(Client)
-            .where(Client.id == client_id, Client.deleted_at.is_(None))  # type: ignore[attr-defined]
-            .options(
-                selectinload(Client.bookings),
-                selectinload(Client.membership),
-                selectinload(Client.user),
+            .join(Client.user)
+            .where(
+                Client.id == client_id,
+                Client.deleted_at.is_(None),
+                User.deleted_at.is_(None),
             )
+            .options(*_client_detail_options())
         )
 
         res = await db.execute(stmt)

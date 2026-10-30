@@ -23,6 +23,7 @@ from app.core.deps import (
     require_admin_or_client,
     require_client,
     require_current_user,
+    oauth2_scheme,
 )
 from app.core.enums import UserRole
 from app.crud.crud_client import client
@@ -41,9 +42,10 @@ from app.schemas.client import (
     ClientWithStats,
 )
 from app.schemas.user import UserPublic
-from app.services.errors import PermissionDeniedError
+from app.services.errors import AuthError, PermissionDeniedError
 from app.services.client_service import (
     to_client_public,
+    to_client_with_relations,
     to_client_with_activity,
     to_client_with_bookings,
     to_client_with_membership,
@@ -55,8 +57,23 @@ from app.services.client_service import (
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 
+async def _require_clients_current_user(
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> UserPublic:
+    """Preserve HTTP 401 semantics for invalid/expired/missing JWT identities."""
+    try:
+        return await require_current_user(db=db, token=token)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+
 async def _require_clients_admin(
-    user: Annotated[UserPublic, Depends(require_current_user)],
+    user: Annotated[UserPublic, Depends(_require_clients_current_user)],
 ) -> UserPublic:
     """Translate the existing role guard at this HTTP boundary."""
     try:
@@ -66,7 +83,7 @@ async def _require_clients_admin(
 
 
 async def _require_clients_client(
-    user: Annotated[UserPublic, Depends(require_current_user)],
+    user: Annotated[UserPublic, Depends(_require_clients_current_user)],
 ) -> UserPublic:
     """Only clients have a current-client profile."""
     try:
@@ -76,7 +93,7 @@ async def _require_clients_client(
 
 
 async def _require_clients_admin_or_client(
-    user: Annotated[UserPublic, Depends(require_current_user)],
+    user: Annotated[UserPublic, Depends(_require_clients_current_user)],
 ) -> UserPublic:
     """Deny other roles before evaluating profile ownership."""
     try:
@@ -106,7 +123,7 @@ async def create_client_for_user(
     current_user: Annotated[User, Depends(_require_clients_admin)],
 ) -> ClientWithRelations:
     """Crea un perfil de cliente para un usuario existente."""
-    user = await user_crud.get(db=db, obj_id=user_id)
+    user = await user_crud.get(db=db, obj_id=user_id, include_relations=True)
     if not user:
         raise HTTPException(404, "Usuario no encontrado.")
 
@@ -117,7 +134,10 @@ async def create_client_for_user(
         raise HTTPException(400, "El usuario no tiene rol CLIENT.")
 
     client_ = await client.create_with_user(db=db, obj_in=client_in, user=user)
-    return ClientWithRelations.model_validate(client_)
+    created = await client.get_with_relations(db=db, client_id=client_.id)
+    if created is None:
+        raise HTTPException(404, "Cliente no encontrado.")
+    return to_client_with_relations(created)
 
 
 # --------------------------------------------------------------------------- #
@@ -253,12 +273,12 @@ async def read_client_by_id(
     current_user: Annotated[User, Depends(_require_clients_admin_or_client)],
 ) -> ClientWithRelations:
     """Obtiene detalles privados de un cliente."""
-    client_ = await client.get(db=db, obj_id=client_id)
+    client_ = await client.get_with_relations(db=db, client_id=client_id)
     if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 
     _require_admin_or_owner(current_user, client_)
-    return ClientWithRelations.model_validate(client_)
+    return to_client_with_relations(client_)
 
 
 # --------------------------------------------------------------------------- #
@@ -278,8 +298,11 @@ async def update_client(
         raise HTTPException(404, "Cliente no encontrado.")
 
     _require_admin_or_owner(current_user, client_)
-    updated = await client.update(db=db, db_obj=client_, obj_in=client_in)
-    return ClientWithRelations.model_validate(updated)
+    await client.update(db=db, db_obj=client_, obj_in=client_in)
+    refreshed = await client.get_with_relations(db=db, client_id=client_id)
+    if refreshed is None:
+        raise HTTPException(404, "Cliente no encontrado.")
+    return to_client_with_relations(refreshed)
 
 
 # --------------------------------------------------------------------------- #
