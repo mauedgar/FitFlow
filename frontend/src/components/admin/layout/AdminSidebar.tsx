@@ -45,7 +45,7 @@ const AdminSideBar = () => {
               transition="all 0.2s"
               asChild><RouterNavLink to={link.to} end={link.end} style={({ isActive }) => isActive ? activeLinkStyle : undefined}>
                 <HStack gap={3}>
-                  <Icon asChild><link.icon /></Icon>
+                  <Icon as={link.icon} />
                   <Text fontSize="sm" fontWeight="medium">
                     {link.label}
                   </Text>

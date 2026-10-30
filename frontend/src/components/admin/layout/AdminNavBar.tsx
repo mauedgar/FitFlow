@@ -51,7 +51,7 @@ const AdminNavBar: React.FC = () => {
       boxShadow="sm"
     >
       {/* DASHBOARD BUTTON */}
-      <Button variant="ghost" colorPalette="teal" size="md" asChild><RouterLink to="/admin"><Icon asChild><FiHome /></Icon>Dashboard
+      <Button variant="ghost" colorPalette="teal" size="md" asChild><RouterLink to="/admin"><Icon as={FiHome} />Dashboard
                         </RouterLink></Button>
 
       <Spacer />
@@ -62,14 +62,14 @@ const AdminNavBar: React.FC = () => {
           <Menu.Root key={menu.label} navigate={({ value }) => navigate(value)}>
             <Menu.Trigger asChild><Button variant="ghost" size="sm" minW="max-content">
                 <HStack gap="1">
-                  <Icon asChild><menu.icon /></Icon>
+                  <Icon as={menu.icon} />
                   <Text>{menu.label}</Text>
                 </HStack>
                 <LuChevronDown /></Button></Menu.Trigger>
             <Portal><Menu.Positioner><Menu.Content>
                   {menu.subitems.map((item) => (
                     <Menu.Item key={item.to} value={item.to} asChild><RouterLink to={item.to}>
-                        <Icon asChild><item.icon /></Icon>{item.label}
+                        <Icon as={item.icon} />{item.label}
                       </RouterLink></Menu.Item>
                   ))}
                 </Menu.Content></Menu.Positioner></Portal>
@@ -95,7 +95,7 @@ const AdminNavBar: React.FC = () => {
                 onSelect={handleLogout}
                 color="red.500"
                 value='logout'>
-                <Icon asChild><FiLogOut /></Icon>Cerrar Sesión
+                <Icon as={FiLogOut} />Cerrar Sesión
               </Menu.Item>
             </Menu.Content></Menu.Positioner></Portal>
       </Menu.Root>

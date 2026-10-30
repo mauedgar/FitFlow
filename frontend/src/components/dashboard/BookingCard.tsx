@@ -89,11 +89,11 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, compact = false }) =
           </Text>
           <VStack align="start" gap={1} w="100%">
             <HStack fontSize={{ base: "sm", md: "md" }} color="gray.600">
-              <Icon boxSize={{ base: 3, md: 4 }} asChild><FiClock /></Icon>
+              <Icon boxSize={{ base: 3, md: 4 }} as={FiClock} />
               <Text>{getFormattedDateTime(booking.starts_at)} - {endTime} hs</Text>
             </HStack>
             <HStack fontSize={{ base: "sm", md: "md" }} color="gray.600">
-              <Icon boxSize={{ base: 3, md: 4 }} asChild><FiMapPin /></Icon>
+              <Icon boxSize={{ base: 3, md: 4 }} as={FiMapPin} />
               <Text>Sala principal</Text>
             </HStack>
           </VStack>
