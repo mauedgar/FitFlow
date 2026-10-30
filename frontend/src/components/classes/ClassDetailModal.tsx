@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dialog, Portal } from '@chakra-ui/react';
+import { CloseButton, Dialog, Portal } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query'; // ¡El protagonista!
 import classService  from '../../services/classService';
 import ClassDetailView  from './ClassDetailView';
@@ -47,7 +47,9 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ classId, isOpen, on
         <Dialog.Positioner>
           <Dialog.Content>
             <Dialog.Header><Dialog.Title>{gymClass?.name || 'Cargando detalles...'}</Dialog.Title></Dialog.Header>
-            <Dialog.CloseTrigger />
+            <Dialog.CloseTrigger asChild>
+              <CloseButton aria-label="Cerrar detalles de la clase" size="sm" position="absolute" top="2" right="2" />
+            </Dialog.CloseTrigger>
             <Dialog.Body pb={6}>
               {/* Los booleanos de TanStack Query controlan la UI del modal */}
               {isLoading && <LoadingSpinner />}

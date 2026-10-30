@@ -12,6 +12,7 @@ import {
   Button,
   Container,
   Portal,
+  CloseButton,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
@@ -95,7 +96,9 @@ export const Navbar = () => {
           <Drawer.Backdrop />
           <Drawer.Positioner>
             <Drawer.Content bg="gray.800" color="white">
-              <Drawer.CloseTrigger />
+              <Drawer.CloseTrigger asChild>
+                <CloseButton aria-label="Cerrar menú" size="sm" position="absolute" top="2" right="2" />
+              </Drawer.CloseTrigger>
               <Drawer.Header borderBottomWidth="1px"><Drawer.Title>Menú</Drawer.Title></Drawer.Header>
               <Drawer.Body>
                 <VStack gap={4} align="stretch" mt={4}>

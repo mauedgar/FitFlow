@@ -136,15 +136,16 @@ const InfiniteCarousel = () => {
         width="full"
         zIndex={3}
       >
-        {carouselSlides.map((_, index) => (
+        {carouselSlides.map((slide, index) => (
           <Box
+            key={slide.link}
             // El punto activo es más ancho
             width={currentSlide === index ? '24px' : '12px'}
             height="12px"
             borderRadius="full"
             bg={currentSlide === index ? 'teal.400' : 'whiteAlpha.600'}
             transition="all 0.3s ease-in-out"
-            asChild><button key={index} onClick={() => goToSlide(index)} /></Box>
+            asChild><button type="button" aria-label={`Ir a la diapositiva ${index + 1}: ${slide.title}`} aria-current={currentSlide === index ? 'true' : undefined} onClick={() => goToSlide(index)} /></Box>
         ))}
       </HStack>
     </Box>
