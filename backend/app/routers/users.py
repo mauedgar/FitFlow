@@ -53,7 +53,9 @@ async def register_user(
         • La contraseña se hashea automáticamente.
         • El rol por defecto es CLIENT.
     """
-    existing = await user_crud.get_by_email(db=db, email=user_in.email)
+    existing = await user_crud.get_by_email(
+        db=db, email=user_in.email, include_deleted=True
+    )
     if existing:
         raise HTTPException(400, "El email ya está registrado.")
 

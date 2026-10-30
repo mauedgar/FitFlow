@@ -287,7 +287,7 @@ async def update_client(
     current_user: Annotated[User, Depends(_require_clients_admin_or_client)],
 ) -> ClientWithRelations:
     """Actualiza el perfil privado del cliente."""
-    client_ = await client.get(db=db, obj_id=client_id)
+    client_ = await client.get_with_relations(db=db, client_id=client_id)
     if not client_:
         raise HTTPException(404, "Cliente no encontrado.")
 

@@ -13,6 +13,7 @@ from datetime import date, datetime, time, timedelta, timezone
 import httpx
 import pytest
 from fastapi import status
+from sqlalchemy import select
 from sqlalchemy.engine import make_url
 
 from app.core.config import settings
@@ -403,3 +404,41 @@ async def test_admin_list_ignores_soft_deleted_users(
     assert response.status_code == status.HTTP_200_OK, response.text
     ids = {item["id"] for item in response.json()}
     assert str(profile_fixture.deleted_user_profile_id) not in ids
+
+
+async def test_admin_put_deleted_account_profile_has_no_write_effect(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+) -> None:
+    target_id = profile_fixture.deleted_user_profile_id
+    result = await api_client.put(
+        f"{settings.API_V1_STR}/clients/{target_id}",
+        json={"first_name": "MustNotPersist"},
+        headers=headers(profile_fixture, "admin"),
+    )
+    assert result.status_code == status.HTTP_404_NOT_FOUND
+    async with AsyncSessionLocal() as db:
+        saved = await db.scalar(select(Client).where(Client.id == target_id))
+        assert saved is not None
+        assert saved.first_name == "Account"
+
+
+async def test_registration_denies_duplicate_email_of_soft_deleted_user(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+) -> None:
+    async with AsyncSessionLocal() as db:
+        deleted = await db.scalar(
+            select(User).join(User.person_profile).where(
+                Client.id == profile_fixture.deleted_user_profile_id
+            )
+        )
+        assert deleted is not None
+        deleted_email = deleted.email
+
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/users/register",
+        json={"email": deleted_email, "password": "SafeContractOnly-42"},
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+    assert response.json() == {"detail": "El email ya está registrado."}
