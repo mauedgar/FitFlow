@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
-from app.db.models import Membership
+from app.db.models import Client, Membership
 from app.schemas.membership import MembershipCreate, MembershipUpdate
 
 if TYPE_CHECKING:
@@ -41,7 +41,7 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
     ) -> Membership | None:
         """Obtiene una membresía por ID, con opción de incluir relaciones."""
         opts: list[ORMOption] | None = (
-            [selectinload(Membership.client)]
+            [selectinload(Membership.client).selectinload(Client.user)]
             if include_relations
             else None
         )
@@ -77,7 +77,7 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
         if plan:
             stmt = stmt.where(Membership.plan == plan)
 
-        stmt = stmt.options(selectinload(Membership.client))
+        stmt = stmt.options(selectinload(Membership.client).selectinload(Client.user))
 
         res = await db.execute(stmt)
         return list(res.scalars().unique().all())
