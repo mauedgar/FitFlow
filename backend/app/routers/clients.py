@@ -22,6 +22,7 @@ from app.core.deps import (
     require_admin,
     require_admin_or_client,
     require_client,
+    require_current_user,
 )
 from app.core.enums import UserRole
 from app.crud.crud_client import client
@@ -39,6 +40,8 @@ from app.schemas.client import (
     ClientWithRelations,
     ClientWithStats,
 )
+from app.schemas.user import UserPublic
+from app.services.errors import PermissionDeniedError
 from app.services.client_service import (
     to_client_public,
     to_client_with_activity,
@@ -50,6 +53,36 @@ from app.services.client_service import (
 # ruff: noqa: ARG001
 
 router = APIRouter(prefix="/clients", tags=["clients"])
+
+
+async def _require_clients_admin(
+    user: Annotated[UserPublic, Depends(require_current_user)],
+) -> UserPublic:
+    """Translate the existing role guard at this HTTP boundary."""
+    try:
+        return await require_admin(user)
+    except PermissionDeniedError as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+
+
+async def _require_clients_client(
+    user: Annotated[UserPublic, Depends(require_current_user)],
+) -> UserPublic:
+    """Only clients have a current-client profile."""
+    try:
+        return await require_client(user)
+    except PermissionDeniedError as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+
+
+async def _require_clients_admin_or_client(
+    user: Annotated[UserPublic, Depends(require_current_user)],
+) -> UserPublic:
+    """Deny other roles before evaluating profile ownership."""
+    try:
+        return await require_admin_or_client(user)
+    except PermissionDeniedError as exc:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
 
 
 def _require_admin_or_owner(user: User, client_profile: Client) -> None:
@@ -70,7 +103,7 @@ async def create_client_for_user(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user_id: UUID,
     client_in: ClientCreate,
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: Annotated[User, Depends(_require_clients_admin)],
 ) -> ClientWithRelations:
     """Crea un perfil de cliente para un usuario existente."""
     user = await user_crud.get(db=db, obj_id=user_id)
@@ -96,7 +129,7 @@ async def read_clients(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     skip: int = 0,
     limit: int = 100,
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: Annotated[User, Depends(_require_clients_admin)],
 ) -> list[ClientPublic]:
     """Lista clientes en versión pública (admin)."""
     clients = await client.get_multi(
@@ -115,7 +148,7 @@ async def read_clients(
 async def read_my_profile(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_client)],
+    current_user: Annotated[User, Depends(_require_clients_client)],
 ) -> ClientPublic:
     """Devuelve el perfil público del cliente actual."""
     client_ = await client.get_by_user_id(db=db, user_id=current_user.id) # pyright: ignore[reportArgumentType]
@@ -132,7 +165,7 @@ async def read_my_profile(
 async def read_my_bookings(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_client)],
+    current_user: Annotated[User, Depends(_require_clients_client)],
 ) -> ClientWithBookings:
     """Devuelve el perfil del cliente con sus reservas públicas."""
     client_ = await client.get_by_user_id(
@@ -153,7 +186,7 @@ async def read_my_bookings(
 async def read_my_membership(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_client)],
+    current_user: Annotated[User, Depends(_require_clients_client)],
 ) -> ClientWithMembership:
     """Devuelve el perfil del cliente con su membresía activa."""
     client_ = await client.get_by_user_id(
@@ -174,7 +207,7 @@ async def read_my_membership(
 async def read_my_stats(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_client)],
+    current_user: Annotated[User, Depends(_require_clients_client)],
 ) -> ClientWithStats:
     """Devuelve estadísticas básicas del cliente."""
     client_ = await client.get_by_user_id(
@@ -195,7 +228,7 @@ async def read_my_stats(
 async def read_my_activity(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_client)],
+    current_user: Annotated[User, Depends(_require_clients_client)],
 ) -> ClientWithActivity:
     """Devuelve la actividad completa del cliente."""
     client_ = await client.get_by_user_id(
@@ -217,7 +250,7 @@ async def read_client_by_id(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     client_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_or_client)],
+    current_user: Annotated[User, Depends(_require_clients_admin_or_client)],
 ) -> ClientWithRelations:
     """Obtiene detalles privados de un cliente."""
     client_ = await client.get(db=db, obj_id=client_id)
@@ -237,7 +270,7 @@ async def update_client(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     client_id: UUID,
     client_in: ClientUpdate,
-    current_user: Annotated[User, Depends(require_admin_or_client)],
+    current_user: Annotated[User, Depends(_require_clients_admin_or_client)],
 ) -> ClientWithRelations:
     """Actualiza el perfil privado del cliente."""
     client_ = await client.get(db=db, obj_id=client_id)
@@ -257,7 +290,7 @@ async def delete_client(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     client_id: UUID,
-    current_user: Annotated[User, Depends(require_admin)],
+    current_user: Annotated[User, Depends(_require_clients_admin)],
 ) -> dict[str, str]:
     """Elimina un perfil de cliente y desasocia el perfil Person del User."""
     client_ = await client.get(db=db, obj_id=client_id)

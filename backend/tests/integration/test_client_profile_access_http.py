@@ -37,7 +37,7 @@ def http_clients(monkeypatch):
         medical_fit_url=None,
         profile_image_url=None,
         created_at=datetime(2026, 10, 30, tzinfo=timezone.utc),
-        user=SimpleNamespace(email="ana@example.test"),
+        user=SimpleNamespace(email="ana@example.com"),
         bookings=[],
         membership=None,
     )
@@ -45,7 +45,7 @@ def http_clients(monkeypatch):
     def current_user():
         return UserPublic(
             id=subject["id"], role=subject["role"],
-            email="ana@example.test", active=True,
+            email="ana@example.com", active=True,
         )
 
     app.dependency_overrides[require_current_user] = current_user
