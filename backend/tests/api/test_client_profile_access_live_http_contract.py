@@ -428,11 +428,13 @@ async def test_registration_denies_duplicate_email_of_soft_deleted_user(
     profile_fixture: ClientProfileFixture,
 ) -> None:
     async with AsyncSessionLocal() as db:
-        deleted = await db.scalar(
-            select(User).join(User.person_profile).where(
+        deleted_user_id = await db.scalar(
+            select(Client.user_id).where(
                 Client.id == profile_fixture.deleted_user_profile_id
             )
         )
+        assert deleted_user_id is not None
+        deleted = await db.scalar(select(User).where(User.id == deleted_user_id))
         assert deleted is not None
         deleted_email = deleted.email
 
