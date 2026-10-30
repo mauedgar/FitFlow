@@ -21,7 +21,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, redirectT
   if (isLoadingAuth) {
     return (
       <Center height="100vh" flexDirection="column" p={4}>
-        <Spinner size="xl" color="teal.500" thickness="4px" speed="0.65s" emptyColor="gray.200" mb={4} />
+        <Spinner size="xl" color="teal.500" borderWidth="4px" animationDuration="0.65s" mb={4} />
         <Text fontSize="lg" color="gray.600">Cargando perfil de usuario...</Text>
       </Center>
     );
@@ -40,7 +40,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, redirectT
     // Si el rol no está permitido, redirigimos. Podrías redirigir a una página de "Acceso Denegado"
     // en lugar de login si ya está logueado pero con un rol incorrecto.
     // Por ahora, para simplificar, sigue redirigiendo a login, pero idealmente sería algo como '/unauthorized'.
-    return <Navigate to={'/'} replace />; 
+    return <Navigate to={'/'} replace />;
   }
 
   // 6. Si la autenticación y autorización son exitosas, renderizamos el <Outlet />

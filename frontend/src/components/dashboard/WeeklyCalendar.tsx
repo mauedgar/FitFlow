@@ -1,7 +1,8 @@
+import { toaster } from '../ui/toaster-store';
 import React from 'react';
 import {
   Badge, Box, Button, Grid, GridItem, Heading, HStack, Text,
-  VStack, useToast,
+  VStack,
 } from '@chakra-ui/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BookingStatus, type ClientWeeklyAgendaItem } from '../../types';
@@ -14,7 +15,6 @@ interface WeeklyCalendarProps {
 }
 
 const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ weekDays, items }) => {
-  const toast = useToast();
   const queryClient = useQueryClient();
   const refreshAgenda = () => {
     void queryClient.invalidateQueries({ queryKey: ['clientWeeklyAgenda'] });
@@ -28,22 +28,22 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ weekDays, items }) => {
       status: BookingStatus.CONFIRMED,
     }),
     onSuccess: () => {
-      toast({ title: 'Reserva confirmada', status: 'success', duration: 3000 });
+      toaster.create({ title: 'Reserva confirmada', type: 'success', duration: 3000 });
       refreshAgenda();
     },
     onError: () => {
-      toast({ title: 'No se pudo crear la reserva', status: 'error', duration: 4000 });
+      toaster.create({ title: 'No se pudo crear la reserva', type: 'error', duration: 4000 });
       refreshAgenda();
     },
   });
   const cancelMutation = useMutation({
     mutationFn: (bookingId: string) => classService.cancelBooking(bookingId),
     onSuccess: () => {
-      toast({ title: 'Reserva cancelada', status: 'success', duration: 3000 });
+      toaster.create({ title: 'Reserva cancelada', type: 'success', duration: 3000 });
       refreshAgenda();
     },
     onError: () => {
-      toast({ title: 'No se pudo cancelar la reserva', status: 'error', duration: 4000 });
+      toaster.create({ title: 'No se pudo cancelar la reserva', type: 'error', duration: 4000 });
       refreshAgenda();
     },
   });
@@ -63,7 +63,7 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ weekDays, items }) => {
               {dayItems.length === 0 ? (
                 <Text fontSize="xs" color="gray.500">Sin ofertas elegibles</Text>
               ) : (
-                <VStack spacing={2} align="stretch">
+                <VStack gap={2} align="stretch">
                   {dayItems.map((item) => {
                     const ownBooking = item.own_booking;
                     const hasBooking = ownBooking !== null;
@@ -84,22 +84,22 @@ const WeeklyCalendar: React.FC<WeeklyCalendarProps> = ({ weekDays, items }) => {
                         {capacityReached && (
                           <Text fontSize="xs" color="purple.600">Referencia alcanzada (no bloquea)</Text>
                         )}
-                        <HStack mt={2} wrap="wrap" spacing={1}>
+                        <HStack mt={2} wrap="wrap" gap={1}>
                           {hasBooking ? (
                             <>
-                              <Badge colorScheme="blue">{ownBooking.status}</Badge>
+                              <Badge colorPalette="blue">{ownBooking.status}</Badge>
                               {canCancel && (
-                                <Button size="xs" colorScheme="red" variant="outline"
-                                  isLoading={cancelMutation.isPending}
-                                  isDisabled={isMutating}
+                                <Button size="xs" colorPalette="red" variant="outline"
+                                  loading={cancelMutation.isPending}
+                                  disabled={isMutating}
                                   onClick={() => cancelMutation.mutate(ownBooking.booking_id)}>
                                   Cancelar
                                 </Button>
                               )}
                             </>
                           ) : (
-                            <Button size="xs" colorScheme="teal" isLoading={reserveMutation.isPending}
-                              isDisabled={isMutating || !canReserve}
+                            <Button size="xs" colorPalette="teal" loading={reserveMutation.isPending}
+                              disabled={isMutating || !canReserve}
                               onClick={() => reserveMutation.mutate(item.session_id)}>
                               Reservar
                             </Button>

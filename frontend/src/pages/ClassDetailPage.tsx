@@ -44,7 +44,7 @@ const ClassDetailPage: React.FC = () => {
   };
 
   return (
-    <Container maxW="container.lg" py={10}>
+    <Container maxW="64rem" py={10}>
       <Box>
         {renderContent()}
       </Box>

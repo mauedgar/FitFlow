@@ -1,7 +1,5 @@
 import React from 'react';
-import {
-  Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton,
-} from '@chakra-ui/react';
+import { Dialog, Portal } from '@chakra-ui/react';
 import { useQuery } from '@tanstack/react-query'; // ¡El protagonista!
 import classService  from '../../services/classService';
 import ClassDetailView  from './ClassDetailView';
@@ -38,19 +36,29 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ classId, isOpen, on
   });
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="3xl" scrollBehavior="inside">
-      <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(10px)" />
-      <ModalContent>
-        <ModalHeader>{gymClass?.name || 'Cargando detalles...'}</ModalHeader>
-        <ModalCloseButton />
-        <ModalBody pb={6}>
-          {/* Los booleanos de TanStack Query controlan la UI del modal */}
-          {isLoading && <LoadingSpinner />}
-          {isError && <ErrorDisplay message={error?.message || "No se pudieron cargar los detalles de la clase."} />}
-          {gymClass && <ClassDetailView gymClass={gymClass} onCloseModal={onClose} />} {/* PASAMOS onCloseModal */}
-        </ModalBody>
-      </ModalContent>
-    </Modal>
+    <Dialog.Root open={isOpen} size='xl' scrollBehavior="inside" onOpenChange={e => {
+      if (!e.open) {
+        onClose();
+      }
+    }}>
+      <Portal>
+
+        <Dialog.Backdrop bg="blackAlpha.300" backdropFilter="blur(10px)" />
+        <Dialog.Positioner>
+          <Dialog.Content>
+            <Dialog.Header><Dialog.Title>{gymClass?.name || 'Cargando detalles...'}</Dialog.Title></Dialog.Header>
+            <Dialog.CloseTrigger />
+            <Dialog.Body pb={6}>
+              {/* Los booleanos de TanStack Query controlan la UI del modal */}
+              {isLoading && <LoadingSpinner />}
+              {isError && <ErrorDisplay message={error?.message || "No se pudieron cargar los detalles de la clase."} />}
+              {gymClass && <ClassDetailView gymClass={gymClass} onCloseModal={onClose} />} {/* PASAMOS onCloseModal */}
+            </Dialog.Body>
+          </Dialog.Content>
+        </Dialog.Positioner>
+
+      </Portal>
+    </Dialog.Root>
   );
 };
 

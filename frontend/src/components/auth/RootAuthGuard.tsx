@@ -16,7 +16,7 @@ const RootAuthGuard: React.FC = () => {
   if (isLoadingAuth) {
     return (
       <Center height="100vh" flexDirection="column" p={4}>
-        <Spinner size="xl" color="teal.500" thickness="4px" speed="0.65s" emptyColor="gray.200" mb={4} />
+        <Spinner size="xl" color="teal.500" borderWidth="4px" animationDuration="0.65s" mb={4} />
         <Text fontSize="lg" color="gray.600">Verificando sesión...</Text>
       </Center>
     );
@@ -30,7 +30,7 @@ const RootAuthGuard: React.FC = () => {
     // El rol 'trainer' también podría ir a '/home' o a un '/trainer-dashboard'
     return <Navigate to="/home" replace />; // 'home' suele ser la página principal para usuarios logueados
   }
-  
+
   // 3. Si no está autenticado (isAuthenticated es false), renderizamos la LandingPage.
   //    No hay necesidad de verificar 'userRole' aquí porque 'isAuthenticated' ya lo descarta.
   return <LandingPage />;

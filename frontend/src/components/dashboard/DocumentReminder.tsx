@@ -1,6 +1,6 @@
 // src/components/dashboard/DocumentReminder.tsx
 import React from 'react';
-import { Alert, AlertIcon, AlertTitle, AlertDescription, Box } from '@chakra-ui/react';
+import { Alert, Box } from '@chakra-ui/react';
 
 const DocumentReminder: React.FC = () => {
   // Esto vendría de tu API
@@ -9,15 +9,15 @@ const DocumentReminder: React.FC = () => {
   if (hasMedicalCertificate) return null;
 
   return (
-    <Alert status="info" borderRadius="md">
-      <AlertIcon />
+    <Alert.Root status="info" borderRadius="md">
+      <Alert.Indicator />
       <Box fontSize="sm">
-        <AlertTitle>Documentación</AlertTitle>
-        <AlertDescription>
+        <Alert.Title>Documentación</Alert.Title>
+        <Alert.Description>
           Falta cargar revisión médica
-        </AlertDescription>
+        </Alert.Description>
       </Box>
-    </Alert>
+    </Alert.Root>
   );
 };
 

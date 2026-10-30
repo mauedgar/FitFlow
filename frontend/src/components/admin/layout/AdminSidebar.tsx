@@ -34,29 +34,23 @@ const AdminSideBar = () => {
         FitFlow Admin
       </Heading>
 
-      <VStack align="stretch" spacing={1}>
+      <VStack align="stretch" gap={1}>
         {sidebarLinks.map((link) => {
           return (
             <Box
               key={link.to}
-              as={RouterNavLink}
-              to={link.to}
-              end={link.end}
-              style={({ isActive }: { isActive: boolean }) =>
-                isActive ? activeLinkStyle : undefined
-              }
               p={3}
               borderRadius="md"
               _hover={{ bg: 'gray.700' }}
               transition="all 0.2s"
-            >
-              <HStack spacing={3}>
-                <Icon as={link.icon} />
-                <Text fontSize="sm" fontWeight="medium">
-                  {link.label}
-                </Text>
-              </HStack>
-            </Box>
+              asChild><RouterNavLink to={link.to} end={link.end} style={({ isActive }) => isActive ? activeLinkStyle : undefined}>
+                <HStack gap={3}>
+                  <Icon asChild><link.icon /></Icon>
+                  <Text fontSize="sm" fontWeight="medium">
+                    {link.label}
+                  </Text>
+                </HStack>
+              </RouterNavLink></Box>
           );
         })}
       </VStack>

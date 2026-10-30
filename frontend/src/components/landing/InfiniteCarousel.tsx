@@ -98,9 +98,9 @@ const InfiniteCarousel = () => {
             height="100%"
             align="center"
             justify="center"
-            bgImage={`url(${carouselSlides[currentSlide].image})`}
-            bgPosition="center"
-            bgSize="cover"
+            backgroundImage={`url(${carouselSlides[currentSlide].image})`}
+            backgroundPosition="center"
+            backgroundSize="cover"
           >
             <Box position="absolute" top="0" left="0" right="0" bottom="0" bg="blackAlpha.600" />
             <VStack
@@ -108,7 +108,7 @@ const InfiniteCarousel = () => {
               align="center"
               color="white"
               textAlign="center"
-              spacing={6}
+              gap={6}
               position="relative"
               px={4}
               zIndex={2}
@@ -119,9 +119,9 @@ const InfiniteCarousel = () => {
               <Text fontSize={{ base: 'lg', md: '2xl' }} maxWidth="700px" textShadow="1px 1px 3px rgba(0,0,0,0.5)">
                 {carouselSlides[currentSlide].subtitle}
               </Text>
-              <Button as={RouterLink} to={carouselSlides[currentSlide].link} colorScheme="teal" size="lg" mt={4}>
-                {carouselSlides[currentSlide].buttonText}
-              </Button>
+              <Button colorPalette="teal" size="lg" mt={4} asChild><RouterLink to={carouselSlides[currentSlide].link}>
+                  {carouselSlides[currentSlide].buttonText}
+                </RouterLink></Button>
             </VStack>
           </Flex>
         </motion.div>
@@ -130,7 +130,7 @@ const InfiniteCarousel = () => {
       {/* 5. La "barra de desplazamiento" (puntos de navegación) */}
       <HStack
         justify="center"
-        spacing={4}
+        gap={4}
         position="absolute"
         bottom="40px"
         width="full"
@@ -138,15 +138,13 @@ const InfiniteCarousel = () => {
       >
         {carouselSlides.map((_, index) => (
           <Box
-            key={index}
-            as="button"
-            width={currentSlide === index ? '24px' : '12px'} // El punto activo es más ancho
+            // El punto activo es más ancho
+            width={currentSlide === index ? '24px' : '12px'}
             height="12px"
             borderRadius="full"
             bg={currentSlide === index ? 'teal.400' : 'whiteAlpha.600'}
-            onClick={() => goToSlide(index)}
             transition="all 0.3s ease-in-out"
-          />
+            asChild><button key={index} onClick={() => goToSlide(index)} /></Box>
         ))}
       </HStack>
     </Box>

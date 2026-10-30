@@ -1,7 +1,7 @@
 import React from 'react';
 import {
-  Box, Heading, Text, Badge, VStack, HStack, Icon, Divider,
-  SimpleGrid
+  Box, Heading, Text, Badge, VStack, HStack, Icon, SimpleGrid,
+  Separator
 } from '@chakra-ui/react';
 import { FaClock, FaTachometerAlt } from 'react-icons/fa';
 // 1. Asegúrate de importar el tipo de dato que vas a recibir.
@@ -19,25 +19,25 @@ interface ClassDetailViewProps {
 
 // 3. APLICA LA INTERFAZ AL COMPONENTE: Usa React.FC<TuInterfazDeProps>
 // y desestructura la prop 'gymClass' de los argumentos.
-export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass, onCloseModal }) => {  
+export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass, onCloseModal }) => {
   return (
-    <VStack spacing={8} align="stretch">
+    <VStack gap={8} align="stretch">
       <Box>
         {/* Ahora puedes usar gymClass de forma segura, con autocompletado y type-checking */}
         <Heading as="h1" size="2xl">{gymClass.name}</Heading>
         <Text fontSize="xl" color="gray.500" mt={2}>{gymClass.description}</Text>
       </Box>
 
-      <SimpleGrid columns={{ base: 1, md: 3 }} spacing={10}>
+      <SimpleGrid columns={{ base: 1, md: 3 }} gap={10}>
         <HStack>
-          <Icon as={FaTachometerAlt} w={6} h={6} color="teal.500" />
+          <Icon w={6} h={6} color="teal.500" asChild><FaTachometerAlt /></Icon>
           <Box>
             <Text fontSize="sm" color="gray.500">Dificultad</Text>
-            <Badge colorScheme={gymClass.difficulty === DifficultyLevel.BEGINNER ? "green" : gymClass.difficulty === DifficultyLevel.INTERMEDIATE ? "orange" : "red"} variant="solid" fontSize="md">{gymClass.difficulty}</Badge>
+            <Badge colorPalette={gymClass.difficulty === DifficultyLevel.BEGINNER ? "green" : gymClass.difficulty === DifficultyLevel.INTERMEDIATE ? "orange" : "red"} variant="solid" fontSize="md">{gymClass.difficulty}</Badge>
           </Box>
         </HStack>
         <HStack>
-          <Icon as={FaClock} w={6} h={6} color="teal.500" />
+          <Icon w={6} h={6} color="teal.500" asChild><FaClock /></Icon>
           <Box>
             <Text fontSize="sm" color="gray.500">Duración</Text>
             <Text fontSize="lg" fontWeight="bold">{gymClass.duration_minutes} min</Text>
@@ -45,12 +45,12 @@ export const ClassDetailView: React.FC<ClassDetailViewProps> = ({ gymClass, onCl
         </HStack>
       </SimpleGrid>
 
-      <Divider />
+      <Separator />
 
       <Box>
         <Heading as="h2" size="lg" mb={4}>Horarios y Reservas</Heading>
         {gymClass.class_schedules && gymClass.class_schedules.length > 0 ? (
-          <VStack spacing={6} align="stretch">
+          <VStack gap={6} align="stretch">
             {gymClass.class_schedules.map((schedule) => (
               <ClassScheduleSection
                 key={schedule.id}

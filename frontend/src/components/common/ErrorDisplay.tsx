@@ -1,6 +1,6 @@
 // src/components/common/ErrorDisplay.tsx (Modificado)
 import React from 'react';
-import { Alert, AlertIcon, AlertTitle, AlertDescription, VStack, Text, HStack } from '@chakra-ui/react';
+import { Alert, VStack, Text, HStack } from '@chakra-ui/react';
 import { AxiosError } from 'axios'; // Asegúrate de importar AxiosError
 import { type FastAPIValidationError } from '../../types'; // O donde la definas
 
@@ -29,7 +29,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, message }) => {
             detailMessage = errorData.detail;
           } else if (Array.isArray(errorData.detail)) {
             // FastAPI a veces devuelve un array de errores de validación
-            detailMessage = errorData.detail.map((err: FastAPIValidationError) => 
+            detailMessage = errorData.detail.map((err: FastAPIValidationError) =>
               `${err.loc.join('.')} - ${err.msg}`
             ).join('; ');
           } else {
@@ -64,18 +64,29 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, message }) => {
 
 
   return (
-    <Alert status="error" variant="left-accent" flexDirection="column" alignItems="flex-start" justifyContent="center" textAlign="left" py={4} rounded="md" shadow="md">
+    <Alert.Root
+      status="error"
+      variant='subtle'
+      flexDirection="column"
+      alignItems="flex-start"
+      justifyContent="center"
+      textAlign="left"
+      py={4}
+      rounded="md"
+      shadow="md"
+      borderStartWidth='3px'
+      borderStartColor='colorPalette.solid'>
       <HStack>
-        <AlertIcon />
-        <AlertTitle mr={0}>{displayTitle}</AlertTitle>
+        <Alert.Indicator />
+        <Alert.Title mr={0}>{displayTitle}</Alert.Title>
       </HStack>
-      <AlertDescription mt={2}>
-        <VStack align="flex-start" spacing={1}>
+      <Alert.Description mt={2}>
+        <VStack align="flex-start" gap={1}>
           {displayMessage && <Text>{displayMessage}</Text>}
           {detailMessage && <Text fontSize="sm" color="gray.600">Detalle: {detailMessage}</Text>}
         </VStack>
-      </AlertDescription>
-    </Alert>
+      </Alert.Description>
+    </Alert.Root>
   );
 };
 

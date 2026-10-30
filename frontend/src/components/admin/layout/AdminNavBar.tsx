@@ -1,16 +1,4 @@
-import {
-  Avatar,
-  Button,
-  Flex,
-  HStack,
-  Icon,
-  Menu,
-  MenuButton,
-  MenuItem,
-  MenuList,
-  Spacer,
-  Text,
-} from '@chakra-ui/react';
+import { Avatar, Button, Flex, HStack, Icon, Menu, Spacer, Text, Portal } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/useAuth';
 import {
@@ -19,7 +7,7 @@ import {
   FiLogOut,
   FiBriefcase,
 } from 'react-icons/fi';
-import { ChevronDownIcon } from '@chakra-ui/icons';
+import { LuChevronDown } from 'react-icons/lu';
 
 // Configuración de menús para fácil mantenimiento y escalabilidad
 const adminMenus = [
@@ -63,74 +51,54 @@ const AdminNavBar: React.FC = () => {
       boxShadow="sm"
     >
       {/* DASHBOARD BUTTON */}
-      <Button
-        as={RouterLink}
-        to="/admin"
-        leftIcon={<Icon as={FiHome} />}
-        variant="ghost"
-        colorScheme="teal"
-        size="md"
-      >
-        Dashboard
-      </Button>
+      <Button variant="ghost" colorPalette="teal" size="md" asChild><RouterLink to="/admin"><Icon asChild><FiHome /></Icon>Dashboard
+                        </RouterLink></Button>
 
       <Spacer />
 
       {/* MENÚS CRUD Y GESTIÓN */}
-      <HStack spacing="2" overflowX="auto">
+      <HStack gap="2" overflowX="auto">
         {adminMenus.map((menu) => (
-          <Menu key={menu.label}>
-            <MenuButton
-              as={Button}
-              rightIcon={<ChevronDownIcon />}
-              variant="ghost"
-              size="sm"
-              minW="max-content"
-            >
-              <HStack spacing="1">
-                <Icon as={menu.icon} />
-                <Text>{menu.label}</Text>
-              </HStack>
-            </MenuButton>
-            <MenuList>
-              {menu.subitems.map((item) => (
-                <MenuItem
-                  key={item.to}
-                  as={RouterLink}
-                  to={item.to}
-                  icon={<Icon as={item.icon} />}
-                >
-                  {item.label}
-                </MenuItem>
-              ))}
-            </MenuList>
-          </Menu>
+          <Menu.Root key={menu.label} navigate={({ value }) => navigate(value)}>
+            <Menu.Trigger asChild><Button variant="ghost" size="sm" minW="max-content">
+                <HStack gap="1">
+                  <Icon asChild><menu.icon /></Icon>
+                  <Text>{menu.label}</Text>
+                </HStack>
+                <LuChevronDown /></Button></Menu.Trigger>
+            <Portal><Menu.Positioner><Menu.Content>
+                  {menu.subitems.map((item) => (
+                    <Menu.Item key={item.to} value={item.to} asChild><RouterLink to={item.to}>
+                        <Icon asChild><item.icon /></Icon>{item.label}
+                      </RouterLink></Menu.Item>
+                  ))}
+                </Menu.Content></Menu.Positioner></Portal>
+          </Menu.Root>
         ))}
       </HStack>
 
       <Spacer />
 
       {/* PERFIL Y LOGOUT */}
-      <Menu>
-        <MenuButton as={Button} variant="ghost" p={2} rounded="full">
-          <HStack spacing="2">
-            <Avatar size="sm" name={currentUser?.email || 'Admin'} />
-            <Text display={{ base: 'none', lg: 'block' }} fontSize="sm" fontWeight="medium">
-              {currentUser?.email || 'Administrador'}
-            </Text>
-            <ChevronDownIcon />
-          </HStack>
-        </MenuButton>
-        <MenuList>
-          <MenuItem
-            onClick={handleLogout}
-            color="red.500"
-            icon={<Icon as={FiLogOut} />}
-          >
-            Cerrar Sesión
-          </MenuItem>
-        </MenuList>
-      </Menu>
+      <Menu.Root>
+        <Menu.Trigger asChild><Button variant="ghost" p={2} rounded="full">
+            <HStack gap="2">
+              <Avatar.Root size="sm"><Avatar.Fallback name={currentUser?.email || 'Admin'} /></Avatar.Root>
+              <Text display={{ base: 'none', lg: 'block' }} fontSize="sm" fontWeight="medium">
+                {currentUser?.email || 'Administrador'}
+              </Text>
+              <LuChevronDown />
+            </HStack>
+          </Button></Menu.Trigger>
+        <Portal><Menu.Positioner><Menu.Content>
+              <Menu.Item
+                onSelect={handleLogout}
+                color="red.500"
+                value='logout'>
+                <Icon asChild><FiLogOut /></Icon>Cerrar Sesión
+              </Menu.Item>
+            </Menu.Content></Menu.Positioner></Portal>
+      </Menu.Root>
     </Flex>
   );
 };

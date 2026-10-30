@@ -7,9 +7,8 @@ const NotFoundPage: React.FC = () => {
     <>
       <Heading>404</Heading>
       <Text mt={4}>Pagina no encontrada</Text>
-      <Button as={Link} to="/" colorScheme="teal" mt={4}>
-         Volver al inicio
-        </Button>
+      <Button colorPalette="teal" mt={4} asChild><Link to="/">Volver al inicio
+                </Link></Button>
     </>
   );
 };

@@ -1,33 +1,29 @@
-import { 
-  Box, 
-  Flex, 
-  Heading, 
-  HStack, 
-  Link, 
-  IconButton, 
+import {
+  Box,
+  Flex,
+  Heading,
+  HStack,
+  Link,
+  IconButton,
   useDisclosure,
   Drawer,
-  DrawerOverlay,
-  DrawerContent,
-  DrawerHeader,
-  DrawerBody,
   VStack,
   Spacer,
   Button,
   Container,
-  DrawerCloseButton
+  Portal,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { HamburgerIcon } from '@chakra-ui/icons';
 import { useAuth } from '../../context/useAuth';
+import { LuMenu } from 'react-icons/lu';
 
 export const Navbar = () => {
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { open: isOpen, onOpen, onClose } = useDisclosure();
   const navigate = useNavigate();
   //Obtenemos el rol y la función logout del contexto
   const { userRole, logout } = useAuth();
 
-  // --- Handlers ---  
+  // --- Handlers ---
 
   const handleDrawerNavigate = (path: string) => {
     onClose(); // Cierra la UI primero
@@ -39,47 +35,42 @@ export const Navbar = () => {
     logout();
     navigate('/login');
   };
-  
+
   return (
     <Box bg="gray.800" color="white" width="100%" position="sticky" top="0" zIndex="sticky">
-      <Container maxW="container.xl" px={4}>
+      <Container maxW="80rem" px={4}>
         <Flex h={16} alignItems="center">
-          <Heading as={RouterLink} to="landing" size="md">
-            FitFlow
-          </Heading>
+          <Heading size="md" asChild><RouterLink to="landing">FitFlow
+                      </RouterLink></Heading>
 
           {/* ENLACES DE NAVEGACIÓN PARA DESKTOP */}
-          <HStack as='nav' spacing={5} ml={10} display={{ base: 'none', md: 'flex' }}>
-            <Link as={RouterLink} to="/">Inicio</Link>
+          <HStack as='nav' gap={5} ml={10} display={{ base: 'none', md: 'flex' }}>
+            <Link asChild><RouterLink to="/">Inicio</RouterLink></Link>
             {userRole === 'client' && (
-              <Link as={RouterLink} to="/home">
-                Mi Perfil
-              </Link>
+              <Link asChild><RouterLink to="/home">Mi Perfil
+                              </RouterLink></Link>
             )}
-            
-            <Link as={RouterLink} to="/classes">
-                Clases
-            </Link>            
+
+            <Link asChild><RouterLink to="/classes">Clases
+                          </RouterLink></Link>
           </HStack>
 
           <Spacer />
 
           {/* 3. BOTONES DINÁMICOS PARA DESKTOP */}
-          <HStack spacing={4} display={{ base: 'none', md: 'flex' }}>
+          <HStack gap={4} display={{ base: 'none', md: 'flex' }}>
             {userRole ? (
               // Si el usuario está logueado, muestra el botón de Logout
-              <Button colorScheme="red" variant="solid" onClick={logoutUser}>
+              <Button colorPalette="red" variant="solid" onClick={logoutUser}>
                 Cerrar Sesión
               </Button>
             ) : (
               // Si no, muestra los botones de Login y Registro
               <>
-                <Button as = {RouterLink} to='/login' colorScheme="teal" variant="solid"> 
-                  Iniciar Sesión
-                </Button>
-                <Button as = {RouterLink} to='/register' colorScheme="teal" variant="solid">
-                  Registrarse
-                </Button>
+                <Button colorPalette="teal" variant="solid" asChild><RouterLink to='/login'>Iniciar Sesión
+                                  </RouterLink></Button>
+                <Button colorPalette="teal" variant="solid" asChild><RouterLink to='/register'>Registrarse
+                                  </RouterLink></Button>
               </>
             )}
           </HStack>
@@ -87,59 +78,67 @@ export const Navbar = () => {
           {/* BOTÓN DE MENÚ HAMBURGUESA PARA MÓVIL */}
           <IconButton
             size="md"
-            icon={<HamburgerIcon />}
             aria-label="Open Menu"
             display={{ base: 'flex', md: 'none' }}
-            onClick={onOpen}
-          />
+            onClick={onOpen}><LuMenu /></IconButton>
         </Flex>
       </Container>
 
       {/* MENÚ LATERAL (DRAWER) PARA MÓVIL */}
-      <Drawer placement="right" onClose={onClose} isOpen={isOpen}>
-        <DrawerOverlay />
-        <DrawerContent bg="gray.800" color="white">
-          <DrawerCloseButton />
-          <DrawerHeader borderBottomWidth="1px">Menú</DrawerHeader>
-          <DrawerBody>
-            <VStack spacing={4} align="stretch" mt={4}>
-              <Link onClick={() => handleDrawerNavigate('/')}>Inicio</Link>
-              {userRole === 'client' && (
-              <Link onClick={() => handleDrawerNavigate('/home')}>
-                Mi Perfil
-              </Link>
-              )}
-              <Link onClick={() => handleDrawerNavigate('/classes')}>Clases</Link>                            
-              <Spacer />
+      <Drawer.Root placement='end' open={isOpen} onOpenChange={e => {
+        if (!e.open) {
+          onClose();
+        }
+      }}>
+        <Portal>
 
-              {/* 5. BOTONES DINÁMICOS PARA MÓVIL */}
-              {userRole ? (
-                // Si el usuario está logueado
-                <Button
-                  colorScheme="red"
-                  w="100%"
-                  onClick={() => {
-                    onClose(); // Primero cierra la UI
-                    setTimeout(logoutUser, 150); // Luego, con un retardo, ejecuta la lógica de la app
-                  }}
-                >
-                  Cerrar Sesión
-                </Button>
-              ) : (
-                // Si no está logueado
-                <>
-                  <Button colorScheme="teal" variant="solid" w="100%" onClick={() => handleDrawerNavigate('/login')}>
-                    Iniciar Sesión
-                  </Button>
-                  <Button colorScheme="teal" variant="outline" w="100%" onClick={() => handleDrawerNavigate('/register')}>
-                    Registrarse
-                  </Button>
-                </>
-              )}
-            </VStack>
-          </DrawerBody>
-        </DrawerContent>
-      </Drawer>
+          <Drawer.Backdrop />
+          <Drawer.Positioner>
+            <Drawer.Content bg="gray.800" color="white">
+              <Drawer.CloseTrigger />
+              <Drawer.Header borderBottomWidth="1px"><Drawer.Title>Menú</Drawer.Title></Drawer.Header>
+              <Drawer.Body>
+                <VStack gap={4} align="stretch" mt={4}>
+                  <Link onClick={() => handleDrawerNavigate('/')}>Inicio</Link>
+                  {userRole === 'client' && (
+                  <Link onClick={() => handleDrawerNavigate('/home')}>
+                    Mi Perfil
+                  </Link>
+                  )}
+                  <Link onClick={() => handleDrawerNavigate('/classes')}>Clases</Link>
+                  <Spacer />
+
+                  {/* 5. BOTONES DINÁMICOS PARA MÓVIL */}
+                  {userRole ? (
+                    // Si el usuario está logueado
+                    <Button
+                      colorPalette="red"
+                      w="100%"
+                      onClick={() => {
+                        onClose(); // Primero cierra la UI
+                        setTimeout(logoutUser, 150); // Luego, con un retardo, ejecuta la lógica de la app
+                      }}
+                    >
+                      Cerrar Sesión
+                    </Button>
+                  ) : (
+                    // Si no está logueado
+                    <>
+                      <Button colorPalette="teal" variant="solid" w="100%" onClick={() => handleDrawerNavigate('/login')}>
+                        Iniciar Sesión
+                      </Button>
+                      <Button colorPalette="teal" variant="outline" w="100%" onClick={() => handleDrawerNavigate('/register')}>
+                        Registrarse
+                      </Button>
+                    </>
+                  )}
+                </VStack>
+              </Drawer.Body>
+            </Drawer.Content>
+          </Drawer.Positioner>
+
+        </Portal>
+      </Drawer.Root>
     </Box>
   );
 };

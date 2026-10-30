@@ -1,13 +1,11 @@
+import { toaster } from '../components/ui/toaster-store';
 import React, { useRef, useState } from 'react';
 import {
   Badge,
   Box,
   Button,
   Card,
-  CardBody,
   Container,
-  FormControl,
-  FormLabel,
   Heading,
   HStack,
   Input,
@@ -15,7 +13,7 @@ import {
   Spinner,
   Text,
   VStack,
-  useToast,
+  Field,
 } from '@chakra-ui/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookingStatus } from '../types';
@@ -35,7 +33,6 @@ const FrontDeskPage: React.FC = () => {
   const [client, setClient] = useState<FrontDeskClientLookup | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [preparedBooking, setPreparedBooking] = useState<FrontDeskBooking | null>(null);
-  const toast = useToast();
   const queryClient = useQueryClient();
 
   // A document lookup is the entry point; session selection cannot identify a client.
@@ -52,7 +49,7 @@ const FrontDeskPage: React.FC = () => {
       setClient(null);
       setSelectedSessionId(null);
       setPreparedBooking(null);
-      toast({ title: 'No se pudo identificar al cliente por documento', status: 'error', duration: 3500, isClosable: true });
+      toaster.create({ title: 'No se pudo identificar al cliente por documento', type: 'error', duration: 3500, closable: true });
     },
   });
 
@@ -77,21 +74,21 @@ const FrontDeskPage: React.FC = () => {
       }
       void queryClient.invalidateQueries({ queryKey: ['frontDesk', 'bookings', request.sessionId] });
       void queryClient.invalidateQueries({ queryKey: ['frontDesk', 'today'] });
-      toast({
+      toaster.create({
         title: result.created ? 'Reserva ordinaria creada' : 'Reserva existente localizada',
         description: 'El check-in requiere una acción explícita separada.',
-        status: 'success',
+        type: 'success',
         duration: 3500,
-        isClosable: true,
+        closable: true,
       });
     },
     onError: () => {
-      toast({
+      toaster.create({
         title: 'No se pudo crear la reserva',
         description: 'El backend debe validar la membresía y elegibilidad.',
-        status: 'error',
+        type: 'error',
         duration: 4000,
-        isClosable: true,
+        closable: true,
       });
     },
   });
@@ -103,10 +100,10 @@ const FrontDeskPage: React.FC = () => {
       if (selectedSessionId === request.sessionId) setPreparedBooking(booking);
       void queryClient.invalidateQueries({ queryKey: ['frontDesk', 'today'] });
       void queryClient.invalidateQueries({ queryKey: ['frontDesk', 'bookings', request.sessionId] });
-      toast({ title: 'Check-in registrado', status: 'success', duration: 2500, isClosable: true });
+      toaster.create({ title: 'Check-in registrado', type: 'success', duration: 2500, closable: true });
     },
     onError: () => {
-      toast({ title: 'No se pudo registrar el check-in', status: 'error', duration: 3500, isClosable: true });
+      toaster.create({ title: 'No se pudo registrar el check-in', type: 'error', duration: 3500, closable: true });
     },
   });
 
@@ -121,15 +118,15 @@ const FrontDeskPage: React.FC = () => {
   };
 
   const renderSession = (session: FrontDeskSession) => (
-    <Card key={session.id} variant="outline">
-      <CardBody>
-        <VStack spacing={3} align="stretch">
+    <Card.Root key={session.id} variant="outline">
+      <Card.Body>
+        <VStack gap={3} align="stretch">
           <HStack justify="space-between" align="start">
             <Box>
               <Heading size="sm">{session.gym_class_name}</Heading>
               <Text fontSize="sm">{session.teacher_full_name ?? 'Sin docente asignado'}</Text>
             </Box>
-            <Badge colorScheme="gray">{session.available_spots} cupos de referencia</Badge>
+            <Badge colorPalette="gray">{session.available_spots} cupos de referencia</Badge>
           </HStack>
           <Text fontSize="sm">
             {businessTimeLabel(session.starts_at)} - {businessTimeLabel(session.ends_at)}
@@ -139,66 +136,67 @@ const FrontDeskPage: React.FC = () => {
           </Text>
           <Button
             size="sm"
-            isDisabled={isBusy}
+            disabled={isBusy}
             variant={selectedSessionId === session.id ? 'solid' : 'outline'}
             onClick={() => selectSession(session.id)}
           >
             Seleccionar sesión
           </Button>
         </VStack>
-      </CardBody>
-    </Card>
+      </Card.Body>
+    </Card.Root>
   );
 
   return (
-    <Container maxW="container.xl" py={8}>
-      <VStack spacing={8} align="stretch">
+    <Container maxW="80rem" py={8}>
+      <VStack gap={8} align="stretch">
         <Box>
           <Heading size="lg">Front Desk</Heading>
           <Text color="gray.600">Identifica primero al cliente y opera reservas y check-in ordinarios.</Text>
         </Box>
 
-        <Box as="form" onSubmit={(event: React.FormEvent) => {
-          event.preventDefault();
-          if (documentNumber.trim() && !isBusy) {
-            setClient(null);
-            setSelectedSessionId(null);
-            setPreparedBooking(null);
-            const intent = nextLookupIntent(lookupIntentRef.current, documentNumber);
-            lookupIntentRef.current = intent;
-            lookupMutation.mutate(intent);
-          }
-        }}>
-          <VStack align="stretch" spacing={3}>
-            <FormControl>
-              <FormLabel>Número de documento</FormLabel>
-              <Input
-                value={documentNumber}
-                onChange={(event) => {
-                  lookupIntentRef.current = nextLookupIntent(lookupIntentRef.current, event.target.value);
-                  setDocumentNumber(event.target.value);
-                  setClient(null);
-                  setSelectedSessionId(null);
-                  setPreparedBooking(null);
-                }}
-                placeholder="Documento exacto del cliente"
-              />
-            </FormControl>
-            <Button type="submit" colorScheme="teal" isLoading={lookupMutation.isPending}
-              isDisabled={!documentNumber.trim() || isBusy}>
-              Buscar cliente
-            </Button>
-          </VStack>
-        </Box>
+        <Box asChild><form
+            onSubmit={(event: React.FormEvent) => {
+              event.preventDefault();
+              if (documentNumber.trim() && !isBusy) {
+                setClient(null);
+                setSelectedSessionId(null);
+                setPreparedBooking(null);
+                const intent = nextLookupIntent(lookupIntentRef.current, documentNumber);
+                lookupIntentRef.current = intent;
+                lookupMutation.mutate(intent);
+              }
+            }}>
+            <VStack align="stretch" gap={3}>
+              <Field.Root>
+                <Field.Label>Número de documento</Field.Label>
+                <Input
+                  value={documentNumber}
+                  onChange={(event) => {
+                    lookupIntentRef.current = nextLookupIntent(lookupIntentRef.current, event.target.value);
+                    setDocumentNumber(event.target.value);
+                    setClient(null);
+                    setSelectedSessionId(null);
+                    setPreparedBooking(null);
+                  }}
+                  placeholder="Documento exacto del cliente"
+                />
+              </Field.Root>
+              <Button type="submit" colorPalette="teal" loading={lookupMutation.isPending}
+                disabled={!documentNumber.trim() || isBusy}>
+                Buscar cliente
+              </Button>
+            </VStack>
+          </form></Box>
 
         {client && (
-          <Card variant="outline">
-            <CardBody>
+          <Card.Root variant="outline">
+            <Card.Body>
               <Text fontWeight="bold">{client.full_name}</Text>
               <Text fontSize="sm">{client.document_number} · {client.email}</Text>
               <Text fontSize="sm" color="gray.600">Cliente identificado; la búsqueda no concede elegibilidad.</Text>
-            </CardBody>
-          </Card>
+            </Card.Body>
+          </Card.Root>
         )}
 
         {client && (
@@ -208,7 +206,7 @@ const FrontDeskPage: React.FC = () => {
             {dayQuery.isError && <Text color="red.500">No se pudieron cargar las sesiones.</Text>}
             {dayQuery.data?.sessions.length === 0 && <Text>No hay sesiones programadas para hoy.</Text>}
             {dayQuery.data && dayQuery.data.sessions.length > 0 && (
-              <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+              <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={4}>
                 {dayQuery.data.sessions.map(renderSession)}
               </SimpleGrid>
             )}
@@ -224,19 +222,19 @@ const FrontDeskPage: React.FC = () => {
               <Text color="red.500">No se pudieron consultar las reservas. No se crearán reservas sin verificar.</Text>
             )}
             {selectedSessionId && bookingsQuery.isSuccess && (
-              <VStack align="stretch" spacing={3}>
+              <VStack align="stretch" gap={3}>
                 {ownBooking && (
-                  <Card variant="outline">
-                    <CardBody>
+                  <Card.Root variant="outline">
+                    <Card.Body>
                       <Text fontWeight="semibold">{ownBooking.client_name}</Text>
                       <Badge mt={2}>{ownBooking.status}</Badge>
-                    </CardBody>
-                  </Card>
+                    </Card.Body>
+                  </Card.Root>
                 )}
                 {!ownBooking && (
-                  <Button colorScheme="teal" variant="outline"
-                    isLoading={fallbackMutation.isPending}
-                    isDisabled={isBusy}
+                  <Button colorPalette="teal" variant="outline"
+                    loading={fallbackMutation.isPending}
+                    disabled={isBusy}
                     onClick={() => fallbackMutation.mutate({
                       sessionId: selectedSessionId, clientId: client.id,
                     })}>
@@ -244,9 +242,9 @@ const FrontDeskPage: React.FC = () => {
                   </Button>
                 )}
                 {ownBooking?.status === BookingStatus.CONFIRMED && (
-                  <Button colorScheme="teal"
-                    isLoading={checkInMutation.isPending}
-                    isDisabled={isBusy}
+                  <Button colorPalette="teal"
+                    loading={checkInMutation.isPending}
+                    disabled={isBusy}
                     onClick={() => checkInMutation.mutate({
                       sessionId: selectedSessionId, bookingId: ownBooking.id,
                     })}>
