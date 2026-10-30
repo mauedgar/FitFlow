@@ -38,7 +38,6 @@ const RegisterPage = () => {
         duration: 3000,
         closable: true,
       });
-      console.log('Datos de Registro:', { name, email, password });
       navigate('/login'); // Redirigimos al login tras el éxito
 
     } catch (error) {
