@@ -60,7 +60,7 @@ def http_clients(monkeypatch):
     async def get_with_relations(*, db, client_id):
         return profile if client_id == profile_id else None
 
-    async def get_multi(*, db, skip, limit, options):
+    async def get_multi_visible(*, db, skip, limit):
         return [profile]
 
     async def update(*, db, db_obj, obj_in):
@@ -69,7 +69,7 @@ def http_clients(monkeypatch):
     monkeypatch.setattr(crud_client, "get_by_user_id", get_by_user_id)
     monkeypatch.setattr(crud_client, "get", get)
     monkeypatch.setattr(crud_client, "get_with_relations", get_with_relations)
-    monkeypatch.setattr(crud_client, "get_multi", get_multi)
+    monkeypatch.setattr(crud_client, "get_multi_visible", get_multi_visible)
     monkeypatch.setattr(crud_client, "update", update)
     with TestClient(app) as http:
         yield http, subject, profile

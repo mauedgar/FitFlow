@@ -52,11 +52,11 @@ async def test_admin_read_passes_eager_user_option(monkeypatch):
     raw = make_client()
     observed = {}
 
-    async def fake_get_multi(*, db, skip, limit, options):
-        observed.update(db=db, skip=skip, limit=limit, options=options)
+    async def fake_get_multi_visible(*, db, skip, limit):
+        observed.update(db=db, skip=skip, limit=limit)
         return [raw]
 
-    monkeypatch.setattr(clients_router.client, "get_multi", fake_get_multi)
+    monkeypatch.setattr(clients_router.client, "get_multi_visible", fake_get_multi_visible)
     db = object()
     result = await clients_router.read_clients(
         db=db, skip=0, limit=100, current_user=object()
@@ -64,5 +64,4 @@ async def test_admin_read_passes_eager_user_option(monkeypatch):
 
     assert observed["db"] is db
     assert (observed["skip"], observed["limit"]) == (0, 100)
-    assert len(observed["options"]) == 1
     assert result[0].full_name == "Ana Gómez"

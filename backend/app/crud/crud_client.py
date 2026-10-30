@@ -41,6 +41,23 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
     # ------------------------------------------------------------------ #
     # Búsquedas específicas
     # ------------------------------------------------------------------ #
+    async def get_multi_visible(
+        self, db: AsyncSession, *, skip: int = 0, limit: int = 100
+    ) -> list[Client]:
+        """Admin listing: hide deleted accounts and clients, use stable ordering."""
+        stmt = (
+            select(Client)
+            .join(Client.user)
+            .where(Client.deleted_at.is_(None), User.deleted_at.is_(None))
+            .options(selectinload(Client.user))
+            .order_by(Client.id)
+            .offset(skip)
+            .limit(limit)
+        )
+        res = await db.execute(stmt)
+        return list(res.scalars().unique().all())
+
+
     async def get_by_user_id(
         self,
         db: AsyncSession,

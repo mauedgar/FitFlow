@@ -59,7 +59,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         include_relations: bool = False,
     ) -> User | None:
         """Obtiene un usuario por su email."""
-        stmt = select(User).where(User.email == email)
+        stmt = select(User).where(User.email == email, User.deleted_at.is_(None))
 
         if include_relations:
             stmt = stmt.options(selectinload(User.person_profile))
