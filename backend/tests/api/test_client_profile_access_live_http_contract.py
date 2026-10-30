@@ -638,15 +638,39 @@ async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
     original_remove = crud_client_local.remove
 
     async def paused_remove(*, db, db_obj, hard=False):
+        # Lock the real database row; leave the actual soft-delete to CRUDBase.
         assert not hard
-        db_obj.deleted_at = datetime.now(timezone.utc)
-        db_obj.active = False
-        db.add(db_obj)
-        await db.flush()
+        await db.execute(
+            select(Client.id)
+            .where(Client.id == db_obj.id)
+            .with_for_update(of=Client)
+        )
         deleting.set()
-        await asyncio.wait_for(allow_delete_commit.wait(), timeout=10)
-        await db.commit()
-        await db.refresh(db_obj)
+        await asyncio.wait_for(allow_delete_commit.wait(), timeout=15)
+        return await original_remove(db=db, db_obj=db_obj, hard=hard)
+
+    async def assert_put_is_waiting_on_delete_lock():
+        # Observe PostgreSQL's lock manager, not just an HTTP task or timer.
+        query = text(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity
+                WHERE datname = current_database()
+                  AND pid <> pg_backend_pid()
+                  AND wait_event_type = 'Lock'
+                  AND cardinality(pg_blocking_pids(pid)) > 0
+                  AND query ILIKE '%FOR UPDATE%'
+                  AND query ILIKE '%clients%'
+            )
+            """
+        )
+        async with AsyncSessionLocal() as observer:
+            for _ in range(100):
+                if await observer.scalar(query):
+                    return
+                await observer.rollback()
+                await asyncio.sleep(0.05)
+        pytest.fail("PUT never reached a PostgreSQL FOR UPDATE lock wait")
 
     monkeypatch.setattr(crud_client_local, "remove", paused_remove)
     url = f"{settings.API_V1_STR}/clients/{profile_fixture.profile_id}"
@@ -654,15 +678,15 @@ async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
     delete_task = asyncio.create_task(api_client.delete(url, headers=admin_headers))
     put_task = None
     try:
-        await asyncio.wait_for(deleting.wait(), timeout=10)
+        await asyncio.wait_for(deleting.wait(), timeout=15)
         put_task = asyncio.create_task(
             api_client.put(
                 url, json={"first_name": "MustNotPersist"}, headers=admin_headers
             )
         )
-        # A finite observation: the PUT cannot return before deletion releases locks.
-        await asyncio.sleep(0.05)
-        assert not put_task.done()
+        await asyncio.wait_for(assert_put_is_waiting_on_delete_lock(), timeout=12)
+        assert not put_task.done(), "PUT must still be waiting on DELETE's row lock"
+        assert not delete_task.done(), "DELETE must still hold its row lock"
     finally:
         allow_delete_commit.set()
     delete_response = await asyncio.wait_for(delete_task, timeout=15)
