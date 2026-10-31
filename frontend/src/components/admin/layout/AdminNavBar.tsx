@@ -42,7 +42,9 @@ const AdminNavBar: React.FC = () => {
       align="center"
       justify="space-between"
       w="100%"
-      px="4"
+      minW={0}
+      gap={{ base: 1, md: 2 }}
+      px={{ base: 2, md: 4 }}
       py="2"
       bg="white"
       borderBottomWidth="1px"
@@ -51,13 +53,17 @@ const AdminNavBar: React.FC = () => {
       boxShadow="sm"
     >
       {/* DASHBOARD BUTTON */}
-      <Button variant="ghost" colorPalette="teal" size="md" asChild><RouterLink to="/admin"><Icon as={FiHome} />Dashboard
-                        </RouterLink></Button>
+      <Button variant="ghost" colorPalette="teal" size="md" asChild>
+        <RouterLink to="/admin" aria-label="Dashboard">
+          <Icon as={FiHome} />
+          <Text display={{ base: 'none', md: 'inline' }}>Dashboard</Text>
+        </RouterLink>
+      </Button>
 
-      <Spacer />
+      <Spacer display={{ base: 'none', md: 'block' }} />
 
       {/* MENÚS CRUD Y GESTIÓN */}
-      <HStack gap="2" overflowX="auto">
+      <HStack gap="1" minW={0} flex={{ base: '1', md: 'initial' }} overflowX="auto" whiteSpace="nowrap">
         {adminMenus.map((menu) => (
           <Menu.Root key={menu.label} navigate={({ value }) => navigate(value)}>
             <Menu.Trigger asChild><Button variant="ghost" size="sm" minW="max-content">
@@ -77,11 +83,11 @@ const AdminNavBar: React.FC = () => {
         ))}
       </HStack>
 
-      <Spacer />
+      <Spacer display={{ base: 'none', md: 'block' }} />
 
       {/* PERFIL Y LOGOUT */}
       <Menu.Root>
-        <Menu.Trigger asChild><Button variant="ghost" p={2} rounded="full">
+        <Menu.Trigger asChild><Button variant="ghost" p={2} rounded="full" flexShrink={0} aria-label="Menú de perfil">
             <HStack gap="2">
               <Avatar.Root size="sm"><Avatar.Fallback name={currentUser?.email || 'Admin'} /></Avatar.Root>
               <Text display={{ base: 'none', lg: 'block' }} fontSize="sm" fontWeight="medium">
