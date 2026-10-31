@@ -13,9 +13,10 @@ export interface AdminClientSummary {
  * Lists up to 100 clients from the admin-only ClientPublic projection.
  * Pagination beyond this page is deliberately not implied by the UI.
  */
-export const getAdminClients = async (): Promise<AdminClientSummary[]> => {
+export const getAdminClients = async (signal?: AbortSignal): Promise<AdminClientSummary[]> => {
   const { data } = await apiClient.get<AdminClientSummary[]>('/clients/', {
     params: { skip: 0, limit: 100 },
+    signal,
   });
   return data;
 };
