@@ -38,7 +38,7 @@ test('network errors do not misrepresent an unknown total as zero clients', () =
 test('admin list HTTP requests consume cancellation signal from query lifecycle', () => {
   assert.match(page, /queryFn: \(\{ signal \}\) => getAdminClients\(signal\)/);
   assert.match(service, /getAdminClients = async \(signal\?: AbortSignal\)/);
-  assert.match(service, /\n\s*signal,\n/);
+  assert.match(service, /\r?\n\s*signal,\r?\n/);
 });
 
 test('responsive menu region is keyboard reachable and named', () => {
