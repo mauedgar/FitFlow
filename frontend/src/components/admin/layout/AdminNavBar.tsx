@@ -63,7 +63,8 @@ const AdminNavBar: React.FC = () => {
       <Spacer display={{ base: 'none', md: 'block' }} />
 
       {/* MENÚS CRUD Y GESTIÓN */}
-      <HStack gap="1" minW={0} flex={{ base: '1', md: 'initial' }} overflowX="auto" whiteSpace="nowrap">
+      <HStack as="nav" aria-label="Secciones de administración" tabIndex={0}
+        gap="1" minW={0} flex={{ base: '1', md: 'initial' }} overflowX="auto" whiteSpace="nowrap">
         {adminMenus.map((menu) => (
           <Menu.Root key={menu.label} navigate={({ value }) => navigate(value)}>
             <Menu.Trigger asChild><Button variant="ghost" size="sm" minW="max-content">
