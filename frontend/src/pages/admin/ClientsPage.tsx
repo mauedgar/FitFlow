@@ -18,7 +18,7 @@ const ClientsPage = () => {
   const { data = [], isLoading, isError, isFetching, refetch } = useQuery({
     // Partition cached results by authenticated account, not only by page.
     queryKey: ['adminClients', currentUser?.email, 0, 100],
-    queryFn: getAdminClients,
+    queryFn: ({ signal }) => getAdminClients(signal),
     enabled: currentUser?.role === 'admin',
     retry: 1,
   });
@@ -37,7 +37,7 @@ const ClientsPage = () => {
           <Text color="gray.600" mt={1}>Consultá los clientes registrados del gimnasio.</Text>
         </Box>
         <Badge alignSelf={{ base: 'start', md: 'center' }} colorPalette="teal" px={3} py={1}>
-          {isLoading ? 'Cargando…' : `${data.length} clientes en esta página`}
+          {isError ? 'No disponible' : isLoading ? 'Cargando…' : `${data.length} clientes en esta página`}
         </Badge>
       </Stack>
 
