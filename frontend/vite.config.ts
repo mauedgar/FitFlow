@@ -7,9 +7,9 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        onlyExplicitManualChunks: true,
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          if (/[\\/]node_modules[\\/]@chakra-ui[\\/]react[\\/]dist[\\/]esm[\\/]styled-system[\\/]/.test(id)) return 'chakra-styles';
           if (/[\\/]node_modules[\\/]@chakra-ui[\\/]/.test(id)) return 'chakra-ui';
           if (/[\\/]node_modules[\\/]@emotion[\\/]/.test(id)) return 'emotion';
           if (/[\\/]node_modules[\\/]framer-motion[\\/]/.test(id)) return 'motion';
