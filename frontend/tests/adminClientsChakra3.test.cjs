@@ -29,3 +29,21 @@ test('preserves loading, empty, retry, accessible state and responsive views', (
   assert.match(page, /<SimpleGrid/);
   assert.match(page, /<Table\.Body/);
 });
+
+test('network errors do not misrepresent an unknown total as zero clients', () => {
+  assert.match(page, /isError \? 'No disponible'/);
+  assert.match(page, /No pudimos cargar los clientes/);
+});
+
+test('admin list HTTP requests consume cancellation signal from query lifecycle', () => {
+  assert.match(page, /queryFn: \(\{ signal \}\) => getAdminClients\(signal\)/);
+  assert.match(service, /getAdminClients = async \(signal\?: AbortSignal\)/);
+  assert.match(service, /\n\s*signal,\n/);
+});
+
+test('responsive menu region is keyboard reachable and named', () => {
+  const nav = fs.readFileSync('src/components/admin/layout/AdminNavBar.tsx', 'utf8');
+  assert.match(nav, /as="nav" aria-label="Secciones de administración" tabIndex=\{0\}/);
+  assert.match(nav, /overflowX="auto"/);
+  assert.match(nav, /aria-label="Menú de perfil"/);
+});
