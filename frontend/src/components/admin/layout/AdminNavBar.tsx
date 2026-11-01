@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Avatar, Box, Button, Drawer, Flex, HStack, Icon, Menu, Portal, Spacer, Text, VStack } from '@chakra-ui/react';
+import { Avatar, Box, Button, CloseButton, Drawer, Flex, HStack, Icon, Menu, Portal, Spacer, Text, VStack } from '@chakra-ui/react';
 import { Link as RouterLink, NavLink as RouterNavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/useAuth';
 import { FiHome, FiUsers, FiLogOut, FiBriefcase, FiMenu } from 'react-icons/fi';
@@ -71,7 +71,10 @@ const AdminNavBar: React.FC = () => {
                   ))}
                 </VStack>
               </Drawer.Body>
-              <Drawer.CloseTrigger aria-label="Cerrar menú" color="white" />
+              <Drawer.CloseTrigger asChild>
+                <CloseButton aria-label="Cerrar menú" color="white" bg="white/15"
+                  _hover={{ bg: 'white/25' }} minW="44px" minH="44px" cursor="pointer" />
+              </Drawer.CloseTrigger>
             </Drawer.Content>
           </Drawer.Positioner>
         </Portal>

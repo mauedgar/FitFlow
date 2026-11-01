@@ -16,7 +16,8 @@ test('mobile admin navigation is a controlled Chakra v3 Drawer with named contro
   assert.match(navbar, /aria-label="Menú" aria-expanded=\{menuOpen\}/);
   assert.match(navbar, /<Drawer\.Backdrop\s*\/>/);
   assert.match(navbar, /<Drawer\.Positioner>/);
-  assert.match(navbar, /<Drawer\.CloseTrigger aria-label="Cerrar menú"/);
+  assert.doesNotMatch(navbar, /<Drawer\.CloseTrigger\b[^>]*\/>/);
+  assert.match(navbar, /<Drawer\.CloseTrigger asChild>\s*<CloseButton\b[^>]*aria-label="Cerrar menú"[^>]*minW="44px" minH="44px" cursor="pointer"\s*\/>\s*<\/Drawer\.CloseTrigger>/);
   assert.match(navbar, /display=\{\{ base: 'inline-flex', md: 'none' \}\}/);
   assert.doesNotMatch(navbar, /overflowX="auto"|minW="max-content"/);
 });
