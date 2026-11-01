@@ -8,7 +8,7 @@ const AdminLayout = () => {
   const showSidebar = useBreakpointValue({ base: false, md: true });
 
   return (
-    <Flex minH="100vh" bg="gray.50">
+    <Flex minH="100vh" minW={0} w="full" bg="gray.50">
       {/* SIDEBAR - Solo en pantallas medianas y grandes */}
       {showSidebar && (
         <Box
@@ -29,6 +29,7 @@ const AdminLayout = () => {
       {/* CONTENIDO PRINCIPAL */}
       <Box
         flex="1"
+        minW={0}
         ml={showSidebar ? sidebarWidth : '0'}
         transition="margin-left 0.2s"
       >
