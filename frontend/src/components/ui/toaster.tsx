@@ -4,13 +4,13 @@ import { toaster } from './toaster-store';
 export function Toaster() {
   return (
     <Portal>
-      <ChakraToaster toaster={toaster}>
+      <ChakraToaster toaster={toaster} width="min(400px, calc(100vw - 32px))" maxW="calc(100vw - 32px)">
         {(toast) => (
-          <Toast.Root key={toast.id}>
+          <Toast.Root key={toast.id} minW={0} pe="10" overflowWrap="anywhere">
             <Toast.Indicator />
-            <Toast.Title>{toast.title}</Toast.Title>
-            <Toast.Description>{toast.description}</Toast.Description>
-            {toast.closable && <Toast.CloseTrigger />}
+            <Toast.Title minW={0}>{toast.title}</Toast.Title>
+            <Toast.Description minW={0}>{toast.description}</Toast.Description>
+            {toast.closable && <Toast.CloseTrigger aria-label="Cerrar notificación" />}
           </Toast.Root>
         )}
       </ChakraToaster>
