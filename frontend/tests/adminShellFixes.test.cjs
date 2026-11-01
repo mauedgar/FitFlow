@@ -35,6 +35,12 @@ test('mobile links close on navigation, preserve exact Dashboard route and profi
   assert.match(navbar, /navigate\('\/login'\)/);
 });
 
+test('Dashboard stays in desktop sidebar and mobile Drawer, not desktop header', () => {
+  assert.match(sidebar, /\{ label: 'Dashboard', to: '\/admin', icon: FiHome, end: true \}/);
+  assert.match(navbar, /\{ label: 'Dashboard', to: '\/admin', icon: FiHome, end: true \}/);
+  assert.doesNotMatch(navbar, /to="\/admin"/);
+});
+
 test('toast group fits 320px viewport and wraps long title and description', () => {
   assert.match(store, /placement: 'bottom-end', offsets: '16px'/);
   assert.match(toast, /width="min\(400px, calc\(100vw - 32px\)\)"/);

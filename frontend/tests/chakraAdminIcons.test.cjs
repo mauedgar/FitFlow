@@ -7,7 +7,7 @@ const ts = require('typescript');
 for (const [component, expected] of [
   ['components/dashboard/BookingCard.tsx', ['FiClock', 'FiMapPin']],
   ['components/admin/layout/AdminSidebar.tsx', ['link.icon']],
-  ['components/admin/layout/AdminNavBar.tsx', ['FiMenu', 'link.icon', 'FiHome', 'FiLogOut']],
+  ['components/admin/layout/AdminNavBar.tsx', ['FiMenu', 'link.icon', 'FiLogOut']],
 ]) {
   test(`${component} composes react-icons with Chakra v3 as prop`, () => {
     const filename = path.join(__dirname, '..', 'src', component);

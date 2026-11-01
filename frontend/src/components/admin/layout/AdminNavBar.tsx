@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Avatar, Box, Button, CloseButton, Drawer, Flex, HStack, Icon, Menu, Portal, Spacer, Text, VStack } from '@chakra-ui/react';
-import { Link as RouterLink, NavLink as RouterNavLink, useNavigate } from 'react-router-dom';
+import { NavLink as RouterNavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/useAuth';
 import { FiHome, FiUsers, FiLogOut, FiBriefcase, FiMenu } from 'react-icons/fi';
 import { LuChevronDown } from 'react-icons/lu';
@@ -80,12 +80,6 @@ const AdminNavBar: React.FC = () => {
         </Portal>
       </Drawer.Root>
 
-      <Button variant="ghost" colorPalette="teal" size="md" asChild display={{ base: 'none', md: 'inline-flex' }}>
-        <RouterLink to="/admin" aria-label="Dashboard">
-          <Icon as={FiHome} />
-          <Text>Dashboard</Text>
-        </RouterLink>
-      </Button>
       <Spacer />
 
       <Menu.Root>
