@@ -12,11 +12,6 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.enums import ClassSessionStatus
 from app.crud.base import CRUDBase
 from app.db.models import ClassSchedule, ClassSession
@@ -24,14 +19,17 @@ from app.db.models.class_schedule import ClassSchedule
 from app.db.models.class_session import ClassSession
 from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
 from app.services import errors as svc_errors
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID
 
+    from app.core.enums import ClassSessionStatus
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
-
-    from app.core.enums import ClassSessionStatus
 
 
 class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUpdate]):
@@ -61,7 +59,7 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(  # noqa: PLR0913
+    async def get_multi_filtered(
         self,
         db: AsyncSession,
         *,
@@ -160,7 +158,7 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         db: "AsyncSession",  # noqa: UP037
         *,
         obj_in: ClassSessionCreate,
-        created_by: object | None = None,  # noqa: ARG002
+        created_by: object | None = None,
     ) -> ClassSession:
         """Crea una ClassSession y persiste el capacity_snapshot tal como viene en el schema."""
         data = obj_in.model_dump()

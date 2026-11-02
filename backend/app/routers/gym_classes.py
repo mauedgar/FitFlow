@@ -13,9 +13,6 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.deps import require_admin
 from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_gym_class import gym_class
@@ -36,6 +33,8 @@ from app.services.class_schedule_service import (
 from app.services.gym_class_service import (
     to_gym_class_public,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/gym-classes", tags=["gym-classes"])
 
@@ -76,7 +75,7 @@ async def list_public_gym_classes_first(
 # Listar GymClasses (operativo)
 # --------------------------------------------------------------------------- #
 @router.get("/", response_model=list[GymClassWithRelations])
-async def list_gym_classes(  # noqa: PLR0913
+async def list_gym_classes(
     *,
     skip: Annotated[int, Query(ge=0)]=0,
     limit: Annotated[int, Query(ge=1, le=200)]=50,

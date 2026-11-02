@@ -10,9 +10,6 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.crud.base import CRUDBase
 from app.db.models import Booking, ClassSchedule, ClassSession
@@ -20,14 +17,15 @@ from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingUpd
 
 # Excepciones de dominio centralizadas
 from app.services.errors import ConflictError, NotFoundError
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID
 
+    from app.core.enums import BookingStatus
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
-
-    from app.core.enums import BookingStatus
 
 # ruff: noqa: UP037
 class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
@@ -64,7 +62,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(  # noqa: PLR0913
+    async def get_multi_filtered(
         self,
         db: "AsyncSession",
         *,

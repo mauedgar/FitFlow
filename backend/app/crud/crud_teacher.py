@@ -11,20 +11,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
-
 from app.crud.base import CRUDBase
 from app.db.models.teacher import Teacher
 from app.schemas.teacher import TeacherCreate, TeacherUpdate
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID
 
+    from app.db.models.user import User
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
-
-    from app.db.models.user import User
 
 class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
     """CRUD especializado para perfiles de profesor."""

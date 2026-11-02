@@ -3,12 +3,11 @@
 No database, credentials or external services are required.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-
 from app.routers import clients as clients_router
 from app.services.client_service import to_client_public
 
@@ -19,7 +18,7 @@ def make_client(*, first_name="Ana", last_name="Gómez"):
         first_name=first_name,
         last_name=last_name,
         profile_image_url="https://example.test/avatar.png",
-        created_at=datetime(2026, 10, 30, 12, 30, tzinfo=timezone.utc),
+        created_at=datetime(2026, 10, 30, 12, 30, tzinfo=UTC),
         user=SimpleNamespace(email="ana@example.test"),
     )
 

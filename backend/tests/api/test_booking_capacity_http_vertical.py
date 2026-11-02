@@ -6,13 +6,12 @@ from datetime import UTC, datetime, time, timedelta
 
 import httpx
 import pytest
-from fastapi import status
-from sqlalchemy.engine import make_url
-
 from app.core.config import settings
 from app.core.enums import ActivityType, ClassSessionStatus, UserRole
 from app.db.models import ClassSchedule, ClassSession, GymClass, Teacher, User
 from app.db.session import AsyncSessionLocal, engine
+from fastapi import status
+from sqlalchemy.engine import make_url
 
 
 @pytest.fixture(autouse=True)

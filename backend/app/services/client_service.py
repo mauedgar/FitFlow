@@ -9,15 +9,15 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from app.schemas.client import (
     ClientPublic,
-    ClientWithRelations,
     ClientWithActivity,
     ClientWithBookings,
     ClientWithMembership,
+    ClientWithRelations,
     ClientWithStats,
 )
 from app.services.booking_service import to_booking_public
@@ -100,32 +100,32 @@ def to_client_with_relations(client: Client) -> ClientWithRelations:
 
 def get_client_bookings_today(client: Client) -> list[Booking]:
     """Devuelve las reservas del cliente correspondientes al día actual."""
-    today = datetime.now(tz=timezone.utc).date()
+    today = datetime.now(tz=UTC).date()
     return [b for b in client.bookings if b.class_session.starts_at.date() == today]
 
 
 def get_client_bookings_this_week(client: Client) -> list[Booking]:
     """Devuelve las reservas del cliente programadas para los próximos siete días."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     limit = now + timedelta(days=7)
     return [b for b in client.bookings if now < b.class_session.starts_at <= limit] # pyright: ignore[reportGeneralTypeIssues]
 
 
 def get_client_upcoming_bookings(client: Client) -> list[Booking]:
     """Devuelve todas las reservas futuras del cliente, posteriores a la fecha actual."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return [b for b in client.bookings if b.class_session.starts_at > now] # pyright: ignore[reportGeneralTypeIssues]
 
 
 def get_client_past_bookings(client: Client) -> list[Booking]:
     """Devuelve las reservas pasadas del cliente, cuyas sesiones ya finalizaron."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return [b for b in client.bookings if b.class_session.ends_at < now] # pyright: ignore[reportGeneralTypeIssues]
 
 
 def get_client_active_bookings(client: Client) -> list[Booking]:
     """Devuelve las reservas que están actualmente en curso."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return [
         b for b in client.bookings
         if b.class_session.starts_at <= now <= b.class_session.ends_at # pyright: ignore[reportGeneralTypeIssues]

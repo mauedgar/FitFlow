@@ -8,16 +8,15 @@ from datetime import timedelta
 
 import httpx
 import pytest
-from fastapi import status
-from sqlalchemy import delete
-from sqlalchemy.engine import make_url
-
 from app.core import security
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
 from app.routers import auth as auth_router
+from fastapi import status
+from sqlalchemy import delete
+from sqlalchemy.engine import make_url
 
 pytestmark = [
     pytest.mark.api,

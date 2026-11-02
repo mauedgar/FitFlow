@@ -4,15 +4,16 @@ Revision ID: 3a6ad3ed45ab
 Revises: f5453ed20cdc
 Create Date: 2026-08-01 01:20:50.263561
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
+from typing import Union
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "3a6ad3ed45ab"
-down_revision: Union[str, Sequence[str], None] = "f5453ed20cdc"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "f5453ed20cdc"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # Mapeo: nombre_actual -> nombre_objetivo
 RENAME_MAP = {

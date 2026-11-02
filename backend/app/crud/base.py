@@ -11,13 +11,12 @@ Requisitos:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+from app.db.base_class import Base
 from pydantic import BaseModel
 from sqlalchemy import select
-
-from app.db.base_class import Base
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -144,7 +143,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             await db.delete(db_obj)
         else:
             db_obj.active = False  # type: ignore[attr-defined]
-            db_obj.deleted_at = datetime.now(timezone.utc)  # type: ignore[attr-defined]
+            db_obj.deleted_at = datetime.now(UTC)  # type: ignore[attr-defined]
             db.add(db_obj)
 
         await db.commit()

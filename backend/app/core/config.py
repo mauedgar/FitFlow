@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     @property
-    def DATABASE_URL_ASYNC(self) -> str:  # noqa: N802
+    def DATABASE_URL_ASYNC(self) -> str:
         """Convierte la URL sincrónica en una URL asyncpg."""
         url: URL = make_url(self.DATABASE_URL)
         url = url.set(drivername="postgresql+asyncpg")
@@ -121,12 +121,12 @@ class Settings(BaseSettings):
         "REDIS_URL",
         mode="before",
     )
-    def empty_to_none(cls, v):  # noqa: ANN001, ANN201, N805
+    def empty_to_none(cls, v):
         """Convierte strings vacíos ("") en None.
         Esto evita errores cuando el .env contiene líneas como:
             SMTP_PORT=
         que de otra forma causarían fallos de validación.
-        """  # noqa: D205
+        """
         if v == "":
             return None
         return v

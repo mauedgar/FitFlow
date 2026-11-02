@@ -13,11 +13,7 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 from typing import Annotated
-from uuid import UUID  # noqa: TC003
-
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession  # noqa: TC002
+from uuid import UUID
 
 from app.core.deps import (
     require_admin,
@@ -28,13 +24,13 @@ from app.crud.crud_gym_class import gym_class as gym_class_crud
 from app.crud.crud_teacher import teacher as teacher_crud
 from app.db.session import get_async_session
 from app.schemas.class_schedule import (
-    ClassScheduleWithRelations,
     ClassScheduleCreate,
     ClassSchedulePublic,
     ClassScheduleUpdate,
+    ClassScheduleWithRelations,
     NextSessionInfo,
 )
-from app.schemas.user import UserPublic  # noqa: TC001
+from app.schemas.user import UserPublic
 from app.services import errors as svc_errors
 from app.services.class_schedule_service import (
     generate_sessions_for_schedule,
@@ -42,8 +38,10 @@ from app.services.class_schedule_service import (
     to_class_schedule_public,
     validate_teacher_assignment,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-#ruff :noqa: TRY301,B904
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/class-schedules", tags=["class-schedules"])
@@ -130,7 +128,7 @@ async def read_public_schedules_first(
 # Listar horarios (operativo)
 # --------------------------------------------------------------------------- #
 @router.get("/", response_model=list[ClassScheduleWithRelations])
-async def read_class_schedules(  # noqa: PLR0913
+async def read_class_schedules(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     skip: Annotated[int, Query(ge=0)] = 0,
@@ -278,7 +276,7 @@ async def delete_class_schedule(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     schedule_id: UUID,
-    current_user: Annotated[UserPublic, Depends(require_admin)],  # noqa: ARG001
+    current_user: Annotated[UserPublic, Depends(require_admin)],
 ) -> dict[str, str]:
     """Elimina un horario."""
     try:

@@ -11,13 +11,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import raiseload, selectinload
-
 from app.crud.base import CRUDBase
 from app.db.models import ClassSchedule, GymClass
 from app.schemas.class_schedule import ClassScheduleCreate, ClassScheduleUpdate
 from app.services import errors as svc_errors
+from sqlalchemy import func, select
+from sqlalchemy.orm import raiseload, selectinload
 
 if TYPE_CHECKING:
     from datetime import date
@@ -58,7 +57,7 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(  # noqa: PLR0913
+    async def get_multi_filtered(
         self,
         db: "AsyncSession",
         *,

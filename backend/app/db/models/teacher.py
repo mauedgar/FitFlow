@@ -1,11 +1,10 @@
 import uuid
 from typing import TYPE_CHECKING
 
+from app.db.models.person import Person
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.db.models.person import Person
 
 if TYPE_CHECKING:
     from .class_schedule import ClassSchedule
@@ -43,6 +42,6 @@ class Teacher(Person):
         lazy="raise",
     )
 
-    __mapper_args__ = {  # noqa: RUF012
+    __mapper_args__ = {
         "polymorphic_identity": "teacher",
     }

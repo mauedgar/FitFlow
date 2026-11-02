@@ -1,11 +1,10 @@
 """Configuration contract for staging without weakening development or tests."""
 
 import pytest
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import ValidationError
-
 from app.core.config import Settings, settings
 from app.main import app
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import ValidationError
 
 
 def make_settings(**overrides: object) -> Settings:

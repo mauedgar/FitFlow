@@ -1,9 +1,7 @@
-from redis import Redis
-from redis.exceptions import RedisError
-
 from app.core.config import settings
 from app.services.errors import ExternalServiceError
-
+from redis import Redis
+from redis.exceptions import RedisError
 
 
 def get_redis_client() -> Redis:

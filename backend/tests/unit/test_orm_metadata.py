@@ -1,7 +1,5 @@
 from typing import get_origin
 
-from sqlalchemy.orm import Mapped, configure_mappers
-
 from app.core.enums import ClassSessionStatus
 from app.db.base import Base
 from app.db.models import (
@@ -15,7 +13,7 @@ from app.db.models import (
     Teacher,
     User,
 )
-
+from sqlalchemy.orm import Mapped, configure_mappers
 
 ACTIVE_TABLES = {
     "bookings",

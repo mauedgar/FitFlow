@@ -4,15 +4,14 @@ import uuid
 from datetime import UTC, datetime, time, timedelta
 
 import pytest
-from sqlalchemy import select
-from sqlalchemy.engine import make_url
-
 from app.core.config import settings
 from app.core.enums import ActivityType, ClassSessionStatus, UserRole
 from app.db.models import ClassSchedule, ClassSession, GymClass, Teacher, User
 from app.db.session import AsyncSessionLocal, engine
 from app.services import errors as svc_errors
 from app.services.class_schedule_service import generate_sessions_for_schedule
+from sqlalchemy import select
+from sqlalchemy.engine import make_url
 
 
 @pytest.fixture(autouse=True)

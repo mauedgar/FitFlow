@@ -3,10 +3,6 @@ import uuid
 from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
-from sqlalchemy import func, select
-from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.config import settings
 from app.core.enums import (
     ActivityType,
@@ -29,6 +25,9 @@ from app.db.session import AsyncSessionLocal, engine
 from app.schemas.booking import BookingCreateInternal
 from app.services.errors import ConflictError
 from app.services.front_desk_service import check_in_booking
+from sqlalchemy import func, select
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture(autouse=True)

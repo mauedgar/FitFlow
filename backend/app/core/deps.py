@@ -13,26 +13,24 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
-from pydantic import ValidationError
-
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.core.security import decode_token
 from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
-from app.schemas.user import UserPublic  # noqa: TC001
+from app.schemas.user import UserPublic
 from app.services.auth_service import get_user_from_token
 from app.services.errors import AuthError, PermissionDeniedError
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from sqlalchemy.ext.asyncio import AsyncSession
-
     from app.db.models.user import User
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 # --------------------------------------------------------------------------- #

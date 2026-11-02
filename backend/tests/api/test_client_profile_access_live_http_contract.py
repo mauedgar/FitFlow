@@ -9,29 +9,37 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
-from sqlalchemy import text, update
-from sqlalchemy.exc import DBAPIError
+from datetime import UTC, date, datetime, time, timedelta, timezone
 
 import httpx
 import pytest
-from fastapi import status
-from sqlalchemy import select
-from sqlalchemy.engine import make_url
-
 from app.core.config import settings
 from app.core.enums import (
-    ActivityType, BookingStatus, ClassSessionStatus, MembershipPlan,
-    MembershipStatus, UserRole,
+    ActivityType,
+    BookingStatus,
+    ClassSessionStatus,
+    MembershipPlan,
+    MembershipStatus,
+    UserRole,
 )
 from app.core.security import create_access_token
-from app.db.models import (
-    Booking, ClassSchedule, ClassSession, Client, GymClass, Membership, User,
-)
-from app.db.session import AsyncSessionLocal, engine
 from app.crud.crud_client import client as crud_client
 from app.crud.crud_user import user as crud_user
+from app.db.models import (
+    Booking,
+    ClassSchedule,
+    ClassSession,
+    Client,
+    GymClass,
+    Membership,
+    User,
+)
+from app.db.session import AsyncSessionLocal, engine
 from app.routers import users as users_router
+from fastapi import status
+from sqlalchemy import select, text, update
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import DBAPIError
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
@@ -89,7 +97,7 @@ async def profile_fixture() -> ClientProfileFixture:
     deleted = Client(
         first_name="Baja",
         last_name="Logica",
-        deleted_at=datetime.now(timezone.utc),
+        deleted_at=datetime.now(UTC),
         user=User(
             email=f"client-profile-deleted-{marker}@example.com",
             hashed_password="not-a-real-password",
@@ -118,16 +126,16 @@ async def profile_fixture() -> ClientProfileFixture:
             email=f"client-profile-user-deleted-{marker}@example.com",
             hashed_password="not-a-real-password",
             role=UserRole.client,
-            deleted_at=datetime.now(timezone.utc),
+            deleted_at=datetime.now(UTC),
         ),
     )
-    start = datetime.now(timezone.utc) + timedelta(days=2)
+    start = datetime.now(UTC) + timedelta(days=2)
     membership = Membership(
         client=owner,
         plan=MembershipPlan.premium,
         status=MembershipStatus.active,
-        start_date=datetime.now(timezone.utc) - timedelta(days=3),
-        end_date=datetime.now(timezone.utc) + timedelta(days=40),
+        start_date=datetime.now(UTC) - timedelta(days=3),
+        end_date=datetime.now(UTC) + timedelta(days=40),
     )
     gym_class = GymClass(
         name=f"Client Profile Class {marker}",
@@ -484,7 +492,7 @@ async def test_locked_client_detail_blocks_concurrent_account_soft_delete(
             await other_db.execute(
                 update(User)
                 .where(User.id == profile_fixture.owner_id)
-                .values(deleted_at=datetime.now(timezone.utc))
+                .values(deleted_at=datetime.now(UTC))
             )
         assert getattr(failure.value.orig, "sqlstate", None) == "55P03"
         await other_db.rollback()

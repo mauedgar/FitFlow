@@ -10,13 +10,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from app.crud.base import CRUDBase
 from app.db.models import Booking, ClassSchedule, ClassSession, Client, Membership, User
 from app.db.models.person import Person
 from app.schemas.client import ClientCreate, ClientUpdate
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID

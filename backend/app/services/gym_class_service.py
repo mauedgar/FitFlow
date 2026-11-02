@@ -11,11 +11,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pydantic import HttpUrl
-
+from app.crud import crud_gym_class
 from app.schemas.gym_class import GymClassPublic, GymClassWithSchedules
 from app.services.class_schedule_service import to_class_schedule_public
-from app.crud import crud_gym_class
+from pydantic import HttpUrl
 
 if TYPE_CHECKING:
     from app.db.models import GymClass

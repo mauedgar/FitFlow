@@ -1,7 +1,5 @@
 # backend/app/api/v1/api.py
 
-from fastapi import APIRouter
-
 from app.routers import (
     auth,
     bookings,
@@ -14,6 +12,7 @@ from app.routers import (
     teachers,
     users,
 )
+from fastapi import APIRouter
 
 api_router = APIRouter()
 

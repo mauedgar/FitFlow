@@ -11,21 +11,20 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TC003
-from uuid import UUID  # noqa: TC003
+from datetime import datetime
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from app.core.enums import ClassSessionStatus  # noqa: TC001
+from app.core.enums import ClassSessionStatus
 from app.schemas.booking_refs import BookingPublic
 from app.schemas.class_schedule import (
-    ClassScheduleInClassSessionResponse,  # noqa: TC001
-    ClassSchedulePublic,  # noqa: TC001
-    NextSessionInfo,  # noqa: TC001
+    ClassScheduleInClassSessionResponse,
+    ClassSchedulePublic,
+    NextSessionInfo,
 )
 from app.schemas.class_session_refs import ClassSessionInResponse
 from app.schemas.gym_class import GymClassPublic
 from app.schemas.teacher_refs import TeacherInClassScheduleResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 # Evitar circularidad: booking.py importa class_session.py
 # --------------------------------------------------------------------------- #

@@ -6,7 +6,6 @@ Incluye:
 • PersonCreate
 • PersonUpdate (todos opcionales)
 """
-# ruff: noqa: PIE790
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict

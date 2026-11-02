@@ -12,13 +12,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from app.core.security import get_password_hash
 from app.crud.base import CRUDBase
 from app.db.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID

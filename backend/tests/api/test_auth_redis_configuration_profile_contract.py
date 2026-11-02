@@ -8,15 +8,14 @@ from dataclasses import dataclass
 
 import httpx
 import pytest
-from fastapi import status
-from redis.exceptions import RedisError
-
 from app.core import redis_client, security
 from app.core.config import Settings, settings
 from app.core.deps import get_current_user
 from app.core.enums import UserRole
 from app.main import app
 from app.routers import auth as auth_router
+from fastapi import status
+from redis.exceptions import RedisError
 
 pytestmark = [
     pytest.mark.api,

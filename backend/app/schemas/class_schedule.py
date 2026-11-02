@@ -14,9 +14,6 @@ from __future__ import annotations
 from datetime import date, datetime, time
 from uuid import UUID
 
-from dateutil.rrule import rrulestr
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
 from app.core.enums import AllowedPlan
 from app.schemas.class_schedule_refs import ClassSchedulePublic
 from app.schemas.class_session_refs import ClassSessionInResponse
@@ -25,6 +22,8 @@ from app.schemas.teacher_refs import (
     TeacherInClassScheduleResponse,
     TeacherInScheduleResponseMini,
 )
+from dateutil.rrule import rrulestr
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # --------------------------------------------------------------------------- #
 # 1. Base

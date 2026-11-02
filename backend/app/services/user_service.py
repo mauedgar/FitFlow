@@ -9,10 +9,8 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import TYPE_CHECKING
-
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.crud_user import user as user_crud
 from app.schemas.user import UserPublic, UserWithProfile, UserWithStats
@@ -22,6 +20,7 @@ from app.services.client_service import (
     to_client_public,
 )
 from app.services.teacher_service import to_teacher_public
+from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
     from app.db.models import User
@@ -69,7 +68,7 @@ def to_user_with_profile(user: User) -> UserWithProfile:
 
 def to_user_with_stats(user: User) -> UserWithStats:
     """Extiende el usuario con estadísticas completas."""
-    now = datetime.now(tz=timezone.utc)  # noqa: F841
+    now = datetime.now(tz=UTC)
 
     total_bookings = 0
     upcoming_bookings = 0
@@ -93,7 +92,7 @@ def to_user_with_stats(user: User) -> UserWithStats:
 
 
 async def get_by_email(
-    email: str, db: "AsyncSession | None" = None, include_relations: bool = False,
+    email: str, db: AsyncSession | None = None, include_relations: bool = False,
 ) -> User | None:
   if db is None:
     # Handle the case where db session is not provided, or raise an error/get a session

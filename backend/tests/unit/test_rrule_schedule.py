@@ -4,9 +4,8 @@ from datetime import date, time
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
-
 from app.schemas.class_schedule import ClassScheduleCreate
+from pydantic import ValidationError
 
 
 def _payload(rrule: str) -> dict[str, object]:

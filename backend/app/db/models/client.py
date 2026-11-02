@@ -46,6 +46,6 @@ class Client(Person):
         lazy="raise",
     )
 
-    __mapper_args__ = {  # noqa: RUF012
+    __mapper_args__ = {
         "polymorphic_identity": "client",
     }

@@ -13,10 +13,6 @@ from __future__ import annotations
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core import security
 from app.core.blacklist import blacklist_token, is_token_blacklisted
 from app.core.deps import get_current_user
@@ -30,7 +26,11 @@ from app.db.session import get_async_session
 from app.schemas.token import RefreshTokenRequest, Token, TokenPair
 from app.schemas.user import UserPublic
 from app.services.errors import ExternalServiceError
-from app.services.user_service import get_by_email as user_get_by_email, to_user_public
+from app.services.user_service import get_by_email as user_get_by_email
+from app.services.user_service import to_user_public
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("fitflow.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])

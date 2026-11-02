@@ -3,11 +3,10 @@
 from datetime import time
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
-
 from app.core.enums import AllowedPlan
 from app.schemas.gym_class_refs import GymClassPublic
 from app.schemas.teacher_refs import TeacherInClassScheduleResponse
+from pydantic import BaseModel, ConfigDict
 
 
 class ClassScheduleInResponse(BaseModel):

@@ -1,7 +1,6 @@
 """Redis dependency behavior without importing a configured client eagerly."""
 
 import pytest
-
 from app.core.config import settings
 from app.core.redis_client import get_redis_client
 from app.services.errors import ExternalServiceError
