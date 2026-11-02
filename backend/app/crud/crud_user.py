@@ -1,4 +1,3 @@
-# pyright: ignore-all
 """CRUD para User (asíncrono, Sprint 6-7).
 
 --------------------------------------
