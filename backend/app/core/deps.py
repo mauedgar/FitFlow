@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
 from app.core.config import settings
@@ -30,7 +30,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
-
 
 
 # --------------------------------------------------------------------------- #

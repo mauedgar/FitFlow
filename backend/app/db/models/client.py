@@ -1,5 +1,5 @@
 import uuid
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -46,6 +46,6 @@ class Client(Person):
         lazy="raise",
     )
 
-    __mapper_args__: ClassVar[dict[str, object]] = {
+    __mapper_args__ = {
         "polymorphic_identity": "client",
     }

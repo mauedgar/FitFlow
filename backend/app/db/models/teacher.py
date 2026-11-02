@@ -1,5 +1,5 @@
 import uuid
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 from app.db.models.person import Person
 from sqlalchemy import ForeignKey, String
@@ -42,6 +42,6 @@ class Teacher(Person):
         lazy="raise",
     )
 
-    __mapper_args__: ClassVar[dict[str, object]] = {
+    __mapper_args__ = {
         "polymorphic_identity": "teacher",
     }
