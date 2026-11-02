@@ -1,0 +1,69 @@
+name: FITFLOW Issue47 scoped import-order autofix
+on:
+  push:
+    branches: [quality/fitflow-backend-ruff-pyright-20261102-001]
+    paths: ['.github/workflows/fitflow-issue47-imports-safe.yml']
+permissions:
+  contents: write
+jobs:
+  imports:
+    if: "github.event.head_commit.message == 'ci(issue47): prepare scoped import autofix'"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify bounded exact parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "9ea85d2e88653125571a72d8669f7c320dd269cd"
+          test "$GITHUB_REF_NAME" = "quality/fitflow-backend-ruff-pyright-20261102-001"
+          test -z "$(git status --porcelain)"
+      - name: Fix import order only in three identified files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ruff==0.17.3
+          ruff check --fix --select I001 backend/app/schemas/class_session.py backend/tests/api/test_auth_redis_configuration_profile_contract.py backend/tests/unit/test_client_public_projection.py
+          ruff check --select I001 backend/app/schemas/class_session.py backend/tests/api/test_auth_redis_configuration_profile_contract.py backend/tests/unit/test_client_public_projection.py
+          git diff --check
+      - name: Verify only import block AST changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import ast
+          import subprocess
+          from pathlib import Path
+          allowed = {
+              "backend/app/schemas/class_session.py",
+              "backend/tests/api/test_auth_redis_configuration_profile_contract.py",
+              "backend/tests/unit/test_client_public_projection.py",
+          }
+          changed = set(subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines())
+          assert changed == allowed, changed
+          for path in changed:
+              before = ast.parse(subprocess.check_output(["git", "show", f"HEAD:{path}"], text=True))
+              after = ast.parse(Path(path).read_text())
+              def without_imports(tree):
+                  tree.body = [node for node in tree.body if not isinstance(node, (ast.Import, ast.ImportFrom))]
+                  return ast.dump(tree, include_attributes=False)
+              assert without_imports(before) == without_imports(after), path
+          print("IMPORT_ORDER_AST_INVARIANT_PASS", len(changed))
+          PY
+      - name: Commit isolated safe import corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/app/schemas/class_session.py backend/tests/api/test_auth_redis_configuration_profile_contract.py backend/tests/unit/test_client_public_projection.py
+          git commit -m "style(issue47): Ruff-safe import order in three affected files"
+          git push origin HEAD:quality/fitflow-backend-ruff-pyright-20261102-001
+          echo "IMPORT_CANDIDATE_COMMITTED=$(git rev-parse HEAD)"
