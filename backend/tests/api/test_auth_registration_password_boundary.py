@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-import httpx
-import pytest
 from types import SimpleNamespace
 from uuid import uuid4
+
+import httpx
+import pytest
 
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.main import app
-from app.schemas.user import UserCreate
 from app.routers import users as user_router
+from app.schemas.user import UserCreate
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
@@ -73,7 +74,7 @@ async def test_register_valid_exact_72_byte_password_reaches_create_without_muta
     assert calls == ["lookup", "create"]
 
 
-def test_user_password_update_http_route_is_not_exposed() -> None:
+async def test_user_password_update_http_route_is_not_exposed() -> None:
     """UserUpdate is internal CRUD/schema only; do not invent an HTTP 422 update route."""
     user_routes = [
         route

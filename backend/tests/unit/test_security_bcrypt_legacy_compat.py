@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import bcrypt
 import pytest
-
 from app.core.security import get_password_hash, verify_password
 
 

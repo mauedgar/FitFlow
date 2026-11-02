@@ -8,11 +8,10 @@ from uuid import UUID, uuid4
 import bcrypt
 import httpx
 import pytest
-from fastapi import status
-
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.routers import auth as auth_router
+from fastapi import status
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 

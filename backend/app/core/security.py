@@ -10,12 +10,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
-from jose import ExpiredSignatureError, JWTError, jwt
-
 from app.core.config import settings
+from jose import ExpiredSignatureError, JWTError, jwt
 
 # --------------------------------------------------------------------------- #
 # Hashing bcrypt nativo; no cambia formato almacenado ni JWT.
@@ -73,7 +72,7 @@ def create_access_token(
     • Usa HS256 + SECRET_KEY.
     • Expira rápido (30 min por defecto).
     """
-    expire = datetime.now(tz=timezone.utc) + (
+    expire = datetime.now(tz=UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode = {**data, "exp": expire}
@@ -92,7 +91,7 @@ def create_refresh_token(data: dict) -> str:
     • No incluye roles.
     • Se usa para renovar el Access Token.
     """
-    expire = datetime.now(tz=timezone.utc) + timedelta(
+    expire = datetime.now(tz=UTC) + timedelta(
         minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
     )
     to_encode = {**data, "exp": expire}

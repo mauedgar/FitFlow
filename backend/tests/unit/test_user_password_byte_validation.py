@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-
 from app.schemas.user import UserCreate, UserUpdate
+from pydantic import ValidationError
 
 
 @pytest.mark.parametrize("password", ["a" * 73, "ñ" * 37, "test\x00password"])
