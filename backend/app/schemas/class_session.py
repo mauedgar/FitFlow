@@ -21,7 +21,9 @@ from app.schemas.class_schedule import (
     ClassSchedulePublic,
     NextSessionInfo,
 )
-from app.schemas.class_session_refs import ClassSessionInResponse as _ClassSessionInResponse
+from app.schemas.class_session_refs import (
+    ClassSessionInResponse as _ClassSessionInResponse,
+)
 from app.schemas.gym_class import GymClassPublic
 from app.schemas.teacher_refs import TeacherInClassScheduleResponse
 from pydantic import BaseModel, ConfigDict, Field
