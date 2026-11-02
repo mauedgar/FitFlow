@@ -42,6 +42,4 @@ class Teacher(Person):
         lazy="raise",
     )
 
-    __mapper_args__ = {
-        "polymorphic_identity": "teacher",
-    }
+    __mapper_args__ = dict(polymorphic_identity="teacher")

@@ -46,6 +46,4 @@ class Client(Person):
         lazy="raise",
     )
 
-    __mapper_args__ = {
-        "polymorphic_identity": "client",
-    }
+    __mapper_args__ = dict(polymorphic_identity="client")

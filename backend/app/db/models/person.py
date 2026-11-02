@@ -70,7 +70,4 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     # un cliente o un profesor.
     person_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    __mapper_args__ = {
-        "polymorphic_identity": "person",
-        "polymorphic_on": person_type,
-    }
+    __mapper_args__ = dict(polymorphic_identity="person", polymorphic_on=person_type)

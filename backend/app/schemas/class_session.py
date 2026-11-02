@@ -14,6 +14,8 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.core.enums import ClassSessionStatus
 from app.schemas.booking_refs import BookingPublic
 from app.schemas.class_schedule import (
@@ -26,7 +28,6 @@ from app.schemas.class_session_refs import (
 )
 from app.schemas.gym_class import GymClassPublic
 from app.schemas.teacher_refs import TeacherInClassScheduleResponse
-from pydantic import BaseModel, ConfigDict, Field
 
 
 ClassSessionInResponse = _ClassSessionInResponse
