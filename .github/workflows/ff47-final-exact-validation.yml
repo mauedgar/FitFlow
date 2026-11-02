@@ -1,0 +1,144 @@
+name: FF47 final exact-SHA quality gate
+on:
+  push:
+    branches:
+      - ci/fitflow-issue47-final-exact-20261102-001
+    paths:
+      - .github/workflows/ff47-final-exact-validation.yml
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: fitflow_test
+          POSTGRES_USER: fitflow_test_user
+          POSTGRES_PASSWORD: fitflow_test_password
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fitflow_test_user -d fitflow_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      ENV: test
+      TESTING: "true"
+      DEBUG: "false"
+      DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test
+      SECRET_KEY: fitflow-test-only-secret-key
+      REDIS_URL: redis://127.0.0.1:6379/0
+      MEDIA_DIR: /tmp/fitflow-media
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTEST_ADDOPTS: -p no:cacheprovider --basetemp=/tmp/pytest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: bdbbc914b00148583571c8ffaf763dd68808744d
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Guard final candidate exact SHA/tree and temporary workflow cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "bdbbc914b00148583571c8ffaf763dd68808744d"
+          test "$(git rev-parse HEAD^{tree})" = "7d5a6264a62ae41a0133cb764208de99129fed50"
+          test ! -e .github/workflows/ff47-migration-preview-temporary.yml
+          test ! -e .github/workflows/ff47-uv-action-smoke-temporary.yml
+          echo "FF47_EXACT_SUBJECT_PASS sha=bdbbc914b00148583571c8ffaf763dd68808744d tree=7d5a6264a62ae41a0133cb764208de99129fed50"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned backend dependencies and static analyzers
+        run: |
+          python -m pip install --disable-pip-version-check -r backend/requirements_test.txt
+          python -m pip install --disable-pip-version-check ruff==0.17.3 pyright==1.1.414
+      - name: Migration graph and operation AST contract
+        id: graph
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff bbff13146684ebe323ff89de6d70e21fca5dfcd2 HEAD --check
+          python - <<'PY'
+          import ast, pathlib, subprocess
+          BASE="bbff13146684ebe323ff89de6d70e21fca5dfcd2"
+          files=sorted(pathlib.Path("backend/alembic/versions").glob("*.py"))
+          baseline=subprocess.check_output(["git","ls-tree","-r","--name-only",BASE,"backend/alembic/versions"],text=True).splitlines()
+          current=[str(p) for p in files]
+          assert sorted(baseline)==sorted(current),"migration file set changed"
+          def markers(tree):
+              out={}
+              for n in tree.body:
+                  if isinstance(n,(ast.Assign,ast.AnnAssign)):
+                      targets=n.targets if isinstance(n,ast.Assign) else [n.target]
+                      for t in targets:
+                          if isinstance(t,ast.Name) and t.id in {"revision","down_revision","branch_labels","depends_on"}:
+                              out[t.id]=ast.dump(n.value,include_attributes=False) if n.value else None
+              return out
+          def normalized_body(tree,name):
+              funcs=[n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name==name]
+              assert len(funcs)==1,(name,"missing")
+              out=[]
+              for n in funcs[0].body:
+                  if isinstance(n,ast.Pass): continue
+                  if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name) and n.targets[0].id=="bind" and isinstance(n.value,ast.Call) and isinstance(n.value.func,ast.Attribute) and n.value.func.attr=="get_bind":
+                      n=ast.Expr(value=n.value)
+                  out.append(ast.dump(n,include_attributes=False))
+              return out
+          for path in current:
+              before=ast.parse(subprocess.check_output(["git","show",f"{BASE}:{path}"],text=True))
+              after=ast.parse(pathlib.Path(path).read_text(encoding="utf-8"))
+              assert markers(before)==markers(after),(path,"revision graph")
+              for name in ("upgrade","downgrade"):
+                  assert normalized_body(before,name)==normalized_body(after,name),(path,name,"operation drift")
+          print("FF47_MIGRATION_GRAPH_AND_OPERATIONS_AST_PASS",len(current))
+          PY
+      - name: Bootstrap disposable PostgreSQL with Alembic
+        id: migration
+        continue-on-error: true
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Ruff 0.17.3
+        id: ruff
+        continue-on-error: true
+        run: python -m ruff check backend --output-format concise
+      - name: Pyright 1.1.414
+        id: pyright
+        continue-on-error: true
+        working-directory: backend
+        run: pyright .
+      - name: Full backend regression suite
+        id: pytest
+        continue-on-error: true
+        working-directory: backend
+        run: python -m pytest -q
+      - name: Propagate exact gate
+        if: always()
+        env:
+          GRAPH: ${{ steps.graph.outcome }}
+          MIGRATION: ${{ steps.migration.outcome }}
+          RUFF: ${{ steps.ruff.outcome }}
+          PYRIGHT: ${{ steps.pyright.outcome }}
+          PYTEST: ${{ steps.pytest.outcome }}
+        run: |
+          echo "FF47_FULL_GATE graph=$GRAPH migration=$MIGRATION ruff=$RUFF pyright=$PYRIGHT pytest=$PYTEST"
+          test "$GRAPH" = success
+          test "$MIGRATION" = success
+          test "$RUFF" = success
+          test "$PYRIGHT" = success
+          test "$PYTEST" = success
