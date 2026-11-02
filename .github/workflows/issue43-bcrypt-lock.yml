@@ -1,0 +1,53 @@
+name: Issue43 bounded uv lock candidate
+
+on:
+  push:
+    branches:
+      - security/fitflow-issue43-bcrypt-compat-20261102-001
+    paths:
+      - .github/workflows/issue43-bcrypt-lock.yml
+      - pyproject.toml
+      - backend/requirements_backend.txt
+      - backend/requirements_test.txt
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate-lock:
+    if: github.ref == 'refs/heads/security/fitflow-issue43-bcrypt-compat-20261102-001'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout isolated candidate branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Setup exact uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
+
+      - name: Generate lock and guard write set
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "security/fitflow-issue43-bcrypt-compat-20261102-001"
+          test "$(uv --version)" = "uv 0.13.6"
+          uv lock --python 3.11 --no-progress
+          uv lock --check --no-progress
+          git diff --exit-code -- pyproject.toml backend/requirements_backend.txt backend/requirements_test.txt
+          unexpected="$(git diff --name-only | grep -v '^uv.lock$' || true)"
+          test -z "$unexpected" || { echo "UNEXPECTED_WRITE_SET"; exit 2; }
+          if ! git diff --quiet -- uv.lock; then
+            git add -- uv.lock
+            git -c user.name="github-actions[bot]" \
+                -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+                commit -m "chore(auth): regenerate uv.lock with uv 0.13.6 for issue43"
+            git push origin HEAD:refs/heads/security/fitflow-issue43-bcrypt-compat-20261102-001
+          fi
+          echo "ISSUE43_LOCK_SHA=$(git rev-parse HEAD)"
+          echo "ISSUE43_LOCK_TREE=$(git rev-parse 'HEAD^{tree}')"
+          echo "ISSUE43_UV_LOCK_PASS"
