@@ -33,7 +33,8 @@ def test_new_bcrypt_hash_round_trip(password: str) -> None:
     assert digest.startswith("$2b$12$")
     assert len(digest) == 60
     assert verify_password(password, digest)
-    assert not verify_password(password + "x", digest) if len(password.encode("utf-8")) < 72 else True
+    if len(password.encode("utf-8")) < 72:
+        assert not verify_password(password + "x", digest)
 
 
 def test_bcrypt_byte_boundary_never_truncates_new_passwords() -> None:
