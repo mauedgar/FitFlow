@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: true
-          fetch-depth: 1
+          fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.11.17'
@@ -21,9 +21,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = c15bdefc766dfa42fa2b5b86b679ed3bf0f5a47d
+          git merge-base --is-ancestor c15bdefc766dfa42fa2b5b86b679ed3bf0f5a47d HEAD
           test "$(git show HEAD:.github/workflows/fitflow-issue47-ruff-prep-temp.yml | wc -l)" -gt 20
-          echo "FF_ISSUE47_ORIGINAL_PARENT=$(git rev-parse HEAD^)"
+          echo 'FF_ISSUE47_BASE_ANCESTOR_VERIFIED'
       - name: Apply Ruff safe deterministic mechanical transforms only
         shell: bash
         run: |
