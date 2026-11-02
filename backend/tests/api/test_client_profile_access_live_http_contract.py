@@ -837,6 +837,7 @@ async def test_users_me_real_teacher_profile_and_empty_schedule(
         db.add(profile)
         await db.flush()
         identity = profile.user_id
+        profile_id = profile.id
         await db.commit()
     try:
         token = create_access_token({"sub": str(identity), "role": UserRole.teacher.value})
@@ -854,6 +855,83 @@ async def test_users_me_real_teacher_profile_and_empty_schedule(
             assert body["total_classes_taught"] == 0
     finally:
         async with AsyncSessionLocal() as db:
-            await db.execute(__import__("sqlalchemy").delete(Teacher).where(Teacher.user_id == identity))
-            await db.execute(__import__("sqlalchemy").delete(User).where(User.id == identity))
+            from app.db.models.person import Person
+            await db.execute(Teacher.__table__.delete().where(Teacher.id == profile_id))
+            await db.execute(Person.__table__.delete().where(Person.id == profile_id))
+            await db.execute(User.__table__.delete().where(User.id == identity))
             await db.commit()
+
+
+# IR001 A01: actual two-connection PostgreSQL row-lock serialization.
+@pytest.mark.parametrize("first_commits", [True, False])
+async def test_client_profile_for_update_serializes_real_pg_transactions(
+    profile_fixture: ClientProfileFixture, first_commits: bool,
+) -> None:
+    """Second SELECT FOR UPDATE waits on first transaction, then reads committed state.
+
+    The database must be disposable fitflow_test; this is not a SQL string mock.
+    """
+    first_name = "CommittedByFirst" if first_commits else "RolledBackByFirst"
+    second_name = "AfterFirstCommit" if first_commits else "AfterFirstRollback"
+    async with AsyncSessionLocal() as first, AsyncSessionLocal() as second:
+        locked = await crud_client.get_with_relations(
+            db=first, client_id=profile_fixture.profile_id, for_update=True,
+        )
+        assert locked is not None
+        assert locked.first_name == "Ana"
+        locked.first_name = first_name
+        await first.flush()
+
+        second_pid = await second.scalar(text("SELECT pg_backend_pid()"))
+        assert second_pid is not None
+        contender = asyncio.create_task(crud_client.get_with_relations(
+            db=second, client_id=profile_fixture.profile_id, for_update=True,
+        ))
+        try:
+            # Observe the *specific* PG backend blocked by the first row lock.
+            async with AsyncSessionLocal() as observer:
+                for _ in range(120):
+                    waiting = await observer.scalar(
+                        text("""
+                            SELECT EXISTS (
+                              SELECT 1 FROM pg_stat_activity
+                              WHERE pid = :pid AND datname = current_database()
+                                AND wait_event_type = 'Lock'
+                                AND cardinality(pg_blocking_pids(pid)) > 0
+                                AND query ILIKE '%FOR UPDATE%'
+                                AND query ILIKE '%clients%'
+                            )
+                        """), {"pid": second_pid},
+                    )
+                    await observer.rollback()
+                    if waiting:
+                        break
+                    if contender.done():
+                        await contender
+                        pytest.fail("Second transaction acquired lock before first released it")
+                    await asyncio.sleep(0.05)
+                else:
+                    pytest.fail("Second PG transaction never waited on the client row lock")
+            assert not contender.done()
+            if first_commits:
+                await first.commit()
+            else:
+                await first.rollback()
+            observed = await asyncio.wait_for(contender, timeout=12)
+            assert observed is not None
+            assert observed.first_name == (first_name if first_commits else "Ana")
+            observed.first_name = second_name
+            await second.commit()
+        finally:
+            if not contender.done():
+                contender.cancel()
+            await asyncio.gather(contender, return_exceptions=True)
+            if first.in_transaction():
+                await first.rollback()
+            if second.in_transaction():
+                await second.rollback()
+    async with AsyncSessionLocal() as check:
+        final = await check.scalar(
+            select(Client.first_name).where(Client.id == profile_fixture.profile_id)
+        )
+        assert final == second_name
