@@ -78,9 +78,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/fitflow-schema"
-          pg_dump --version
-          pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges > "$RUNNER_TEMP/fitflow-schema/schema.sql"
-          pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges > "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql"
+          docker run --rm --network host --read-only --tmpfs /tmp postgres:15-alpine pg_dump --version
+          docker run --rm --network host --read-only --tmpfs /tmp -e PGPASSWORD="$CI_EPHEMERAL_POSTGRES_PASSWORD" postgres:15-alpine pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges > "$RUNNER_TEMP/fitflow-schema/schema.sql"
+          docker run --rm --network host --read-only --tmpfs /tmp -e PGPASSWORD="$CI_EPHEMERAL_POSTGRES_PASSWORD" postgres:15-alpine pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges > "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql"
           cmp "$RUNNER_TEMP/fitflow-schema/schema.sql" "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql"
           sha256sum "$RUNNER_TEMP/fitflow-schema/schema.sql" > "$RUNNER_TEMP/fitflow-schema/schema.sha256"
           printf 'subject_sha=%s\nsubject_tree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})" > "$RUNNER_TEMP/fitflow-schema/subject.txt"

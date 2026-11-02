@@ -35,3 +35,9 @@ merge: NOT_AUTHORIZED
 - Added synthetic test-only `SECRET_KEY` scoped only to the disposable migration step; does not use or replace any Product/staging token.
 - Replaced checkout/setup-python/upload-artifact Node 20 actions with SHA-pinned official Node 24 releases to avoid inherited runtime deprecation; refs resolved from official GitHub tag refs before changing them.
 - The new commit requires its own exact run and independent review. No CI PASS or acceptance is inferred.
+
+## Second exact-run observation
+
+- [Actions 41470382275](https://github.com/mauedgar/FitFlow/actions/runs/41470382275), job `125362075625`, subject `7af147d07c96e7299f36f6cadebdcc197d1e4cd7`: checkout and Node24 action setup PASS, dependencies PASS, **all disposable Alembic PG15 migrations to head PASS**; schema determinism step FAILED.
+- The hosted runner exposed `pg_dump 18.6` against PG15; back-to-back SQL files differed at byte 46 / line 5. This is tooling-version nondeterminism, not proved schema semantic drift. No output artifact was published by the failed run, and no auto-commit occurred.
+- Bounded correction: invoke the same `postgres:15-alpine` image as a PG15 read-only client through Docker host network for both pg_dump passes. Keep strict byte comparison and fail closed on mismatch; no masking, sed filtering or commit. The next candidate SHA needs new CI.
