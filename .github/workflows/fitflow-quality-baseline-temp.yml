@@ -1,0 +1,37 @@
+name: FitFlow inherited Python quality baseline (one-shot)
+on:
+  push:
+    branches: [ci/fitflow-quality-baseline-20261102-001]
+    paths: ['.github/workflows/fitflow-quality-baseline-temp.yml']
+permissions:
+  contents: read
+jobs:
+  observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: c15bdefc766dfa42fa2b5b86b679ed3bf0f5a47d
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11.17'
+      - name: Read-only baseline lint and typecheck, no Product patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -r backend/requirements_test.txt
+          python -m pip install --disable-pip-version-check ruff==0.17.3 pyright==1.1.414
+          cd backend
+          set +e
+          python -m ruff check . --output-format concise > /tmp/ruff.txt 2>&1
+          ruff_rc=$?
+          pyright . > /tmp/pyright.txt 2>&1
+          pyright_rc=$?
+          echo "FF_BASELINE_RUFF_TOP:"
+          tail -n 12 /tmp/ruff.txt
+          echo "FF_BASELINE_PYRIGHT_TOP:"
+          tail -n 12 /tmp/pyright.txt
+          echo "FF_BASELINE_QUALITY ruff_rc=$ruff_rc pyright_rc=$pyright_rc"
+          exit 0
