@@ -1,69 +1,94 @@
-name: Update schema.sql after migrations
+name: Validate migration schema artifact
 
 on:
-  # Se activa cuando se suben nuevos archivos de migración
-  push:
+  pull_request:
     paths:
       - "backend/alembic/versions/**"
-  workflow_dispatch: # Permite lanzarlo manualmente desde la UI
+      - "backend/alembic/env.py"
+      - ".github/workflows/update-schema.yml"
+  push:
+    branches:
+      - develop
+    paths:
+      - "backend/alembic/versions/**"
+      - "backend/alembic/env.py"
+      - ".github/workflows/update-schema.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   dump-schema:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     env:
-      # Ephemeral CI-only PostgreSQL credential; not used outside this job.
-      CI_EPHEMERAL_POSTGRES_PASSWORD: fitflow-ci-postgres
-
+      # Synthetic CI-only values, never from real/staging accounts.
+      DATABASE_URL: postgresql+psycopg2://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_db
+      SECRET_KEY: fitflow-ci-only-signing-key
+      ENV: test
+      TESTING: "true"
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
         env:
           POSTGRES_DB: fitflow_db
           POSTGRES_USER: fitflow_admin
-          POSTGRES_PASSWORD: ${{ env.CI_EPHEMERAL_POSTGRES_PASSWORD }}
+          POSTGRES_PASSWORD: fitflow-ci-postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U fitflow_admin -d fitflow_db"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+          --health-cmd "pg_isready -U fitflow_admin -d fitflow_db"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout exact event revision (read-only)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 0 # Necesario para auto-commit en misma rama
+          persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: "3.11"
+          python-version: "3.11.17"
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3 (immutable; no v10 alias)
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
 
-      - name: Install backend dependencies
+      - name: Install runtime dependencies from repository lock export
         run: |
-          uv pip install --system -r backend/requirements_backend.txt
+          set -euo pipefail
+          uv pip install --system --no-cache-dir -r backend/requirements_backend.txt
+          python -m pip check
 
-      - name: Run Alembic migrations
+      - name: Upgrade disposable PostgreSQL to exact Alembic head
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Generate and verify deterministic SQL schema
         env:
-          DATABASE_URL: postgresql+psycopg2://fitflow_admin:${{ env.CI_EPHEMERAL_POSTGRES_PASSWORD }}@localhost:5432/fitflow_db
+          PGPASSWORD: fitflow-ci-postgres
+        shell: bash
         run: |
-          cd backend
-          alembic upgrade head
-          cd ..
+          set -euo pipefail
+          pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges -f /tmp/fitflow-schema-first.sql
+          pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges -f /tmp/fitflow-schema-second.sql
+          diff -u /tmp/fitflow-schema-first.sql /tmp/fitflow-schema-second.sql
+          test -s /tmp/fitflow-schema-first.sql
+          cp /tmp/fitflow-schema-first.sql schema.sql
+          sha256sum schema.sql
+          echo "FF_SCHEMA_ARTIFACT_DETERMINISTIC_PASS"
+          echo "FF_SCHEMA_SUBJECT_SHA=$(git rev-parse HEAD)"
+          echo "FF_SCHEMA_SUBJECT_TREE=$(git rev-parse 'HEAD^{tree}')"
 
-      - name: Dump schema.sql
-        env:
-          PGPASSWORD: ${{ env.CI_EPHEMERAL_POSTGRES_PASSWORD }}
-        run: |
-          pg_dump -h localhost -U fitflow_admin -d fitflow_db \
-            --schema-only --no-owner > schema.sql
-
-      - name: Commit updated schema.sql
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Publish schema.sql for reviewer, never auto-commit
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          commit_message: "chore(schema): auto-update schema.sql after migrations"
-          file_pattern: schema.sql
+          name: fitflow-schema-sql-${{ github.run_id }}
+          path: schema.sql
+          retention-days: 14
+          if-no-files-found: error
