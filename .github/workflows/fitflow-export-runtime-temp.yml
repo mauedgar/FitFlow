@@ -1,0 +1,38 @@
+name: FitFlow bounded runtime requirements export (temporary)
+on:
+  push:
+    branches: [chore/fitflow-python-deps-normalize-20261101-001]
+    paths: ['.github/workflows/fitflow-export-runtime-temp.yml']
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11.17'
+      - name: Produce locked runtime-only requirements
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir --disable-pip-version-check uv==0.13.6
+          uv lock --check
+          uv export --locked --no-dev --format requirements.txt --output-file backend/requirements_backend.txt
+          if grep -Ei '^(pytest|pytest-asyncio|ruff|pyright)==' backend/requirements_backend.txt; then echo 'DEV_DEP_IN_RUNTIME_EXPORT'; exit 1; fi
+      - name: Emit bounded generated file as indexed chunks
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          p=Path('backend/requirements_backend.txt')
+          c=p.read_text(encoding='utf-8')
+          print('FF_RUNTIME_BEGIN:'+str(len(c)))
+          for i,offset in enumerate(range(0,len(c),1600)):
+              print('FF_RUNTIME_CHUNK:'+str(i)+':'+json.dumps(c[offset:offset+1600],ensure_ascii=True))
+          print('FF_RUNTIME_END:'+hashlib.sha256(c.encode()).hexdigest())
+          PY
