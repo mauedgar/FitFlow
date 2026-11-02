@@ -51,7 +51,7 @@ jobs:
               assert markers(a)==markers(b),(path,"migration graph changed")
               for name in ("upgrade","downgrade"):
                   if path.endswith("/env.py"): continue
-                  assert body(a,name)==body(b),(path,name,"operation AST changed")
+                  assert body(a,name)==body(b,name),(path,name,"operation AST changed")
               assert path.startswith("backend/alembic/"),path
           diff=subprocess.run(["git","diff","--check"],capture_output=True,text=True)
           assert diff.returncode==0,diff.stdout+diff.stderr
