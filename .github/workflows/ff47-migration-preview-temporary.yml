@@ -1,0 +1,63 @@
+name: FF47 migration safe-fix preview (temporary)
+on:
+  push:
+    branches:
+      - quality/fitflow-issue47-migration-lint-20261102-002
+    paths:
+      - .github/workflows/ff47-migration-preview-temporary.yml
+permissions:
+  contents: read
+jobs:
+  migration-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compute Ruff 0.17.3 safe-only patch and invariant receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ruff==0.17.3
+          python - <<'PY'
+          import ast, json, pathlib, subprocess, sys
+          root=pathlib.Path("backend/alembic")
+          paths=sorted(root.rglob("*.py"))
+          old={str(p):p.read_text(encoding="utf-8") for p in paths}
+          def parse(s): return ast.parse(s)
+          def markers(tree):
+              out={}
+              for node in tree.body:
+                  if isinstance(node,(ast.Assign,ast.AnnAssign)):
+                      names=[t.id for t in node.targets if isinstance(t,ast.Name)] if isinstance(node,ast.Assign) else ([node.target.id] if isinstance(node.target,ast.Name) else [])
+                      for name in names:
+                          if name in {"revision","down_revision","branch_labels","depends_on"}:
+                              out[name]=ast.dump(node.value,include_attributes=False) if node.value else None
+              return out
+          def body(tree,name):
+              funcs=[n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name==name]
+              if len(funcs)!=1: raise AssertionError(f"missing/ambiguous {name}")
+              stmts=[n for n in funcs[0].body if not isinstance(n,ast.Pass)]
+              return [ast.dump(n,include_attributes=False) for n in stmts]
+          result=subprocess.run([sys.executable,"-m","ruff","check","backend/alembic","--fix","--output-format","concise"],capture_output=True,text=True)
+          new={str(p):p.read_text(encoding="utf-8") for p in paths}
+          changed=[p for p in old if old[p]!=new[p]]
+          for path in changed:
+              a,b=parse(old[path]),parse(new[path])
+              assert markers(a)==markers(b),(path,"migration graph changed")
+              for name in ("upgrade","downgrade"):
+                  if path.endswith("/env.py"): continue
+                  assert body(a,name)==body(b),(path,name,"operation AST changed")
+              assert path.startswith("backend/alembic/"),path
+          diff=subprocess.run(["git","diff","--check"],capture_output=True,text=True)
+          assert diff.returncode==0,diff.stdout+diff.stderr
+          diffnames=subprocess.check_output(["git","diff","--name-only"],text=True).splitlines()
+          assert sorted(diffnames)==sorted(changed),(diffnames,changed)
+          print("FF47_SUMMARY "+json.dumps({"changed_files":len(changed),"ruff_exit":result.returncode,"ruff_stdout":result.stdout[-6000:],"graph_and_operations_ast":"PASS","diff_check":"PASS","head":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()}))
+          for path in changed:
+              print("FF47_FILE "+path+" "+json.dumps(new[path],ensure_ascii=True))
+          PY
