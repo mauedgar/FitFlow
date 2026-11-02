@@ -296,6 +296,7 @@ jobs:
             backend/tests/api/test_auth_registration_password_boundary.py \
             backend/tests/api/test_auth_bcrypt_hash_http_contract.py
       - name: Targeted Pyright (not a full repository quality claim)
+        if: always()
         env:
           PYTHONPATH: backend
         run: |
