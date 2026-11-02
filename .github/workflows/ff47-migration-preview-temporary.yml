@@ -1,4 +1,4 @@
-name: FF47 migration safe-fix preview (temporary)
+name: FF47 quality full gate (temporary)
 on:
   push:
     branches:
@@ -8,57 +8,127 @@ on:
 permissions:
   contents: read
 jobs:
-  migration-preview:
+  quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: fitflow_test
+          POSTGRES_USER: fitflow_test_user
+          POSTGRES_PASSWORD: fitflow_test_password
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fitflow_test_user -d fitflow_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      ENV: test
+      TESTING: "true"
+      DEBUG: "false"
+      DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test
+      SECRET_KEY: fitflow-test-only-secret-key
+      REDIS_URL: redis://127.0.0.1:6379/0
+      MEDIA_DIR: /tmp/fitflow-media
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTEST_ADDOPTS: -p no:cacheprovider --basetemp=/tmp/pytest
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Compute Ruff 0.17.3 safe-only patch and invariant receipt
+      - name: Install pinned backend dependencies and static analyzers
+        run: |
+          python -m pip install --disable-pip-version-check -r backend/requirements_test.txt
+          python -m pip install --disable-pip-version-check ruff==0.17.3 pyright==1.1.414
+      - name: Migration graph and operation AST contract
+        id: graph
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check ruff==0.17.3
+          git diff bbff13146684ebe323ff89de6d70e21fca5dfcd2 HEAD --check
           python - <<'PY'
-          import ast, json, pathlib, subprocess, sys
-          root=pathlib.Path("backend")
-          paths=sorted(root.rglob("*.py"))
-          old={str(p):p.read_text(encoding="utf-8") for p in paths}
-          def parse(s): return ast.parse(s)
+          import ast, pathlib, subprocess
+          BASE="bbff13146684ebe323ff89de6d70e21fca5dfcd2"
+          files=sorted(pathlib.Path("backend/alembic/versions").glob("*.py"))
+          baseline=subprocess.check_output(["git","ls-tree","-r","--name-only",BASE,"backend/alembic/versions"],text=True).splitlines()
+          current=[str(p) for p in files]
+          assert sorted(baseline)==sorted(current),"migration file set changed"
           def markers(tree):
               out={}
-              for node in tree.body:
-                  if isinstance(node,(ast.Assign,ast.AnnAssign)):
-                      names=[t.id for t in node.targets if isinstance(t,ast.Name)] if isinstance(node,ast.Assign) else ([node.target.id] if isinstance(node.target,ast.Name) else [])
-                      for name in names:
-                          if name in {"revision","down_revision","branch_labels","depends_on"}:
-                              out[name]=ast.dump(node.value,include_attributes=False) if node.value else None
+              for n in tree.body:
+                  if isinstance(n,(ast.Assign,ast.AnnAssign)):
+                      targets=n.targets if isinstance(n,ast.Assign) else [n.target]
+                      for t in targets:
+                          if isinstance(t,ast.Name) and t.id in {"revision","down_revision","branch_labels","depends_on"}:
+                              out[t.id]=ast.dump(n.value,include_attributes=False) if n.value else None
               return out
-          def body(tree,name):
+          def normalized_body(tree,name):
               funcs=[n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef)) and n.name==name]
-              if len(funcs)!=1: raise AssertionError(f"missing/ambiguous {name}")
-              stmts=[n for n in funcs[0].body if not isinstance(n,ast.Pass)]
-              return [ast.dump(n,include_attributes=False) for n in stmts]
-          result=subprocess.run([sys.executable,"-m","ruff","check","backend","--fix","--output-format","concise"],capture_output=True,text=True)
-          new={str(p):p.read_text(encoding="utf-8") for p in paths}
-          changed=[p for p in old if old[p]!=new[p]]
-          for path in changed:
-              if not path.startswith("backend/alembic/"): continue
-              a,b=parse(old[path]),parse(new[path])
-              assert markers(a)==markers(b),(path,"migration graph changed")
+              assert len(funcs)==1,(name,"missing")
+              out=[]
+              for n in funcs[0].body:
+                  if isinstance(n,ast.Pass): continue
+                  if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name) and n.targets[0].id=="bind" and isinstance(n.value,ast.Call) and isinstance(n.value.func,ast.Attribute) and n.value.func.attr=="get_bind":
+                      n=ast.Expr(value=n.value)
+                  out.append(ast.dump(n,include_attributes=False))
+              return out
+          for path in current:
+              before=ast.parse(subprocess.check_output(["git","show",f"{BASE}:{path}"],text=True))
+              after=ast.parse(pathlib.Path(path).read_text(encoding="utf-8"))
+              assert markers(before)==markers(after),(path,"revision graph")
               for name in ("upgrade","downgrade"):
-                  if path.endswith("/env.py"): continue
-                  assert body(a,name)==body(b,name),(path,name,"operation AST changed")
-              assert path.startswith("backend/"),path
-          diff=subprocess.run(["git","diff","--check"],capture_output=True,text=True)
-          assert diff.returncode==0,diff.stdout+diff.stderr
-          diffnames=subprocess.check_output(["git","diff","--name-only"],text=True).splitlines()
-          assert sorted(diffnames)==sorted(changed),(diffnames,changed)
-          print("FF47_SUMMARY "+json.dumps({"changed_files":len(changed),"ruff_exit":result.returncode,"ruff_stdout":result.stdout[-6000:],"graph_and_operations_ast":"PASS","diff_check":"PASS","head":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()}))
-          for path in changed:
-              print("FF47_FILE "+path+" "+json.dumps(new[path],ensure_ascii=True))
+                  assert normalized_body(before,name)==normalized_body(after,name),(path,name,"operation drift")
+          print("FF47_MIGRATION_GRAPH_AND_OPERATIONS_AST_PASS",len(current))
           PY
+      - name: Bootstrap disposable PostgreSQL with Alembic
+        id: migration
+        continue-on-error: true
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Ruff 0.17.3
+        id: ruff
+        continue-on-error: true
+        run: python -m ruff check backend --output-format concise
+      - name: Pyright 1.1.414
+        id: pyright
+        continue-on-error: true
+        working-directory: backend
+        run: pyright .
+      - name: Full backend regression suite
+        id: pytest
+        continue-on-error: true
+        working-directory: backend
+        run: pytest -q
+      - name: Propagate exact gate
+        if: always()
+        env:
+          GRAPH: ${{ steps.graph.outcome }}
+          MIGRATION: ${{ steps.migration.outcome }}
+          RUFF: ${{ steps.ruff.outcome }}
+          PYRIGHT: ${{ steps.pyright.outcome }}
+          PYTEST: ${{ steps.pytest.outcome }}
+        run: |
+          echo "FF47_FULL_GATE graph=$GRAPH migration=$MIGRATION ruff=$RUFF pyright=$PYRIGHT pytest=$PYTEST"
+          test "$GRAPH" = success
+          test "$MIGRATION" = success
+          test "$RUFF" = success
+          test "$PYRIGHT" = success
+          test "$PYTEST" = success
