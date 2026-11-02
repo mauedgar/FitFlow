@@ -1,0 +1,40 @@
+name: FitFlow Issue44 final Python support bounds lock export TEMP
+on:
+  push:
+    branches: [chore/fitflow-python-deps-normalize-20261101-001]
+    paths: ['.github/workflows/fitflow-issue44-policy-lock-temp.yml']
+permissions:
+  contents: read
+jobs:
+  regenerate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11.17'
+      - name: Regenerate lock and both pinned exports from root project
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir --disable-pip-version-check uv==0.13.6
+          uv lock --upgrade
+          uv lock --check
+          uv export --locked --no-dev --format requirements.txt --output-file backend/requirements_backend.txt
+          uv export --locked --group dev --format requirements.txt --output-file backend/requirements_test.txt
+          grep -q '^asyncpg==0.32.0' backend/requirements_backend.txt
+          if grep -Eiq '^(pytest|pytest-asyncio|ruff|pyright)==' backend/requirements_backend.txt; then exit 2; fi
+      - name: Return UTF-8 derived files in indexed chunks, no GitHub writes
+        run: |
+          python - <<'PY'
+          import json, hashlib
+          from pathlib import Path
+          for name in ('uv.lock','backend/requirements_backend.txt','backend/requirements_test.txt'):
+              c=Path(name).read_text(encoding='utf-8')
+              print(f'FF_POLICY_BEGIN:{name}:{len(c)}')
+              for i,offset in enumerate(range(0,len(c),1600)):
+                  print(f'FF_POLICY_CHUNK:{name}:{i}:{json.dumps(c[offset:offset+1600],ensure_ascii=True)}')
+              print(f'FF_POLICY_END:{name}:{hashlib.sha256(c.encode()).hexdigest()}')
+          PY
