@@ -20,6 +20,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python -m pip install --no-cache-dir --disable-pip-version-check -r backend/requirements_test.txt
           python -m pip install --no-cache-dir --disable-pip-version-check ruff==0.17.3 pyright==1.1.414
           set +e
           python -m ruff check backend --output-format concise > /tmp/ff-ruff.txt 2>&1
