@@ -28,9 +28,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/ff-tls"
           chmod 755 "$RUNNER_TEMP/ff-tls"
           openssl req -x509 -newkey rsa:2048 -days 1 -nodes -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' -keyout "$RUNNER_TEMP/ff-tls/server.key" -out "$RUNNER_TEMP/ff-tls/server.crt" 2>/dev/null
-          sudo chown 70:70 "$RUNNER_TEMP/ff-tls/server.crt" "$RUNNER_TEMP/ff-tls/server.key"
           chmod 644 "$RUNNER_TEMP/ff-tls/server.crt"
           chmod 600 "$RUNNER_TEMP/ff-tls/server.key"
+          sudo chown 70:70 "$RUNNER_TEMP/ff-tls/server.crt" "$RUNNER_TEMP/ff-tls/server.key"
           docker run -d --name ff-pg-tls -e POSTGRES_DB=fitflow_test -e POSTGRES_USER=fitflow_test_user -e POSTGRES_PASSWORD=fitflow-test-password -p 5432:5432 -v "$RUNNER_TEMP/ff-tls":/tls:ro postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984 -c ssl=on -c ssl_cert_file=/tls/server.crt -c ssl_key_file=/tls/server.key
           for i in $(seq 1 30); do
             if docker exec ff-pg-tls pg_isready -U fitflow_test_user -d fitflow_test >/dev/null 2>&1; then break; fi
