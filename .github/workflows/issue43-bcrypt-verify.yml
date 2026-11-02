@@ -26,7 +26,6 @@ env:
   MEDIA_DIR: /tmp/fitflow-media
   PYTHONDONTWRITEBYTECODE: "1"
   PYTEST_ADDOPTS: "-p no:cacheprovider --basetemp=/tmp/pytest"
-  PYTHONPATH: ${{ github.workspace }}/backend
 
 jobs:
   backend:
@@ -102,7 +101,7 @@ jobs:
         run: alembic upgrade head
       - name: Full backend suite
         working-directory: backend
-        run: pytest -q
+        run: python -m pytest -q
       - name: Prove candidate import does not emit crypt deprecation
         env:
           PYTHONPATH: backend
@@ -152,7 +151,7 @@ jobs:
       - name: Verify synthetic bcrypt vectors
         env:
           PYTHONPATH: backend
-        run: pytest -q backend/tests/unit/test_security_bcrypt_legacy_compat.py
+        run: python -m pytest -q backend/tests/unit/test_security_bcrypt_legacy_compat.py
       - name: Prove legacy Passlib 1.7.4 hashes verify with new code
         if: matrix.python == '3.11'
         env:
