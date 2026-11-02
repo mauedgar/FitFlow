@@ -1,6 +1,6 @@
 """Structural contract tests for Pydantic v2 schemas."""
 
-from datetime import UTC, date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from uuid import uuid4
 
 import pytest

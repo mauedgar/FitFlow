@@ -3,7 +3,7 @@
 No database, credentials or external services are required.
 """
 
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 

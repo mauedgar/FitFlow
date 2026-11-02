@@ -21,11 +21,11 @@ def _payload(rrule: str) -> dict[str, object]:
 
 
 def test_rrule_is_normalized_and_parseable() -> None:
-    schedule = ClassScheduleCreate(**_payload("rrule:freq=weekly;byday=mo,we"))
+    schedule = ClassScheduleCreate.model_validate(_payload("rrule:freq=weekly;byday=mo,we"))
     assert schedule.rrule == "RRULE:FREQ=WEEKLY;BYDAY=MO,WE"
 
 
 @pytest.mark.parametrize("rrule", ["FREQ=WEEKLY", "DTSTART:20260813T090000\nRRULE:FREQ=WEEKLY", "RRULE:INVALID"])
 def test_rrule_rejects_invalid_or_noncanonical_values(rrule: str) -> None:
     with pytest.raises(ValidationError):
-        ClassScheduleCreate(**_payload(rrule))
+        ClassScheduleCreate.model_validate(_payload(rrule))

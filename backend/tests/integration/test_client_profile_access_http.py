@@ -4,7 +4,7 @@ Uses the actual FastAPI route/dependency graph, isolated fake CRUD and no
 persistent DB or secrets. SQL-level access is validated separately in CI.
 """
 
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 

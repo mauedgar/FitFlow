@@ -79,7 +79,7 @@ class ClassScheduleCreate(ClassScheduleBase):
 class ClassScheduleUpdate(BaseModel):
     """Esquema para actualizar parcialmente un horario recurrente."""
 
-    rrule: str | None = Field(None, min_length=1, max_length=512)
+    rrule: str | None = Field(default=None, min_length=1, max_length=512)
     start_time: time | None = None
     duration_minutes: int | None = None
     capacity: int | None = None
