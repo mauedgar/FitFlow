@@ -41,7 +41,7 @@ difficulty_level_enum_new = postgresql.ENUM(
 # UPGRADE
 # ===========================================================================
 def upgrade() -> None:
-    bind = op.get_bind()
+    op.get_bind()  # Preserve connection initialization; no unused binding
 
     # 1. Crear nuevos ENUMS --------------------------------------------------
     for enum_type in (
