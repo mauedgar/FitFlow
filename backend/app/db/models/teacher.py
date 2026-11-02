@@ -42,4 +42,7 @@ class Teacher(Person):
         lazy="raise",
     )
 
-    __mapper_args__ = dict(polymorphic_identity="teacher")
+    # SQLAlchemy Declarative requires a runtime mapping; ClassVar breaks mapper typing.
+    __mapper_args__ = {  # noqa: RUF012
+        "polymorphic_identity": "teacher",
+    }

@@ -18,7 +18,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
-    from uuid import UUID
 
     from app.db.models.user import User
     from sqlalchemy.ext.asyncio import AsyncSession

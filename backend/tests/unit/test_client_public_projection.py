@@ -42,7 +42,7 @@ def test_to_client_public_uses_actual_orm_fields():
 def test_to_client_public_keeps_optional_values_nullable():
     raw = make_client()
     raw.profile_image_url = None
-    setattr(raw, "created_at", None)  # Defensive projection of nullable legacy state
+    object.__setattr__(raw, "created_at", None)  # Defensive projection of nullable legacy state
 
     public = to_client_public(raw)
 

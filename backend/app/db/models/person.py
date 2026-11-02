@@ -70,4 +70,8 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     # un cliente o un profesor.
     person_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    __mapper_args__ = dict(polymorphic_identity="person", polymorphic_on=person_type)
+    # SQLAlchemy Declarative requires a runtime mapping; ClassVar breaks mapper typing.
+    __mapper_args__ = {  # noqa: RUF012
+        "polymorphic_identity": "person",
+        "polymorphic_on": person_type,
+    }

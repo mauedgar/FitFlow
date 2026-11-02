@@ -217,9 +217,13 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         """
         update_data = dict(obj_in) if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
         update_data["updated_by_id"] = updated_by
-        if "capacity" in update_data and int(update_data["capacity"]) < 0:
-            msg = "Capacity debe ser >= 0."
-            raise svc_errors.BusinessValidationError(msg)
+        if "capacity" in update_data:
+            capacity = update_data["capacity"]
+            if not isinstance(capacity, (int, float, str)):
+                raise TypeError("Capacity must be convertible to int")
+            if int(capacity) < 0:
+                msg = "Capacity debe ser >= 0."
+                raise svc_errors.BusinessValidationError(msg)
         return await super().update(db, db_obj=db_obj, obj_in=update_data)
 
     async def remove(
