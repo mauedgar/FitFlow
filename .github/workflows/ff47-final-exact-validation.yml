@@ -48,18 +48,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: a83e4d9f14c59521eb45483ff1248cb79fbcc514
+          ref: 9e6a34e22161d6f6f2c5f5dc76bf30993d7493a0
           fetch-depth: 0
           persist-credentials: false
       - name: Guard final candidate exact SHA/tree and temporary workflow cleanup
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "a83e4d9f14c59521eb45483ff1248cb79fbcc514"
-          test "$(git rev-parse HEAD^{tree})" = "b6ec4d4d331358e24a57fa31e5ea98db6f890d86"
+          test "$(git rev-parse HEAD)" = "9e6a34e22161d6f6f2c5f5dc76bf30993d7493a0"
+          test "$(git rev-parse HEAD^{tree})" = "dd3e81896eab9803606b8fa86b768afbde21b325"
           test ! -e .github/workflows/ff47-migration-preview-temporary.yml
           test ! -e .github/workflows/ff47-uv-action-smoke-temporary.yml
-          echo "FF47_EXACT_SUBJECT_PASS sha=a83e4d9f14c59521eb45483ff1248cb79fbcc514 tree=b6ec4d4d331358e24a57fa31e5ea98db6f890d86"
+          echo "FF47_EXACT_SUBJECT_PASS sha=9e6a34e22161d6f6f2c5f5dc76bf30993d7493a0 tree=dd3e81896eab9803606b8fa86b768afbde21b325"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
