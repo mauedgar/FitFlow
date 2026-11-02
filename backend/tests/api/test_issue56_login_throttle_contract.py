@@ -10,9 +10,9 @@ from app.core.login_throttle import (
     ACCOUNT_LIMIT,
     LIMIT,
     WINDOW_SECONDS,
+    account_rate_key,
     check_login_throttle,
     login_rate_key,
-    account_rate_key,
 )
 from app.core.redis_client import get_redis_client
 from fastapi import HTTPException

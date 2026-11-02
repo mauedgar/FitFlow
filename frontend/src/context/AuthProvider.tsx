@@ -143,7 +143,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Always clear browser state. False means server-side revocation was not
   // confirmed; callers must not claim a complete logout in that case.
   const logout = async (): Promise<boolean> => {
-    const access = sessionStorage.getItem(ACCESS_KEY);
     const refresh = sessionStorage.getItem(REFRESH_KEY);
     let revoked = false;
     try {

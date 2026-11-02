@@ -68,3 +68,6 @@ test('IR005 mounted routes use the canonical teacher/front_desk roles without lo
   assert.match(provider, /userRole === "teacher"/);
   assert.doesNotMatch(router, /UserRole\.TRAINER/);
 });
+
+// The existing Actions job selects this test file explicitly.
+require('./issue57AuthRenewal.test.cjs');
