@@ -41,3 +41,10 @@ merge: NOT_AUTHORIZED
 - [Actions 41470382275](https://github.com/mauedgar/FitFlow/actions/runs/41470382275), job `125362075625`, subject `7af147d07c96e7299f36f6cadebdcc197d1e4cd7`: checkout and Node24 action setup PASS, dependencies PASS, **all disposable Alembic PG15 migrations to head PASS**; schema determinism step FAILED.
 - The hosted runner exposed `pg_dump 18.6` against PG15; back-to-back SQL files differed at byte 46 / line 5. This is tooling-version nondeterminism, not proved schema semantic drift. No output artifact was published by the failed run, and no auto-commit occurred.
 - Bounded correction: invoke the same `postgres:15-alpine` image as a PG15 read-only client through Docker host network for both pg_dump passes. Keep strict byte comparison and fail closed on mismatch; no masking, sed filtering or commit. The next candidate SHA needs new CI.
+
+## Third exact-run observation and reproducible pg_dump contract
+
+- [Actions 41470761431](https://github.com/mauedgar/FitFlow/actions/runs/41470761431), job `125363389772`, subject `fa85bbe60b2b4ee869c5e0a1f7566fdbfc29c7e0`: Alembic PG15 to head PASS, matching PostgreSQL 15.19 pg_dump PASS, but repeated dumps still differed at byte 46, line 5. No artifact or commit was produced.
+- PostgreSQL 15 documents a random `\\restrict` key in every plain-text dump; `--restrict-key` exists precisely for repeatability tests: https://www.postgresql.org/docs/15/app-pgdump.html . This explains the header variance without asserting schema drift.
+- Apply the same hardcoded non-secret alphanumeric restrict key to both reads **only on disposable trusted CI PostgreSQL**. A deterministic restrict key is intended for comparison, NOT for restoring SQL from untrusted databases. No SQL dump is executed or applied. The byte-by-byte full-dump comparison remains fail-closed; any other difference fails the job.
+- Await new exact commit/job and independent review. No pass or acceptance inferred from the failed runs.
