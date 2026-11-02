@@ -59,9 +59,11 @@ dev = [
     "pdoc==16.0.0",
     "pylint==4.0.6",
     "httpx==0.28.1",
-    "pytest==9.1.1",
-    "pytest-asyncio==1.4.0",
+    "pytest==9.2.0",
+    "pytest-asyncio==1.4.1",
     "tomlkit==0.15.1",
+    "ruff==0.17.3",
+    "pyright==1.1.414",
 ]
 
 [tool.uv]
