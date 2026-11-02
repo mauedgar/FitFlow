@@ -34,11 +34,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
     if not isinstance(plain_password, str) or not isinstance(hashed_password, str):
         return False
-    if "\\x00" in plain_password:
+    if "\x00" in plain_password:
         return False  # Passlib rechazaba el byte NUL.
     try:
         encoded_hash = hashed_password.encode("ascii")
-        if len(encoded_hash) != 60 or encoded_hash[:4] not in (b"$2a$", b"$2b$", b"$2y$"):
+        if len(encoded_hash) != 60 or encoded_hash[:4] not in (
+            b"$2a$", b"$2b$", b"$2y$"
+        ):
             return False
         return bcrypt.checkpw(plain_password.encode("utf-8"), encoded_hash)
     except (UnicodeError, ValueError):
@@ -48,7 +50,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Crea hash 2b sin truncar bytes de contraseña ni cambiar formato de DB."""
     password_bytes = password.encode("utf-8")
-    if b"\\x00" in password_bytes:
+    if b"\x00" in password_bytes:
         raise ValueError("La contraseña contiene un byte NUL no admitido")
     if len(password_bytes) > _BCRYPT_MAX_PASSWORD_BYTES:
         raise ValueError("La contraseña excede los 72 bytes admitidos por bcrypt")
