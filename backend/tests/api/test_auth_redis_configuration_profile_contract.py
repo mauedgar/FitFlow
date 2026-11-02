@@ -15,8 +15,8 @@ from app.core.enums import UserRole
 from app.main import app
 from app.routers import auth as auth_router
 from fastapi import status
-from redis.exceptions import RedisError
 from pydantic_settings import SettingsConfigDict
+from redis.exceptions import RedisError
 
 pytestmark = [
     pytest.mark.api,

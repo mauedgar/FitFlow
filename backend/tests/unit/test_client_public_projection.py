@@ -7,11 +7,11 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from app.routers import clients as clients_router
 from app.core.enums import UserRole
 from app.db.models import Client, User
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.routers import clients as clients_router
 from app.services.client_service import to_client_public
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def make_client(*, first_name="Ana", last_name="Gómez"):
