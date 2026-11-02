@@ -17,7 +17,7 @@ from datetime import datetime
 from uuid import UUID
 
 from app.core.enums import UserRole
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -31,6 +31,15 @@ class UserBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def _validate_bcrypt_password(value: str) -> str:
+    """Impedir 500 en CRUD por NUL o truncación de nuevas contraseñas."""
+    if "\x00" in value:
+        raise ValueError("La contraseña contiene un byte NUL no admitido")
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("La contraseña excede los 72 bytes admitidos por bcrypt")
+    return value
+
+
 # --------------------------------------------------------------------------- #
 # 2. Creación
 # --------------------------------------------------------------------------- #
@@ -40,6 +49,11 @@ class UserCreate(UserBase):
 
     password: str
     role: UserRole | None = UserRole.client
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return _validate_bcrypt_password(value)
 
 
 # --------------------------------------------------------------------------- #
@@ -53,6 +67,11 @@ class UserUpdate(BaseModel):
     password: str | None = None
     active: bool | None = None
     role: UserRole | None = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str | None) -> str | None:
+        return _validate_bcrypt_password(value) if value is not None else None
 
     model_config = ConfigDict(from_attributes=True)
 

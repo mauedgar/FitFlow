@@ -2,13 +2,13 @@
 name = "fitflow-backend"
 version = "0.1.0"
 description = "FitFlow Backend API"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "alembic==1.16.4",
     "annotated-types==0.7.0",
     "anyio==4.10.0",
-    "asyncpg==0.27.0",
-    "bcrypt==3.2.2",
+    "asyncpg==0.32.0",
+    "bcrypt==4.3.0",
     "cffi==1.17.1",
     "click==8.2.1",
     "colorama==0.4.6",
@@ -24,7 +24,6 @@ dependencies = [
     "mako==1.3.10",
     "markdown2==2.5.5",
     "markupsafe==3.0.2",
-    "passlib==1.7.4",
     "platformdirs==4.11.0",
     "psycopg2-binary==2.9.10",
     "pyasn1==0.6.1",
@@ -59,9 +58,11 @@ dev = [
     "pdoc==16.0.0",
     "pylint==4.0.6",
     "httpx==0.28.1",
-    "pytest==9.1.1",
-    "pytest-asyncio==1.4.0",
+    "pytest==9.2.0",
+    "pytest-asyncio==1.4.1",
     "tomlkit==0.15.1",
+    "ruff==0.17.3",
+    "pyright==1.1.414",
 ]
 
 [tool.uv]

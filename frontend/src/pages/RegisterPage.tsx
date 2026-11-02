@@ -104,6 +104,9 @@ const RegisterPage = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <Text fontSize="sm" color="gray.600">
+                Máximo 72 bytes UTF-8; los caracteres acentuados pueden ocupar más de un byte. Sin NUL.
+              </Text>
             </Field.Root>
 
             <Field.Root required>
