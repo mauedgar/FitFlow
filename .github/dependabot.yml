@@ -7,25 +7,31 @@ updates:
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
-      interval: "daily"
-      time: "09:00"
+      interval: "cron"
+      cronjob: "0 9 * * *"
       timezone: "America/Argentina/Cordoba"
+    cooldown:
+      default-days: 1
     open-pull-requests-limit: 5
 
   # Frontend changes update package-lock.json together with package.json.
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: "daily"
-      time: "09:00"
+      interval: "cron"
+      cronjob: "0 9 * * *"
       timezone: "America/Argentina/Cordoba"
+    cooldown:
+      default-days: 1
     open-pull-requests-limit: 5
 
   # Review updates to the immutable GitHub Actions commit pins.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
-      time: "09:00"
+      interval: "cron"
+      cronjob: "0 9 * * *"
       timezone: "America/Argentina/Cordoba"
+    cooldown:
+      default-days: 1
     open-pull-requests-limit: 5
