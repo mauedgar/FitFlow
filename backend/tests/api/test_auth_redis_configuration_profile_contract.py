@@ -56,7 +56,8 @@ async def authenticated_owner() -> AsyncIterator[uuid.UUID]:
 async def test_supported_profile_settings_allow_redis_to_be_unconfigured(
     profile: str,
 ) -> None:
-    configured = Settings(
+    # Pydantic BaseSettings supports _env_file at runtime; its generated type signature omits it.
+    configured = Settings(  # pyright: ignore[reportCallIssue]
         _env_file=None,
         ENV=profile,
         DEBUG=profile == "development",

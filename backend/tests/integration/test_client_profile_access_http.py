@@ -139,14 +139,15 @@ async def test_user_profile_lookup_filters_soft_deleted(monkeypatch):
 
     observed = {}
 
-    class FakeSession:
-        async def execute(self, statement):
-            observed["sql"] = str(statement.compile())
-            return SimpleNamespace(
-                scalars=lambda: SimpleNamespace(first=lambda: None)
-            )
+    from sqlalchemy.ext.asyncio import AsyncSession
 
-    assert await client.get_by_user_id(
-        db=FakeSession(), user_id=uuid4()
-    ) is None
+    async def fake_execute(statement):
+        observed["sql"] = str(statement.compile())
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(first=lambda: None))
+
+    async with AsyncSession() as session:
+        monkeypatch.setattr(session, "execute", fake_execute)
+        assert await client.get_by_user_id(
+            db=session, user_id=uuid4()
+        ) is None
     assert "deleted_at IS NULL" in observed["sql"]
