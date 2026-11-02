@@ -48,7 +48,7 @@ jobs:
           changed=[p for p in old if old[p]!=new[p]]
           for path in changed:
               if not path.startswith("backend/alembic/"): continue
-            a,b=parse(old[path]),parse(new[path])
+              a,b=parse(old[path]),parse(new[path])
               assert markers(a)==markers(b),(path,"migration graph changed")
               for name in ("upgrade","downgrade"):
                   if path.endswith("/env.py"): continue
