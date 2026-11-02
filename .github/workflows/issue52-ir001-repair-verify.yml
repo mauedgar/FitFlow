@@ -1,6 +1,8 @@
 name: "Issue52 IR001 security and self-profile repair exact candidate"
 
 on:
+  push:
+    branches: [security/fitflow-pr52-ir001-repair-20261102-001]
   pull_request:
     branches: [develop]
     paths:
@@ -61,11 +63,11 @@ jobs:
       - name: Exact candidate checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Immutable subject guard
         env:
-          SUBJECT: ${{ github.event.pull_request.head.sha }}
+          SUBJECT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SUBJECT"
@@ -114,11 +116,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Exact candidate guard
         env:
-          SUBJECT: ${{ github.event.pull_request.head.sha }}
+          SUBJECT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$SUBJECT"
           echo "ISSUE52_QUALITY_TREE=$(git rev-parse 'HEAD^{tree}')"
@@ -143,11 +145,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Exact candidate guard
         env:
-          SUBJECT: ${{ github.event.pull_request.head.sha }}
+          SUBJECT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$SUBJECT"
           echo "ISSUE52_FRONTEND_TREE=$(git rev-parse 'HEAD^{tree}')"
