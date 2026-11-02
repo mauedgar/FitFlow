@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git branch --show-current)" = "security/fitflow-issue43-bcrypt-compat-20261102-001"
-          test "$(uv --version)" = "uv 0.13.6"
+          uv --version | grep -qE "^uv 0[.]13[.]6([[:space:]]|$)"
           uv lock --python 3.11 --no-progress
           uv lock --check --no-progress
           git diff --exit-code -- pyproject.toml backend/requirements_backend.txt backend/requirements_test.txt
