@@ -2,8 +2,8 @@
 document_id: FF-AGENTS-001
 status: canonical
 machine_context: true
-version: 5.1
-updated: 2026-08-25
+version: 5.2
+updated: 2026-11-02
 ---
 
 # Reglas para agentes
@@ -19,6 +19,8 @@ updated: 2026-08-25
 
 Ante contradiccion: detener la inferencia, registrar evidencia y escalar al
 Planner o al desarrollador. No armonizar fuentes silenciosamente.
+La Issue gobierna la task operativa; comentarios y recibos de PR son evidencia
+operativa, no doctrina canonica ni reemplazo de `docs/SOURCE_OF_TRUTH.md`.
 
 ## Inicio obligatorio
 
@@ -36,15 +38,23 @@ Planner o al desarrollador. No armonizar fuentes silenciosamente.
 Solo el desarrollador puede promover a `DONE`. Si falta contexto, volver a
 `EXPLORE`; si falla la implementacion o la validacion, volver a `ROUTE`; si el
 plan o la doctrina son incorrectos, volver a `PLAN`.
+Conservar `UNKNOWN` cuando falte evidencia: no convertirlo en `PASS` ni
+reintentar automaticamente por inferencia.
 
 ## Ciclo de worktree
 
-- Toda task nace de la rama `develop` y se ejecuta en un worktree acotado
-  fuera del checkout principal.
-- El ciclo abre rama local y remota: `git worktree add -b <branch> <ruta>
-  develop` seguido de `git push -u origin <branch>`.
-- Al finalizar (merge o abandono), se cierran ambas: `git worktree remove`,
-  `git branch -d <branch>` y eliminacion de la remota si quedo sin merge.
+- Habitualmente la task nace de `develop` y se ejecuta en un worktree acotado
+  fuera del checkout principal. Antes de crearlo, reobservar rama competente,
+  HEAD/tree y baseline autorizado; no asumir `develop` si la task fija otro ref.
+- Crear solo rama local y worktree desde el baseline competente verificado
+  (`git worktree add -b <branch> <ruta> <ref-competente>`). Publicar una rama
+  remota mediante `git push` es un efecto separado que requiere concesion
+  explicita y acotada del desarrollador para esa rama y baseline; nunca es
+  automatico al abrir el worktree.
+- Al finalizar, la limpieza de worktree y ramas requiere permiso separado,
+  comprobacion del merge exacto exitoso, arbol limpio y ausencia de owners;
+  no forzar la eliminacion ni inferir permiso del cierre de la task. Un
+  abandono requiere decision expresa, no se trata como merge exitoso.
 - El checkout principal permanece limpio sobre `develop` y solo recibe
   fast-forward despues del merge; nunca se trabaja directo en el.
 
@@ -56,7 +66,13 @@ plan o la doctrina son incorrectos, volver a `PLAN`.
 - No instalar o actualizar dependencias sin autorizacion explicita.
 - No ejecutar comandos destructivos.
 - No modificar secretos ni archivos `.env`.
-- No crear commits, push, merge ni transiciones finales.
+- Por defecto, no crear commits, push, merge ni transiciones finales. Una
+  excepcion requiere concesion explicita y acotada del desarrollador para la
+  accion concreta, rama y baseline; para integrar, ademas candidato SHA/tree
+  exacto y revision independiente aplicable. Reobservar rama competente y
+  arbol antes de actuar.
+  Un `IR PASS` no concede permiso automatico ni dispensa esas condiciones.
+  Autorizar un commit candidato no autoriza push, merge, aceptacion o `DONE`.
 - No ampliar scope para aprovechar una edicion.
 - El gasto incremental de API es `USD 0`; proveedores pagos permanecen
   deshabilitados salvo decision explicita.
@@ -81,6 +97,8 @@ plan o la doctrina son incorrectos, volver a `PLAN`.
 - `repo-packager` empaqueta exactamente una solicitud; no explora ni decide.
 - Validator es determinista. Reviewer no valida su propia implementacion.
 - OpenSpec describe cambios funcionales; no reemplaza TASK ni Run State.
+- Un UI Admin validado con datos en memoria o mocks no prueba autenticacion
+  real E2E; mantener esa cobertura como `NOT_RUN` hasta evidencia especifica.
 
 ## Contexto autorizado
 
