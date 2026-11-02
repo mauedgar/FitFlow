@@ -1,3 +1,3 @@
 import { createToaster } from '@chakra-ui/react';
 
-export const toaster = createToaster({ placement: 'bottom-end' });
+export const toaster = createToaster({ placement: 'bottom-end', offsets: '16px' });

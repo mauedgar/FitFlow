@@ -16,7 +16,7 @@ const sidebarLinks = [
 
 const AdminSideBar = () => {
   const activeLinkStyle = {
-    backgroundColor: '#319795', // teal.600
+    backgroundColor: '#2C7A7B', // teal.700: contraste AA con blanco
     color: 'white',
     fontWeight: 'bold',
   };
@@ -42,6 +42,7 @@ const AdminSideBar = () => {
               p={3}
               borderRadius="md"
               _hover={{ bg: 'gray.700' }}
+              _focusVisible={{ outline: '3px solid', outlineColor: 'teal.200', outlineOffset: '2px' }}
               transition="all 0.2s"
               asChild><RouterNavLink to={link.to} end={link.end} style={({ isActive }) => isActive ? activeLinkStyle : undefined}>
                 <HStack gap={3}>

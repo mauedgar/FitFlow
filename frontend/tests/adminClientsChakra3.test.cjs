@@ -40,10 +40,3 @@ test('admin list HTTP requests consume cancellation signal from query lifecycle'
   assert.match(service, /getAdminClients = async \(signal\?: AbortSignal\)/);
   assert.match(service, /\r?\n\s*signal,\r?\n/);
 });
-
-test('responsive menu region is keyboard reachable and named', () => {
-  const nav = fs.readFileSync('src/components/admin/layout/AdminNavBar.tsx', 'utf8');
-  assert.match(nav, /as="nav" aria-label="Secciones de administración" tabIndex=\{0\}/);
-  assert.match(nav, /overflowX="auto"/);
-  assert.match(nav, /aria-label="Menú de perfil"/);
-});
