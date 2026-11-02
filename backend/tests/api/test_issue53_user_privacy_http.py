@@ -122,16 +122,22 @@ async def test_admin_can_read_directory_and_authorized_account(
     )
     assert response.status_code == 200, response.text
     listed = {item["id"]: item for item in response.json()}
-    for role, identity in account_ids.items():
-        assert str(identity) in listed
-        assert listed[str(identity)]["role"] == role
+    # The existing CRUD directory is limited to the first 100 arbitrary rows;
+    # this test must not assume newly created fixtures fall within that page.
+    assert listed
+    assert len(listed) <= 100
+    for item in listed.values():
+        assert set(item) == {"id", "email", "role", "active"}
 
-    detail = await api_client.get(
-        f"{settings.API_V1_STR}/users/{account_ids['client']}/public",
-        headers=headers,
-    )
-    assert detail.status_code == 200, detail.text
-    assert detail.json()["id"] == str(account_ids["client"])
+    # Individual authorized lookup exercises every synthetic account without
+    # enlarging or silently altering the existing directory pagination.
+    for role, identity in account_ids.items():
+        detail = await api_client.get(
+            f"{settings.API_V1_STR}/users/{identity}/public", headers=headers,
+        )
+        assert detail.status_code == 200, detail.text
+        assert detail.json()["id"] == str(identity)
+        assert detail.json()["role"] == role
 
 
 async def test_admin_nonexistent_account_returns_404_without_data(
