@@ -49,6 +49,16 @@ def is_token_blacklisted(token: str) -> bool:
     return execute_redis_command(
         lambda client: bool(
             client.exists(blacklist_key(token))
-            or client.exists(legacy_blacklist_key(token))
+            or (
+                _legacy_lookup_required(token)
+                and client.exists(legacy_blacklist_key(token))
+            )
         )
     )
+
+def _legacy_lookup_required(token: str) -> bool:
+    """Only pre-jti refresh issuances can have legacy raw-token Redis keys."""
+    from app.core.security import decode_token
+
+    payload = decode_token(token)
+    return payload is not None and not payload.get("jti")

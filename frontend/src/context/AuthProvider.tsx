@@ -1,7 +1,8 @@
 import React, { useState, useEffect, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { jwtDecode } from "jwt-decode";
-import apiClient from "../services/api";
+import apiClient, { ensureFreshAccess } from "../services/api";
+import axios from "axios";
 import classService from "../services/classService";
 import { AuthContext } from "./AuthContext";
 import type { User, TokenPayload, TokenResponse, UserRole, Booking, Client } from "../types";
@@ -22,20 +23,6 @@ function checkedAccessPayload(accessToken: string): TokenPayload {
     throw new Error("Invalid or expired access credential");
   }
   return claim;
-}
-
-// Renewal does not rotate refresh credentials in the current API contract.
-async function ensureFreshAccess(access: string, refresh: string): Promise<string> {
-  try {
-    checkedAccessPayload(access);
-    return access;
-  } catch {
-    const response = await apiClient.post<{ access_token: string }>(
-      "/auth/refresh", { refresh_token: refresh },
-    );
-    checkedAccessPayload(response.data.access_token);
-    return response.data.access_token;
-  }
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
@@ -72,7 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
       }
       try {
-        const usableAccess = await ensureFreshAccess(access, refresh);
+        const usableAccess = await ensureFreshAccess();
         const claim = checkedAccessPayload(usableAccess);
         const response = await apiClient.get<User>("/auth/me", {
           headers: { Authorization: `Bearer ${usableAccess}` },
@@ -87,14 +74,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setToken(usableAccess);
         setCurrentUser(response.data);
         setUserRole(response.data.role);
-      } catch {
-        if (!cancelled) clearLocalSession();
+      } catch (error) {
+        // Network outage is not a reason to destroy a live refresh session.
+        // It stays unverified (not authenticated) until the next reload/retry.
+        if (!cancelled && !(axios.isAxiosError(error) && !error.response)) {
+          clearLocalSession();
+        }
       } finally {
         if (!cancelled) setIsLoadingAuth(false);
       }
     };
     void rehydrate();
-    return () => { cancelled = true; };
+    window.addEventListener('online', rehydrate);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('online', rehydrate);
+    };
     // Initialization is deliberately performed only on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -120,7 +115,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       queryClient.invalidateQueries({ queryKey: ["myBookings"] });
       queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
     } catch (error) {
-      clearLocalSession();
+      // The backend already issued a refresh token. If identity validation
+      // fails, attempt to revoke it instead of stranding a server session.
+      if (!(axios.isAxiosError(error) && !error.response)) {
+        try {
+          await apiClient.post("/auth/logout", {
+            refresh_token: pair.refresh_token,
+          }, { headers: { Authorization: `Bearer ${pair.access_token}` } });
+        } catch {
+          // Revocation may be unavailable; no success is claimed.
+        }
+        clearLocalSession();
+      } else {
+        // Keep the paired credentials for safe, server-verified rehydration.
+        sessionStorage.setItem(ACCESS_KEY, pair.access_token);
+        sessionStorage.setItem(REFRESH_KEY, pair.refresh_token);
+        setToken(null);
+        setCurrentUser(null);
+        setUserRole(null);
+      }
       throw error;
     } finally {
       setIsLoadingAuth(false);
@@ -135,7 +148,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     let revoked = false;
     try {
       if (refresh) {
-        const usableAccess = await ensureFreshAccess(access || "", refresh);
+        const usableAccess = await ensureFreshAccess();
         await apiClient.post("/auth/logout", { refresh_token: refresh }, {
           headers: { Authorization: `Bearer ${usableAccess}` },
         });
@@ -148,6 +161,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     return revoked;
   };
+
+
+  // React state follows token replacement and server-side invalidation.
+  useEffect(() => {
+    const renewed = () => {
+      const next = sessionStorage.getItem(ACCESS_KEY);
+      if (!next || !sessionStorage.getItem(REFRESH_KEY)) return;
+      try {
+        const claim = checkedAccessPayload(next);
+        setToken(next);
+        setUserRole(claim.role);
+        setCurrentUser(prev => prev ? { ...prev, role: claim.role } : prev);
+      } catch {
+        clearLocalSession();
+      }
+    };
+    const invalid = () => clearLocalSession();
+    window.addEventListener('fitflow:access-renewed', renewed);
+    window.addEventListener('fitflow:session-invalid', invalid);
+    return () => {
+      window.removeEventListener('fitflow:access-renewed', renewed);
+      window.removeEventListener('fitflow:session-invalid', invalid);
+    };
+    // Session handlers intentionally share the provider lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refresh while SPA remains open; do not wait for a protected 401.
+  useEffect(() => {
+    if (!token) return;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const claim = checkedAccessPayload(token);
+      const delay = Math.max(1000, claim.exp * 1000 - Date.now() - 20000);
+      timeout = setTimeout(() => {
+        void ensureFreshAccess(true).catch((error: unknown) => {
+          if (axios.isAxiosError(error) &&
+              (error.response?.status === 401 || error.response?.status === 403)) {
+            clearLocalSession();
+          } else {
+            // Do not display an expired access token as an authenticated session.
+            setToken(null);
+            setCurrentUser(null);
+            setUserRole(null);
+          }
+        });
+      }, delay);
+    } catch {
+      clearLocalSession();
+    }
+    return () => { if (timeout !== undefined) clearTimeout(timeout); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const isAuthenticated = !!token && !!currentUser;
   const isClient = userRole === "client";

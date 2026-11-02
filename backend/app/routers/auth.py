@@ -50,10 +50,15 @@ async def login_for_tokens(
     """Autentica al usuario y devuelve Access + Refresh Tokens."""
     # Only enabled in non-test runtimes; tests exercise the limiter separately
     # against disposable Redis and never a production account.
-    check_login_throttle(
-        username=form_data.username,
-        remote=request.client.host if request.client else "unknown",
-    )
+    try:
+        check_login_throttle(
+            username=form_data.username,
+            remote=request.client.host if request.client else "unknown",
+        )
+    except ExternalServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc),
+        ) from exc
     try:
         user = await user_get_by_email(db=db, email=form_data.username)
     except ExternalServiceError as exc:

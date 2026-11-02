@@ -39,6 +39,9 @@ class BrokenAfterPing:
     def delete(self, *args: object, **kwargs: object) -> None:
         raise RedisError("synthetic command outage")
 
+    def eval(self, *args: object, **kwargs: object) -> None:
+        raise RedisError("synthetic command outage")
+
     def close(self) -> None:
         pass
 
@@ -105,3 +108,40 @@ async def test_logout_command_error_after_ping_maps_503(
         assert response.json() == {"detail": "Redis no está disponible."}
     finally:
         app.dependency_overrides.pop(get_current_user, None)
+
+
+async def test_non_test_login_limiter_redis_after_ping_maps_503_before_db(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    broken_redis: None,
+) -> None:
+    calls: list[str] = []
+
+    async def forbidden_lookup(*, db: object, email: str) -> None:
+        del db, email
+        calls.append("lookup")
+        raise AssertionError("Throttled failure must not reach DB lookup")
+
+    monkeypatch.setattr(settings, "TESTING", False)
+    monkeypatch.setattr(auth_router, "user_get_by_email", forbidden_lookup)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": "limiter@example.invalid", "password": "synthetic"},
+    )
+    assert response.status_code == 503, response.text
+    assert response.json() == {"detail": "Redis no está disponible."}
+    assert calls == []
+
+
+async def test_non_test_login_limiter_missing_redis_maps_503(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "TESTING", False)
+    monkeypatch.setattr(settings, "REDIS_URL", None)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": "limiter@example.invalid", "password": "synthetic"},
+    )
+    assert response.status_code == 503, response.text
+    assert response.json() == {"detail": "Redis no está configurado."}

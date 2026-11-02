@@ -46,7 +46,10 @@ def is_refresh_token_valid(token: str) -> bool:
     return execute_redis_command(
         lambda client: bool(
             client.exists(refresh_token_key(token))
-            or client.exists(legacy_refresh_token_key(token))
+            or (
+                _legacy_lookup_required(token)
+                and client.exists(legacy_refresh_token_key(token))
+            )
         )
     )
 
@@ -60,6 +63,14 @@ def delete_refresh_token(token: str) -> None:
     """
     execute_redis_command(
         lambda client: client.delete(
-            refresh_token_key(token), legacy_refresh_token_key(token),
+            refresh_token_key(token),
+            *([legacy_refresh_token_key(token)] if _legacy_lookup_required(token) else []),
         )
     )
+
+def _legacy_lookup_required(token: str) -> bool:
+    """Only pre-jti refresh issuances can have legacy raw-token Redis keys."""
+    from app.core.security import decode_token
+
+    payload = decode_token(token)
+    return payload is not None and not payload.get("jti")
