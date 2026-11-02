@@ -103,7 +103,14 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         obj_in: UserUpdate | dict[str, object],
     ) -> User:
         """Actualiza parcialmente un usuario. Si cambia la contraseña, se hashea."""
-        update_data = obj_in.copy() if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
+        if isinstance(obj_in, dict):
+            # Preserve UserUpdate's field allowlist for callers using CRUDBase's dict contract.
+            if set(obj_in) - set(UserUpdate.model_fields):
+                raise ValueError("Unsupported user update fields.")
+            if "password" in obj_in and not isinstance(obj_in["password"], str):
+                raise TypeError("Password must be a string.")
+            obj_in = UserUpdate.model_validate(obj_in)
+        update_data = obj_in.model_dump(exclude_unset=True)
 
         if "password" in update_data:
             password = update_data.pop("password")

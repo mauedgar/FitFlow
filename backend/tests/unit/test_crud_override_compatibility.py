@@ -89,6 +89,24 @@ async def test_user_update_rejects_nonstring_password(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_user_update_dict_rejects_raw_hash_injection():
+    async with AsyncSession() as db:
+        with pytest.raises(ValueError, match="Unsupported user update fields"):
+            await CRUDUser(User).update(
+                db, db_obj=User(), obj_in={"hashed_password": "raw-injected-hash"}
+            )
+
+
+@pytest.mark.asyncio
+async def test_schedule_update_dict_rejects_unrecognized_fields():
+    async with AsyncSession() as db:
+        with pytest.raises(BusinessValidationError, match="Unsupported schedule"):
+            await CRUDClassSchedule(ClassSchedule).update(
+                db, db_obj=ClassSchedule(), obj_in={"created_by_id": uuid4()}
+            )
+
+
+@pytest.mark.asyncio
 async def test_schedule_update_rejects_negative_capacity_from_dict():
     async with AsyncSession() as db:
         with pytest.raises(BusinessValidationError, match="Capacity"):

@@ -215,7 +215,12 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
 
         No genera ni borra ClassSession automáticamente; el service decide la generación/actualización de sesiones.
         """
-        update_data = obj_in.copy() if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
+        if isinstance(obj_in, dict):
+            # The base CRUD dict form must not bypass the schedule schema's field allowlist.
+            if set(obj_in) - set(ClassScheduleUpdate.model_fields):
+                raise svc_errors.BusinessValidationError("Unsupported schedule update fields.")
+            obj_in = ClassScheduleUpdate.model_validate(obj_in)
+        update_data = obj_in.model_dump(exclude_unset=True)
         update_data["updated_by_id"] = updated_by
         if "capacity" in update_data:
             capacity = update_data["capacity"]
