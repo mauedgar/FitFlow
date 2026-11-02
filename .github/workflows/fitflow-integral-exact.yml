@@ -1,0 +1,115 @@
+name: FitFlow integrated source exact-subject qualification
+on:
+  push:
+    branches: [ci/fitflow-integral-exact-20261102-001]
+    paths: ['.github/workflows/fitflow-integral-exact.yml']
+permissions:
+  contents: read
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: cdfb61a32bf3ed2443656a1b4625eac91a7b7e7e
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11.17'
+      - name: Verify identity and execute current pinned Ruff and Pyright
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "cdfb61a32bf3ed2443656a1b4625eac91a7b7e7e"
+          test "$(git rev-parse 'HEAD^{tree}')" = "da941bd3c6af56f51b7bf4e3da25706b560311f2"
+          git diff --check c15bdefc766dfa42fa2b5b86b679ed3bf0f5a47d HEAD
+          python -m pip install --disable-pip-version-check -r backend/requirements_test.txt
+          python -m pip check
+          python -m ruff check backend --output-format concise
+          (cd backend && pyright .)
+          echo FF_INTEGRATED_QUALITY_PASS
+  backend:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11.17','3.12','3.13']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
+        env:
+          POSTGRES_DB: fitflow_test
+          POSTGRES_USER: fitflow_test_user
+          POSTGRES_PASSWORD: fitflow_test_password
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U fitflow_test_user -d fitflow_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+      redis:
+        image: redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      ENV: test
+      TESTING: 'true'
+      DEBUG: 'false'
+      DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test
+      SECRET_KEY: fitflow-test-only-secret-key
+      REDIS_URL: redis://127.0.0.1:6379/0
+      MEDIA_DIR: /tmp/fitflow-media
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTEST_ADDOPTS: -p no:cacheprovider --basetemp=/tmp/pytest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: cdfb61a32bf3ed2443656a1b4625eac91a7b7e7e
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Lock and export authority, hashed install, migrations and all tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "cdfb61a32bf3ed2443656a1b4625eac91a7b7e7e"
+          test "$(git rev-parse 'HEAD^{tree}')" = "da941bd3c6af56f51b7bf4e3da25706b560311f2"
+          python -m pip install --disable-pip-version-check uv==0.13.6
+          uv lock --check
+          uv export --locked --no-dev --format requirements.txt --output-file /tmp/ff-runtime.txt
+          uv export --locked --group dev --format requirements.txt --output-file /tmp/ff-dev.txt
+          diff -u <(tail -n +3 /tmp/ff-runtime.txt) <(tail -n +3 backend/requirements_backend.txt)
+          diff -u <(tail -n +3 /tmp/ff-dev.txt) <(tail -n +3 backend/requirements_test.txt)
+          python -m pip install --disable-pip-version-check -r backend/requirements_test.txt
+          python -m pip check
+          (cd backend && alembic upgrade head && python -m pytest -q)
+          echo FF_INTEGRATED_BACKEND_PASS
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: cdfb61a32bf3ed2443656a1b4625eac91a7b7e7e
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Client build and regression
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "cdfb61a32bf3ed2443656a1b4625eac91a7b7e7e"
+          test "$(git rev-parse 'HEAD^{tree}')" = "da941bd3c6af56f51b7bf4e3da25706b560311f2"
+          npm ci --ignore-scripts
+          node --test tests/issue43RegistrationError.test.cjs tests/registerSensitiveLog.test.cjs
+          npm run build
+          echo FF_INTEGRATED_FRONTEND_PASS
