@@ -1,0 +1,24 @@
+name: FF47 pinned uv action smoke (temporary)
+on:
+  push:
+    branches:
+      - quality/fitflow-issue47-migration-lint-20261102-002
+    paths:
+      - .github/workflows/ff47-uv-action-smoke-temporary.yml
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Resolve immutable setup-uv action
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Assert uv available
+        run: |
+          set -euo pipefail
+          uv --version
+          echo FF47_UV_ACTION_PIN_PASS
