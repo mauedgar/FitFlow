@@ -1,7 +1,6 @@
-"""Frontend auth renewal behavioral tests with deterministic simulated browser APIs.
-
-This runs the actual transpiled TypeScript module, not a deployed browser E2E.
-"""
+/* Frontend auth renewal behavioral tests with deterministic simulated browser APIs.
+ * This runs transpiled TypeScript, not a deployed browser E2E.
+ */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

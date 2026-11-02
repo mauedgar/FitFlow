@@ -73,6 +73,7 @@ def test_distributed_sources_cannot_bypass_account_cap(
         with pytest.raises(HTTPException) as error:
             check_login_throttle(username, hosts[3])
         assert error.value.status_code == 429
+        assert error.value.headers is not None
         retry_after = int(error.value.headers["Retry-After"])
         assert 0 < retry_after <= WINDOW_SECONDS
         assert 0 < client.ttl(account_key) <= WINDOW_SECONDS
