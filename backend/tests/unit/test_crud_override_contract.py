@@ -22,7 +22,7 @@ from sqlalchemy.dialects import postgresql
     "crud",
     (booking, class_schedule, class_session, gym_class, membership, teacher, user),
 )
-def test_specialized_get_preserves_generic_options_contract(crud: object) -> None:
+def test_specialized_get_preserves_generic_options_contract(crud) -> None:
     parameters = signature(type(crud).get).parameters
     assert parameters["obj_id"].kind is Parameter.KEYWORD_ONLY
     assert parameters["options"].kind is Parameter.KEYWORD_ONLY
