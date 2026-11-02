@@ -1,4 +1,4 @@
-name: FitFlow Python compatibility and quality qualification TEMP
+name: FitFlow Python compatibility and quality qualification TEMP asyncpg-0.32.0
 on:
   push:
     branches: [chore/fitflow-python-deps-normalize-20261101-001]
