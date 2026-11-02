@@ -2,13 +2,16 @@
 document_id: FF-STATE-001
 status: canonical
 machine_context: true
-version: 5.2
-snapshot: 2026-09-22
+version: 5.3
+snapshot: 2026-11-01
 ---
 
 # Estado actual de FitFlow
 
-## Producto confirmado
+## Producto backend (observacion historica del 2026-09-22)
+
+Los hechos backend siguientes describen el corte del 22 de septiembre; este
+snapshot no los revalida ni afirma que sean el estado backend mas reciente.
 
 - Sprint 6.8 consolidado hasta `FF-LOCAL-010`.
 - Backend con FastAPI async, SQLAlchemy 2.x Async, Pydantic v2 y PostgreSQL.
@@ -26,7 +29,7 @@ snapshot: 2026-09-22
 - La arquitectura objetivo del producto continua siendo monolito modular por
   bounded contexts, con migracion gradual y fitness functions.
 
-## Validacion confirmada
+## Validacion backend (observacion historica del 2026-09-22)
 
 - Harness en `backend/tests/` y base exclusiva `fitflow_test`.
 - Pruebas dirigidas de metadata, mappers, RRULE, Booking, cancelacion,
@@ -36,6 +39,22 @@ snapshot: 2026-09-22
   determinista publicada; la evidencia mas reciente del bounded vertical cerro
   con la suite backend completa en 58 tests `PASS`. Esto no afirma cobertura
   exhaustiva de todo el producto.
+
+## Frontend Admin (corte del 2026-11-01)
+
+- PR #34 integrado en `develop` en el commit
+  `2557e9066eae504c47fa166904694f0d1d2c0641` (tree
+  `4160747ea2784c58817957f49a9d989f822cf315`); candidato integrado
+  `75830c8c01d62f03bf1cf0fbbd369c4a963e33b4`. Los refs y el merge
+  constan en Git local.
+- Segun el recibo operativo comunicado para este corte, Issue #33 esta
+  `CLOSED` e IR003 dio `PASS_SHELL_UI_WITH_LIMITATIONS` para el shell Admin:
+  24/24 tests frontend y navegador con datos en memoria/mocks en anchos
+  320, 390, 768, 1024, 1280 y 1440 px. No equivale a autenticacion real E2E.
+- Segun el mismo corte operativo, Issue #25 permanece `OPEN` y
+  `REAL_AUTH_E2E` en `NOT_RUN`. Estos estados de Issues y el resultado IR003
+  no se verifican mediante refs Git; requieren sus recibos operativos para
+  confirmacion independiente. No se infiere cierre de esa deuda del merge.
 
 ## Plataforma de asistencia IA
 
