@@ -1,4 +1,4 @@
-name: FitFlow bounded runtime requirements export (temporary)
+name: FitFlow bounded uv dependency regeneration (temporary)
 on:
   push:
     branches: [chore/fitflow-python-deps-normalize-20261101-001]
@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 jobs:
-  export:
+  generate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -16,23 +16,25 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: '3.11.17'
-      - name: Produce locked runtime-only requirements
+      - name: Re-lock actual asyncpg and export runtime/test dependency sets
         run: |
           set -euo pipefail
           python -m pip install --no-cache-dir --disable-pip-version-check uv==0.13.6
+          uv lock --upgrade
           uv lock --check
           uv export --locked --no-dev --format requirements.txt --output-file backend/requirements_backend.txt
-          if grep -Ei '^(pytest|pytest-asyncio|ruff|pyright)==' backend/requirements_backend.txt; then echo 'DEV_DEP_IN_RUNTIME_EXPORT'; exit 1; fi
-      - name: Emit bounded generated file as indexed chunks
-        shell: bash
+          uv export --locked --group dev --format requirements.txt --output-file backend/requirements_test.txt
+          if grep -Eiq '^(pytest|pytest-asyncio|ruff|pyright)==' backend/requirements_backend.txt; then echo DEV_DEP_IN_RUNTIME; exit 1; fi
+          grep -q '^asyncpg==0.32.0' backend/requirements_backend.txt
+      - name: Emit generation receipt and chunks
         run: |
           python - <<'PY'
-          import hashlib, json
+          import json, hashlib
           from pathlib import Path
-          p=Path('backend/requirements_backend.txt')
-          c=p.read_text(encoding='utf-8')
-          print('FF_RUNTIME_BEGIN:'+str(len(c)))
-          for i,offset in enumerate(range(0,len(c),1600)):
-              print('FF_RUNTIME_CHUNK:'+str(i)+':'+json.dumps(c[offset:offset+1600],ensure_ascii=True))
-          print('FF_RUNTIME_END:'+hashlib.sha256(c.encode()).hexdigest())
+          for name in ('uv.lock', 'backend/requirements_backend.txt', 'backend/requirements_test.txt'):
+              c=Path(name).read_text(encoding='utf-8')
+              print(f'FF_DEPS_BEGIN:{name}:{len(c)}')
+              for i,pos in enumerate(range(0,len(c),1600)):
+                  print(f'FF_DEPS_CHUNK:{name}:{i}:{json.dumps(c[pos:pos+1600],ensure_ascii=True)}')
+              print(f'FF_DEPS_END:{name}:{hashlib.sha256(c.encode()).hexdigest()}')
           PY
