@@ -12,26 +12,49 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 from jose import ExpiredSignatureError, JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
 # --------------------------------------------------------------------------- #
-# Contexto de hashing (bcrypt)
+# Hashing bcrypt nativo; no cambia formato almacenado ni JWT.
 # --------------------------------------------------------------------------- #
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_BCRYPT_MAX_PASSWORD_BYTES = 72
+_BCRYPT_ROUNDS = 12  # Mismo costo por defecto que Passlib 1.7.4.
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica una contraseña en texto plano contra su hash bcrypt."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verifica hashes bcrypt heredados 2a/2b/2y sin migrar usuarios.
+
+    bcrypt 4.3 conserva la semántica de verificación heredada incluso para
+    contraseñas anteriores de más de 72 bytes. Esa limitación SOLO se mantiene
+    al verificar hashes existentes; no se permite crear hashes nuevos truncados.
+    """
+    if not isinstance(plain_password, str) or not isinstance(hashed_password, str):
+        return False
+    if "\\x00" in plain_password:
+        return False  # Passlib rechazaba el byte NUL.
+    try:
+        encoded_hash = hashed_password.encode("ascii")
+        if len(encoded_hash) != 60 or encoded_hash[:4] not in (b"$2a$", b"$2b$", b"$2y$"):
+            return False
+        return bcrypt.checkpw(plain_password.encode("utf-8"), encoded_hash)
+    except (UnicodeError, ValueError):
+        return False  # Hash corrupto, no excepción ni token de sesión.
 
 
 def get_password_hash(password: str) -> str:
-    """Genera un hash bcrypt seguro para almacenar en la base de datos."""
-    return pwd_context.hash(password)
+    """Crea hash 2b sin truncar bytes de contraseña ni cambiar formato de DB."""
+    password_bytes = password.encode("utf-8")
+    if b"\\x00" in password_bytes:
+        raise ValueError("La contraseña contiene un byte NUL no admitido")
+    if len(password_bytes) > _BCRYPT_MAX_PASSWORD_BYTES:
+        raise ValueError("La contraseña excede los 72 bytes admitidos por bcrypt")
+    return bcrypt.hashpw(
+        password_bytes, bcrypt.gensalt(rounds=_BCRYPT_ROUNDS, prefix=b"2b")
+    ).decode("ascii")
 
 
 # --------------------------------------------------------------------------- #
