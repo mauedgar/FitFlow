@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime  # noqa: TC003
 from uuid import UUID  # noqa: TC003
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from app.core.enums import UserRole
 
@@ -32,6 +32,17 @@ class UserBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+def _validate_bcrypt_password(value: str | None) -> str | None:
+    """Impedir 500 en CRUD por NUL o truncación de nuevas contraseñas."""
+    if value is None:
+        return None
+    if "\x00" in value:
+        raise ValueError("La contraseña contiene un byte NUL no admitido")
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("La contraseña excede los 72 bytes admitidos por bcrypt")
+    return value
+
+
 # --------------------------------------------------------------------------- #
 # 2. Creación
 # --------------------------------------------------------------------------- #
@@ -41,6 +52,11 @@ class UserCreate(UserBase):
 
     password: str
     role: UserRole | None = UserRole.client
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return _validate_bcrypt_password(value)  # type: ignore[return-value]
 
 
 # --------------------------------------------------------------------------- #
@@ -54,6 +70,11 @@ class UserUpdate(BaseModel):
     password: str | None = None
     active: bool | None = None
     role: UserRole | None = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str | None) -> str | None:
+        return _validate_bcrypt_password(value)
 
     model_config = ConfigDict(from_attributes=True)
 
