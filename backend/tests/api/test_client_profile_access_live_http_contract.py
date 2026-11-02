@@ -771,3 +771,89 @@ async def test_membership_stats_rejects_valid_non_admin_role(
         headers=headers(profile_fixture, "owner"),
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
+
+
+# IR001 F02: self-identity is derived from JWT, not a missing or forged path ID.
+@pytest.mark.parametrize("name", ["owner", "neighbor", "admin", "teacher"])
+@pytest.mark.parametrize("path", ["/users/me", "/users/me/stats"])
+async def test_users_me_real_orm_self_without_profile_cross_read(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+    name: str,
+    path: str,
+) -> None:
+    response = await api_client.get(
+        f"{settings.API_V1_STR}{path}",
+        params={"user_id": str(profile_fixture.neighbor_id)},
+        headers=headers(profile_fixture, name),
+    )
+    assert response.status_code == status.HTTP_200_OK, response.text
+    body = response.json()
+    expected = {
+        "owner": profile_fixture.owner_id,
+        "neighbor": None,
+        "admin": None,
+        "teacher": None,
+    }
+    if expected[name] is not None:
+        assert body["id"] == str(expected[name])
+    assert body["role"] == ("admin" if name == "admin" else "teacher" if name == "teacher" else "client")
+    if name == "owner" and path.endswith("/me"):
+        assert body["client"]["email"] == profile_fixture.owner_email
+        assert body["client"]["full_name"] == "Ana Cliente"
+    if name in ("admin", "teacher") and path.endswith("/me"):
+        assert body["client"] is None
+        assert body["teacher"] is None
+    if name == "owner" and path.endswith("/stats"):
+        assert body["total_bookings"] == 1
+        assert body["upcoming_bookings"] == 1
+
+
+@pytest.mark.parametrize("path", ["/users/me", "/users/me/stats"])
+async def test_users_me_without_token_is_401(
+    api_client: httpx.AsyncClient, path: str,
+) -> None:
+    response = await api_client.get(f"{settings.API_V1_STR}{path}")
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.headers.get("www-authenticate") == "Bearer"
+
+
+@pytest.mark.parametrize("path", ["/users/me", "/users/me/stats"])
+async def test_users_me_real_teacher_profile_and_empty_schedule(
+    api_client: httpx.AsyncClient, path: str,
+) -> None:
+    from app.db.models import Teacher
+
+    marker = uuid.uuid4().hex
+    profile = Teacher(
+        first_name="Tania", last_name="Docente", bio="Perfil de prueba",
+        user=User(
+            email=f"ir001-teacher-{marker}@example.com",
+            hashed_password="fixture-only",
+            role=UserRole.teacher,
+        ),
+    )
+    async with AsyncSessionLocal() as db:
+        db.add(profile)
+        await db.flush()
+        identity = profile.user_id
+        await db.commit()
+    try:
+        token = create_access_token({"sub": str(identity), "role": UserRole.teacher.value})
+        response = await api_client.get(
+            f"{settings.API_V1_STR}{path}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        body = response.json()
+        assert body["id"] == str(identity)
+        if path.endswith("/me"):
+            assert body["teacher"]["full_name"] == "Tania Docente"
+            assert body["client"] is None
+        else:
+            assert body["total_classes_taught"] == 0
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(__import__("sqlalchemy").delete(Teacher).where(Teacher.user_id == identity))
+            await db.execute(__import__("sqlalchemy").delete(User).where(User.id == identity))
+            await db.commit()
