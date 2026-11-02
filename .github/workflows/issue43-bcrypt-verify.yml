@@ -11,6 +11,12 @@ on:
       - backend/tests/unit/test_security_bcrypt_legacy_compat.py
       - backend/tests/unit/test_user_password_byte_validation.py
       - backend/tests/api/test_auth_registration_password_boundary.py
+      - backend/tests/api/test_auth_bcrypt_hash_http_contract.py
+      - frontend/src/services/api.ts
+      - frontend/src/pages/RegisterPage.tsx
+      - frontend/src/utils/registrationErrors.ts
+      - frontend/tests/issue43RegistrationError.test.cjs
+      - docs/contracts/auth-password-policy-candidate.md
       - pyproject.toml
       - uv.lock
       - .github/workflows/issue43-bcrypt-verify.yml
@@ -188,3 +194,114 @@ jobs:
               assert not verify_password("x" + password, digest), prefix
           print("ISSUE43_CROSS_ENV_LEGACY_COMPAT_PASS", len(vectors))
           PY
+
+      - name: Prove native bcrypt 4.3 hashes verify under isolated legacy Passlib
+        if: matrix.python == '3.11'
+        env:
+          PYTHONPATH: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x /tmp/issue43-legacy/bin/python
+          python - <<'PY'
+          import json
+          from app.core.security import get_password_hash, verify_password
+          vectors = []
+          for password in ("", "simple", "Prueba-Ñú!42", "a" * 72, "ñ" * 36, "a" * 70 + "ñ"):
+              digest = get_password_hash(password)
+              assert digest.startswith("$2b$12$"), digest
+              assert verify_password(password, digest)
+              vectors.append((password, digest))
+          with open("/tmp/issue43-native-vectors.json", "w", encoding="utf-8") as f:
+              json.dump(vectors, f, ensure_ascii=False)
+          print("ISSUE43_NATIVE_BCRYPT43_VECTOR_GENERATION_PASS", len(vectors))
+          PY
+          /tmp/issue43-legacy/bin/python - <<'PY'
+          import json
+          from passlib.hash import bcrypt as old
+          with open("/tmp/issue43-native-vectors.json", encoding="utf-8") as f:
+              vectors = json.load(f)
+          for password, digest in vectors:
+              assert old.verify(password, digest), "native-to-legacy verification failed"
+              assert not old.verify("!" + password, digest), "wrong password accepted"
+              if len(password.encode("utf-8")) == 72:
+                  assert old.verify(password + "-suffix", digest), "legacy 72-byte alias missing"
+              else:
+                  assert not old.verify(password + "-suffix", digest), "unexpected alias"
+          print("ISSUE43_CROSS_ENV_NATIVE_TO_LEGACY_PASS", len(vectors))
+          PY
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact subject guard
+        env:
+          SUBJECT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SUBJECT"
+          echo "ISSUE43_FRONTEND_SHA=$SUBJECT"
+          echo "ISSUE43_FRONTEND_TREE=$(git rev-parse 'HEAD^{tree}')"
+      - name: Setup Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - name: Install locked frontend dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+      - name: Exercise registration client contract
+        working-directory: frontend
+        run: node --test tests/issue43RegistrationError.test.cjs tests/registerSensitiveLog.test.cjs
+      - name: TypeScript and Vite build
+        working-directory: frontend
+        run: npm run build
+
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact subject guard
+        env:
+          SUBJECT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SUBJECT"
+          echo "ISSUE43_QUALITY_SHA=$SUBJECT"
+          echo "ISSUE43_QUALITY_TREE=$(git rev-parse 'HEAD^{tree}')"
+      - name: Setup Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.11.17"
+      - name: Setup uv 0.13.6
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
+      - name: Install pinned backend requirements for type analysis
+        run: uv pip install --system --no-cache-dir -r backend/requirements_test.txt
+      - name: Targeted Ruff (not a full repository quality claim)
+        run: |
+          uvx --from ruff==0.17.3 ruff check \
+            backend/app/core/security.py backend/app/schemas/user.py \
+            backend/tests/unit/test_security_bcrypt_legacy_compat.py \
+            backend/tests/unit/test_user_password_byte_validation.py \
+            backend/tests/api/test_auth_registration_password_boundary.py \
+            backend/tests/api/test_auth_bcrypt_hash_http_contract.py
+      - name: Targeted Pyright (not a full repository quality claim)
+        env:
+          PYTHONPATH: backend
+        run: |
+          uvx --from pyright==1.1.414 pyright --pythonpath "$(command -v python)" \
+            backend/app/core/security.py backend/app/schemas/user.py \
+            backend/tests/unit/test_security_bcrypt_legacy_compat.py \
+            backend/tests/unit/test_user_password_byte_validation.py \
+            backend/tests/api/test_auth_registration_password_boundary.py \
+            backend/tests/api/test_auth_bcrypt_hash_http_contract.py

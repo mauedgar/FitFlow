@@ -80,3 +80,24 @@ def test_embedded_nul_rejected_like_legacy_passlib() -> None:
 def test_unsupported_types_fail_closed_at_verification() -> None:
     assert not verify_password("pw", None)  # type: ignore[arg-type]
     assert not verify_password(None, "hash")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("password", ["a" * 72, "ñ" * 36, "a" * 70 + "ñ"])
+def test_new_exact_72_byte_hash_has_documented_legacy_suffix_alias(password: str) -> None:
+    """New hashes never truncate at creation, but bcrypt verification aliases suffixes."""
+    assert len(password.encode("utf-8")) == 72
+    digest = get_password_hash(password)
+    assert digest.startswith("$2b$12$")
+    assert verify_password(password, digest)
+    assert verify_password(password + "-ignored-suffix", digest)
+    assert not verify_password("!" + password, digest)
+
+
+def test_multibyte_crossing_72_byte_boundary_is_not_silently_accepted() -> None:
+    password_71_bytes = "a" * 69 + "ñ"
+    assert len(password_71_bytes.encode("utf-8")) == 71
+    digest = get_password_hash(password_71_bytes)
+    assert verify_password(password_71_bytes, digest)
+    assert not verify_password(password_71_bytes + "ñ", digest)
+    with pytest.raises(ValueError, match="72 bytes"):
+        get_password_hash(password_71_bytes + "ñ")
