@@ -70,29 +70,37 @@ jobs:
         working-directory: backend
         run: alembic upgrade head
 
-      - name: Generate and verify deterministic SQL schema
+      - name: Generate reviewable schema with PostgreSQL 15 client, no Git write
+        shell: bash
         env:
           PGPASSWORD: fitflow-ci-postgres
-        shell: bash
         run: |
           set -euo pipefail
-          pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges -f /tmp/fitflow-schema-first.sql
-          pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges -f /tmp/fitflow-schema-second.sql
-          # PostgreSQL 15.19+ emits a different random psql restrict guard per dump.
-          # Compare SQL excluding ONLY those two guard tokens; retain full original
-          # protected dump in the review artifact (never use a fixed security key).
-          diff -u <(grep -vE '^\\(un)?restrict ' /tmp/fitflow-schema-first.sql) <(grep -vE '^\\(un)?restrict ' /tmp/fitflow-schema-second.sql)
-          test -s /tmp/fitflow-schema-first.sql
-          cp /tmp/fitflow-schema-first.sql schema.sql
-          sha256sum schema.sql
+          mkdir -p "$RUNNER_TEMP/fitflow-schema"
+          # A PG15 client matches disposable PG15 server (no runner-version drift).
+          # Restrict guard keys MUST remain randomized in raw review artifacts.
+          docker run --rm --network host --read-only --tmpfs /tmp postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984 pg_dump --version
+          docker run --rm --network host --read-only --tmpfs /tmp -e PGPASSWORD="$PGPASSWORD" postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984 pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges > "$RUNNER_TEMP/fitflow-schema/schema.sql"
+          docker run --rm --network host --read-only --tmpfs /tmp -e PGPASSWORD="$PGPASSWORD" postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984 pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges > "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql"
+          # Compare SQL excluding ONLY the randomized psql restrict/unrestrict keys.
+          # Never replace keys with a constant or remove them from the original dump.
+          diff -u <(grep -vE '^\\(un)?restrict ' "$RUNNER_TEMP/fitflow-schema/schema.sql") <(grep -vE '^\\(un)?restrict ' "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql")
+          test -s "$RUNNER_TEMP/fitflow-schema/schema.sql"
+          (cd "$RUNNER_TEMP/fitflow-schema" && sha256sum schema.sql > schema.sha256)
+          printf 'subject_sha=%s\nsubject_tree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')" > "$RUNNER_TEMP/fitflow-schema/subject.txt"
+          test -z "$(git status --porcelain)"
+          echo "FF_SCHEMA_READONLY_NO_COMMIT_PASS"
           echo "FF_SCHEMA_SEMANTIC_COMPARISON_PASS"
-          echo "FF_SCHEMA_SUBJECT_SHA=$(git rev-parse HEAD)"
-          echo "FF_SCHEMA_SUBJECT_TREE=$(git rev-parse 'HEAD^{tree}')"
+          cat "$RUNNER_TEMP/fitflow-schema/subject.txt"
+          cat "$RUNNER_TEMP/fitflow-schema/schema.sha256"
 
       - name: Publish schema.sql for reviewer, never auto-commit
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: fitflow-schema-sql-${{ github.run_id }}
-          path: schema.sql
+          path: |
+            ${{ runner.temp }}/fitflow-schema/schema.sql
+            ${{ runner.temp }}/fitflow-schema/schema.sha256
+            ${{ runner.temp }}/fitflow-schema/subject.txt
           retention-days: 14
           if-no-files-found: error
