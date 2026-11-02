@@ -1,0 +1,83 @@
+name: FitFlow Issue44 isolated PostgreSQL TLS + SQLAlchemy asyncpg
+on:
+  push:
+    branches: [ci/fitflow-issue44-tls-20261102-001]
+    paths: ['.github/workflows/fitflow-issue44-tls.yml']
+permissions:
+  contents: read
+jobs:
+  isolated-tls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: abed954362112e9467ed94b7bd560cc09677b827
+          persist-credentials: false
+      - name: Assert exact source identity
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "abed954362112e9467ed94b7bd560cc09677b827"
+          test "$(git rev-parse 'HEAD^{tree}')" = "5a0f153b9ee0c998e66f006eb7dc2d39581368dc"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11.17'
+      - name: Create disposable self-signed TLS fixture (no real secrets)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ff-tls"
+          chmod 755 "$RUNNER_TEMP/ff-tls"
+          openssl req -x509 -newkey rsa:2048 -days 1 -nodes -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' -keyout "$RUNNER_TEMP/ff-tls/server.key" -out "$RUNNER_TEMP/ff-tls/server.crt" 2>/dev/null
+          sudo chown 70:70 "$RUNNER_TEMP/ff-tls/server.crt" "$RUNNER_TEMP/ff-tls/server.key"
+          chmod 644 "$RUNNER_TEMP/ff-tls/server.crt"
+          chmod 600 "$RUNNER_TEMP/ff-tls/server.key"
+          docker run -d --name ff-pg-tls -e POSTGRES_DB=fitflow_test -e POSTGRES_USER=fitflow_test_user -e POSTGRES_PASSWORD=fitflow-test-password -p 5432:5432 -v "$RUNNER_TEMP/ff-tls":/tls:ro postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984 -c ssl=on -c ssl_cert_file=/tls/server.crt -c ssl_key_file=/tls/server.key
+          for i in $(seq 1 30); do
+            if docker exec ff-pg-tls pg_isready -U fitflow_test_user -d fitflow_test >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          docker exec ff-pg-tls psql -U fitflow_test_user -d fitflow_test -tAc "SHOW ssl" | grep -qx 'on'
+          echo FF_ISOLATED_POSTGRES_TLS_SERVER_PASS
+      - name: Install precisely locked runtime dependencies
+        run: |
+          python -m pip install --disable-pip-version-check -r backend/requirements_backend.txt
+          python -m pip check
+      - name: Exercise Product DATABASE_URL_ASYNC to local TLS
+        working-directory: backend
+        env:
+          ENV: test
+          TESTING: 'true'
+          DEBUG: 'false'
+          SECRET_KEY: fitflow-test-only-secret-key
+          DATABASE_URL: postgresql://fitflow_test_user:fitflow-test-password@localhost:5432/fitflow_test?ssl=require
+        run: |
+          python - <<'PY'
+          import asyncio, os, ssl
+          from sqlalchemy import text
+          from sqlalchemy.ext.asyncio import create_async_engine
+          from app.core.config import Settings
+          async def validate():
+              cfg=Settings()
+              assert cfg.DATABASE_URL_ASYNC.startswith('postgresql+asyncpg://')
+              engine=create_async_engine(cfg.DATABASE_URL_ASYNC, pool_pre_ping=True)
+              try:
+                  async with engine.connect() as connection:
+                      assert (await connection.execute(text('SELECT 1'))).scalar_one() == 1
+                  print('FF_PRODUCT_SQLALCHEMY_TLS_REQUIRE_PASS')
+              finally:
+                  await engine.dispose()
+              cert=os.path.join(os.environ['RUNNER_TEMP'],'ff-tls','server.crt')
+              context=ssl.create_default_context(cafile=cert)
+              context.check_hostname=True
+              engine=create_async_engine(cfg.DATABASE_URL_ASYNC.replace('?ssl=require',''),connect_args={'ssl':context},pool_pre_ping=True)
+              try:
+                  async with engine.connect() as connection:
+                      assert (await connection.execute(text('SELECT 1'))).scalar_one() == 1
+                  print('FF_SQLALCHEMY_VERIFIED_TLS_CONTEXT_PASS')
+              finally:
+                  await engine.dispose()
+          asyncio.run(validate())
+          PY
+      - name: Remove disposable TLS server
+        if: always()
+        run: docker rm -f ff-pg-tls || true
