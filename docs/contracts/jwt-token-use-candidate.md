@@ -52,3 +52,55 @@ Full backend Python 3.11/3.12/3.13, Ruff, Pyright, frontend,
 bcrypt and schema checks must be against the new SHA/tree; independent
 IR004 is required for an acceptance proposal. No automatic merge/close,
 Issue37 staging/E2E remains NOT_RUN.
+
+
+## IR004 follow-up — role, unique refresh, Redis TTL, inactive state, rotation
+
+Read-only IR004 source: https://github.com/mauedgar/FitFlow/pull/55#issuecomment-6586129538.
+This successor addresses F05/F06 and A03/A04/A05 under the developer's
+authorization to continue the next competent dependency. It remains a
+review-required candidate and has no Product acceptance or merge authority.
+
+- **F05:** Refresh now verifies the current account by UUID in the ORM,
+  rejects missing/soft-deleted/disabled principals, and returns a typed
+  access JWT with current persisted `role` alongside `sub`. The frontend
+  `AuthProvider` reads role from the access JWT to enable navigation;
+  authorization on the server remains controlled by the ORM role and
+  does not rely on the caller-supplied role claim.
+- **F06:** A cryptographically random UUID4 `jti` is signed into **every
+  newly issued refresh JWT**, even when multiple logins occur in the same
+  NumericDate second. Two sessions no longer share an exact Redis key
+  or blacklist fate; legacy refresh JWTs without `jti` are supported
+  only while they are still signed, live and registered in Redis.
+- **A03:** Refresh store and blacklist write Redis `SET EX` using the
+  remaining signed `exp` lifetime, not indefinite retention. This
+  applies to typed and legacy refresh tokens. Existing historical Redis
+  entries without TTL are untouched (no destructive production cleanup)
+  and are still checked against the signed JWT expiry. Token strings
+  remain key material for backward compatibility; new Redis key
+  naming/hash migration is explicitly **not** assumed in this candidate.
+- **A04:** `REFRESH_TOKEN_ROTATION=False` is now the real default.
+  Starting a runtime with `REFRESH_TOKEN_ROTATION=True` is explicitly
+  rejected during configuration validation. The current
+  `POST /auth/refresh` contract returns **only** `access_token`
+  and `token_type`; the frontend does not store/replace a rotated
+  refresh credential. Atomic rotation, replay policy and client
+  migration require a separately versioned Product contract rather
+  than silently breaking existing consumers. Repeated renewal of a
+  registered live refresh remains supported until logout/expiry.
+- **A05:** Inactive users cannot log in even with correct credentials,
+  nor redeem an otherwise registered refresh token; disabled and
+  soft-deleted users fail refresh 401, without identifiers in the
+  response. Existing tokens are not erased from Redis en masse:
+  protected accesses already reject inactive accounts, and token
+  expiry/revocation remain bounded to signed TTL.
+
+Real HTTP/PG15/Redis7 tests on synthetic user/token keys prove
+refresh-to-client role, deterministic same-second login→logout→login
+and independent renewal, Redis TTL after registration/revocation,
+inactive login and refresh, soft-deleted refresh and startup rejection
+of unsupported rotation. No schema, dependency, frontend, staging
+or external-credential edits were made. Full CI must qualify the
+exact successor SHA/tree and a **new independent IR005** must return
+zero findings and advisories before recommending candidate acceptance.
+Issue37 deployed E2E remains NOT_RUN.

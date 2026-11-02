@@ -226,6 +226,7 @@ async def test_refresh_registered_token_returns_access_token_with_same_user_id_s
     payload = security.decode_token(body["access_token"])
     assert payload is not None
     assert payload["sub"] == str(user_id)
+    assert payload["role"] == UserRole.client.value
 
 
 async def test_refresh_with_malformed_token_returns_401(

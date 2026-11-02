@@ -64,7 +64,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
-    REFRESH_TOKEN_ROTATION: bool = True
+    # /auth/refresh returns access only; no token replacement is implemented.
+    REFRESH_TOKEN_ROTATION: bool = False
 
     # -----------------------------------------------------------------------
     # API
@@ -92,7 +93,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_staging_contract(self) -> Self:
-        """Reject development defaults that are unsafe in staging."""
+        """Fail closed for unsupported rotation and unsafe staging settings."""
+        if self.REFRESH_TOKEN_ROTATION:
+            raise ValueError(
+                "REFRESH_TOKEN_ROTATION=true is unsupported: "
+                "refresh returns only an access token"
+            )
         if self.ENV != "staging":
             return self
 

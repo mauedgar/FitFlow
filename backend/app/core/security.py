@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from math import ceil
+from uuid import uuid4
 
 import bcrypt
 from app.core.config import settings
@@ -115,7 +117,13 @@ def create_refresh_token(data: dict) -> str:
     expire = datetime.now(tz=UTC) + timedelta(
         minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
     )
-    to_encode = {**data, "exp": expire, "token_use": TOKEN_USE_REFRESH}
+    # Prevent identical refresh JWTs for multiple logins within one second.
+    to_encode = {
+        **data,
+        "exp": expire,
+        "token_use": TOKEN_USE_REFRESH,
+        "jti": uuid4().hex,
+    }
     to_encode.pop("role", None)  # Refresh tokens never assert authorization roles.
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -137,3 +145,14 @@ def decode_token(token: str) -> dict | None:
         return None
     except JWTError:
         return None
+
+
+def token_remaining_ttl(token: str) -> int:
+    """Signed unexpired JWT lifetime in positive whole seconds for Redis EX."""
+    payload = decode_token(token)
+    if payload is None or type(payload.get("exp")) is not int:
+        raise ValueError("El token no tiene una expiración válida")
+    remaining = payload["exp"] - datetime.now(tz=UTC).timestamp()
+    if remaining <= 0:
+        raise ValueError("El token ya expiró")
+    return max(1, ceil(remaining))
