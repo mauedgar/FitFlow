@@ -1,0 +1,186 @@
+name: Issue43 independent bcrypt candidate validation
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - backend/app/core/security.py
+      - backend/requirements_backend.txt
+      - backend/requirements_test.txt
+      - backend/tests/unit/test_security_bcrypt_legacy_compat.py
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/issue43-bcrypt-verify.yml
+      - docs/quality/issue-43-bcrypt-candidate-docimpact-20261102.md
+
+permissions:
+  contents: read
+
+env:
+  ENV: test
+  TESTING: "true"
+  DEBUG: "false"
+  SECRET_KEY: fitflow-issue43-ci-only-secret
+  DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test
+  REDIS_URL: redis://127.0.0.1:6379/0
+  MEDIA_DIR: /tmp/fitflow-media
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTEST_ADDOPTS: "-p no:cacheprovider --basetemp=/tmp/pytest"
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
+        env:
+          POSTGRES_DB: fitflow_test
+          POSTGRES_USER: fitflow_test_user
+          POSTGRES_PASSWORD: fitflow_test_password
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fitflow_test_user -d fitflow_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Record immutable subject
+        shell: bash
+        env:
+          SUBJECT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT"
+          echo "ISSUE43_EXACT_SHA=$SUBJECT"
+          echo "ISSUE43_EXACT_TREE=$(git rev-parse 'HEAD^{tree}')"
+      - name: Setup Python 3.11
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.11.17"
+      - name: Setup uv 0.13.6
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
+      - name: Lock and dependency invariants
+        run: |
+          set -euo pipefail
+          uv lock --check --no-progress
+          python - <<'PY'
+          import tomllib
+          with open("uv.lock", "rb") as f:
+              data = tomllib.load(f)
+          packages = {p["name"]: p["version"] for p in data["package"]}
+          assert packages["bcrypt"] == "4.3.0", packages.get("bcrypt")
+          assert "passlib" not in packages
+          print("ISSUE43_LOCK_INVARIANTS_PASS")
+          PY
+      - name: Install test requirements
+        run: |
+          uv pip install --system --no-cache-dir -r backend/requirements_test.txt
+          python -m pip check
+      - name: Bootstrap disposable PG15
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Full backend suite
+        working-directory: backend
+        run: pytest -q
+      - name: Prove candidate import does not emit crypt deprecation
+        env:
+          PYTHONPATH: backend
+        run: |
+          python - <<'PY'
+          import warnings
+          with warnings.catch_warnings(record=True) as caught:
+              warnings.simplefilter("always", DeprecationWarning)
+              from app.core import security
+              assert security.get_password_hash("synthetic")
+          crypt = [w for w in caught if issubclass(w.category, DeprecationWarning) and "crypt" in str(w.message)]
+          assert not crypt, [str(w.message) for w in crypt]
+          print("ISSUE43_NO_PASSLIB_CRYPT_WARNING_PASS")
+          PY
+
+  compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: Checkout exact candidate SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Exact subject guard
+        env:
+          SUBJECT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SUBJECT"
+          echo "ISSUE43_COMPAT_SHA=$SUBJECT"
+          echo "ISSUE43_COMPAT_TREE=$(git rev-parse 'HEAD^{tree}')"
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Setup uv 0.13.6
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
+      - name: Install isolated security dependencies only
+        run: |
+          uv pip install --system --no-cache-dir bcrypt==4.3.0 python-jose==3.5.0 pydantic-settings==2.10.1 pytest==8.4.1
+      - name: Verify synthetic bcrypt vectors
+        env:
+          PYTHONPATH: backend
+        run: pytest -q backend/tests/unit/test_security_bcrypt_legacy_compat.py
+      - name: Prove legacy Passlib 1.7.4 hashes verify with new code
+        if: matrix.python == '3.11'
+        env:
+          PYTHONPATH: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv /tmp/issue43-legacy --python 3.11
+          uv pip install --python /tmp/issue43-legacy/bin/python --no-cache-dir passlib==1.7.4 bcrypt==3.2.2
+          /tmp/issue43-legacy/bin/python - <<'PY'
+          import json
+          from passlib.hash import bcrypt as old
+          vectors = []
+          for prefix in ("2a", "2b", "2y"):
+              for password in ("", "simple", "Prueba-Ñú!42", "a" * 72, "a" * 73):
+                  digest = old.using(ident=prefix, rounds=4, salt="abcdefghijklmnopqrstuu").hash(password)
+                  assert old.verify(password, digest)
+                  vectors.append((prefix, password, digest))
+          with open("/tmp/issue43-passlib-vectors.json", "w", encoding="utf-8") as f:
+              json.dump(vectors, f, ensure_ascii=False)
+          print("ISSUE43_LEGACY_VECTOR_GENERATION_PASS", len(vectors))
+          PY
+          python - <<'PY'
+          import json
+          from app.core.security import verify_password
+          with open("/tmp/issue43-passlib-vectors.json", encoding="utf-8") as f:
+              vectors = json.load(f)
+          for prefix, password, digest in vectors:
+              assert verify_password(password, digest), prefix
+              assert not verify_password("x" + password, digest), prefix
+          print("ISSUE43_CROSS_ENV_LEGACY_COMPAT_PASS", len(vectors))
+          PY
