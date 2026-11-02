@@ -17,6 +17,7 @@ from uuid import UUID
 from app.core import security
 from app.core.blacklist import blacklist_token, is_token_blacklisted
 from app.core.deps import get_current_user
+from app.core.login_throttle import check_login_throttle
 from app.core.token_store import (
     delete_refresh_token,
     is_refresh_token_valid,
@@ -30,10 +31,12 @@ from app.schemas.user import UserPublic
 from app.services.errors import ExternalServiceError
 from app.services.user_service import get_by_email as user_get_by_email
 from app.services.user_service import to_user_public
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Synthetic constant-work bcrypt digest for missing identities.
+_DUMMY_AUTH_HASH = security.get_password_hash("FitFlow synthetic dummy auth hash")
 logger = logging.getLogger("fitflow.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -42,8 +45,15 @@ async def login_for_tokens(
     *,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    request: Request,
 ) -> TokenPair:
     """Autentica al usuario y devuelve Access + Refresh Tokens."""
+    # Only enabled in non-test runtimes; tests exercise the limiter separately
+    # against disposable Redis and never a production account.
+    check_login_throttle(
+        username=form_data.username,
+        remote=request.client.host if request.client else "unknown",
+    )
     try:
         user = await user_get_by_email(db=db, email=form_data.username)
     except ExternalServiceError as exc:
@@ -52,7 +62,9 @@ async def login_for_tokens(
         logger.exception("DB error on get_by_email during login")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
-    if not user or not user.active or not security.verify_password(form_data.password, user.hashed_password):  # pyright: ignore[reportArgumentType]
+    candidate_hash = user.hashed_password if user else _DUMMY_AUTH_HASH
+    password_valid = security.verify_password(form_data.password, candidate_hash)
+    if not user or not user.active or not password_valid:  # pyright: ignore[reportArgumentType]
         logger.warning("Failed login attempt for email=%s", form_data.username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

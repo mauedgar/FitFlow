@@ -11,11 +11,11 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 from app.core import security
-from app.core.blacklist import BLACKLIST_PREFIX
+from app.core.blacklist import BLACKLIST_PREFIX, blacklist_key
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.core.redis_client import get_redis_client
-from app.core.token_store import REFRESH_PREFIX, store_refresh_token
+from app.core.token_store import REFRESH_PREFIX, refresh_token_key, store_refresh_token
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
 from jose import jwt
@@ -65,7 +65,10 @@ def redis_cleanup() -> Iterator[list[str]]:
     yield tokens
     client = get_redis_client()
     for token in tokens:
-        client.delete(f"{REFRESH_PREFIX}{token}", f"{BLACKLIST_PREFIX}{token}")
+        client.delete(
+            f"{REFRESH_PREFIX}{token}", f"{BLACKLIST_PREFIX}{token}",
+            refresh_token_key(token), blacklist_key(token),
+        )
     client.close()
 
 

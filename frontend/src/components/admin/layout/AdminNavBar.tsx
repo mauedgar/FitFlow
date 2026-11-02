@@ -4,6 +4,7 @@ import { NavLink as RouterNavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/useAuth';
 import { FiHome, FiUsers, FiLogOut, FiBriefcase, FiMenu } from 'react-icons/fi';
 import { LuChevronDown } from 'react-icons/lu';
+import { toaster } from '../../ui/toaster-store';
 
 const adminLinks = [
   { label: 'Dashboard', to: '/admin', icon: FiHome, end: true },
@@ -17,8 +18,13 @@ const AdminNavBar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTrigger = useRef<HTMLButtonElement>(null);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    const revoked = await logout();
+    if (!revoked) toaster.create({
+      title: "Sesión local cerrada",
+      description: "No se pudo confirmar la revocación en el servidor.",
+      type: "warning",
+    });
     navigate('/login');
   };
 

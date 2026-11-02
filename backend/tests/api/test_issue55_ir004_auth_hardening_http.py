@@ -239,3 +239,111 @@ async def test_rotation_is_explicitly_disabled_and_cannot_be_silently_enabled() 
             SECRET_KEY="synthetic-only-key",
             REFRESH_TOKEN_ROTATION=True,
         )
+
+
+async def test_role_change_before_refresh_uses_updated_orm_role(
+    api_client: httpx.AsyncClient, principal: tuple[UUID, str],
+    cleanup_redis: list[str],
+) -> None:
+    uid, email = principal
+    issued = await login(api_client, email)
+    assert issued.status_code == 200, issued.text
+    refresh = issued.json()["refresh_token"]
+    cleanup_redis.append(refresh)
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(User).where(User.id == uid).values(role=UserRole.teacher)
+        )
+        await db.commit()
+    renewed = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": refresh},
+    )
+    assert renewed.status_code == 200, renewed.text
+    payload = security.decode_token(renewed.json()["access_token"])
+    assert payload is not None and payload["role"] == UserRole.teacher.value
+
+
+async def test_legacy_redis_key_can_renew_and_logout_through_hmac_migration(
+    api_client: httpx.AsyncClient, principal: tuple[UUID, str],
+    cleanup_redis: list[str],
+) -> None:
+    from datetime import timedelta
+    from jose import jwt
+    from app.core.token_store import refresh_token_key
+
+    uid, _email = principal
+    legacy_token = jwt.encode(
+        {"sub": str(uid), "exp": int(
+            (datetime.now(UTC) + timedelta(hours=1)).timestamp()
+        )},
+        settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+    )
+    cleanup_redis.append(legacy_token)
+    redis_client = get_redis_client()
+    try:
+        redis_client.set(
+            f"{REFRESH_PREFIX}{legacy_token}", str(uid), ex=3600
+        )
+        assert redis_client.exists(refresh_token_key(legacy_token)) == 0
+    finally:
+        redis_client.close()
+    renewed = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": legacy_token},
+    )
+    assert renewed.status_code == 200, renewed.text
+    access = renewed.json()["access_token"]
+    logout = await api_client.post(
+        f"{settings.API_V1_STR}/auth/logout",
+        json={"refresh_token": legacy_token},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert logout.status_code == 204, logout.text
+    no_renewal = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": legacy_token},
+    )
+    assert no_renewal.status_code == 401, no_renewal.text
+
+
+async def test_expired_refresh_logout_is_bounded_400(
+    api_client: httpx.AsyncClient, principal: tuple[UUID, str],
+) -> None:
+    from datetime import timedelta
+    from jose import jwt
+
+    uid, _email = principal
+    access = security.create_access_token({"sub": str(uid), "role": "client"})
+    expired = jwt.encode(
+        {"sub": str(uid), "token_use": "refresh",
+         "exp": int((datetime.now(UTC) - timedelta(minutes=2)).timestamp())},
+        settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+    )
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/logout",
+        json={"refresh_token": expired},
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert response.status_code == 400, response.text
+    assert response.json() == {"detail": "Refresh token inválido."}
+
+
+async def test_new_hmac_redis_keys_never_embed_raw_credentials(
+    principal: tuple[UUID, str], cleanup_redis: list[str],
+) -> None:
+    from app.core.blacklist import blacklist_key
+    from app.core.token_store import refresh_token_key, store_refresh_token
+
+    uid, _email = principal
+    token = security.create_refresh_token({"sub": str(uid)})
+    cleanup_redis.append(token)
+    store_refresh_token(str(uid), token)
+    client = get_redis_client()
+    try:
+        assert token not in refresh_token_key(token)
+        assert token not in blacklist_key(token)
+        assert client.exists(refresh_token_key(token)) == 1
+        assert client.exists(f"{REFRESH_PREFIX}{token}") == 0
+    finally:
+        client.close()
