@@ -19,6 +19,7 @@ from app.db.models import ClassSchedule, GymClass, User
 from app.services.errors import BusinessValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import raiseload
+from sqlalchemy.orm.interfaces import ORMOption
 
 
 @pytest.mark.parametrize(
@@ -45,10 +46,9 @@ async def test_specialized_get_merges_requested_loader_options(monkeypatch):
 
     async def fake_base_get(self, db, *, obj_id, options=None):
         observed["options"] = options
-        return None
 
     monkeypatch.setattr(CRUDBase, "get", fake_base_get)
-    extra_options = [raiseload("*")]
+    extra_options: list[ORMOption] = [raiseload("*")]
     async with AsyncSession() as db:
         result = await CRUDGymClass(GymClass).get(
             db, obj_id=uuid4(), include_schedules=True, options=extra_options
