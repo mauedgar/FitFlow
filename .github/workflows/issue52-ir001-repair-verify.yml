@@ -61,11 +61,11 @@ jobs:
       - name: Exact candidate checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: \${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Immutable subject guard
         env:
-          SUBJECT: \${{ github.event.pull_request.head.sha }}
+          SUBJECT: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SUBJECT"
@@ -74,7 +74,7 @@ jobs:
       - name: Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: \${{ matrix.python }}
+          python-version: ${{ matrix.python }}
       - name: uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
         with:
@@ -114,11 +114,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: \${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Exact candidate guard
         env:
-          SUBJECT: \${{ github.event.pull_request.head.sha }}
+          SUBJECT: ${{ github.event.pull_request.head.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$SUBJECT"
           echo "ISSUE52_QUALITY_TREE=$(git rev-parse 'HEAD^{tree}')"
@@ -143,11 +143,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: \${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Exact candidate guard
         env:
-          SUBJECT: \${{ github.event.pull_request.head.sha }}
+          SUBJECT: ${{ github.event.pull_request.head.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "$SUBJECT"
           echo "ISSUE52_FRONTEND_TREE=$(git rev-parse 'HEAD^{tree}')"
