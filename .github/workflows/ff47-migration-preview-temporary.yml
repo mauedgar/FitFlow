@@ -116,7 +116,7 @@ jobs:
         id: pytest
         continue-on-error: true
         working-directory: backend
-        run: pytest -q
+        run: python -m pytest -q
       - name: Propagate exact gate
         if: always()
         env:
