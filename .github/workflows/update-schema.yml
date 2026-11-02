@@ -1,26 +1,30 @@
-name: Update schema.sql after migrations
+name: Validate migration schema (read-only)
 
+# Schema changes are evidence for review; CI must never commit or push.
 on:
-  # Se activa cuando se suben nuevos archivos de migración
-  push:
+  pull_request:
     paths:
       - "backend/alembic/versions/**"
-  workflow_dispatch: # Permite lanzarlo manualmente desde la UI
+      - ".github/workflows/update-schema.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   dump-schema:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     env:
-      # Ephemeral CI-only PostgreSQL credential; not used outside this job.
+      # Disposable CI-only credential; never points to staging or production.
       CI_EPHEMERAL_POSTGRES_PASSWORD: fitflow-ci-postgres
-
     services:
       postgres:
         image: postgres:15-alpine
         env:
           POSTGRES_DB: fitflow_db
           POSTGRES_USER: fitflow_admin
-          POSTGRES_PASSWORD: ${{ env.CI_EPHEMERAL_POSTGRES_PASSWORD }}
+          POSTGRES_PASSWORD: fitflow-ci-postgres
         ports:
           - 5432:5432
         options: >-
@@ -30,40 +34,66 @@ jobs:
           --health-retries=5
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout exact event subject, without write credentials
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (Node 24)
         with:
-          fetch-depth: 0 # Necesario para auto-commit en misma rama
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Record immutable subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "subject_sha=$(git rev-parse HEAD)"
+          echo "subject_tree=$(git rev-parse HEAD^{tree})"
+          git diff --check
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0 (Node 24)
         with:
           python-version: "3.11"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3 (immutable; no v10 alias)
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
-      - name: Install backend dependencies
+      - name: Install pinned backend dependencies
         run: |
           uv pip install --system -r backend/requirements_backend.txt
 
-      - name: Run Alembic migrations
+      - name: Upgrade disposable PostgreSQL 15 schema
         env:
-          DATABASE_URL: postgresql+psycopg2://fitflow_admin:${{ env.CI_EPHEMERAL_POSTGRES_PASSWORD }}@localhost:5432/fitflow_db
+          DATABASE_URL: postgresql+psycopg2://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_db
+          SECRET_KEY: fitflow-ci-only-synthetic-never-used-for-real-tokens
         run: |
+          set -euo pipefail
           cd backend
+          alembic heads
           alembic upgrade head
-          cd ..
+          alembic current
 
-      - name: Dump schema.sql
+      - name: Generate and compare read-only schema snapshots
         env:
-          PGPASSWORD: ${{ env.CI_EPHEMERAL_POSTGRES_PASSWORD }}
+          PGPASSWORD: fitflow-ci-postgres
+        shell: bash
         run: |
-          pg_dump -h localhost -U fitflow_admin -d fitflow_db \
-            --schema-only --no-owner > schema.sql
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fitflow-schema"
+          docker run --rm --network host --read-only --tmpfs /tmp postgres:15-alpine pg_dump --version
+          docker run --rm --network host --read-only --tmpfs /tmp -e PGPASSWORD="$CI_EPHEMERAL_POSTGRES_PASSWORD" postgres:15-alpine pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges --restrict-key=FitFlowCIOnly20261102 > "$RUNNER_TEMP/fitflow-schema/schema.sql"
+          docker run --rm --network host --read-only --tmpfs /tmp -e PGPASSWORD="$CI_EPHEMERAL_POSTGRES_PASSWORD" postgres:15-alpine pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges --restrict-key=FitFlowCIOnly20261102 > "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql"
+          cmp "$RUNNER_TEMP/fitflow-schema/schema.sql" "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql"
+          sha256sum "$RUNNER_TEMP/fitflow-schema/schema.sql" > "$RUNNER_TEMP/fitflow-schema/schema.sha256"
+          printf 'subject_sha=%s\nsubject_tree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})" > "$RUNNER_TEMP/fitflow-schema/subject.txt"
+          test -z "$(git status --porcelain)"
+          echo "SCHEMA_READ_ONLY_NO_COMMIT_PASS"
 
-      - name: Commit updated schema.sql
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Upload schema review evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
-          commit_message: "chore(schema): auto-update schema.sql after migrations"
-          file_pattern: schema.sql
+          name: fitflow-schema-review-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/fitflow-schema/schema.sql
+            ${{ runner.temp }}/fitflow-schema/schema.sha256
+            ${{ runner.temp }}/fitflow-schema/subject.txt
+          if-no-files-found: error
+          retention-days: 14
