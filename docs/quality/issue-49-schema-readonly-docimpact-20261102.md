@@ -28,3 +28,10 @@ merge: NOT_AUTHORIZED
 - Independent WEB_INLINE review needs to examine CI authority, schema artifacts and repeatability; no acceptance until 0 findings and 0 advisories on the eventual integrated final subject.
 - Issue #43 legacy bcrypt/Passlib compatibility is a separate authentication-sensitive owner. No auth change is included.
 - Keep PR #48 draft, #47/#49 open, SOT/develop untouched. No auto-merge or closure.
+
+## Exact run observation and bounded fixture correction
+
+- [Actions 41470064089](https://github.com/mauedgar/FitFlow/actions/runs/41470064089), job `125360974771`, subject `9b14bafeeacb17a299d57d8b239babc6e29ac786`: FAILED at Alembic fixture initialization because Pydantic Settings requires `SECRET_KEY`; no schema generated or auto-commit. This failure is not a migration graph regression.
+- Added synthetic test-only `SECRET_KEY` scoped only to the disposable migration step; does not use or replace any Product/staging token.
+- Replaced checkout/setup-python/upload-artifact Node 20 actions with SHA-pinned official Node 24 releases to avoid inherited runtime deprecation; refs resolved from official GitHub tag refs before changing them.
+- The new commit requires its own exact run and independent review. No CI PASS or acceptance is inferred.
