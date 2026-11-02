@@ -4,22 +4,26 @@ No database, credentials or external services are required.
 """
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 from app.routers import clients as clients_router
+from app.core.enums import UserRole
+from app.db.models import Client, User
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.client_service import to_client_public
 
 
 def make_client(*, first_name="Ana", last_name="Gómez"):
-    return SimpleNamespace(
+    user_id = uuid4()
+    return Client(
         id=uuid4(),
+        user_id=user_id,
         first_name=first_name,
         last_name=last_name,
         profile_image_url="https://example.test/avatar.png",
         created_at=datetime(2026, 10, 30, 12, 30, tzinfo=UTC),
-        user=SimpleNamespace(email="ana@example.test"),
+        user=User(id=user_id, email="ana@example.test", hashed_password="synthetic", role=UserRole.client),
     )
 
 
@@ -38,7 +42,7 @@ def test_to_client_public_uses_actual_orm_fields():
 def test_to_client_public_keeps_optional_values_nullable():
     raw = make_client()
     raw.profile_image_url = None
-    raw.created_at = None
+    setattr(raw, "created_at", None)  # Defensive projection of nullable legacy state
 
     public = to_client_public(raw)
 
@@ -56,11 +60,11 @@ async def test_admin_read_passes_eager_user_option(monkeypatch):
         return [raw]
 
     monkeypatch.setattr(clients_router.client, "get_multi_visible", fake_get_multi_visible)
-    db = object()
-    result = await clients_router.read_clients(
-        db=db, skip=0, limit=100, current_user=object()
-    )
-
-    assert observed["db"] is db
+    current_user = User(email="admin@example.test", hashed_password="synthetic", role=UserRole.admin)
+    async with AsyncSession() as db:
+        result = await clients_router.read_clients(
+            db=db, skip=0, limit=100, current_user=current_user
+        )
+        assert observed["db"] is db
     assert (observed["skip"], observed["limit"]) == (0, 100)
     assert result[0].full_name == "Ana Gómez"

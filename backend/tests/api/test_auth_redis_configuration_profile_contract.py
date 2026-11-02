@@ -16,12 +16,18 @@ from app.main import app
 from app.routers import auth as auth_router
 from fastapi import status
 from redis.exceptions import RedisError
+from pydantic_settings import SettingsConfigDict
 
 pytestmark = [
     pytest.mark.api,
     pytest.mark.integration,
     pytest.mark.asyncio,
 ]
+
+class NoEnvSettings(Settings):
+    """Exercise Settings validation without reading a developer .env."""
+    model_config = SettingsConfigDict(env_file=None)
+
 
 SUPPORTED_PROFILES = ("development", "test")
 
@@ -56,8 +62,7 @@ async def authenticated_owner() -> AsyncIterator[uuid.UUID]:
 async def test_supported_profile_settings_allow_redis_to_be_unconfigured(
     profile: str,
 ) -> None:
-    configured = Settings(
-        _env_file=None,
+    configured = NoEnvSettings(
         ENV=profile,
         DEBUG=profile == "development",
         TESTING=profile == "test",

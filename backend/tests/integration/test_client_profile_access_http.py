@@ -17,6 +17,7 @@ from app.routers.clients import router
 from app.schemas.user import UserPublic
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
@@ -139,14 +140,11 @@ async def test_user_profile_lookup_filters_soft_deleted(monkeypatch):
 
     observed = {}
 
-    class FakeSession:
-        async def execute(self, statement):
-            observed["sql"] = str(statement.compile())
-            return SimpleNamespace(
-                scalars=lambda: SimpleNamespace(first=lambda: None)
-            )
+    async def fake_execute(self, statement):
+        observed["sql"] = str(statement.compile())
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(first=lambda: None))
 
-    assert await client.get_by_user_id(
-        db=FakeSession(), user_id=uuid4()
-    ) is None
+    monkeypatch.setattr(AsyncSession, "execute", fake_execute)
+    async with AsyncSession() as db:
+        assert await client.get_by_user_id(db=db, user_id=uuid4()) is None
     assert "deleted_at IS NULL" in observed["sql"]
