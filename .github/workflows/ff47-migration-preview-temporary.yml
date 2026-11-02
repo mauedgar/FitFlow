@@ -25,7 +25,7 @@ jobs:
           python -m pip install --disable-pip-version-check ruff==0.17.3
           python - <<'PY'
           import ast, json, pathlib, subprocess, sys
-          root=pathlib.Path("backend/alembic")
+          root=pathlib.Path("backend")
           paths=sorted(root.rglob("*.py"))
           old={str(p):p.read_text(encoding="utf-8") for p in paths}
           def parse(s): return ast.parse(s)
@@ -43,16 +43,17 @@ jobs:
               if len(funcs)!=1: raise AssertionError(f"missing/ambiguous {name}")
               stmts=[n for n in funcs[0].body if not isinstance(n,ast.Pass)]
               return [ast.dump(n,include_attributes=False) for n in stmts]
-          result=subprocess.run([sys.executable,"-m","ruff","check","backend/alembic","--fix","--output-format","concise"],capture_output=True,text=True)
+          result=subprocess.run([sys.executable,"-m","ruff","check","backend","--fix","--output-format","concise"],capture_output=True,text=True)
           new={str(p):p.read_text(encoding="utf-8") for p in paths}
           changed=[p for p in old if old[p]!=new[p]]
           for path in changed:
-              a,b=parse(old[path]),parse(new[path])
+              if not path.startswith("backend/alembic/"): continue
+            a,b=parse(old[path]),parse(new[path])
               assert markers(a)==markers(b),(path,"migration graph changed")
               for name in ("upgrade","downgrade"):
                   if path.endswith("/env.py"): continue
                   assert body(a,name)==body(b,name),(path,name,"operation AST changed")
-              assert path.startswith("backend/alembic/"),path
+              assert path.startswith("backend/"),path
           diff=subprocess.run(["git","diff","--check"],capture_output=True,text=True)
           assert diff.returncode==0,diff.stdout+diff.stderr
           diffnames=subprocess.check_output(["git","diff","--name-only"],text=True).splitlines()
