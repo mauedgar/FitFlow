@@ -40,8 +40,9 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         self,
         db: AsyncSession,
         *,
-        obj_id: UUID,
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> ClassSession | None:
         """Obtiene una sesión concreta por su ID, con opción de incluir relaciones."""
         opts: list[ORMOption] | None = (
@@ -52,6 +53,8 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
             if include_relations
             else None
         )
+        if options:
+            opts = (opts or []) + options
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #

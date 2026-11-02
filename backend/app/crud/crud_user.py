@@ -36,8 +36,9 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         self,
         db: AsyncSession,
         *,
-        obj_id: UUID,
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> User | None:
         """Obtiene un usuario por ID, con opción de incluir su perfil Person."""
         opts: list[ORMOption] | None = (
@@ -45,6 +46,8 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             if include_relations
             else None
         )
+        if options:
+            opts = (opts or []) + options
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
@@ -100,13 +103,16 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         db: AsyncSession,
         *,
         db_obj: User,
-        obj_in: UserUpdate,
+        obj_in: UserUpdate | dict[str, object],
     ) -> User:
         """Actualiza parcialmente un usuario. Si cambia la contraseña, se hashea."""
-        update_data = obj_in.model_dump(exclude_unset=True)
+        update_data = obj_in.copy() if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
 
         if "password" in update_data:
-            update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
+            password = update_data.pop("password")
+            if not isinstance(password, str):
+                raise TypeError("Password must be a string.")
+            update_data["hashed_password"] = get_password_hash(password)
 
         return await super().update(db, db_obj=db_obj, obj_in=update_data)
 

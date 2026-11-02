@@ -36,8 +36,9 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         self,
         db: "AsyncSession",
         *,
-        obj_id: "UUID",
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> ClassSchedule | None:
         """Obtiene un horario recurrente por su ID.
 
@@ -52,6 +53,8 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
             if include_relations
             else None
         )
+        if options:
+            opts = (opts or []) + options
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
@@ -205,14 +208,14 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         db: "AsyncSession",
         *,
         db_obj: ClassSchedule,
-        obj_in: ClassScheduleUpdate,
+        obj_in: ClassScheduleUpdate | dict[str, object],
         updated_by: UUID | None = None,
     ) -> ClassSchedule:
         """Actualiza un ClassSchedule.
 
         No genera ni borra ClassSession automáticamente; el service decide la generación/actualización de sesiones.
         """
-        update_data = obj_in.model_dump(exclude_unset=True)
+        update_data = obj_in.copy() if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
         update_data["updated_by_id"] = updated_by
         if "capacity" in update_data and int(update_data["capacity"]) < 0:
             msg = "Capacity debe ser >= 0."
@@ -223,17 +226,27 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         self,
         db: "AsyncSession",
         *,
-        obj_id: "UUID",
+        db_obj: ClassSchedule | None = None,
+        hard: bool = False,
+        obj_id: "UUID | None" = None,
     ) -> None:
-        """Elimina (o marca como borrado) un ClassSchedule.
+        """Remove a schedule by ID or by the CRUDBase object contract.
 
-        Validar integridad con ClassSession/Bookings en el service si es necesario.
+        The ID path preserves the existing not-found behavior; the object path
+        supports callers typed against CRUDBase without changing soft-delete.
         """
-        obj = await self.get(db, obj_id=obj_id)
-        if not obj:
-            msg = "ClassSchedule no encontrado."
-            raise svc_errors.NotFoundError(msg)
-        await super().remove(db, db_obj=obj)
+        if db_obj is not None and obj_id is not None:
+            raise ValueError("Pass db_obj or obj_id, not both.")
+        if db_obj is None:
+            if obj_id is None:
+                raise TypeError("db_obj or obj_id is required.")
+            obj = await self.get(db, obj_id=obj_id)
+            if obj is None:
+                msg = "ClassSchedule no encontrado."
+                raise svc_errors.NotFoundError(msg)
+        else:
+            obj = db_obj
+        await super().remove(db, db_obj=obj, hard=hard)
 
     # ------------------------------------------------------------------ #
     # Helpers
