@@ -99,28 +99,35 @@ async def register_user(
 
 
 # --------------------------------------------------------------------------- #
-# Listado público de usuarios
+# Directorio de cuentas: solamente administradores autenticados.
+# La ruta histórica se preserva, pero "public" ya no implica acceso anónimo.
 # --------------------------------------------------------------------------- #
 @router.get("/public", response_model=list[UserPublic])
 async def list_public_users(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> list[UserPublic]:
-    """Lista usuarios en versión pública."""
+    """Lista cuentas únicamente para administradores autorizados."""
+    if current_user.role != UserRole.admin:
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
     users = await user_crud.get_multi(db=db)
     return [to_user_public(u) for u in users]
 
 
 # --------------------------------------------------------------------------- #
-# Usuario público por ID
+# Consulta de cuenta: administrador o dueño de la identidad.
 # --------------------------------------------------------------------------- #
 @router.get("/{user_id}/public", response_model=UserPublic)
 async def read_public_user(
     *,
     user_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> UserPublic:
-    """Obtiene un usuario en versión pública."""
+    """Obtiene una cuenta únicamente para su titular o un administrador."""
+    if current_user.role != UserRole.admin and current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
     user = await user_crud.get(db=db, obj_id=user_id)
     if not user:
         raise HTTPException(404, "Usuario no encontrado.")
