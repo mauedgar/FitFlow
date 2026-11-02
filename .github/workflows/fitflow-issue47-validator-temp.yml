@@ -2,7 +2,7 @@ name: FitFlow Issue47 isolated quality and backend regression
 on:
   push:
     branches: [quality/fitflow-backend-ruff-pyright-20261102-001]
-    paths: ['.github/workflows/fitflow-issue47-validator-temp.yml']
+    paths: ['.github/workflows/fitflow-issue47-validator-temp.yml', 'backend/**']
 permissions:
   contents: read
 jobs:
@@ -34,7 +34,7 @@ jobs:
           cat /tmp/ff-pyright.txt
           echo 'FF_ISSUE47_PYRIGHT_END'
           echo "FF_ISSUE47_QUALITY_STATUS ruff=$rc_ruff pyright=$rc_pyright"
-          exit 0
+          test "$rc_ruff" -eq 0 && test "$rc_pyright" -eq 0
   backend-test:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
