@@ -25,7 +25,7 @@ updates:
       default-days: 1
     open-pull-requests-limit: 5
 
-  # Review updates to the immutable GitHub Actions commit pins.
+  # Propose updates for existing GitHub Actions tags and SHA-pinned references.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
