@@ -26,6 +26,7 @@ env:
   MEDIA_DIR: /tmp/fitflow-media
   PYTHONDONTWRITEBYTECODE: "1"
   PYTEST_ADDOPTS: "-p no:cacheprovider --basetemp=/tmp/pytest"
+  PYTHONPATH: ${{ github.workspace }}/backend
 
 jobs:
   backend:
@@ -147,7 +148,7 @@ jobs:
           version: "0.13.6"
       - name: Install isolated security dependencies only
         run: |
-          uv pip install --system --no-cache-dir bcrypt==4.3.0 python-jose==3.5.0 pydantic-settings==2.10.1 pytest==8.4.1
+          uv pip install --system --no-cache-dir bcrypt==4.3.0 python-jose==3.5.0 pydantic-settings==2.10.1 sqlalchemy==2.0.43 pytest==8.4.1 pytest-asyncio==1.1.0
       - name: Verify synthetic bcrypt vectors
         env:
           PYTHONPATH: backend
