@@ -49,7 +49,7 @@ jobs:
       - name: Checkout exact immutable candidate, not runner branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: 4d2897a657c0ae826472b1b3160e2b594957bde1
+          ref: abed954362112e9467ed94b7bd560cc09677b827
           persist-credentials: false
       - name: Verify exact Git identity before any tests
         shell: bash
@@ -59,8 +59,8 @@ jobs:
           observed_tree=$(git rev-parse 'HEAD^{tree}')
           echo "FF_CANDIDATE_SHA=$observed_sha"
           echo "FF_CANDIDATE_TREE=$observed_tree"
-          test "$observed_sha" = "4d2897a657c0ae826472b1b3160e2b594957bde1"
-          test "$observed_tree" = "9cc11a969ab57c8d2f8e98302e7809b52abf4cb9"
+          test "$observed_sha" = "abed954362112e9467ed94b7bd560cc09677b827"
+          test "$observed_tree" = "5a0f153b9ee0c998e66f006eb7dc2d39581368dc"
       - name: Python interpreter for current matrix lane
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
@@ -86,3 +86,26 @@ jobs:
       - name: Run all FitFlow backend tests
         working-directory: backend
         run: python -m pytest -q
+  docker-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: abed954362112e9467ed94b7bd560cc09677b827
+          persist-credentials: false
+      - name: Guard exact product source identity
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = abed954362112e9467ed94b7bd560cc09677b827
+          test "$(git rev-parse 'HEAD^{tree}')" = 5a0f153b9ee0c998e66f006eb7dc2d39581368dc
+      - name: Build current production container
+        run: docker build --tag fitflow-issue44-runtime:test --file Dockerfile .
+      - name: Build current test container
+        run: docker build --tag fitflow-issue44-tests:test --file backend/Dockerfile.test .
+      - name: Smoke importing production runtime, no external DB
+        run: |
+          docker run --rm --network none --workdir /app/backend --entrypoint /app/.venv/bin/python -e ENV=test -e TESTING=true -e SECRET_KEY=fitflow-test-only-secret-key -e DATABASE_URL=postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test fitflow-issue44-runtime:test -c "import app.main; print('FF_RUNTIME_IMAGE_IMPORT_PASS')"
+      - name: Smoke test image imports
+        run: |
+          docker run --rm --network none --workdir /app/backend --entrypoint python fitflow-issue44-tests:test -c "import pytest, asyncpg, fastapi; print('FF_TEST_IMAGE_IMPORT_PASS')"
