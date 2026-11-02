@@ -1,0 +1,85 @@
+name: FitFlow Issue47 isolated quality and backend regression
+on:
+  push:
+    branches: [quality/fitflow-backend-ruff-pyright-20261102-001]
+    paths: ['.github/workflows/fitflow-issue47-validator-temp.yml']
+permissions:
+  contents: read
+jobs:
+  quality-inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11.17'
+      - name: Analyze remaining Ruff and Pyright diagnostics exactly
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir --disable-pip-version-check ruff==0.17.3 pyright==1.1.414
+          set +e
+          python -m ruff check backend --output-format concise > /tmp/ff-ruff.txt 2>&1
+          rc_ruff=$?
+          (cd backend && pyright .) > /tmp/ff-pyright.txt 2>&1
+          rc_pyright=$?
+          echo 'FF_ISSUE47_RUFF_BEGIN'
+          cat /tmp/ff-ruff.txt
+          echo 'FF_ISSUE47_RUFF_END'
+          echo 'FF_ISSUE47_PYRIGHT_BEGIN'
+          cat /tmp/ff-pyright.txt
+          echo 'FF_ISSUE47_PYRIGHT_END'
+          echo "FF_ISSUE47_QUALITY_STATUS ruff=$rc_ruff pyright=$rc_pyright"
+          exit 0
+  backend-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
+        env:
+          POSTGRES_DB: fitflow_test
+          POSTGRES_USER: fitflow_test_user
+          POSTGRES_PASSWORD: fitflow_test_password
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U fitflow_test_user -d fitflow_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+      redis:
+        image: redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      ENV: test
+      TESTING: 'true'
+      DEBUG: 'false'
+      DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test
+      SECRET_KEY: fitflow-test-only-secret-key
+      REDIS_URL: redis://127.0.0.1:6379/0
+      MEDIA_DIR: /tmp/fitflow-media
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTEST_ADDOPTS: -p no:cacheprovider --basetemp=/tmp/pytest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.11.17'
+      - name: Install existing baseline pinned test dependencies
+        run: python -m pip install --disable-pip-version-check -r backend/requirements_test.txt
+      - name: Migrate isolated test database
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Full regression
+        working-directory: backend
+        run: python -m pytest -q
