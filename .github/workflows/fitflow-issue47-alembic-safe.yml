@@ -9,7 +9,7 @@ permissions:
   contents: write
 jobs:
   alembic-safe:
-    if: github.event.head_commit.message == 'ci(issue47): prepare bounded Alembic safe autofix'
+    if: "github.event.head_commit.message == 'ci(issue47): repair workflow YAML parsing'"
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -24,7 +24,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "bbff13146684ebe323ff89de6d70e21fca5dfcd2"
+          test "$(git rev-parse HEAD^)" = "8efecd95e632f37b1aa9033be95404869a9710e8"
           test "$(git rev-parse HEAD^{tree})" = "$(git rev-parse HEAD^{tree})"
           test "$GITHUB_REF_NAME" = "quality/fitflow-backend-ruff-pyright-20261102-001"
           test -z "$(git status --porcelain)"
