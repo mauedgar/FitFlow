@@ -59,6 +59,26 @@ def get_password_hash(password: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
+TOKEN_USE_ACCESS = "access"
+TOKEN_USE_REFRESH = "refresh"
+
+
+def is_access_token_payload(payload: dict) -> bool:
+    """Only explicitly typed access JWTs may authenticate HTTP Bearer."""
+    return payload.get("token_use") == TOKEN_USE_ACCESS
+
+
+def is_refresh_token_payload(payload: dict) -> bool:
+    """Permit typed refresh and legacy untyped, role-less refresh candidates.
+
+    The /auth/refresh endpoint separately requires a live Redis registration,
+    an unexpired signature and a nonblacklisted credential.
+    """
+    return payload.get("token_use") == TOKEN_USE_REFRESH or (
+        "token_use" not in payload and "role" not in payload
+    )
+
+
 # JWT: Access Token
 # --------------------------------------------------------------------------- #
 
@@ -75,7 +95,8 @@ def create_access_token(
     expire = datetime.now(tz=UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode = {**data, "exp": expire}
+    # Override any caller-supplied purpose: it is always signed by the issuer.
+    to_encode = {**data, "exp": expire, "token_use": TOKEN_USE_ACCESS}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -94,7 +115,8 @@ def create_refresh_token(data: dict) -> str:
     expire = datetime.now(tz=UTC) + timedelta(
         minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
     )
-    to_encode = {**data, "exp": expire}
+    to_encode = {**data, "exp": expire, "token_use": TOKEN_USE_REFRESH}
+    to_encode.pop("role", None)  # Refresh tokens never assert authorization roles.
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 

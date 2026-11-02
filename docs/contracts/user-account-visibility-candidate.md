@@ -22,7 +22,7 @@ but it no longer implies anonymous access. No separate public directory is intro
 
 | API v1 | Authentication / authorization | Success / failure |
 | --- | --- | --- |
-| `POST /users/register` | Anonymous; only `client` role persisted | 201 / 422 |
+| `POST /users/register` | Anonymous; only `client` role persisted | 201 / **400** duplicate email (including UNIQUE race) / 422 |
 | `GET /users/public` | Bearer token + real ORM `admin` role | 200 list / 401 / 403 |
 | `GET /users/{user_id}/public` | Bearer token + ORM `admin` or account owner | 200 / 401 / 403 / 404 |
 | `GET /users/me`, `GET /users/me/stats` | Authenticated JWT owner only | unchanged |
@@ -60,3 +60,11 @@ An independent WEB_INLINE IR003 is required on the *new exact commit/tree*.
 Only 0 findings / 0 advisories permits an acceptance recommendation; approval
 and merge remain separate explicit Developer gates. Issue37 deployed staging
 and E2E remain NOT_RUN. PR53 prior IR002 never transfers to this candidate.
+
+## IR003 follow-up
+
+IR003 F04 (JWT refresh-as-Bearer) and A01/A02 are addressed by a distinct
+successor candidate. Access Bearer requires signed `token_use=access`;
+renewal permits typed or still-Redis-registered legacy refresh tokens only.
+Legacy untyped access tokens intentionally require renewal or fresh login.
+See `jwt-token-use-candidate.md`. No change to user privacy routing/pagination.

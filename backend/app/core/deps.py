@@ -15,7 +15,7 @@ from uuid import UUID
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.core.security import decode_token
+from app.core.security import decode_token, is_access_token_payload
 from app.crud.crud_user import user as user_crud
 from app.db.models.user import User
 from app.db.session import get_async_session
@@ -47,7 +47,8 @@ async def get_current_user(
 ) -> User:
     """Valida el JWT, obtiene el usuario y verifica que esté activo."""
     payload = decode_token(token)
-    if payload is None:
+    # An untyped JWT may be a legacy refresh token; reject it as Bearer.
+    if payload is None or not is_access_token_payload(payload):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado",

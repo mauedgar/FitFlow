@@ -5,6 +5,7 @@ Exercise real FastAPI auth, ORM and PostgreSQL 15 (disposable fitflow_test only)
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import httpx
@@ -14,7 +15,7 @@ from app.core.enums import UserRole
 from app.core.security import create_access_token
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from sqlalchemy.engine import make_url
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
@@ -149,4 +150,66 @@ async def test_admin_nonexistent_account_returns_404_without_data(
         headers=bearer(account_ids, "admin"),
     )
     assert response.status_code == 404, response.text
+    assert "privacy-" not in response.text
+
+
+
+async def test_forged_admin_role_claim_does_not_override_orm_client(
+    api_client: httpx.AsyncClient, account_ids: dict[str, UUID],
+) -> None:
+    forged = create_access_token({
+        "sub": str(account_ids["client"]), "role": UserRole.admin.value,
+    })
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/users/public",
+        headers={"Authorization": f"Bearer {forged}"},
+    )
+    assert response.status_code == 403, response.text
+    assert "privacy-" not in response.text
+
+
+async def test_non_owner_unknown_uuid_returns_403_before_lookup(
+    api_client: httpx.AsyncClient, account_ids: dict[str, UUID],
+) -> None:
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/users/{uuid4()}/public",
+        headers=bearer(account_ids, "client"),
+    )
+    assert response.status_code == 403, response.text
+    assert "privacy-" not in response.text
+
+
+async def test_admin_cannot_read_soft_deleted_account(
+    api_client: httpx.AsyncClient, account_ids: dict[str, UUID],
+) -> None:
+    identity = account_ids["teacher"]
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(User).where(User.id == identity).values(
+                deleted_at=datetime.now(UTC),
+            )
+        )
+        await db.commit()
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/users/{identity}/public",
+        headers=bearer(account_ids, "admin"),
+    )
+    assert response.status_code == 404, response.text
+    assert "privacy-" not in response.text
+
+
+@pytest.mark.parametrize("kind", ["directory", "detail"])
+async def test_query_fields_cannot_spoof_authenticated_principal(
+    api_client: httpx.AsyncClient, account_ids: dict[str, UUID], kind: str,
+) -> None:
+    path = (
+        "/users/public" if kind == "directory"
+        else f"/users/{account_ids['admin']}/public"
+    )
+    response = await api_client.get(
+        f"{settings.API_V1_STR}{path}",
+        headers=bearer(account_ids, "client"),
+        params={"user_id": str(account_ids["admin"]), "role": "admin"},
+    )
+    assert response.status_code == 403, response.text
     assert "privacy-" not in response.text
