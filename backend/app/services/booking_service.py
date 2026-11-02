@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
-    from app.db.models import Booking, ClassSchedule, ClassSession, Membership
+    from app.db.models import Booking, ClassSchedule, Membership
 
 # ruff: noqa: UP037
 # --------------------------------------------------------------------------- #

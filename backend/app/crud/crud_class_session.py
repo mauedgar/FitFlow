@@ -14,7 +14,6 @@ from uuid import UUID
 
 from app.core.enums import ClassSessionStatus
 from app.crud.base import CRUDBase
-from app.db.models import ClassSchedule, ClassSession
 from app.db.models.class_schedule import ClassSchedule
 from app.db.models.class_session import ClassSession
 from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
@@ -27,7 +26,6 @@ from sqlalchemy.orm import selectinload
 if TYPE_CHECKING:
     from uuid import UUID
 
-    from app.core.enums import ClassSessionStatus
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
 

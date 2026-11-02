@@ -1,5 +1,5 @@
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
@@ -70,7 +70,7 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     # un cliente o un profesor.
     person_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    __mapper_args__ = {
+    __mapper_args__: ClassVar[dict[str, object]] = {
         "polymorphic_identity": "person",
         "polymorphic_on": person_type,
     }
