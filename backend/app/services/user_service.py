@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from app.crud.crud_user import user as user_crud
+from app.db.models import Client, Teacher
 from app.schemas.user import UserPublic, UserWithProfile, UserWithStats
 from app.services.client_service import (
     get_client_total_bookings,
@@ -48,11 +49,11 @@ def to_user_with_profile(user: User) -> UserWithProfile:
     client_public = None
     teacher_public = None
 
-    if user.person_profile and hasattr(user.person_profile, "client"):
-        client_public = to_client_public(user.person_profile.client) # pyright: ignore[reportAttributeAccessIssue]
+    if isinstance(user.person_profile, Client):
+        client_public = to_client_public(user.person_profile)
 
-    if user.person_profile and hasattr(user.person_profile, "teacher"):
-        teacher_public = to_teacher_public(user.person_profile.teacher) # pyright: ignore[reportAttributeAccessIssue]
+    if isinstance(user.person_profile, Teacher):
+        teacher_public = to_teacher_public(user.person_profile)
 
     return UserWithProfile(
         **to_user_public(user).model_dump(),
@@ -71,13 +72,13 @@ def to_user_with_stats(user: User) -> UserWithStats:
     upcoming_bookings = 0
     total_classes_taught = 0
 
-    if user.person_profile and hasattr(user.person_profile, "client"):
-        client = user.person_profile.client # pyright: ignore[reportAttributeAccessIssue]
+    if isinstance(user.person_profile, Client):
+        client = user.person_profile
         total_bookings = get_client_total_bookings(client)
         upcoming_bookings = len(get_client_upcoming_bookings(client))
 
-    if user.person_profile and hasattr(user.person_profile, "teacher"):
-        teacher = user.person_profile.teacher # pyright: ignore[reportAttributeAccessIssue]
+    if isinstance(user.person_profile, Teacher):
+        teacher = user.person_profile
         total_classes_taught = len(teacher.class_schedules)
 
     return UserWithStats(

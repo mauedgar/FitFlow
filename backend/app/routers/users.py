@@ -15,9 +15,10 @@ import re
 from typing import Annotated
 from uuid import UUID
 
-from app.core.deps import require_admin_or_self_guard
+from app.core.deps import get_current_user
 from app.core.enums import UserRole
 from app.crud.crud_user import user as user_crud
+from app.db.models import Booking, Client, Teacher
 from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.user import (
@@ -33,8 +34,10 @@ from app.services.user_service import (
     to_user_with_stats,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -125,6 +128,44 @@ async def read_public_user(
     return to_user_public(user)
 
 
+async def _get_authenticated_self_with_relations(
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    principal: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Load only the JWT subject's ORM account and bounded profile relations.
+
+    The public /me paths have no user_id; no caller-controlled identity is used.
+    Explicit queries also satisfy ORM relationships configured with lazy='raise'.
+    """
+    user = await db.scalar(
+        select(User)
+        .where(User.id == principal.id)
+        .options(selectinload(User.person_profile))
+    )
+    if user is None:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    profile = user.person_profile
+    if isinstance(profile, Client):
+        # The polymorphic identity map keeps the same profile instance.
+        # The public projection needs Client.user; stats need bookings/sessions.
+        await db.scalar(
+            select(Client)
+            .where(Client.id == profile.id)
+            .options(
+                selectinload(Client.user),
+                selectinload(Client.bookings).selectinload(Booking.class_session),
+            )
+        )
+    elif isinstance(profile, Teacher):
+        await db.scalar(
+            select(Teacher)
+            .where(Teacher.id == profile.id)
+            .options(selectinload(Teacher.class_schedules))
+        )
+    return user
+
+
 # --------------------------------------------------------------------------- #
 # Perfil del usuario actual
 # --------------------------------------------------------------------------- #
@@ -132,7 +173,7 @@ async def read_public_user(
 async def read_my_profile(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin_or_self_guard)],
+    current_user: Annotated[User, Depends(_get_authenticated_self_with_relations)],
 ) -> UserWithProfile:
     """Devuelve el perfil del usuario actual.
 
@@ -150,7 +191,7 @@ async def read_my_profile(
 async def read_my_stats(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(require_admin_or_self_guard)],
+    current_user: Annotated[User, Depends(_get_authenticated_self_with_relations)],
 ) -> UserWithStats:
     """Devuelve estadísticas básicas del usuario actual.
 
