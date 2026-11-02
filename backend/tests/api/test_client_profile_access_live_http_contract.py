@@ -855,10 +855,9 @@ async def test_users_me_real_teacher_profile_and_empty_schedule(
             assert body["total_classes_taught"] == 0
     finally:
         async with AsyncSessionLocal() as db:
-            from app.db.models.person import Person
-            await db.execute(Teacher.__table__.delete().where(Teacher.id == profile_id))
-            await db.execute(Person.__table__.delete().where(Person.id == profile_id))
-            await db.execute(User.__table__.delete().where(User.id == identity))
+            await db.execute(text("DELETE FROM teachers WHERE id = :id"), {"id": profile_id})
+            await db.execute(text("DELETE FROM persons WHERE id = :id"), {"id": profile_id})
+            await db.execute(text("DELETE FROM users WHERE id = :id"), {"id": identity})
             await db.commit()
 
 

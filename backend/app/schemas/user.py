@@ -58,10 +58,16 @@ class UserCreate(UserBase):
 
 
 # Public registration is never an administrative provisioning surface.
-class PublicUserRegistration(UserCreate):
+class PublicUserRegistration(UserBase):
     """Only client accounts may be created without authentication."""
 
+    password: str
     role: Literal[UserRole.client] = UserRole.client
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return _validate_bcrypt_password(value)
 
 
 # --------------------------------------------------------------------------- #
