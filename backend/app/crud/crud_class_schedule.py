@@ -36,8 +36,9 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         self,
         db: "AsyncSession",
         *,
-        obj_id: "UUID",
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> ClassSchedule | None:
         """Obtiene un horario recurrente por su ID.
 
@@ -52,6 +53,8 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
             if include_relations
             else None
         )
+        if options:
+            opts = [*(opts or []), *options]
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
@@ -205,14 +208,14 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         db: "AsyncSession",
         *,
         db_obj: ClassSchedule,
-        obj_in: ClassScheduleUpdate,
+        obj_in: ClassScheduleUpdate | dict[str, object],
         updated_by: UUID | None = None,
     ) -> ClassSchedule:
         """Actualiza un ClassSchedule.
 
         No genera ni borra ClassSession automáticamente; el service decide la generación/actualización de sesiones.
         """
-        update_data = obj_in.model_dump(exclude_unset=True)
+        update_data = dict(obj_in) if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
         update_data["updated_by_id"] = updated_by
         if "capacity" in update_data and int(update_data["capacity"]) < 0:
             msg = "Capacity debe ser >= 0."
@@ -223,17 +226,18 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         self,
         db: "AsyncSession",
         *,
-        obj_id: "UUID",
+        db_obj: ClassSchedule | None = None,
+        hard: bool = False,
+        obj_id: UUID | None = None,
     ) -> None:
-        """Elimina (o marca como borrado) un ClassSchedule.
-
-        Validar integridad con ClassSession/Bookings en el service si es necesario.
-        """
-        obj = await self.get(db, obj_id=obj_id)
-        if not obj:
+        """Remove by object (base contract) or by ID (legacy specialized contract)."""
+        obj = db_obj if db_obj is not None else (
+            await self.get(db, obj_id=obj_id) if obj_id is not None else None
+        )
+        if obj is None:
             msg = "ClassSchedule no encontrado."
             raise svc_errors.NotFoundError(msg)
-        await super().remove(db, db_obj=obj)
+        await super().remove(db, db_obj=obj, hard=hard)
 
     # ------------------------------------------------------------------ #
     # Helpers

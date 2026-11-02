@@ -34,8 +34,9 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
         self,
         db: AsyncSession,
         *,
-        obj_id: UUID,
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> Membership | None:
         """Obtiene una membresía por ID, con opción de incluir relaciones."""
         opts: list[ORMOption] | None = (
@@ -43,6 +44,8 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
             if include_relations
             else None
         )
+        if options:
+            opts = [*(opts or []), *options]
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #

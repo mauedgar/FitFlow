@@ -34,8 +34,9 @@ class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
         self,
         db: AsyncSession,
         *,
-        obj_id: UUID,
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> Teacher | None:
         """Obtiene un profesor por ID, con opción de incluir relaciones."""
         opts: list[ORMOption] | None = (
@@ -43,6 +44,8 @@ class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
             if include_relations
             else None
         )
+        if options:
+            opts = [*(opts or []), *options]
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #

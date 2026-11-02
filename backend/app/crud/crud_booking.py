@@ -37,8 +37,9 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         self,
         db: "AsyncSession",
         *,
-        obj_id: "UUID",
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> Booking | None:
         """Obtiene una reserva por ID, con opción de incluir relaciones profundas."""
         opts: list[ORMOption] | None = (
@@ -51,6 +52,8 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             if include_relations
             else None
         )
+        if options:
+            opts = [*(opts or []), *options]
         stmt = select(Booking).where(Booking.id == obj_id)
         if opts:
             stmt = stmt.options(*opts)
