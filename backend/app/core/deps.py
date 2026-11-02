@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
 from app.core.config import settings
@@ -43,8 +43,8 @@ oauth2_scheme = OAuth2PasswordBearer(
 
 
 async def get_current_user(
-    db: AsyncSession = Depends(get_async_session),
-    token: str = Depends(oauth2_scheme),
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> User:
     """Valida el JWT, obtiene el usuario y verifica que esté activo."""
     payload = decode_token(token)
@@ -92,8 +92,8 @@ async def get_current_user(
 # --------------------------------------------------------------------------- #
 
 async def require_current_user(
-    db: AsyncSession = Depends(get_async_session),
-    token: str = Depends(oauth2_scheme),
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> UserPublic:
     """Devuelve el usuario autenticado usando el servicio de Auth."""
     user = await get_user_from_token(token, db)
@@ -110,7 +110,7 @@ async def require_current_user(
 
 def require_roles(*allowed_roles: UserRole) -> Callable[..., Awaitable[UserPublic]]:
     """Valida que el usuario tenga alguno de los roles permitidos."""
-    async def guard(user: UserPublic = Depends(require_current_user)) -> UserPublic:
+    async def guard(user: Annotated[UserPublic, Depends(require_current_user)]) -> UserPublic:
         if user.role not in allowed_roles:
             roles_list = ", ".join(r.value for r in allowed_roles)
             msg = f"Este recurso requiere uno de los siguientes roles: {roles_list}."
@@ -130,7 +130,7 @@ def require_admin_or_self(id_param_name: str = "user_id") -> Callable[..., Await
     """Permite acceso si el usuario es admin o si el recurso pertenece al propio usuario."""
     async def guard(
         request: Request,
-        user: UserPublic = Depends(require_current_user),
+        user: Annotated[UserPublic, Depends(require_current_user)],
     ) -> UserPublic:
         if user.role == UserRole.admin:
             return user
