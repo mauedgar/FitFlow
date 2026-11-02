@@ -5,17 +5,18 @@ Run only against synthetic fitflow_test PG15 and local disposable Redis7.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Iterator
-from datetime import UTC, datetime, tzinfo
+from datetime import UTC, datetime, timedelta, tzinfo
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from jose import jwt
 from app.core import security
-from app.core.blacklist import BLACKLIST_PREFIX
+from app.core.blacklist import BLACKLIST_PREFIX, blacklist_key
 from app.core.config import Settings, settings
 from app.core.enums import UserRole
 from app.core.redis_client import get_redis_client
-from app.core.token_store import REFRESH_PREFIX
+from app.core.token_store import REFRESH_PREFIX, refresh_token_key
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
 from sqlalchemy import delete, update
@@ -68,6 +69,7 @@ def cleanup_redis() -> Iterator[list[str]]:
         for token in tokens:
             client.delete(
                 f"{REFRESH_PREFIX}{token}", f"{BLACKLIST_PREFIX}{token}",
+                refresh_token_key(token), blacklist_key(token),
             )
     finally:
         client.close()
@@ -169,7 +171,7 @@ async def test_redis_refresh_and_blacklist_entries_have_bounded_ttl(
     cleanup_redis.append(token)
     client = get_redis_client()
     try:
-        ttl = client.ttl(f"{REFRESH_PREFIX}{token}")
+        ttl = client.ttl(refresh_token_key(token))
         assert 0 < ttl <= settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
         logout = await api_client.post(
             f"{settings.API_V1_STR}/auth/logout",
@@ -177,8 +179,8 @@ async def test_redis_refresh_and_blacklist_entries_have_bounded_ttl(
             headers={"Authorization": f"Bearer {issued.json()['access_token']}"},
         )
         assert logout.status_code == 204, logout.text
-        assert client.exists(f"{REFRESH_PREFIX}{token}") == 0
-        blacklisted_ttl = client.ttl(f"{BLACKLIST_PREFIX}{token}")
+        assert client.exists(refresh_token_key(token)) == 0
+        blacklisted_ttl = client.ttl(blacklist_key(token))
         assert 0 < blacklisted_ttl <= settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
     finally:
         client.close()
@@ -268,10 +270,6 @@ async def test_legacy_redis_key_can_renew_and_logout_through_hmac_migration(
     api_client: httpx.AsyncClient, principal: tuple[UUID, str],
     cleanup_redis: list[str],
 ) -> None:
-    from datetime import timedelta
-    from jose import jwt
-    from app.core.token_store import refresh_token_key
-
     uid, _email = principal
     legacy_token = jwt.encode(
         {"sub": str(uid), "exp": int(
@@ -310,9 +308,6 @@ async def test_legacy_redis_key_can_renew_and_logout_through_hmac_migration(
 async def test_expired_refresh_logout_is_bounded_400(
     api_client: httpx.AsyncClient, principal: tuple[UUID, str],
 ) -> None:
-    from datetime import timedelta
-    from jose import jwt
-
     uid, _email = principal
     access = security.create_access_token({"sub": str(uid), "role": "client"})
     expired = jwt.encode(
@@ -332,8 +327,7 @@ async def test_expired_refresh_logout_is_bounded_400(
 async def test_new_hmac_redis_keys_never_embed_raw_credentials(
     principal: tuple[UUID, str], cleanup_redis: list[str],
 ) -> None:
-    from app.core.blacklist import blacklist_key
-    from app.core.token_store import refresh_token_key, store_refresh_token
+    from app.core.token_store import store_refresh_token
 
     uid, _email = principal
     token = security.create_refresh_token({"sub": str(uid)})

@@ -6,7 +6,12 @@ from uuid import uuid4
 
 import pytest
 from app.core.config import settings
-from app.core.login_throttle import LIMIT, WINDOW_SECONDS, check_login_throttle, login_rate_key
+from app.core.login_throttle import (
+    LIMIT,
+    WINDOW_SECONDS,
+    check_login_throttle,
+    login_rate_key,
+)
 from app.core.redis_client import get_redis_client
 from fastapi import HTTPException
 
