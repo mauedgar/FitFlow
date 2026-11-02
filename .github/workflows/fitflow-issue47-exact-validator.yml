@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-          ref: e8dae016024a22e809c9a7fafb904b558ba1d210
+          ref: 9785243ef2ec80ef8b3442d49c998ccadaf29b41
           fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
@@ -22,8 +22,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "e8dae016024a22e809c9a7fafb904b558ba1d210"
-          test "$(git rev-parse HEAD^{tree})" = "7f032d4fb51071f58e473042413c6b7b1305dcf9"
+          test "$(git rev-parse HEAD)" = "9785243ef2ec80ef8b3442d49c998ccadaf29b41"
+          test "$(git rev-parse HEAD^{tree})" = "fe555214f283e628538f2470699b1e67037b73d7"
           git diff --check bbff13146684ebe323ff89de6d70e21fca5dfcd2 HEAD
           echo EXACT_CANDIDATE_GUARD_PASS
       - name: Analyze remaining Ruff and Pyright diagnostics exactly
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-          ref: e8dae016024a22e809c9a7fafb904b558ba1d210
+          ref: 9785243ef2ec80ef8b3442d49c998ccadaf29b41
           fetch-depth: 0
       - name: Assert historical revision graph and migration calls unchanged
         shell: bash
@@ -63,7 +63,7 @@ jobs:
           import subprocess
           from pathlib import Path
           base = "bbff13146684ebe323ff89de6d70e21fca5dfcd2"
-          assert subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() == "e8dae016024a22e809c9a7fafb904b558ba1d210"
+          assert subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() == "9785243ef2ec80ef8b3442d49c998ccadaf29b41"
           old_paths = set(subprocess.check_output(["git", "ls-tree", "-r", "--name-only", base, "--", "backend/alembic/versions"], text=True).splitlines())
           new_paths = set(subprocess.check_output(["git", "ls-tree", "-r", "--name-only", "HEAD", "--", "backend/alembic/versions"], text=True).splitlines())
           assert old_paths == new_paths, "Migration files deleted/added"
@@ -127,7 +127,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-          ref: e8dae016024a22e809c9a7fafb904b558ba1d210
+          ref: 9785243ef2ec80ef8b3442d49c998ccadaf29b41
           fetch-depth: 0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
@@ -136,8 +136,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "e8dae016024a22e809c9a7fafb904b558ba1d210"
-          test "$(git rev-parse HEAD^{tree})" = "7f032d4fb51071f58e473042413c6b7b1305dcf9"
+          test "$(git rev-parse HEAD)" = "9785243ef2ec80ef8b3442d49c998ccadaf29b41"
+          test "$(git rev-parse HEAD^{tree})" = "fe555214f283e628538f2470699b1e67037b73d7"
       - name: Install existing baseline pinned test dependencies
         run: python -m pip install --disable-pip-version-check -r backend/requirements_test.txt
       - name: Migrate isolated test database
