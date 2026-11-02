@@ -40,8 +40,6 @@ class PersonCreate(PersonBase):
     Todos los campos obligatorios vienen de PersonBase.
     """
 
-    pass
-
 
 # --------------------------------------------------------------------------- #
 # 3. Actualización (todos opcionales)

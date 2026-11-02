@@ -9,7 +9,6 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timezone
 from typing import TYPE_CHECKING
 
 from app.crud.crud_user import user as user_crud
@@ -68,8 +67,6 @@ def to_user_with_profile(user: User) -> UserWithProfile:
 
 def to_user_with_stats(user: User) -> UserWithStats:
     """Extiende el usuario con estadísticas completas."""
-    now = datetime.now(tz=UTC)
-
     total_bookings = 0
     upcoming_bookings = 0
     total_classes_taught = 0

@@ -19,7 +19,6 @@ from app.core.enums import MembershipStatus
 from app.crud.crud_client import client
 from app.crud.crud_membership import membership
 from app.db.models import Booking, Client, Membership
-from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.membership import (
     MembershipCreate,

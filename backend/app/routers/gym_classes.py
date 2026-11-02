@@ -25,7 +25,6 @@ from app.schemas.gym_class import (
     GymClassUpdate,
     GymClassWithRelations,
 )
-from app.services import gym_class_service
 from app.services.class_schedule_service import (
     get_next_session,
     to_class_schedule_public,
@@ -297,9 +296,6 @@ async def read_public_class_schedules(
         gym_class_id=class_id,
     )
     return [to_class_schedule_public(s) for s in schedules]
-
-
-#
 
 
 # --------------------------------------------------------------------------- #
