@@ -10,13 +10,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated, TYPE_CHECKING
 from uuid import UUID
 
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.core.security import decode_token
 from app.crud.crud_user import user as user_crud
+from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
 from app.schemas.user import UserPublic
@@ -25,12 +26,11 @@ from app.services.errors import AuthError, PermissionDeniedError
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from app.db.models.user import User
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 # --------------------------------------------------------------------------- #
