@@ -48,6 +48,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install Python 3.11
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
@@ -77,11 +78,14 @@ jobs:
           set -euo pipefail
           pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges -f /tmp/fitflow-schema-first.sql
           pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges -f /tmp/fitflow-schema-second.sql
-          diff -u /tmp/fitflow-schema-first.sql /tmp/fitflow-schema-second.sql
+          # PostgreSQL 15.19+ emits a different random psql restrict guard per dump.
+          # Compare SQL excluding ONLY those two guard tokens; retain full original
+          # protected dump in the review artifact (never use a fixed security key).
+          diff -u <(grep -vE '^\\(un)?restrict ' /tmp/fitflow-schema-first.sql) <(grep -vE '^\\(un)?restrict ' /tmp/fitflow-schema-second.sql)
           test -s /tmp/fitflow-schema-first.sql
           cp /tmp/fitflow-schema-first.sql schema.sql
           sha256sum schema.sql
-          echo "FF_SCHEMA_ARTIFACT_DETERMINISTIC_PASS"
+          echo "FF_SCHEMA_SEMANTIC_COMPARISON_PASS"
           echo "FF_SCHEMA_SUBJECT_SHA=$(git rev-parse HEAD)"
           echo "FF_SCHEMA_SUBJECT_TREE=$(git rev-parse 'HEAD^{tree}')"
 
