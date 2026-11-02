@@ -7,7 +7,7 @@ on:
 jobs:
   update-pr-body:
     # Dependabot PR workflows have read-only GITHUB_TOKEN; skip metadata writes.
-    if: github.actor != 'dependabot[bot]'
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
