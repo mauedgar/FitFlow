@@ -245,6 +245,8 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         if db_obj is None:
             if obj_id is None:
                 raise TypeError("db_obj or obj_id is required.")
+            if hard:
+                raise ValueError("Hard delete requires explicit db_obj.")
             obj = await self.get(db, obj_id=obj_id)
             if obj is None:
                 msg = "ClassSchedule no encontrado."

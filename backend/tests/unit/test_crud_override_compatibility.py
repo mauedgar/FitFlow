@@ -116,4 +116,6 @@ async def test_schedule_remove_preserves_id_and_object_contracts(monkeypatch):
         await crud.remove(db, db_obj=schedule, hard=True)
         with pytest.raises(ValueError, match="not both"):
             await crud.remove(db, db_obj=schedule, obj_id=uuid4())
+        with pytest.raises(ValueError, match="Hard delete requires"):
+            await crud.remove(db, obj_id=uuid4(), hard=True)
     assert observed == [(schedule, False), (schedule, True)]
