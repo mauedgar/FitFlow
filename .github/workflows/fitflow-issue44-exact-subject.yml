@@ -1,0 +1,88 @@
+name: FitFlow Issue44 final-tree exact-subject validation
+on:
+  push:
+    branches: [ci/fitflow-issue44-final-subject-20261102-001]
+    paths: ['.github/workflows/fitflow-issue44-exact-subject.yml']
+permissions:
+  contents: read
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11.17', '3.12', '3.13']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
+        env:
+          POSTGRES_DB: fitflow_test
+          POSTGRES_USER: fitflow_test_user
+          POSTGRES_PASSWORD: fitflow_test_password
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U fitflow_test_user -d fitflow_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+      redis:
+        image: redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      ENV: test
+      TESTING: 'true'
+      DEBUG: 'false'
+      DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test
+      SECRET_KEY: fitflow-test-only-secret-key
+      REDIS_URL: redis://127.0.0.1:6379/0
+      MEDIA_DIR: /tmp/fitflow-media
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTEST_ADDOPTS: -p no:cacheprovider --basetemp=/tmp/pytest
+    steps:
+      - name: Checkout exact immutable candidate, not runner branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 4d2897a657c0ae826472b1b3160e2b594957bde1
+          persist-credentials: false
+      - name: Verify exact Git identity before any tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          observed_sha=$(git rev-parse HEAD)
+          observed_tree=$(git rev-parse 'HEAD^{tree}')
+          echo "FF_CANDIDATE_SHA=$observed_sha"
+          echo "FF_CANDIDATE_TREE=$observed_tree"
+          test "$observed_sha" = "4d2897a657c0ae826472b1b3160e2b594957bde1"
+          test "$observed_tree" = "9cc11a969ab57c8d2f8e98302e7809b52abf4cb9"
+      - name: Python interpreter for current matrix lane
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Verify uv lock, both exports and pinned dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --no-cache-dir --disable-pip-version-check uv==0.13.6
+          uv lock --check
+          uv export --locked --no-dev --format requirements.txt --output-file /tmp/ff-runtime.txt
+          uv export --locked --group dev --format requirements.txt --output-file /tmp/ff-tests.txt
+          diff -u <(tail -n +3 /tmp/ff-runtime.txt) <(tail -n +3 backend/requirements_backend.txt)
+          diff -u <(tail -n +3 /tmp/ff-tests.txt) <(tail -n +3 backend/requirements_test.txt)
+          echo FF_LOCKED_EXPORTS_PASS
+      - name: Install exact hashed Python dependencies and check resolution
+        run: |
+          python -m pip install --disable-pip-version-check -r backend/requirements_test.txt
+          python -m pip check
+      - name: Migrate isolated fitflow_test database
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Run all FitFlow backend tests
+        working-directory: backend
+        run: python -m pytest -q
