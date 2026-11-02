@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, SupportsIndex, SupportsInt
 
 from app.crud.base import CRUDBase
 from app.db.models import ClassSchedule, GymClass
@@ -217,9 +217,14 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         """
         update_data = obj_in.copy() if isinstance(obj_in, dict) else obj_in.model_dump(exclude_unset=True)
         update_data["updated_by_id"] = updated_by
-        if "capacity" in update_data and int(update_data["capacity"]) < 0:
-            msg = "Capacity debe ser >= 0."
-            raise svc_errors.BusinessValidationError(msg)
+        if "capacity" in update_data:
+            capacity = update_data["capacity"]
+            if not isinstance(capacity, (str, bytes, bytearray, SupportsInt, SupportsIndex)):
+                msg = "Capacity debe ser un valor convertible a entero."
+                raise svc_errors.BusinessValidationError(msg)
+            if int(capacity) < 0:
+                msg = "Capacity debe ser >= 0."
+                raise svc_errors.BusinessValidationError(msg)
         return await super().update(db, db_obj=db_obj, obj_in=update_data)
 
     async def remove(

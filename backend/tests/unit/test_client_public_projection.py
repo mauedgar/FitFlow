@@ -40,7 +40,7 @@ def test_to_client_public_keeps_optional_values_nullable():
     raw = make_client()
     raw.profile_image_url = None
     # Defensive projection test: intentionally simulate an incomplete ORM row.
-    setattr(raw, "created_at", None)
+    object.__setattr__(raw, "created_at", None)
 
     public = to_client_public(raw)
 

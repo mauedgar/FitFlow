@@ -57,8 +57,8 @@ async def test_supported_profile_settings_allow_redis_to_be_unconfigured(
     profile: str,
 ) -> None:
     # Pydantic BaseSettings supports _env_file at runtime; its generated type signature omits it.
-    configured = Settings(  # pyright: ignore[reportCallIssue]
-        _env_file=None,
+    configured = Settings(
+        _env_file=None,  # pyright: ignore[reportCallIssue]
         ENV=profile,
         DEBUG=profile == "development",
         TESTING=profile == "test",
