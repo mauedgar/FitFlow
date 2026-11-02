@@ -298,6 +298,9 @@ async def read_public_class_schedules(
     return [to_class_schedule_public(s) for s in schedules]
 
 
+#
+
+
 # --------------------------------------------------------------------------- #
 # Clases públicas impartidas por un profesor
 # --------------------------------------------------------------------------- #

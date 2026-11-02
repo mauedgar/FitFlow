@@ -26,6 +26,7 @@ from app.schemas.gym_class import GymClassPublic
 from app.schemas.teacher_refs import TeacherInClassScheduleResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+
 ClassSessionInResponse = _ClassSessionInResponse
 
 # Evitar circularidad: booking.py importa class_session.py

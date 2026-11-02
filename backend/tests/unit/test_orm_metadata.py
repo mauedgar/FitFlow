@@ -1,4 +1,3 @@
-from inspect import get_annotations
 from typing import get_origin
 
 from app.core.enums import ClassSessionStatus
@@ -51,9 +50,9 @@ def test_every_local_column_uses_mapped_annotation() -> None:
         for column in model.__table__.columns:
             annotation = next(
                 (
-                    get_annotations(parent)[column.key]
+                    parent.__dict__["__annotations__"][column.key]
                     for parent in model.__mro__
-                    if column.key in get_annotations(parent)
+                    if column.key in parent.__dict__.get("__annotations__", {})
                 ),
                 None,
             )
