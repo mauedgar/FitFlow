@@ -1,4 +1,3 @@
-# pyright: ignore-all
 """CRUD para Teacher (asíncrono, Sprint 6-7).
 
 -----------------------------------------
