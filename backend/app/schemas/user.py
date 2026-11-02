@@ -14,6 +14,7 @@ Incluye:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from app.core.enums import UserRole
@@ -54,6 +55,13 @@ class UserCreate(UserBase):
     @classmethod
     def validate_password(cls, value: str) -> str:
         return _validate_bcrypt_password(value)
+
+
+# Public registration is never an administrative provisioning surface.
+class PublicUserRegistration(UserCreate):
+    """Only client accounts may be created without authentication."""
+
+    role: Literal[UserRole.client] = UserRole.client
 
 
 # --------------------------------------------------------------------------- #

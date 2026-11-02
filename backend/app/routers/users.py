@@ -16,10 +16,12 @@ from typing import Annotated
 from uuid import UUID
 
 from app.core.deps import require_admin_or_self_guard
+from app.core.enums import UserRole
 from app.crud.crud_user import user as user_crud
 from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.user import (
+    PublicUserRegistration,
     UserCreate,
     UserPublic,
     UserWithProfile,
@@ -62,7 +64,7 @@ def _is_email_unique_violation(exc: IntegrityError) -> bool:
 @router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
 async def register_user(
     *,
-    user_in: UserCreate,
+    user_in: PublicUserRegistration,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> UserPublic:
     """Registra un nuevo usuario en el sistema.
@@ -79,7 +81,11 @@ async def register_user(
         raise HTTPException(400, "El email ya está registrado.")
 
     try:
-        user = await user_crud.create(db=db, obj_in=user_in)
+        # Never persist caller-supplied role from an unauthenticated request.
+        public_account = UserCreate(
+            email=user_in.email, password=user_in.password, role=UserRole.client,
+        )
+        user = await user_crud.create(db=db, obj_in=public_account)
     except IntegrityError as exc:
         # A concurrent registration can pass the precheck; UNIQUE remains SOT.
         await db.rollback()
