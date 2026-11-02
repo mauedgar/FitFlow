@@ -11,7 +11,7 @@ Requisitos:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 from app.db.base_class import Base

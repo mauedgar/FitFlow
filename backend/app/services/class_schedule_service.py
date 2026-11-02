@@ -12,7 +12,7 @@ Incluye:
 """
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -32,14 +32,12 @@ from app.schemas.class_schedule import (
 from app.schemas.class_session import ClassSessionPublic
 from app.services import errors as svc_errors
 from dateutil.rrule import rrulestr
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
     from app.db.models.class_schedule import ClassSchedule
     from app.db.models.class_session import ClassSession
     from app.db.models.gym_class import GymClass
-    from app.schemas.user import UserPublic
     from sqlalchemy.ext.asyncio import AsyncSession
 
 # ruff: noqa: UP037

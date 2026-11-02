@@ -11,7 +11,7 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 
 from app.core.enums import BookingStatus, ClassSessionStatus, MembershipStatus
