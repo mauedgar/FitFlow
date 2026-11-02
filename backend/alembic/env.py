@@ -1,12 +1,13 @@
 import os
 import sys
-from logging.config import fileConfig
 
-from alembic import context
-from app.core.config import settings
+from logging.config import fileConfig
 from app.db.base import Base
 from dotenv import load_dotenv
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config
+from sqlalchemy import pool
+from app.core.config import settings
+from alembic import context
 
 load_dotenv()
 # Añade la ruta del proyecto al path de Python para que pueda encontrar 'app'
