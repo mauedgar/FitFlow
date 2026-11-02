@@ -32,10 +32,8 @@ class UserBase(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-def _validate_bcrypt_password(value: str | None) -> str | None:
+def _validate_bcrypt_password(value: str) -> str:
     """Impedir 500 en CRUD por NUL o truncación de nuevas contraseñas."""
-    if value is None:
-        return None
     if "\x00" in value:
         raise ValueError("La contraseña contiene un byte NUL no admitido")
     if len(value.encode("utf-8")) > 72:
@@ -56,7 +54,7 @@ class UserCreate(UserBase):
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str) -> str:
-        return _validate_bcrypt_password(value)  # type: ignore[return-value]
+        return _validate_bcrypt_password(value)
 
 
 # --------------------------------------------------------------------------- #
@@ -74,7 +72,7 @@ class UserUpdate(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str | None) -> str | None:
-        return _validate_bcrypt_password(value)
+        return _validate_bcrypt_password(value) if value is not None else None
 
     model_config = ConfigDict(from_attributes=True)
 
