@@ -11,11 +11,10 @@
 from __future__ import annotations
 
 import logging
-from uuid import UUID
 from typing import Annotated
+from uuid import UUID
 
 from app.core import security
-from app.crud.crud_user import user as user_crud
 from app.core.blacklist import blacklist_token, is_token_blacklisted
 from app.core.deps import get_current_user
 from app.core.token_store import (
@@ -23,6 +22,7 @@ from app.core.token_store import (
     is_refresh_token_valid,
     store_refresh_token,
 )
+from app.crud.crud_user import user as user_crud
 from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.token import RefreshTokenRequest, Token, TokenPair
