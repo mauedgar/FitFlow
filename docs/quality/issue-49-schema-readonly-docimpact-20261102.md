@@ -1,0 +1,30 @@
+---
+document_id: FF-ISSUE49-SCHEMA-READONLY-20261102-001
+status: candidate_pending_ci_review
+date: 2026-11-02
+owner: FITFLOW_CONTROL
+scope: issue_49_schema_workflow_only
+acceptance: NOT_ACCEPTED
+merge: NOT_AUTHORIZED
+---
+
+# Issue #49 — read-only CI schema evidence candidate
+
+## Frozen authority and parent
+- Canonical develop: `c15bdefc766dfa42fa2b5b86b679ed3bf0f5a47d`, tree `9a2033e862535d6c0dc72b97a284811b1f401175`, SOT v5.3 blob `f36307af0777fd3b493792ad42115fec56ac44b3`.
+- PR #48 parent candidate `9e6a34e22161d6f6f2c5f5dc76bf30993d7493a0`, tree `dd3e81896eab9803606b8fa86b768afbde21b325`; this isolated branch is NOT accepted/merged and does not rewrite PR #48 or #47 original terminal run.
+- Original update-schema.yml used a branch-wide push trigger and a git-auto-commit action without an explicit write grant. That behavior had no complete validation receipt.
+
+## Bounded repair
+- Replaces implicit push/auto-commit with read-only pull_request/dispatch validation; `permissions: contents: read` and `persist-credentials: false`.
+- PostgreSQL 15 disposable fixture only, Python 3.11 environment, original pinned backend requirements and immutable setup-uv action.
+- Runs Alembic head on the CI fixture; generates two independent schema-only pg_dump snapshots and checks byte-for-byte determinism.
+- Uploads generated schema, SHA-256 and checked-out subject SHA/tree as an immutable run artifact. Output never enters the repository, and worktree remains clean; no tracked schema.sql is silently created.
+- Uses SHA-pinned checkout, setup-python, setup-uv and upload-artifact. No changed migrations, DDL, auth, booking, CRUD, lock, passwords, real data, staging or secrets.
+- No assertion that generated schema is equal to a canonical tracked schema: no root schema.sql existed at this candidate ref. Choosing to version a reviewed schema requires a separate Developer decision.
+
+## Validation and acceptance
+- CI trigger on a review PR plus exact run/job/subject SHA/tree, schema digest and migration evidence must be recorded.
+- Independent WEB_INLINE review needs to examine CI authority, schema artifacts and repeatability; no acceptance until 0 findings and 0 advisories on the eventual integrated final subject.
+- Issue #43 legacy bcrypt/Passlib compatibility is a separate authentication-sensitive owner. No auth change is included.
+- Keep PR #48 draft, #47/#49 open, SOT/develop untouched. No auto-merge or closure.
