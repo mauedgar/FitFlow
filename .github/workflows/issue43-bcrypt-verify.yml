@@ -5,12 +5,16 @@ on:
     branches: [develop]
     paths:
       - backend/app/core/security.py
+      - backend/app/schemas/user.py
       - backend/requirements_backend.txt
       - backend/requirements_test.txt
       - backend/tests/unit/test_security_bcrypt_legacy_compat.py
+      - backend/tests/unit/test_user_password_byte_validation.py
+      - backend/tests/api/test_auth_registration_password_boundary.py
       - pyproject.toml
       - uv.lock
       - .github/workflows/issue43-bcrypt-verify.yml
+      - .github/workflows/issue43-bcrypt-lock.yml
       - docs/quality/issue-43-bcrypt-candidate-docimpact-20261102.md
 
 permissions:
