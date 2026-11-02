@@ -1,4 +1,5 @@
 import uuid
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from app.db.base_class import Base
@@ -70,7 +71,8 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     # un cliente o un profesor.
     person_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    __mapper_args__ = {
+    # SQLAlchemy accepts immutable mapper metadata; avoid shared mutable class defaults.
+    __mapper_args__ = MappingProxyType({
         "polymorphic_identity": "person",
         "polymorphic_on": person_type,
-    }
+    })
