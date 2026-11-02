@@ -36,8 +36,9 @@ snapshot no los revalida ni afirma que sean el estado backend mas reciente.
   capacidad, check-in y Redis.
 - Ruff y Pyright existen en la imagen de tests.
 - El vertical HTTP minimo de Booking y ClassSession tiene cobertura API
-  determinista publicada; la evidencia mas reciente del bounded vertical cerro
-  con la suite backend completa en 58 tests `PASS`. Esto no afirma cobertura
+  determinista publicada; en ese corte historico de septiembre de 2026, la
+  evidencia del bounded vertical cerro con la suite backend completa en 58
+  tests `PASS`. Este snapshot no reejecuta la suite ni afirma cobertura
   exhaustiva de todo el producto.
 
 ## Frontend Admin (corte del 2026-11-01)
@@ -47,14 +48,16 @@ snapshot no los revalida ni afirma que sean el estado backend mas reciente.
   `4160747ea2784c58817957f49a9d989f822cf315`); candidato integrado
   `75830c8c01d62f03bf1cf0fbbd369c4a963e33b4`. Los refs y el merge
   constan en Git local.
-- Segun el recibo operativo comunicado para este corte, Issue #33 esta
-  `CLOSED` e IR003 dio `PASS_SHELL_UI_WITH_LIMITATIONS` para el shell Admin:
-  24/24 tests frontend y navegador con datos en memoria/mocks en anchos
-  320, 390, 768, 1024, 1280 y 1440 px. No equivale a autenticacion real E2E.
-- Segun el mismo corte operativo, Issue #25 permanece `OPEN` y
-  `REAL_AUTH_E2E` en `NOT_RUN`. Estos estados de Issues y el resultado IR003
-  no se verifican mediante refs Git; requieren sus recibos operativos para
-  confirmacion independiente. No se infiere cierre de esa deuda del merge.
+- Segun los recibos operativos de [IR003](https://github.com/mauedgar/FitFlow/issues/33#issuecomment-6566029600)
+  y [cierre de Issue #33](https://github.com/mauedgar/FitFlow/issues/33#issuecomment-6566183777),
+  Issue #33 esta `CLOSED` e IR003 dio `PASS_SHELL_UI_WITH_LIMITATIONS` para el
+  shell Admin: 24/24 tests frontend y navegador con datos en memoria/mocks en
+  anchos 320, 390, 768, 1024, 1280 y 1440 px. No equivale a autenticacion real E2E.
+- Segun el [recibo de continuidad de Issue #25](https://github.com/mauedgar/FitFlow/issues/25#issuecomment-6566174848),
+  Issue #25 permanece `OPEN` y `REAL_AUTH_E2E` en `NOT_RUN`. Los commits/trees
+  anteriores se verifican en Git; los estados de Issues y el resultado IR003
+  provienen de esos recibos de revision operativa, no del contenido Git.
+  No se infiere cierre de esa deuda del merge.
 
 ## Plataforma de asistencia IA
 

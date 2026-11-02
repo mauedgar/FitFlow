@@ -43,10 +43,14 @@ reintentar automaticamente por inferencia.
 
 ## Ciclo de worktree
 
-- Toda task nace de la rama `develop` y se ejecuta en un worktree acotado
-  fuera del checkout principal.
-- El ciclo abre rama local y remota: `git worktree add -b <branch> <ruta>
-  develop` seguido de `git push -u origin <branch>`.
+- Habitualmente la task nace de `develop` y se ejecuta en un worktree acotado
+  fuera del checkout principal. Antes de crearlo, reobservar rama competente,
+  HEAD/tree y baseline autorizado; no asumir `develop` si la task fija otro ref.
+- Crear solo rama local y worktree desde el baseline competente verificado
+  (`git worktree add -b <branch> <ruta> <ref-competente>`). Publicar una rama
+  remota mediante `git push` es un efecto separado que requiere concesion
+  explicita y acotada del desarrollador para esa rama y baseline; nunca es
+  automatico al abrir el worktree.
 - Al finalizar, la limpieza de worktree y ramas requiere permiso separado,
   comprobacion del merge exacto exitoso, arbol limpio y ausencia de owners;
   no forzar la eliminacion ni inferir permiso del cierre de la task. Un
