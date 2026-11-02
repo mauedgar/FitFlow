@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check ruff==0.17.3
-          python -m ruff check backend --fix --select I001,UP007,UP017,UP035,UP037,RUF100 --unsafe-fixes=false --exit-zero
+          python -m ruff check backend --fix --select I001,UP007,UP017,UP035,UP037,RUF100 --exit-zero
           git diff --check
           python -m compileall -q backend
           changed=$(git diff --name-only)
