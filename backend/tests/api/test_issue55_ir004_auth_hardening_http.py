@@ -10,7 +10,6 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from jose import jwt
 from app.core import security
 from app.core.blacklist import BLACKLIST_PREFIX, blacklist_key
 from app.core.config import Settings, settings
@@ -19,6 +18,7 @@ from app.core.redis_client import get_redis_client
 from app.core.token_store import REFRESH_PREFIX, refresh_token_key
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
+from jose import jwt
 from sqlalchemy import delete, update
 from sqlalchemy.engine import make_url
 
