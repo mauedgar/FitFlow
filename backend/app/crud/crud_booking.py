@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.crud.base import CRUDBase
-from app.db.models import Booking, ClassSchedule, ClassSession
+from app.db.models import Booking, ClassSchedule, ClassSession, Teacher
 from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingUpdate
 
 # Excepciones de dominio centralizadas
@@ -72,6 +72,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         session_id: "UUID | None" = None,
         schedule_id: "UUID | None" = None,
         gym_class_id: "UUID | None" = None,
+        teacher_user_id: "UUID | None" = None,
         status: "BookingStatus | None" = None,
         date: "date | None" = None,
         date_from: "date | None" = None,
@@ -91,14 +92,22 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             stmt = stmt.where(Booking.status == status)
 
         # Join only when a session or schedule attribute is filtered.
-        if date_from or date_to or date or schedule_id or gym_class_id:
+        if date_from or date_to or date or schedule_id or gym_class_id or teacher_user_id:
             stmt = stmt.join(Booking.class_session)
-        if schedule_id or gym_class_id:
+        if schedule_id or gym_class_id or teacher_user_id:
             stmt = stmt.join(ClassSession.class_schedule)
         if schedule_id:
             stmt = stmt.where(ClassSchedule.id == schedule_id)
         if gym_class_id:
             stmt = stmt.where(ClassSchedule.gym_class_id == gym_class_id)
+        if teacher_user_id is not None:
+            # Apply assignment filtering inside SQL, *before* limit/offset.
+            # Teacher.id (profile) differs from Person.user_id (account).
+            stmt = stmt.join(Teacher, Teacher.id == ClassSchedule.teacher_id).where(
+                Teacher.user_id == teacher_user_id,
+                Teacher.deleted_at.is_(None),
+                ClassSchedule.deleted_at.is_(None),
+            )
 
         if date_from:
             stmt = stmt.where(

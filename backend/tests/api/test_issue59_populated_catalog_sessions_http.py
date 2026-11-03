@@ -11,10 +11,12 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 from app.core.config import settings
-from app.core.enums import ActivityType, ClassSessionStatus
+from app.core.enums import ActivityType, ClassSessionStatus, UserRole
+from app.core.security import create_access_token
 from app.db.models.class_schedule import ClassSchedule
 from app.db.models.class_session import ClassSession
 from app.db.models.gym_class import GymClass
+from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
 from sqlalchemy import delete
 from sqlalchemy.engine import make_url
@@ -126,14 +128,39 @@ async def test_ir008_schedule_date_and_cancelled_filters_are_live(
     assert unrelated.json() == []
 
 
+@pytest.fixture
+async def admin_headers() -> AsyncIterator[dict[str, str]]:
+    account_id = uuid4()
+    async with AsyncSessionLocal() as db:
+        db.add(User(
+            id=account_id,
+            email=f"ir011-admin-{account_id.hex}@example.com",
+            hashed_password="synthetic-test",
+            role=UserRole.admin,
+            active=True,
+        ))
+        await db.commit()
+    try:
+        token = create_access_token({
+            "sub": str(account_id), "role": UserRole.admin.value,
+        })
+        yield {"Authorization": f"Bearer {token}"}
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(User).where(User.id == account_id))
+            await db.commit()
+
+
 async def test_ir008_populated_operational_and_public_projections_are_200(
     api_client: httpx.AsyncClient,
     catalog_session: tuple[UUID, UUID, UUID, UUID, date],
+    admin_headers: dict[str, str],
 ) -> None:
     class_id, schedule_id, _sid, _cancelled, _date = catalog_session
     schedules = await api_client.get(
         f"{settings.API_V1_STR}/class-schedules/",
         params={"gym_class_id": str(class_id), "include_relations": False},
+        headers=admin_headers,
     )
     assert schedules.status_code == 200, schedules.text
     row = next(row for row in schedules.json() if row["id"] == str(schedule_id))
@@ -143,6 +170,7 @@ async def test_ir008_populated_operational_and_public_projections_are_200(
     classes = await api_client.get(
         f"{settings.API_V1_STR}/gym-classes/",
         params={"search": "IR008 Gym", "include_schedules": True},
+        headers=admin_headers,
     )
     assert classes.status_code == 200, classes.text
     item = next(row for row in classes.json() if row["id"] == str(class_id))

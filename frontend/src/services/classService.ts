@@ -36,8 +36,12 @@ const classService = {
   // --- GymClass Endpoints ---
   async getAllClasses(): Promise<GymClass[]> {
     try {
-      const response = await apiClient.get<GymClass[]>('/gym-classes/');
-      return response.data;
+      // Public catalog never depends on operational schedule metadata.
+      const response = await apiClient.get<Omit<GymClass, 'class_schedules'>[]>('/gym-classes/public');
+      return response.data.map((gymClass) => ({
+        ...gymClass,
+        class_schedules: [],
+      }));
     } catch (error) {
       console.error('Error al obtener la lista de clases:', error);
       throw error;

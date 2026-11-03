@@ -18,10 +18,13 @@ from uuid import UUID
 from app.core.deps import (
     require_admin,
     require_admin_or_front_desk,
+    require_operational,
 )
 from app.crud.crud_class_schedule import class_schedule as class_schedule_crud
 from app.crud.crud_gym_class import gym_class as gym_class_crud
 from app.crud.crud_teacher import teacher as teacher_crud
+from app.core.enums import UserRole
+from app.db.models.teacher import Teacher
 from app.db.session import get_async_session
 from app.schemas.class_schedule import (
     ClassScheduleCreate,
@@ -39,6 +42,7 @@ from app.services.class_schedule_service import (
     validate_teacher_assignment,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -136,8 +140,21 @@ async def read_class_schedules(
     gym_class_id: UUID | None = None,
     teacher_id: UUID | None = None,
     include_relations: Annotated[bool, Query()] = True,
+    current_user: Annotated[UserPublic, Depends(require_operational)],
 ) -> list[ClassScheduleWithRelations]:
-    """Lista horarios con filtros operativos."""
+    """Private schedules, teachers scoped to the persisted assigned profile."""
+    if current_user.role == UserRole.teacher:
+        own_teacher_id = await db.scalar(
+            select(Teacher.id).where(
+                Teacher.user_id == current_user.id,
+                Teacher.deleted_at.is_(None),
+            )
+        )
+        if own_teacher_id is None:
+            return []
+        if teacher_id is not None and teacher_id != own_teacher_id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Acceso denegado.")
+        teacher_id = own_teacher_id
     try:
         schedules = await class_schedule_crud.get_multi_filtered(
             db=db,
@@ -167,8 +184,9 @@ async def read_class_schedule_by_id(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     schedule_id: UUID,
+    current_user: Annotated[UserPublic, Depends(require_operational)],
 ) -> ClassScheduleWithRelations:
-    """Obtiene un horario por ID."""
+    """Private operational detail, teachers may read only assigned schedules."""
     try:
         schedule = await class_schedule_crud.get(
             db=db,
@@ -177,6 +195,16 @@ async def read_class_schedule_by_id(
         )
         if not schedule:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"ClassSchedule {schedule_id} no encontrado.")
+        if current_user.role == UserRole.teacher:
+            owner = await db.scalar(
+                select(Teacher.id).where(
+                    Teacher.id == schedule.teacher_id,
+                    Teacher.user_id == current_user.id,
+                    Teacher.deleted_at.is_(None),
+                )
+            )
+            if owner is None:
+                raise HTTPException(status.HTTP_403_FORBIDDEN, "Acceso denegado.")
     except SQLAlchemyError as err:
         logger.exception("Error de persistencia obteniendo ClassSchedule %s", schedule_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error obteniendo ClassSchedule") from err

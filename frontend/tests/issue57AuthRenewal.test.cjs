@@ -173,3 +173,13 @@ test('IR007 provider refuses stale rehydrate after logout by session epoch', () 
   assert.match(source, /sessionStorage\.getItem\(REFRESH_KEY\) !== refresh/);
   assert.match(source, /sessionEpoch\.current\+\+/);
 });
+
+
+test('IR011 catalog uses safe public projection instead of operational metadata', () => {
+  const service = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'services', 'classService.ts'), 'utf8',
+  );
+  assert.match(service, /apiClient\.get<Omit<GymClass, 'class_schedules'>\[\]>\('\/gym-classes\/public'\)/);
+  assert.match(service, /class_schedules: \[\]/);
+  assert.doesNotMatch(service, /apiClient\.get<GymClass\[\]>\('\/gym-classes\/'\)/);
+});

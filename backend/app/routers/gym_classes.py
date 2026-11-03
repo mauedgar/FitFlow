@@ -13,7 +13,7 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from app.core.deps import require_admin
+from app.core.deps import require_admin, require_admin_or_front_desk
 from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_gym_class import gym_class
 from app.db.models.user import User
@@ -94,6 +94,7 @@ async def list_gym_classes(
     date_to: Annotated[date | None, Query()] = None,
     include_schedules: Annotated[bool, Query()] = False,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(require_admin_or_front_desk)],
 ) -> list[GymClassWithRelations]:
     """Lista clases del catálogo con filtros operativos.
 
