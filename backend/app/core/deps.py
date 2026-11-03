@@ -23,7 +23,7 @@ from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
 from app.schemas.user import UserPublic
 from app.services.auth_service import get_user_from_token
-from app.services.errors import AuthError, PermissionDeniedError
+from app.services.errors import AuthError
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
@@ -116,8 +116,8 @@ def require_roles(*allowed_roles: UserRole) -> Callable[..., Awaitable[UserPubli
         if user.role not in allowed_roles:
             roles_list = ", ".join(r.value for r in allowed_roles)
             msg = f"Este recurso requiere uno de los siguientes roles: {roles_list}."
-            raise PermissionDeniedError(
-                msg,
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=msg,
             )
         return user
 
@@ -146,7 +146,7 @@ def require_admin_or_self(id_param_name: str = "user_id") -> Callable[..., Await
             return user
 
         msg = "Acceso denegado."
-        raise PermissionDeniedError(msg)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
 
     return guard
 
@@ -179,7 +179,9 @@ async def require_admin_teacher_or_self(
     if current_user.role == UserRole.admin:
         return current_user
     if current_user.role != UserRole.teacher:
-        raise PermissionDeniedError("Acceso denegado.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.",
+        )
     profile = await db.scalar(
         select(Teacher).where(
             Teacher.id == teacher_id,
