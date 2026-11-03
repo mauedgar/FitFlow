@@ -13,6 +13,7 @@ class FakeRedis:
     def scan(self, *, cursor: int, match: str, count: int) -> tuple[int, list[str | bytes]]:
         self.operations.append("scan")
         assert count == 64
+        keys: list[str | bytes]
         if match.startswith("refresh_token:"):
             keys = [
                 "refresh_token:eyJ.secret-not-for-output",
