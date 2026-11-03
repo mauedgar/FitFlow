@@ -1,0 +1,70 @@
+name: FitFlow IR016 disposable Nginx Uvicorn Redis topology
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - frontend/nginx.conf
+      - backend/start.sh
+      - docker-compose.staging.yml
+      - backend/app/routers/auth.py
+      - backend/app/core/config.py
+      - backend/app/core/legacy_redis_inventory.py
+      - scripts/ci/ir016_*
+      - .github/workflows/ir016-staging-ingress.yml
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-topology:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      FITFLOW_IR016_DISPOSABLE: "1"
+      ENV: staging
+      DEBUG: "false"
+      POSTGRES_PASSWORD: ir016-disposable-postgres-only
+      SECRET_KEY: ir016-disposable-jwt-hmac-only-not-production
+      BACKEND_CORS_ORIGINS: '["https://staging.example.invalid"]'
+      FITFLOW_EDGE_SUBNET: 172.30.251.0/24
+      FITFLOW_TRUSTED_PROXY_IP: 172.30.251.10
+      FITFLOW_REFRESH_ACK_POLICY: required
+      STAGING_BACKEND_PORT: "18000"
+      STAGING_FRONTEND_PORT: "18080"
+      VITE_API_BASE_URL: /api/v1
+    steps:
+      - name: Checkout exact GitHub PR candidate without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact immutable checkout
+        env:
+          SUBJECT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT"
+          echo "IR016_SHA=$SUBJECT"
+          echo "IR016_TREE=$(git rev-parse HEAD^{tree})"
+      - name: Actual Nginx to Uvicorn ingress with disposable PG15 and Redis7
+        shell: bash
+        run: |
+          set -euo pipefail
+          export IR016_PROJECT="fitflow-ir016-${GITHUB_RUN_ID}"
+          compose=(docker compose --project-name "$IR016_PROJECT" --file docker-compose.staging.yml)
+          trap '"${compose[@]}" down --volumes --remove-orphans || true' EXIT
+          "${compose[@]}" config --quiet
+          "${compose[@]}" up --detach --build --wait
+          docker inspect "$IR016_PROJECT-backend-1" \
+            --format '{{json .NetworkSettings.Ports}}' > /tmp/ir016-bindings.json
+          python - <<'PY'
+          import json
+          with open("/tmp/ir016-bindings.json", encoding="utf-8") as fh:
+              ports = json.load(fh)
+          bound = ports["8000/tcp"]
+          assert bound and all(p["HostIp"] == "127.0.0.1" for p in bound)
+          print("IR016_LOCAL_BACKEND_BINDING_PASS")
+          PY
+          bash scripts/ci/ir016_disposable_ingress_probe.sh

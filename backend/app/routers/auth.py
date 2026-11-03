@@ -16,6 +16,7 @@ from uuid import UUID
 
 from app.core import security
 from app.core.blacklist import blacklist_token, is_token_blacklisted
+from app.core.config import settings
 from app.core.deps import get_current_user
 from app.core.login_throttle import check_login_throttle
 from app.core.token_store import (
@@ -53,6 +54,8 @@ async def login_for_tokens(
     ack_version = request.headers.get("x-fitflow-refresh-ack")
     if ack_version not in (None, "v1"):
         raise HTTPException(status_code=400, detail="Protocolo de sesión no soportado.")
+    if ack_version is None and settings.REFRESH_ACK_POLICY == "required":
+        raise HTTPException(status_code=426, detail="Se requiere confirmación de sesión v1.")
     # Only enabled in non-test runtimes; tests exercise the limiter separately
     # against disposable Redis and never a production account.
     try:

@@ -66,6 +66,16 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
     # /auth/refresh returns access only; no token replacement is implemented.
     REFRESH_TOKEN_ROTATION: bool = False
+    # compatible: legacy callers remain supported; required: negotiate ACK v1.
+    # Staging Compose selects required; production defaults compatible until approved rollout.
+    REFRESH_ACK_POLICY: str = "compatible"
+
+    @field_validator("REFRESH_ACK_POLICY")
+    @classmethod
+    def validate_refresh_ack_policy(cls, value: str) -> str:
+        if value not in {"compatible", "required"}:
+            raise ValueError("REFRESH_ACK_POLICY must be compatible or required")
+        return value
 
     # -----------------------------------------------------------------------
     # API
