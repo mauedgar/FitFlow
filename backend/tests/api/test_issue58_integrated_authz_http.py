@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID, uuid4
 
 import httpx
@@ -11,7 +11,9 @@ import pytest
 from app.core.config import settings
 from app.core.enums import MembershipPlan, MembershipStatus, UserRole
 from app.core.security import create_access_token
+from app.db.models.class_schedule import ClassSchedule
 from app.db.models.client import Client
+from app.db.models.gym_class import GymClass
 from app.db.models.membership import Membership
 from app.db.models.person import Person
 from app.db.models.teacher import Teacher
@@ -280,4 +282,71 @@ async def test_ir008_client_membership_history_owner_admin_only(
                 Person.id.in_([owner_profile_id, foreign_profile_id]),
             ))
             await db.execute(delete(User).where(User.id == foreign_account_id))
+            await db.commit()
+
+
+async def test_ir009_admin_gym_catalog_create_update_delete_with_loaded_schedules(
+    api_client: httpx.AsyncClient,
+    principals: tuple[dict[str, UUID], UUID],
+) -> None:
+    """A18: positive admin HTTP mutations, populated lazy-raise projection, cleanup."""
+    accounts, _ = principals
+    class_id: UUID | None = None
+    schedule_id = uuid4()
+    prefix = f"IR009 catalog {uuid4().hex}"
+    try:
+        created = await api_client.post(
+            f"{settings.API_V1_STR}/gym-classes/",
+            headers=bearer(accounts, "admin"),
+            json={
+                "name": prefix, "description": "Isolated positive admin contract",
+                "duration_minutes": 45, "default_capacity": 9,
+                "activity_type": "open_gym",
+            },
+        )
+        assert created.status_code == 201, created.text
+        class_id = UUID(created.json()["id"])
+        assert created.json()["class_schedules"] == []
+
+        async with AsyncSessionLocal() as db:
+            db.add(ClassSchedule(
+                id=schedule_id, gym_class_id=class_id,
+                rrule="RRULE:FREQ=WEEKLY;COUNT=2", start_time=time(10, 0),
+                duration_minutes=45, capacity=9, start_date=date(2026, 11, 2),
+                end_date=None, teacher_id=None, allowed_plan=None, active=True,
+            ))
+            await db.commit()
+
+        updated = await api_client.put(
+            f"{settings.API_V1_STR}/gym-classes/{class_id}",
+            headers=bearer(accounts, "admin"),
+            json={"name": f"{prefix} updated"},
+        )
+        assert updated.status_code == 200, updated.text
+        assert updated.json()["name"] == f"{prefix} updated"
+        nested = updated.json()["class_schedules"]
+        assert len(nested) == 1
+        assert nested[0]["id"] == str(schedule_id)
+        assert nested[0]["teacher"] is None
+        assert nested[0]["allowed_plan"] is None
+
+        private = await api_client.get(
+            f"{settings.API_V1_STR}/gym-classes/{class_id}",
+            headers=bearer(accounts, "admin"),
+        )
+        assert private.status_code == 200, private.text
+        assert private.json()["class_schedules"][0]["id"] == str(schedule_id)
+
+        removed = await api_client.delete(
+            f"{settings.API_V1_STR}/gym-classes/{class_id}",
+            headers=bearer(accounts, "admin"),
+        )
+        assert removed.status_code == 202, removed.text
+        hidden = await api_client.get(f"{settings.API_V1_STR}/gym-classes/{class_id}/public")
+        assert hidden.status_code == 404, hidden.text
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(ClassSchedule).where(ClassSchedule.id == schedule_id))
+            if class_id is not None:
+                await db.execute(delete(GymClass).where(GymClass.id == class_id))
             await db.commit()

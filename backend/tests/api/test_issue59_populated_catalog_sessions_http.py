@@ -39,7 +39,7 @@ async def catalog_session() -> AsyncIterator[tuple[UUID, UUID, UUID, UUID, date]
     class_id, schedule_id, session_id, cancelled_id = (
         uuid4(), uuid4(), uuid4(), uuid4()
     )
-    start = datetime.now(UTC) + timedelta(days=5)
+    start = datetime.combine(date.today() + timedelta(days=5), time(15, 0), tzinfo=UTC)
     async with AsyncSessionLocal() as db:
         klass = GymClass(
             id=class_id, name=f"IR008 Gym {uuid4().hex}",
@@ -156,3 +156,22 @@ async def test_ir008_populated_operational_and_public_projections_are_200(
     public_item = next(row for row in public.json() if row["id"] == str(class_id))
     assert "deleted_at" not in public_item
     assert "created_at" not in public_item
+
+
+async def test_ir009_static_daily_route_precedes_dynamic_uuid_and_filters_date(
+    api_client: httpx.AsyncClient,
+    catalog_session: tuple[UUID, UUID, UUID, UUID, date],
+) -> None:
+    """F21: the mounted HTTP router must execute /day, not /{session_id}."""
+    _gym_id, _schedule_id, session_id, _cancelled_id, day = catalog_session
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/class-sessions/day",
+        params={"date_query": day.isoformat()},
+    )
+    assert response.status_code == 200, response.text
+    assert str(session_id) in {item["id"] for item in response.json()}
+    malformed = await api_client.get(
+        f"{settings.API_V1_STR}/class-sessions/day",
+        params={"date_query": "invalid-date"},
+    )
+    assert malformed.status_code == 422, malformed.text
