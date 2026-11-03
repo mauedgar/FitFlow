@@ -1,47 +1,61 @@
 name: "Estructurador Automático de PR"
 
+# Non-destructive fallback only when the author did not provide a PR description.
+# A synchronize event must never rewrite an authored scope, DocImpact, or IR receipt.
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened]
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   update-pr-body:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
+    timeout-minutes: 5
     steps:
-      - name: Generar descripción basada en Commits
+      - name: Preserve authored text; fill only an empty body once
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { owner, repo } = context.repo;
             const pull_number = context.payload.pull_request.number;
+            const args = { owner, repo, pull_number };
+
+            // The event payload can be stale. Fetch authoritative PR body.
+            const before = await github.rest.pulls.get(args);
+            if ((before.data.body || '').trim()) {
+              core.info('PR_BODY_PRESERVED');
+              return;
+            }
+
             const commits = await github.paginate(
               github.rest.pulls.listCommits,
-              { owner, repo, pull_number, per_page: 100 }
+              { ...args, per_page: 100 }
             );
-
             const messages = [...new Set(
               commits
-                .map((commit) => commit.commit?.message?.split('\n')[0])
+                .map(commit => commit.commit?.message?.split('\n')[0])
                 .filter(Boolean)
-            )];
-
+            )].slice(-8);
             const body = [
-              '## Resumen',
+              '## Resumen inicial (automático)',
               '',
-              ...messages.map((message) => `- ${message}`),
+              ...(messages.length
+                ? messages.map(message => `- ${message}`)
+                : ['- Sin mensajes de commit disponibles.']),
               '',
-              '## Validación',
-              '',
-              '- Actualización automática del contenido del PR a partir de los commits del pull request.'
+              'Descripción inicial de respaldo; el autor puede editarla.',
             ].join('\n');
 
-            await github.rest.pulls.update({
-              owner,
-              repo,
-              pull_number,
-              body
-            });
+            // Check again immediately before mutation: never overwrite a
+            // user-authored body that arrived during the API round trip.
+            const latest = await github.rest.pulls.get(args);
+            if ((latest.data.body || '').trim()) {
+              core.info('PR_BODY_PRESERVED_CONCURRENT_EDIT');
+              return;
+            }
+            await github.rest.pulls.update({ ...args, body });
+            core.info('PR_EMPTY_BODY_INITIALIZED_ONCE');
