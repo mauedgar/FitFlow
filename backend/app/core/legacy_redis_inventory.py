@@ -6,6 +6,8 @@ import json
 import os
 
 from app.core.redis_client import get_redis_client
+from app.services.errors import ExternalServiceError
+from redis.exceptions import RedisError
 
 PREFIXES = ("refresh_token:", "blacklist_token:")
 
@@ -55,7 +57,7 @@ def main() -> int:
             "report": summarize_legacy_keys(client, a.max_pages),
         }, sort_keys=True))
         return 0
-    except Exception:
+    except (ExternalServiceError, RedisError, ValueError):
         # Avoid exposing service details and token-bearing key names.
         print("LEGACY_INVENTORY_UNAVAILABLE")
         return 2

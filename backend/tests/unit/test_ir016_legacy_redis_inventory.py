@@ -1,8 +1,10 @@
 """No live Redis; classify legacy raw-key TTLs without disclosing bearer names."""
+
 from __future__ import annotations
 
 import pytest
 from app.core.legacy_redis_inventory import summarize_legacy_keys
+
 
 class FakeRedis:
     def __init__(self, partial: bool = False) -> None:
