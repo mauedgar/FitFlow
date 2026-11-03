@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from app.core.config import settings
-from app.core.enums import UserRole
+from app.core.enums import MembershipPlan, MembershipStatus, UserRole
 from app.core.security import create_access_token
+from app.db.models.client import Client
+from app.db.models.membership import Membership
 from app.db.models.person import Person
 from app.db.models.teacher import Teacher
 from app.db.models.user import User
@@ -158,3 +161,123 @@ async def test_booking_level_activity_is_not_anonymous_or_client_enumerable(
     assert public.status_code == 401, public.text
     client = await api_client.get(url, headers=bearer(accounts, "client"))
     assert client.status_code == 403, client.text
+
+
+async def test_ir008_teacher_private_directory_is_admin_only_and_public_safe(
+    api_client: httpx.AsyncClient,
+    principals: tuple[dict[str, UUID], UUID],
+) -> None:
+    accounts, profile_id = principals
+    secret = f"PRIVATE-DOCUMENT-{uuid4().hex}"
+    async with AsyncSessionLocal() as db:
+        teacher = await db.get(Teacher, profile_id)
+        assert teacher is not None
+        teacher.cuil = secret
+        teacher.document_number = secret
+        teacher.medical_fit_url = f"https://example.com/private/{secret}"
+        teacher.address = "TEST PRIVATE HOME"
+        await db.commit()
+
+    url = f"{settings.API_V1_STR}/teachers/"
+    anonymous = await api_client.get(url)
+    assert anonymous.status_code == 401, anonymous.text
+    colleague = await api_client.get(url, headers=bearer(accounts, "teacher"))
+    assert colleague.status_code == 403, colleague.text
+    admin = await api_client.get(url, headers=bearer(accounts, "admin"))
+    assert admin.status_code == 200, admin.text
+    entry = next(item for item in admin.json() if item["id"] == str(profile_id))
+    assert entry["cuil"] == secret
+    assert entry["document_number"] == secret
+    assert entry["medical_fit_url"].endswith(secret)
+
+    public = await api_client.get(f"{settings.API_V1_STR}/teachers/public")
+    assert public.status_code == 200, public.text
+    row = next(item for item in public.json() if item["id"] == str(profile_id))
+    for field in ("cuil", "document_number", "address", "medical_fit_url"):
+        assert field not in row
+    assert secret not in public.text
+
+
+@pytest.mark.parametrize("path", [
+    "/gym-classes/",
+    "/teachers/",
+    "/memberships/client/{id}/public",
+])
+async def test_ir008_invalid_bearer_is_401_not_500(
+    api_client: httpx.AsyncClient,
+    path: str,
+) -> None:
+    url = f"{settings.API_V1_STR}" + path.replace("{id}", str(uuid4()))
+    response = await api_client.get(
+        url, headers={"Authorization": "Bearer malformed-ir008-token"},
+    )
+    assert response.status_code == 401, response.text
+    assert response.headers.get("www-authenticate") == "Bearer"
+
+
+async def test_ir008_client_membership_history_owner_admin_only(
+    api_client: httpx.AsyncClient,
+    principals: tuple[dict[str, UUID], UUID],
+) -> None:
+    accounts, _ = principals
+    owner_profile_id, membership_id = uuid4(), uuid4()
+    foreign_profile_id, foreign_account_id = uuid4(), uuid4()
+    marker = uuid4().hex
+    async with AsyncSessionLocal() as db:
+        db.add(User(
+            id=foreign_account_id,
+            email=f"ir008-foreign-{marker}@example.com",
+            hashed_password="synthetic", role=UserRole.client, active=True,
+        ))
+        db.add(Client(
+            id=owner_profile_id, first_name="Owner", last_name="Client",
+            user_id=accounts["client"],
+        ))
+        db.add(Client(
+            id=foreign_profile_id, first_name="Foreign", last_name="Client",
+            user_id=foreign_account_id,
+        ))
+        await db.commit()
+        db.add(Membership(
+            id=membership_id,
+            client_id=owner_profile_id,
+            plan=MembershipPlan.premium,
+            status=MembershipStatus.active,
+            start_date=datetime.now(UTC)-timedelta(days=1),
+            end_date=datetime.now(UTC)+timedelta(days=15),
+        ))
+        await db.commit()
+    try:
+        target = f"{settings.API_V1_STR}/memberships/client/{owner_profile_id}/public"
+        anon = await api_client.get(target)
+        assert anon.status_code == 401, anon.text
+        owner = await api_client.get(target, headers=bearer(accounts, "client"))
+        assert owner.status_code == 200, owner.text
+        assert any(row["id"] == str(membership_id) for row in owner.json())
+        admin = await api_client.get(target, headers=bearer(accounts, "admin"))
+        assert admin.status_code == 200, admin.text
+        teacher = await api_client.get(target, headers=bearer(accounts, "teacher"))
+        assert teacher.status_code == 403, teacher.text
+        foreign_token = create_access_token({
+            "sub": str(foreign_account_id), "role": UserRole.client.value,
+        })
+        foreign = await api_client.get(
+            target, headers={"Authorization": f"Bearer {foreign_token}"},
+        )
+        assert foreign.status_code == 403, foreign.text
+        wrong = await api_client.get(
+            f"{settings.API_V1_STR}/memberships/client/{foreign_profile_id}/public",
+            headers=bearer(accounts, "client"),
+        )
+        assert wrong.status_code == 403, wrong.text
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(Membership).where(Membership.id == membership_id))
+            await db.execute(delete(Client).where(
+                Client.id.in_([owner_profile_id, foreign_profile_id]),
+            ))
+            await db.execute(delete(Person).where(
+                Person.id.in_([owner_profile_id, foreign_profile_id]),
+            ))
+            await db.execute(delete(User).where(User.id == foreign_account_id))
+            await db.commit()

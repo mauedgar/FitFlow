@@ -18,7 +18,7 @@ class ClassScheduleInResponse(BaseModel):
     start_time: time
     duration_minutes: int
     capacity: int
-    allowed_plan: AllowedPlan
+    allowed_plan: AllowedPlan | None = None
     active: bool
 
     model_config = ConfigDict(from_attributes=True)

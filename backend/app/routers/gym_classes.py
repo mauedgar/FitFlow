@@ -57,7 +57,13 @@ async def create_gym_class(
     Usado en:
         • Panel administrativo para gestionar el catálogo.
     """
-    gym_classs = await gym_class.create(db=db, obj_in=class_in)
+    created = await gym_class.create(db=db, obj_in=class_in)
+    # Eager reload: GymClass.class_schedules is lazy="raise" even when empty.
+    gym_classs = await gym_class.get(
+        db=db, obj_id=created.id, include_schedules=True,
+    )
+    if gym_classs is None:
+        raise HTTPException(500, "Clase creada no disponible.")
     return GymClassWithRelations.model_validate(gym_classs)
 
 
@@ -114,20 +120,10 @@ async def list_gym_classes(
         date_to=date_to,
     )
 
-    if not include_schedules:
-        return [GymClassWithRelations.model_validate(c) for c in classes]
-
-    ids = [c.id for c in classes]
-    classes_with_sched = await gym_class.get_multi(
-        db=db,
-        filters={"id": ids},
-        options=[
-            gym_class.model.class_schedules.property.lazyload,
-        ],
-    )
-
-    classes_map = {c.id: c for c in classes_with_sched}
-    return [GymClassWithRelations.model_validate(classes_map[i]) for i in ids]
+    # The response contract includes class_schedules even for the legacy
+    # include_schedules=false request. Filtered CRUD explicitly eagerly loads
+    # nested teacher relations before Pydantic can access lazy="raise" paths.
+    return [GymClassWithRelations.model_validate(item) for item in classes]
 # --------------------------------------------------------------------------- #
 # Obtener GymClass por ID (operativo)
 # --------------------------------------------------------------------------- #
@@ -181,7 +177,12 @@ async def update_gym_class(
     if not gym_classs:
         raise HTTPException(404, "Clase no encontrada")
 
-    updated = await gym_class.update(db=db, db_obj=gym_classs, obj_in=class_in)
+    await gym_class.update(db=db, db_obj=gym_classs, obj_in=class_in)
+    updated = await gym_class.get(
+        db=db, obj_id=class_id, include_schedules=True,
+    )
+    if updated is None:
+        raise HTTPException(404, "Clase no encontrada")
     return GymClassWithRelations.model_validate(updated)
 
 

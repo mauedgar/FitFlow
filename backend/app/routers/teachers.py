@@ -107,7 +107,7 @@ async def read_teachers(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     skip: int = 0,
     limit: int = 100,
-    current_user: Annotated[User, Depends(require_admin_or_teacher)],
+    current_user: Annotated[User, Depends(require_admin)],
 ) -> list[TeacherWithRelations]:
     """Lista profesores en versión operativa (privada).
 

@@ -118,9 +118,9 @@ const classService = {
     try {
       const response = await apiClient.get<ClassSession[]>('/class-sessions/', {
         params: {
-          class_schedule_id: classScheduleId,
-          from_date: fromDate,
-          to_date: toDate,
+          schedule_id: classScheduleId,
+          date_from: fromDate,
+          date_to: toDate,
           include_cancelled: includeCancelled,
         },
       });

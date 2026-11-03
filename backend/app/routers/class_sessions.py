@@ -121,6 +121,7 @@ async def read_class_sessions(
     schedule_id: UUID | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    include_cancelled: bool = True,
 ) -> list[ClassSessionInResponse]:
     """Devuelve todas las sesiones filtradas por clase o rango de fechas."""
     stmt = (
@@ -136,6 +137,8 @@ async def read_class_sessions(
 
     if schedule_id:
         stmt = stmt.where(ClassSession.class_schedule_id == schedule_id)
+    if not include_cancelled:
+        stmt = stmt.where(ClassSession.status != ClassSessionStatus.cancelled)
     if date_from:
         start_dt = datetime.combine(date_from, datetime.min.time(), tzinfo=LOCAL_TZ)
         stmt = stmt.where(ClassSession.starts_at >= start_dt)

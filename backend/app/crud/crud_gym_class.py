@@ -39,7 +39,7 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
     ) -> GymClass | None:
         """Obtiene una clase del gimnasio según criterios avanzados."""
         opts: list[ORMOption] | None = (
-            [selectinload(GymClass.class_schedules)]
+            [selectinload(GymClass.class_schedules).selectinload(ClassSchedule.teacher)]
             if include_schedules
             else None
         )
@@ -103,7 +103,11 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
                 )
 
         stmt = (
-            stmt.options(selectinload(GymClass.class_schedules))
+            stmt.options(
+                selectinload(GymClass.class_schedules).selectinload(
+                    ClassSchedule.teacher,
+                ),
+            )
             .order_by(GymClass.name)
             .offset(skip)
             .limit(limit)

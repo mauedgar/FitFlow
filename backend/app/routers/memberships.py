@@ -15,7 +15,7 @@ from typing import Annotated
 from uuid import UUID
 
 from app.core.deps import oauth2_scheme, require_admin, require_current_user
-from app.core.enums import MembershipStatus
+from app.core.enums import MembershipStatus, UserRole
 from app.crud.crud_client import client
 from app.crud.crud_membership import membership
 from app.db.models import Booking, Client, Membership
@@ -253,10 +253,17 @@ async def read_memberships_by_client_public(
     *,
     client_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[UserPublic, Depends(_require_membership_current_user)],
 ) -> list[MembershipPublic]:
-    """Lista membresías públicas de un cliente."""
+    """Private per-client commercial history: admin, owner, or front desk only."""
+    if current_user.role not in {UserRole.admin, UserRole.front_desk}:
+        if current_user.role != UserRole.client:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Acceso denegado.")
+        owner = await client.get_by_user_id(db=db, user_id=current_user.id)
+        if owner is None or owner.id != client_id:
+            # Do not reveal whether a requested client ID exists.
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Acceso denegado.")
     memberships = await membership.get_multi_filtered(
-        db=db,
-        client_id=client_id,
+        db=db, client_id=client_id,
     )
-    return [to_membership_public(m) for m in memberships]
+    return [to_membership_public(item) for item in memberships]

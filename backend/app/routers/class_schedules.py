@@ -135,7 +135,7 @@ async def read_class_schedules(
     limit: Annotated[int, Query(ge=1, le=1000)] = 100,
     gym_class_id: UUID | None = None,
     teacher_id: UUID | None = None,
-    include_relations: Annotated[bool, Query()] = False,
+    include_relations: Annotated[bool, Query()] = True,
 ) -> list[ClassScheduleWithRelations]:
     """Lista horarios con filtros operativos."""
     try:
@@ -145,7 +145,9 @@ async def read_class_schedules(
             limit=limit,
             gym_class_id=gym_class_id,
             teacher_id=teacher_id,
-            include_relations=include_relations,
+            # The response schema *always* requires gym_class and teacher.
+            # Do not allow the query flag to disable required eager relations.
+            include_relations=True,
         )
     except SQLAlchemyError as err:
         logger.exception("Error de persistencia listando ClassSchedules")
