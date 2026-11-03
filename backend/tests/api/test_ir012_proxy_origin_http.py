@@ -4,16 +4,25 @@ This is a hermetic negative HTTP test, NOT a staging proxy configuration PASS.
 """
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from uuid import uuid4
 
 import httpx
 import pytest
 from app.core.config import settings
+from app.db.session import engine
 from app.routers import auth as auth_router
 from pydantic import ValidationError
 from sqlalchemy.engine import make_url
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
+
+
+@pytest.fixture(autouse=True)
+async def dispose_test_engine_pool() -> AsyncIterator[None]:
+    """Isolate asyncpg connections from subsequent pytest event loops."""
+    yield
+    await engine.dispose()
 
 
 async def test_ir012_spoofed_forwarding_headers_cannot_choose_throttle_origin(
