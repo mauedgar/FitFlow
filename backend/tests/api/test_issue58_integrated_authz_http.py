@@ -41,7 +41,7 @@ async def principals() -> AsyncIterator[tuple[dict[str, UUID], UUID]]:
         db.add_all([
             User(
                 id=uid,
-                email=f"ir007-{role}-{marker}@example.invalid",
+                email=f"ir007-{role}-{marker}@example.com",
                 hashed_password="synthetic-no-login",
                 active=True,
                 role=UserRole(role),

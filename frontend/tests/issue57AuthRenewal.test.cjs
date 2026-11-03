@@ -171,5 +171,5 @@ test('IR007 provider refuses stale rehydrate after logout by session epoch', () 
   assert.match(source, /const epoch = \+\+sessionEpoch\.current/);
   assert.match(source, /epoch !== sessionEpoch\.current/);
   assert.match(source, /sessionStorage\.getItem\(REFRESH_KEY\) !== refresh/);
-  assert.match(source, /sessionEpoch\.current \+= 1/);
+  assert.match(source, /sessionEpoch\.current\+\+/);
 });
