@@ -22,7 +22,14 @@ ejecuta en `develop`; no hay secreto OpenAI ni LLM obligatorio.
 
 La CI básica única opera por `pull_request` a `develop`
 y `push` a `develop`, con `contents:read` y cancelación
-solamente de ejecuciones anteriores del mismo PR/ref. Selecciona
+solamente de ejecuciones anteriores del mismo PR/ref.
+**Draft:** ejecuta únicamente el job liviano `scope` para
+anotar `FITFLOW_NOT_RUN_DRAFT`; backend/frontend quedan
+`NOT_RUN` hasta el evento `ready_for_review`. Esto
+evita el ciclo pesado en cada commit provisional. Si el
+PR ya es Ready, una nueva sincronización vuelve a
+calificar el SHA nuevo, cancelando solamente el intento
+anterior aún en vuelo. Selecciona
 por el diff Git real entre base/merge-base y candidato exacto:
 - backend/*, pyproject.toml, uv.lock y scripts/ci/* activan
   la suite completa backend **una vez** en Python 3.11.17
@@ -34,7 +41,11 @@ por el diff Git real entre base/merge-base y candidato exacto:
 - docs/ y plantillas puras no ejecutan suites Product:
   resultado deliberado **NOT_RUN/N/A**, no PASS implícito.
 
-El job de clasificación siempre registra SHA y tree.
+El job de clasificación registra SHA y tree al calificar
+un candidato listo. Para un Draft registra explícitamente
+`NOT_RUN_DRAFT`, no hace checkout ni declara pruebas
+`PASS`. Si `git diff` falla o la base no existe,
+el job falla (no convierte un error en rutas vacías).
 Cada job seleccionado verifica por separado el checkout
 del SHA exacto del PR (no lo confunde con el synthetic
 merge de GitHub), y publica el tree en logs. El workflow
@@ -91,7 +102,8 @@ no autoriza reintentos de efectos Product.
 Parseo YAML/eventos y casos negativos de selección:
 solo docs, solo backend, solo frontend, workflow
 cambiado, ruta desconocida, push con before ausente,
-y base/head equivocados. Validación real en Actions
+base/head equivocados, diff Git fallido y Draft
+sin pruebas hasta `ready_for_review`. Validación real en Actions
 sobre el candidato SHA/tree con PG/Redis, Node
 tests/lint/build, sin secretos pagos, seguida de
 una original Independent Review en contexto separado

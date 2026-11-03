@@ -24,7 +24,11 @@ jobs:
       backend: ${{ steps.paths.outputs.backend }}
       frontend: ${{ steps.paths.outputs.frontend }}
     steps:
+      - name: Explicitly mark draft as NOT_RUN
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft
+        run: echo "FITFLOW_NOT_RUN_DRAFT — set Ready for review to qualify candidate"
       - name: Checkout exact source candidate
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -32,6 +36,7 @@ jobs:
           persist-credentials: false
 
       - name: Record subject SHA/tree and decide changed scope
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         id: paths
         shell: bash
         env:
@@ -63,6 +68,10 @@ jobs:
           fi
 
           if [[ -n "$from" ]]; then
+            changed_paths="$(mktemp)"
+            trap 'rm -f "$changed_paths"' EXIT
+            # Process substitution hides git-diff failures; check its exit code.
+            git diff --name-only -z "$from" "$SUBJECT_SHA" > "$changed_paths"
             while IFS= read -r -d '' path; do
               case "$path" in
                 backend/*|pyproject.toml|uv.lock|scripts/ci/*)
@@ -79,7 +88,7 @@ jobs:
                   backend=true
                   frontend=true ;;
               esac
-            done < <(git diff --name-only -z "$from" "$SUBJECT_SHA")
+            done < "$changed_paths"
           fi
           echo "backend=$backend" >> "$GITHUB_OUTPUT"
           echo "frontend=$frontend" >> "$GITHUB_OUTPUT"
