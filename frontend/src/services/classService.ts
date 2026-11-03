@@ -28,8 +28,13 @@ const classService = {
     const response = await apiClient.post<TokenResponse>('/auth/token', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'X-FitFlow-Refresh-Ack': 'v1',
       },
     });
+    await apiClient.post('/auth/ack',
+      { refresh_token: response.data.refresh_token },
+      { headers: { Authorization: `Bearer ${response.data.access_token}` } },
+    );
     return response.data;
   },
 

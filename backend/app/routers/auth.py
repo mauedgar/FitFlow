@@ -19,8 +19,10 @@ from app.core.blacklist import blacklist_token, is_token_blacklisted
 from app.core.deps import get_current_user
 from app.core.login_throttle import check_login_throttle
 from app.core.token_store import (
+    activate_pending_refresh_token,
     delete_refresh_token,
     is_refresh_token_valid,
+    store_pending_refresh_token,
     store_refresh_token,
 )
 from app.crud.crud_user import user as user_crud
@@ -48,6 +50,9 @@ async def login_for_tokens(
     request: Request,
 ) -> TokenPair:
     """Autentica al usuario y devuelve Access + Refresh Tokens."""
+    ack_version = request.headers.get("x-fitflow-refresh-ack")
+    if ack_version not in (None, "v1"):
+        raise HTTPException(status_code=400, detail="Protocolo de sesión no soportado.")
     # Only enabled in non-test runtimes; tests exercise the limiter separately
     # against disposable Redis and never a production account.
     try:
@@ -81,7 +86,10 @@ async def login_for_tokens(
     refresh_token = security.create_refresh_token(data={"sub": str(user.id)})
 
     try:
-        store_refresh_token(str(user.id), refresh_token)
+        if ack_version == "v1":
+            store_pending_refresh_token(str(user.id), refresh_token)
+        else:
+            store_refresh_token(str(user.id), refresh_token)
     except ExternalServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
@@ -90,6 +98,31 @@ async def login_for_tokens(
 
     logger.info("User %s logged in successfully", user.id)
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post("/ack", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def acknowledge_refresh_delivery(
+    *,
+    token_request: RefreshTokenRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """Confirm client possession before activating a negotiated refresh token."""
+    token = token_request.refresh_token
+    payload = security.decode_token(token)
+    if (
+        payload is None or not security.is_refresh_token_payload(payload)
+        or not isinstance(payload.get("sub"), str) or not payload["sub"]
+    ):
+        raise HTTPException(status_code=400, detail="Refresh token inválido.")
+    if payload["sub"] != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Token ajeno al usuario autenticado.")
+    try:
+        if is_token_blacklisted(token):
+            raise HTTPException(status_code=401, detail="Refresh token invalidado.")
+        if not activate_pending_refresh_token(str(current_user.id), token):
+            raise HTTPException(status_code=401, detail="Confirmación vencida o no registrada.")
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.post("/refresh", response_model=Token, status_code=status.HTTP_200_OK)

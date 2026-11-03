@@ -49,7 +49,7 @@ function accessUsable(token: string | null): token is string {
 
 function protectedEndpoint(url: string | undefined): boolean {
   const path = url ?? '';
-  return !/\/auth\/(?:token|refresh|logout)(?:\?|$)|\/users\/register(?:\?|$)/.test(path);
+  return !/\/auth\/(?:token|refresh|logout|ack)(?:\?|$)|\/users\/register(?:\?|$)/.test(path);
 }
 
 /** Single-flight refresh shared by mounted React views and Axios requests. */
@@ -154,8 +154,13 @@ export const loginUser = async (email: string, password: string) => {
     const response = await apiClient.post('/auth/token', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'X-FitFlow-Refresh-Ack': 'v1',
       },
     });
+    await apiClient.post('/auth/ack',
+      { refresh_token: response.data.refresh_token },
+      { headers: { Authorization: `Bearer ${response.data.access_token}` } },
+    );
     // La respuesta de FastAPI contiene { access_token: "...", token_type: "bearer" }
     return response.data; 
   } catch (error) {

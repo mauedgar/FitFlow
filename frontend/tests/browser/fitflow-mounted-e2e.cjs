@@ -20,6 +20,7 @@ const requests = [];
 let tokenSerial = 0;
 let logoutCalls = 0;
 let refreshCalls = 0;
+let ackCalls = 0;
 const subprocesses = [];
 const tmpProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'fitflow-e2e-chrome-'));
 let session = null;
@@ -50,7 +51,7 @@ function mockApi(req, res) {
   const method = req.method || 'GET';
   requests.push(method + ' ' + route);
   res.setHeader('Access-Control-Allow-Origin', webOrigin);
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-FitFlow-Refresh-Ack');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Cache-Control', 'no-store');
   const send = (code, data) => {
@@ -72,6 +73,7 @@ function mockApi(req, res) {
   req.on('end', () => {
     const bearer = req.headers.authorization || '';
     if (method === 'POST' && route === '/api/v1/auth/token') {
+      assert.equal(req.headers['x-fitflow-refresh-ack'], 'v1', 'Mounted SPA negotiates pending refresh');
       const form = new URLSearchParams(body);
       if (form.get('username') !== user.email ||
           form.get('password') !== 'synthetic-e2e-only') {
@@ -80,6 +82,14 @@ function mockApi(req, res) {
       return send(200, {
         access_token: jwt(), refresh_token: refreshCredential, token_type: 'bearer',
       });
+    }
+    if (method === 'POST' && route === '/api/v1/auth/ack') {
+      const payload = JSON.parse(body || '{}');
+      if (!bearer.startsWith('Bearer ') || payload.refresh_token !== refreshCredential) {
+        return send(403, { detail: 'Bad synthetic acknowledgement' });
+      }
+      ackCalls++;
+      return send(204, {});
     }
     if (method === 'GET' && route === '/api/v1/auth/me') {
       return bearer.startsWith('Bearer ') ? send(200, user) :
@@ -250,6 +260,7 @@ async function browserTest() {
   await webdriver('POST', '/session/' + session + '/element/' + logoutItem + '/click', {});
   await until(() => evaluate("location.pathname === '/login'"), 'logout navigates to login');
   assert.equal(await evaluate("sessionStorage.getItem('fitflow_refresh_token')"), null);
+  assert.equal(ackCalls, 1);
   assert.equal(logoutCalls, 1);
   await navigate('/admin');
   await until(() => evaluate("location.pathname === '/login'"), 'post-logout redirect');
