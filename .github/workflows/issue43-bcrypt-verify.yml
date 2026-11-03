@@ -162,13 +162,23 @@ jobs:
         env:
           PYTHONPATH: backend
         run: python -m pytest -q backend/tests/unit/test_security_bcrypt_legacy_compat.py
-      - name: Prove legacy Passlib 1.7.4 hashes verify with new code
-        if: matrix.python == '3.11'
+      - name: Capture native target interpreter before historical setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'TARGET_PYTHON=%s\n' "$(command -v python)" >> "$GITHUB_ENV"
+          python -c 'import sys; print("ISSUE43_NATIVE_PYTHON", sys.version)'
+      - name: Set up historical Python 3.11 for isolated Passlib
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.11.17"
+      - name: Prove legacy Passlib 1.7.4 hashes verify with target Python
         env:
           PYTHONPATH: backend
         shell: bash
         run: |
           set -euo pipefail
+          test "$("$TARGET_PYTHON" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')" = "${{ matrix.python }}"
           uv venv /tmp/issue43-legacy --python 3.11
           uv pip install --python /tmp/issue43-legacy/bin/python --no-cache-dir passlib==1.7.4 bcrypt==3.2.2
           /tmp/issue43-legacy/bin/python - <<'PY'
@@ -184,7 +194,7 @@ jobs:
               json.dump(vectors, f, ensure_ascii=False)
           print("ISSUE43_LEGACY_VECTOR_GENERATION_PASS", len(vectors))
           PY
-          python - <<'PY'
+          "$TARGET_PYTHON" - <<'PY'
           import json
           from app.core.security import verify_password
           with open("/tmp/issue43-passlib-vectors.json", encoding="utf-8") as f:
@@ -195,15 +205,14 @@ jobs:
           print("ISSUE43_CROSS_ENV_LEGACY_COMPAT_PASS", len(vectors))
           PY
 
-      - name: Prove native bcrypt 4.3 hashes verify under isolated legacy Passlib
-        if: matrix.python == '3.11'
+      - name: Prove target native bcrypt 4.3 hashes verify under isolated legacy Passlib
         env:
           PYTHONPATH: backend
         shell: bash
         run: |
           set -euo pipefail
           test -x /tmp/issue43-legacy/bin/python
-          python - <<'PY'
+          "$TARGET_PYTHON" - <<'PY'
           import json
           from app.core.security import get_password_hash, verify_password
           vectors = []
