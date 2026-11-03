@@ -25,7 +25,9 @@ from app.core.enums import BookingStatus, UserRole
 from app.crud.crud_booking import booking as booking_crud
 from app.crud.crud_class_session import class_session as class_session_crud
 from app.crud.crud_client import client as client_crud
+from app.db.models.booking import Booking
 from app.db.models.class_schedule import ClassSchedule
+from app.db.models.class_session import ClassSession
 from app.db.models.teacher import Teacher
 from app.db.models.user import User
 from app.db.session import get_async_session
@@ -55,6 +57,7 @@ from app.services.errors import BusinessValidationError, ConflictError, NotFound
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger("fitflow.bookings")
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -316,7 +319,19 @@ async def read_session_bookings_public(
 ) -> list[BookingPublic]:
     """Lista privada: staff o profesor asignado a la sesión."""
     try:
-        session = await class_session_crud.get(db=db, obj_id=session_id, include_relations=True)
+        session = await class_session_crud.get(
+            db=db,
+            obj_id=session_id,
+            include_relations=True,
+            options=[
+                # BookingPublic traverses booking -> session -> schedule -> gym class.
+                # Explicit nested loading prevents lazy="raise" HTTP500 with data.
+                selectinload(ClassSession.bookings)
+                .selectinload(Booking.class_session)
+                .selectinload(ClassSession.class_schedule)
+                .selectinload(ClassSchedule.gym_class),
+            ],
+        )
     except Exception as exc:
         logger.exception("DB error fetching class_session id=%s for public bookings", session_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc

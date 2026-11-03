@@ -20,10 +20,10 @@ from app.core.deps import (
     require_admin_or_front_desk,
     require_operational,
 )
+from app.core.enums import UserRole
 from app.crud.crud_class_schedule import class_schedule as class_schedule_crud
 from app.crud.crud_gym_class import gym_class as gym_class_crud
 from app.crud.crud_teacher import teacher as teacher_crud
-from app.core.enums import UserRole
 from app.db.models.teacher import Teacher
 from app.db.session import get_async_session
 from app.schemas.class_schedule import (

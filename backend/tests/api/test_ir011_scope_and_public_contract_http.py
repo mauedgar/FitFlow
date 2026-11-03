@@ -194,19 +194,31 @@ async def test_ir011_public_catalogue_and_operational_reads_are_separated(
     ).status_code == 403
     for who in ("admin", "front_desk"):
         assert str(klass) in ids(
-            await api_client.get(prefix + "/gym-classes/", headers=bearer(scope, who))
+            await api_client.get(
+                prefix + "/gym-classes/",
+                headers=bearer(scope, who),
+                params={"search": "IR011 synthetic", "limit": 200},
+            )
         )
         schedule_ids = ids(
-            await api_client.get(prefix + "/class-schedules/", headers=bearer(scope, who))
+            await api_client.get(
+                prefix + "/class-schedules/",
+                headers=bearer(scope, who),
+                params={"gym_class_id": str(klass)},
+            )
         )
         assert {str(s) for s in schedules}.issubset(schedule_ids)
 
     teacher_a = ids(await api_client.get(
-        prefix + "/class-schedules/", headers=bearer(scope, "teacher_a"),
+        prefix + "/class-schedules/",
+        headers=bearer(scope, "teacher_a"),
+        params={"gym_class_id": str(klass)},
     ))
     assert str(schedules[0]) in teacher_a and str(schedules[1]) not in teacher_a
     teacher_b = ids(await api_client.get(
-        prefix + "/class-schedules/", headers=bearer(scope, "teacher_b"),
+        prefix + "/class-schedules/",
+        headers=bearer(scope, "teacher_b"),
+        params={"gym_class_id": str(klass)},
     ))
     assert str(schedules[1]) in teacher_b and str(schedules[0]) not in teacher_b
     assert (await api_client.get(
@@ -219,9 +231,14 @@ async def test_ir011_public_catalogue_and_operational_reads_are_separated(
     )).status_code == 200
 
     public_classes = await api_client.get(prefix + "/gym-classes/public")
-    assert str(klass) in ids(public_classes)
-    found = next(x for x in public_classes.json() if x["id"] == str(klass))
+    assert public_classes.status_code == 200, public_classes.text
+    public_detail = await api_client.get(prefix + f"/gym-classes/{klass}/public")
+    assert public_detail.status_code == 200, public_detail.text
+    found = public_detail.json()
+    assert found["id"] == str(klass)
     for field in ("created_at", "updated_at", "deleted_at", "class_schedules"):
         assert field not in found
-    public_sched = await api_client.get(prefix + "/class-schedules/public")
+    public_sched = await api_client.get(
+        prefix + f"/class-schedules/class/{klass}/public",
+    )
     assert {str(s) for s in schedules}.issubset(ids(public_sched))
