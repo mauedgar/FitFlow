@@ -10,29 +10,28 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
-
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
-from pydantic import ValidationError
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.core.security import decode_token
+from app.core.security import decode_token, is_access_token_payload
 from app.crud.crud_user import user as user_crud
+from app.db.models.teacher import Teacher
+from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
-from app.schemas.user import UserPublic  # noqa: TC001
+from app.schemas.user import UserPublic
 from app.services.auth_service import get_user_from_token
-from app.services.errors import AuthError, PermissionDeniedError
+from app.services.errors import AuthError
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import ValidationError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from app.db.models.user import User
 
 
 # --------------------------------------------------------------------------- #
@@ -45,12 +44,13 @@ oauth2_scheme = OAuth2PasswordBearer(
 
 
 async def get_current_user(
-    db: AsyncSession = Depends(get_async_session),
-    token: str = Depends(oauth2_scheme),
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> User:
     """Valida el JWT, obtiene el usuario y verifica que esté activo."""
     payload = decode_token(token)
-    if payload is None:
+    # An untyped JWT may be a legacy refresh token; reject it as Bearer.
+    if payload is None or not is_access_token_payload(payload):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado",
@@ -94,15 +94,18 @@ async def get_current_user(
 # --------------------------------------------------------------------------- #
 
 async def require_current_user(
-    db: AsyncSession = Depends(get_async_session),
-    token: str = Depends(oauth2_scheme),
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    token: Annotated[str, Depends(oauth2_scheme)],
 ) -> UserPublic:
     """Devuelve el usuario autenticado usando el servicio de Auth."""
-    user = await get_user_from_token(token, db)
-    if user is None:
-        msg = "Token inválido o ausente."
-        raise AuthError(msg)
-    return user
+    try:
+        return await get_user_from_token(token, db)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
 
 
@@ -112,12 +115,12 @@ async def require_current_user(
 
 def require_roles(*allowed_roles: UserRole) -> Callable[..., Awaitable[UserPublic]]:
     """Valida que el usuario tenga alguno de los roles permitidos."""
-    async def guard(user: UserPublic = Depends(require_current_user)) -> UserPublic:
+    async def guard(user: Annotated[UserPublic, Depends(require_current_user)]) -> UserPublic:
         if user.role not in allowed_roles:
             roles_list = ", ".join(r.value for r in allowed_roles)
             msg = f"Este recurso requiere uno de los siguientes roles: {roles_list}."
-            raise PermissionDeniedError(
-                msg,
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=msg,
             )
         return user
 
@@ -132,7 +135,7 @@ def require_admin_or_self(id_param_name: str = "user_id") -> Callable[..., Await
     """Permite acceso si el usuario es admin o si el recurso pertenece al propio usuario."""
     async def guard(
         request: Request,
-        user: UserPublic = Depends(require_current_user),
+        user: Annotated[UserPublic, Depends(require_current_user)],
     ) -> UserPublic:
         if user.role == UserRole.admin:
             return user
@@ -146,7 +149,7 @@ def require_admin_or_self(id_param_name: str = "user_id") -> Callable[..., Await
             return user
 
         msg = "Acceso denegado."
-        raise PermissionDeniedError(msg)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
 
     return guard
 
@@ -166,7 +169,33 @@ require_admin_or_client = require_roles(UserRole.admin, UserRole.client)
 
 require_admin_or_self_guard = require_admin_or_self("user_id")
 require_admin_client_or_self = require_admin_or_self("client_id")
-require_admin_teacher_or_self = require_admin_or_self("teacher_id")
+async def require_admin_teacher_or_self(
+    teacher_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[UserPublic, Depends(require_current_user)],
+) -> UserPublic:
+    """Admin or owner of the Teacher profile, using Person.user_id (not profile id).
+
+    The path contains a Teacher/Person UUID while the JWT subject identifies
+    the User account UUID. Resolve ownership through the persisted relationship.
+    """
+    if current_user.role == UserRole.admin:
+        return current_user
+    if current_user.role != UserRole.teacher:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.",
+        )
+    profile = await db.scalar(
+        select(Teacher).where(
+            Teacher.id == teacher_id,
+            Teacher.deleted_at.is_(None),
+        )
+    )
+    if profile is None or profile.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.",
+        )
+    return current_user
 
 require_operational = require_roles(
     UserRole.admin,

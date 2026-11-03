@@ -9,13 +9,12 @@ Incluye:
 """
 from __future__ import annotations
 
-from uuid import UUID  # noqa: TC003
-
-from pydantic import BaseModel, ConfigDict, Field
+from uuid import UUID
 
 from app.schemas.booking_refs import BookingPublic
 from app.schemas.membership import MembershipPublic
 from app.schemas.person import PersonBase, PersonCreate, PersonUpdate
+from pydantic import BaseModel, ConfigDict, Field
 
 # --------------------------------------------------------------------------- #
 # Base
@@ -168,6 +167,6 @@ class ClientWithActivity(ClientPublic):
 # Resolver forward refs
 # --------------------------------------------------------------------------- #
 
-from app.schemas.membership import MembershipWithClient  # noqa: E402
+from app.schemas.membership import MembershipWithClient
 
 MembershipWithClient.model_rebuild(_types_namespace={"ClientPublic": ClientPublic})

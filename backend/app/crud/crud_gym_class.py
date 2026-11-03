@@ -9,12 +9,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import selectinload
-
 from app.crud.base import CRUDBase
 from app.db.models import ClassSchedule, GymClass
 from app.schemas.gym_class import GymClassCreate, GymClassUpdate
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from datetime import date
@@ -34,21 +33,24 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
         self,
         db: AsyncSession,
         *,
-        obj_id: UUID,
+        obj_id: object,
         include_schedules: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> GymClass | None:
         """Obtiene una clase del gimnasio según criterios avanzados."""
         opts: list[ORMOption] | None = (
-            [selectinload(GymClass.class_schedules)]
+            [selectinload(GymClass.class_schedules).selectinload(ClassSchedule.teacher)]
             if include_schedules
             else None
         )
+        if options:
+            opts = (opts or []) + options
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(    # noqa: PLR0913 — muchos argumentos son necesarios para filtros avanzados
+    async def get_multi_filtered(
         self,
         db: AsyncSession,
         *,
@@ -101,7 +103,11 @@ class CRUDGymClass(CRUDBase[GymClass, GymClassCreate, GymClassUpdate]):
                 )
 
         stmt = (
-            stmt.options(selectinload(GymClass.class_schedules))
+            stmt.options(
+                selectinload(GymClass.class_schedules).selectinload(
+                    ClassSchedule.teacher,
+                ),
+            )
             .order_by(GymClass.name)
             .offset(skip)
             .limit(limit)

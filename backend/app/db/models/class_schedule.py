@@ -10,25 +10,26 @@ Representa la configuración recurrente de una clase dentro de la agenda.
 from __future__ import annotations
 
 import uuid
-from datetime import date, time  # noqa: TC003
+from datetime import date, time
 from typing import TYPE_CHECKING
 
+from app.core.enums import AllowedPlan
+from app.db.base_class import Base
+from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 from sqlalchemy import (
     CheckConstraint,
     Date,
-    Enum as SQLAlchemyEnum,
     ForeignKey,
     Index,
     Integer,
     String,
     Time,
 )
+from sqlalchemy import (
+    Enum as SQLAlchemyEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.enums import AllowedPlan
-from app.db.base_class import Base
-from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
 
 if TYPE_CHECKING:
     from app.db.models.class_session import ClassSession

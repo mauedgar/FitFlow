@@ -13,10 +13,7 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.deps import require_admin
+from app.core.deps import require_admin, require_admin_or_front_desk
 from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_gym_class import gym_class
 from app.db.models.user import User
@@ -28,7 +25,6 @@ from app.schemas.gym_class import (
     GymClassUpdate,
     GymClassWithRelations,
 )
-from app.services import gym_class_service
 from app.services.class_schedule_service import (
     get_next_session,
     to_class_schedule_public,
@@ -36,6 +32,8 @@ from app.services.class_schedule_service import (
 from app.services.gym_class_service import (
     to_gym_class_public,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/gym-classes", tags=["gym-classes"])
 
@@ -48,6 +46,7 @@ async def create_gym_class(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     class_in: GymClassCreate,
+    _: Annotated[User, Depends(require_admin)],
 ) -> GymClassWithRelations:
     """Crea una nueva clase en el catálogo.
 
@@ -58,7 +57,13 @@ async def create_gym_class(
     Usado en:
         • Panel administrativo para gestionar el catálogo.
     """
-    gym_classs = await gym_class.create(db=db, obj_in=class_in)
+    created = await gym_class.create(db=db, obj_in=class_in)
+    # Eager reload: GymClass.class_schedules is lazy="raise" even when empty.
+    gym_classs = await gym_class.get(
+        db=db, obj_id=created.id, include_schedules=True,
+    )
+    if gym_classs is None:
+        raise HTTPException(500, "Clase creada no disponible.")
     return GymClassWithRelations.model_validate(gym_classs)
 
 
@@ -76,7 +81,7 @@ async def list_public_gym_classes_first(
 # Listar GymClasses (operativo)
 # --------------------------------------------------------------------------- #
 @router.get("/", response_model=list[GymClassWithRelations])
-async def list_gym_classes(  # noqa: PLR0913
+async def list_gym_classes(
     *,
     skip: Annotated[int, Query(ge=0)]=0,
     limit: Annotated[int, Query(ge=1, le=200)]=50,
@@ -89,6 +94,7 @@ async def list_gym_classes(  # noqa: PLR0913
     date_to: Annotated[date | None, Query()] = None,
     include_schedules: Annotated[bool, Query()] = False,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(require_admin_or_front_desk)],
 ) -> list[GymClassWithRelations]:
     """Lista clases del catálogo con filtros operativos.
 
@@ -115,20 +121,10 @@ async def list_gym_classes(  # noqa: PLR0913
         date_to=date_to,
     )
 
-    if not include_schedules:
-        return [GymClassWithRelations.model_validate(c) for c in classes]
-
-    ids = [c.id for c in classes]
-    classes_with_sched = await gym_class.get_multi(
-        db=db,
-        filters={"id": ids},
-        options=[
-            gym_class.model.class_schedules.property.lazyload,
-        ],
-    )
-
-    classes_map = {c.id: c for c in classes_with_sched}
-    return [GymClassWithRelations.model_validate(classes_map[i]) for i in ids]
+    # The response contract includes class_schedules even for the legacy
+    # include_schedules=false request. Filtered CRUD explicitly eagerly loads
+    # nested teacher relations before Pydantic can access lazy="raise" paths.
+    return [GymClassWithRelations.model_validate(item) for item in classes]
 # --------------------------------------------------------------------------- #
 # Obtener GymClass por ID (operativo)
 # --------------------------------------------------------------------------- #
@@ -165,6 +161,7 @@ async def update_gym_class(
     class_id: UUID,
     class_in: GymClassUpdate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(require_admin)],
 ) -> GymClassWithRelations:
     """Actualiza una clase del catálogo.
 
@@ -181,7 +178,12 @@ async def update_gym_class(
     if not gym_classs:
         raise HTTPException(404, "Clase no encontrada")
 
-    updated = await gym_class.update(db=db, db_obj=gym_classs, obj_in=class_in)
+    await gym_class.update(db=db, db_obj=gym_classs, obj_in=class_in)
+    updated = await gym_class.get(
+        db=db, obj_id=class_id, include_schedules=True,
+    )
+    if updated is None:
+        raise HTTPException(404, "Clase no encontrada")
     return GymClassWithRelations.model_validate(updated)
 
 
@@ -193,6 +195,7 @@ async def delete_gym_class(
     *,
     class_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(require_admin)],
 ) -> dict[str, str]:
     """Elimina una clase del catálogo (soft delete).
 
@@ -300,7 +303,6 @@ async def read_public_class_schedules(
     return [to_class_schedule_public(s) for s in schedules]
 
 
-#
 
 
 # --------------------------------------------------------------------------- #

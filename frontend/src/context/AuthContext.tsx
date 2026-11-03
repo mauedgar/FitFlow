@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { User, UserRole, Booking, Client } from "../types";
+import type { User, UserRole, Booking, Client, TokenResponse } from "../types";
 
 // Debes mantener el tipo sincronizado con el value de tu provider
 export interface AuthContextType {
@@ -11,8 +11,8 @@ export interface AuthContextType {
   isClient: boolean;
   isTrainer: boolean;
   isAdmin: boolean;
-  login: (accessToken: string) => void;
-  logout: () => void;
+  login: (pair: TokenResponse) => Promise<void>;
+  logout: () => Promise<boolean>;
   userBookings: Booking[] | undefined;
   isLoadingBookings: boolean;
   isLoadingAuth: boolean;

@@ -9,10 +9,6 @@ from datetime import UTC, datetime, time, timedelta
 
 import httpx
 import pytest
-from fastapi import status
-from sqlalchemy import func, select
-from sqlalchemy.engine import make_url
-
 from app.core.config import settings
 from app.core.enums import (
     ActivityType,
@@ -35,6 +31,9 @@ from app.db.models import (
     User,
 )
 from app.db.session import AsyncSessionLocal, engine
+from fastapi import status
+from sqlalchemy import func, select
+from sqlalchemy.engine import make_url
 
 pytestmark = [
     pytest.mark.api,

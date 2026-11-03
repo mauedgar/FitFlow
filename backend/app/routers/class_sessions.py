@@ -13,11 +13,6 @@ from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.deps import (
     require_admin,
     require_admin_or_front_desk,
@@ -47,6 +42,10 @@ from app.services.class_session_service import (
     to_class_session_response,
     update_session_availability,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/class-sessions", tags=["class-sessions"])
 
@@ -114,7 +113,7 @@ async def create_class_session(
 # Listar sesiones con filtros (operativo)
 # --------------------------------------------------------------------------- #
 @router.get("/", response_model=list[ClassSessionInResponse])
-async def read_class_sessions(  # noqa: PLR0913
+async def read_class_sessions(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     skip: int = 0,
@@ -122,6 +121,7 @@ async def read_class_sessions(  # noqa: PLR0913
     schedule_id: UUID | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    include_cancelled: bool = True,
 ) -> list[ClassSessionInResponse]:
     """Devuelve todas las sesiones filtradas por clase o rango de fechas."""
     stmt = (
@@ -137,6 +137,8 @@ async def read_class_sessions(  # noqa: PLR0913
 
     if schedule_id:
         stmt = stmt.where(ClassSession.class_schedule_id == schedule_id)
+    if not include_cancelled:
+        stmt = stmt.where(ClassSession.status != ClassSessionStatus.cancelled)
     if date_from:
         start_dt = datetime.combine(date_from, datetime.min.time(), tzinfo=LOCAL_TZ)
         stmt = stmt.where(ClassSession.starts_at >= start_dt)
@@ -191,6 +193,28 @@ async def read_client_weekly_agenda(
         membership=client.membership,
         week_start=week_start,
     )
+
+
+# --------------------------------------------------------------------------- #
+# Sesiones públicas por día
+# --------------------------------------------------------------------------- #
+@router.get("/day", response_model=list[ClassSessionInResponse])
+async def read_sessions_by_day(
+    *,
+    date_query: date,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> list[ClassSessionInResponse]:
+    """Devuelve las sesiones públicas correspondientes a un día específico."""
+    start_dt = datetime.combine(date_query, datetime.min.time(), tzinfo=LOCAL_TZ)
+    end_dt = datetime.combine(date_query, datetime.max.time(), tzinfo=LOCAL_TZ)
+
+    sessions = await class_session.get_multi_filtered(
+        db=db,
+        date_from=start_dt,
+        date_to=end_dt,
+        include_relations=True,
+    )
+    return [to_class_session_response(update_session_availability(s)) for s in sessions]
 
 
 # --------------------------------------------------------------------------- #
@@ -309,7 +333,9 @@ async def read_sessions_by_class_public(
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> list[ClassSessionInResponse]:
     """Devuelve las sesiones públicas asociadas a una clase."""
-    sessions = await class_session.get_multi_filtered(db=db, schedule_id=class_id, include_relations=True)
+    sessions = await class_session.get_multi_filtered(
+        db=db, gym_class_id=class_id, include_relations=True,
+    )
     return [to_class_session_response(update_session_availability(s)) for s in sessions]
 
 
@@ -326,24 +352,3 @@ async def read_sessions_by_teacher_public(
     sessions = await class_session.get_multi_filtered(db=db, teacher_id=teacher_id, include_relations=True)
     return [to_class_session_response(update_session_availability(s)) for s in sessions]
 
-
-# --------------------------------------------------------------------------- #
-# Sesiones públicas por día
-# --------------------------------------------------------------------------- #
-@router.get("/day", response_model=list[ClassSessionInResponse])
-async def read_sessions_by_day(
-    *,
-    date_query: date,
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> list[ClassSessionInResponse]:
-    """Devuelve las sesiones públicas correspondientes a un día específico."""
-    start_dt = datetime.combine(date_query, datetime.min.time(), tzinfo=LOCAL_TZ)
-    end_dt = datetime.combine(date_query, datetime.max.time(), tzinfo=LOCAL_TZ)
-
-    sessions = await class_session.get_multi_filtered(
-        db=db,
-        date_from=start_dt,
-        date_to=end_dt,
-        include_relations=True,
-    )
-    return [to_class_session_response(update_session_availability(s)) for s in sessions]

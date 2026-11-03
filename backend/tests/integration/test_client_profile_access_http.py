@@ -4,20 +4,19 @@ Uses the actual FastAPI route/dependency graph, isolated fake CRUD and no
 persistent DB or secrets. SQL-level access is validated separately in CI.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from app.routers import clients as clients_router
 from app.core.enums import UserRole
 from app.crud.crud_client import client as crud_client
 from app.db.session import get_async_session
+from app.routers import clients as clients_router
 from app.routers.clients import router
 from app.schemas.user import UserPublic
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -36,7 +35,7 @@ def http_clients(monkeypatch):
         address=None,
         medical_fit_url=None,
         profile_image_url=None,
-        created_at=datetime(2026, 10, 30, tzinfo=timezone.utc),
+        created_at=datetime(2026, 10, 30, tzinfo=UTC),
         user=SimpleNamespace(email="ana@example.com"),
         bookings=[],
         membership=None,
@@ -140,14 +139,15 @@ async def test_user_profile_lookup_filters_soft_deleted(monkeypatch):
 
     observed = {}
 
-    class FakeSession:
-        async def execute(self, statement):
-            observed["sql"] = str(statement.compile())
-            return SimpleNamespace(
-                scalars=lambda: SimpleNamespace(first=lambda: None)
-            )
+    from sqlalchemy.ext.asyncio import AsyncSession
 
-    assert await client.get_by_user_id(
-        db=FakeSession(), user_id=uuid4()
-    ) is None
+    async def fake_execute(statement):
+        observed["sql"] = str(statement.compile())
+        return SimpleNamespace(scalars=lambda: SimpleNamespace(first=lambda: None))
+
+    async with AsyncSession() as session:
+        monkeypatch.setattr(session, "execute", fake_execute)
+        assert await client.get_by_user_id(
+            db=session, user_id=uuid4()
+        ) is None
     assert "deleted_at IS NULL" in observed["sql"]

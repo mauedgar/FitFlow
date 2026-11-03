@@ -12,26 +12,34 @@ from __future__ import annotations
 
 import logging
 from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
 
 from app.core import security
 from app.core.blacklist import blacklist_token, is_token_blacklisted
+from app.core.config import settings
 from app.core.deps import get_current_user
+from app.core.login_throttle import check_login_throttle
 from app.core.token_store import (
+    activate_pending_refresh_token,
     delete_refresh_token,
     is_refresh_token_valid,
+    store_pending_refresh_token,
     store_refresh_token,
 )
+from app.crud.crud_user import user as user_crud
 from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.token import RefreshTokenRequest, Token, TokenPair
 from app.schemas.user import UserPublic
 from app.services.errors import ExternalServiceError
-from app.services.user_service import get_by_email as user_get_by_email, to_user_public
+from app.services.user_service import get_by_email as user_get_by_email
+from app.services.user_service import to_user_public
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.ext.asyncio import AsyncSession
 
+# Synthetic constant-work bcrypt digest for missing identities.
+_DUMMY_AUTH_HASH = security.get_password_hash("FitFlow synthetic dummy auth hash")
 logger = logging.getLogger("fitflow.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -40,8 +48,25 @@ async def login_for_tokens(
     *,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    request: Request,
 ) -> TokenPair:
     """Autentica al usuario y devuelve Access + Refresh Tokens."""
+    ack_version = request.headers.get("x-fitflow-refresh-ack")
+    if ack_version not in (None, "v1"):
+        raise HTTPException(status_code=400, detail="Protocolo de sesión no soportado.")
+    if ack_version is None and settings.REFRESH_ACK_POLICY == "required":
+        raise HTTPException(status_code=426, detail="Se requiere confirmación de sesión v1.")
+    # Only enabled in non-test runtimes; tests exercise the limiter separately
+    # against disposable Redis and never a production account.
+    try:
+        check_login_throttle(
+            username=form_data.username,
+            remote=request.client.host if request.client else "unknown",
+        )
+    except ExternalServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc),
+        ) from exc
     try:
         user = await user_get_by_email(db=db, email=form_data.username)
     except ExternalServiceError as exc:
@@ -50,7 +75,9 @@ async def login_for_tokens(
         logger.exception("DB error on get_by_email during login")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
-    if not user or not security.verify_password(form_data.password, user.hashed_password):  # pyright: ignore[reportArgumentType]
+    candidate_hash = user.hashed_password if user else _DUMMY_AUTH_HASH
+    password_valid = security.verify_password(form_data.password, candidate_hash)
+    if not user or not user.active or not password_valid:  # pyright: ignore[reportArgumentType]
         logger.warning("Failed login attempt for email=%s", form_data.username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -62,7 +89,10 @@ async def login_for_tokens(
     refresh_token = security.create_refresh_token(data={"sub": str(user.id)})
 
     try:
-        store_refresh_token(str(user.id), refresh_token)
+        if ack_version == "v1":
+            store_pending_refresh_token(str(user.id), refresh_token)
+        else:
+            store_refresh_token(str(user.id), refresh_token)
     except ExternalServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
@@ -73,10 +103,36 @@ async def login_for_tokens(
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 
+@router.post("/ack", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def acknowledge_refresh_delivery(
+    *,
+    token_request: RefreshTokenRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> None:
+    """Confirm client possession before activating a negotiated refresh token."""
+    token = token_request.refresh_token
+    payload = security.decode_token(token)
+    if (
+        payload is None or not security.is_refresh_token_payload(payload)
+        or not isinstance(payload.get("sub"), str) or not payload["sub"]
+    ):
+        raise HTTPException(status_code=400, detail="Refresh token inválido.")
+    if payload["sub"] != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Token ajeno al usuario autenticado.")
+    try:
+        if is_token_blacklisted(token):
+            raise HTTPException(status_code=401, detail="Refresh token invalidado.")
+        if not activate_pending_refresh_token(str(current_user.id), token):
+            raise HTTPException(status_code=401, detail="Confirmación vencida o no registrada.")
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 @router.post("/refresh", response_model=Token, status_code=status.HTTP_200_OK)
 async def refresh_access_token(
     *,
     token_request: RefreshTokenRequest,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> Token:
     """Renueva el Access Token usando un Refresh Token válido."""
     refresh_token = token_request.refresh_token
@@ -89,8 +145,13 @@ async def refresh_access_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token invalidado.")
 
     payload = security.decode_token(refresh_token)
-    if payload is None or "sub" not in payload:
-        logger.warning("Invalid or expired refresh token provided")
+    if (
+        payload is None
+        or not security.is_refresh_token_payload(payload)
+        or not isinstance(payload.get("sub"), str)
+        or not payload["sub"]
+    ):
+        logger.warning("Invalid or wrong-purpose refresh token provided")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido o expirado.")
 
     try:
@@ -101,8 +162,24 @@ async def refresh_access_token(
         logger.warning("Refresh token not registered in store")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token no registrado.")
 
-    access_token = security.create_access_token(data={"sub": payload["sub"]})
-    logger.info("Access token refreshed for user_id=%s", payload.get("sub"))
+    # The client needs the role claim, but only the ORM user has authority.
+    try:
+        user_id = UUID(payload["sub"])
+    except ValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado.",
+        ) from err
+    user = await user_crud.get(db, obj_id=user_id)
+    if user is None or not user.active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado.",
+        )
+    access_token = security.create_access_token(
+        data={"sub": str(user.id), "role": user.role.value},
+    )
+    logger.info("Access token refreshed for user_id=%s", user.id)
     return Token(access_token=access_token)
 
 
@@ -118,8 +195,13 @@ async def logout(
     """
     refresh_token = token_request.refresh_token
     payload = security.decode_token(refresh_token)
-    if payload is None or "sub" not in payload:
-        logger.warning("Logout attempted with invalid refresh token")
+    if (
+        payload is None
+        or not security.is_refresh_token_payload(payload)
+        or not isinstance(payload.get("sub"), str)
+        or not payload["sub"]
+    ):
+        logger.warning("Logout attempted with invalid or wrong-purpose refresh token")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Refresh token inválido.")
 
     if str(current_user.id) != str(payload["sub"]):

@@ -17,6 +17,7 @@ import {
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
 import { LuMenu } from 'react-icons/lu';
+import { toaster } from '../ui/toaster-store';
 
 export const Navbar = () => {
   const { open: isOpen, onOpen, onClose } = useDisclosure();
@@ -32,8 +33,13 @@ export const Navbar = () => {
       navigate(path); // Navega después de un pequeño retardo
     }, 150);
     };
-  const logoutUser = () => {
-    logout();
+  const logoutUser = async () => {
+    const revoked = await logout();
+    if (!revoked) toaster.create({
+      title: "Sesión local cerrada",
+      description: "No se pudo confirmar la revocación en el servidor.",
+      type: "warning",
+    });
     navigate('/login');
   };
 

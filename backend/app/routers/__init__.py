@@ -1,4 +1,3 @@
-# ruff: noqa: F401
 
 from app.routers import (
     auth,
@@ -10,3 +9,8 @@ from app.routers import (
     teachers,
     users,
 )
+
+__all__ = [
+    "auth", "bookings", "class_schedules", "class_sessions",
+    "clients", "gym_classes", "teachers", "users",
+]

@@ -11,8 +11,6 @@ Incluye:
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
-
 from app.core.enums import ActivityType, DifficultyLevel
 from app.schemas.base import IDSchema, SoftDeleteSchema, TimestampSchema
 from app.schemas.class_schedule_refs import ClassScheduleInResponse, ClassSchedulePublic
@@ -22,6 +20,7 @@ from app.schemas.gym_class_refs import (
     GymClassInTeacherResponse,
     GymClassPublic,
 )
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 __all__ = [
     "GymClassBase",

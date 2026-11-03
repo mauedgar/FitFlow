@@ -9,29 +9,37 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
-from sqlalchemy import text, update
-from sqlalchemy.exc import DBAPIError
+from datetime import UTC, date, datetime, time, timedelta
 
 import httpx
 import pytest
-from fastapi import status
-from sqlalchemy import select
-from sqlalchemy.engine import make_url
-
 from app.core.config import settings
 from app.core.enums import (
-    ActivityType, BookingStatus, ClassSessionStatus, MembershipPlan,
-    MembershipStatus, UserRole,
+    ActivityType,
+    BookingStatus,
+    ClassSessionStatus,
+    MembershipPlan,
+    MembershipStatus,
+    UserRole,
 )
 from app.core.security import create_access_token
-from app.db.models import (
-    Booking, ClassSchedule, ClassSession, Client, GymClass, Membership, User,
-)
-from app.db.session import AsyncSessionLocal, engine
 from app.crud.crud_client import client as crud_client
 from app.crud.crud_user import user as crud_user
+from app.db.models import (
+    Booking,
+    ClassSchedule,
+    ClassSession,
+    Client,
+    GymClass,
+    Membership,
+    User,
+)
+from app.db.session import AsyncSessionLocal, engine
 from app.routers import users as users_router
+from fastapi import status
+from sqlalchemy import select, text, update
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import DBAPIError
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
@@ -89,7 +97,7 @@ async def profile_fixture() -> ClientProfileFixture:
     deleted = Client(
         first_name="Baja",
         last_name="Logica",
-        deleted_at=datetime.now(timezone.utc),
+        deleted_at=datetime.now(UTC),
         user=User(
             email=f"client-profile-deleted-{marker}@example.com",
             hashed_password="not-a-real-password",
@@ -118,16 +126,16 @@ async def profile_fixture() -> ClientProfileFixture:
             email=f"client-profile-user-deleted-{marker}@example.com",
             hashed_password="not-a-real-password",
             role=UserRole.client,
-            deleted_at=datetime.now(timezone.utc),
+            deleted_at=datetime.now(UTC),
         ),
     )
-    start = datetime.now(timezone.utc) + timedelta(days=2)
+    start = datetime.now(UTC) + timedelta(days=2)
     membership = Membership(
         client=owner,
         plan=MembershipPlan.premium,
         status=MembershipStatus.active,
-        start_date=datetime.now(timezone.utc) - timedelta(days=3),
-        end_date=datetime.now(timezone.utc) + timedelta(days=40),
+        start_date=datetime.now(UTC) - timedelta(days=3),
+        end_date=datetime.now(UTC) + timedelta(days=40),
     )
     gym_class = GymClass(
         name=f"Client Profile Class {marker}",
@@ -484,7 +492,7 @@ async def test_locked_client_detail_blocks_concurrent_account_soft_delete(
             await other_db.execute(
                 update(User)
                 .where(User.id == profile_fixture.owner_id)
-                .values(deleted_at=datetime.now(timezone.utc))
+                .values(deleted_at=datetime.now(UTC))
             )
         assert getattr(failure.value.orig, "sqlstate", None) == "55P03"
         await other_db.rollback()
@@ -763,3 +771,166 @@ async def test_membership_stats_rejects_valid_non_admin_role(
         headers=headers(profile_fixture, "owner"),
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
+
+
+# IR001 F02: self-identity is derived from JWT, not a missing or forged path ID.
+@pytest.mark.parametrize("name", ["owner", "neighbor", "admin", "teacher"])
+@pytest.mark.parametrize("path", ["/users/me", "/users/me/stats"])
+async def test_users_me_real_orm_self_without_profile_cross_read(
+    api_client: httpx.AsyncClient,
+    profile_fixture: ClientProfileFixture,
+    name: str,
+    path: str,
+) -> None:
+    response = await api_client.get(
+        f"{settings.API_V1_STR}{path}",
+        params={"user_id": str(profile_fixture.neighbor_id)},
+        headers=headers(profile_fixture, name),
+    )
+    assert response.status_code == status.HTTP_200_OK, response.text
+    body = response.json()
+    expected = {
+        "owner": profile_fixture.owner_id,
+        "neighbor": None,
+        "admin": None,
+        "teacher": None,
+    }
+    if expected[name] is not None:
+        assert body["id"] == str(expected[name])
+    assert body["role"] == ("admin" if name == "admin" else "teacher" if name == "teacher" else "client")
+    if name == "owner" and path.endswith("/me"):
+        assert body["client"]["email"] == profile_fixture.owner_email
+        assert body["client"]["full_name"] == "Ana Cliente"
+    if name in ("admin", "teacher") and path.endswith("/me"):
+        assert body["client"] is None
+        assert body["teacher"] is None
+    if name == "owner" and path.endswith("/stats"):
+        assert body["total_bookings"] == 1
+        assert body["upcoming_bookings"] == 1
+
+
+@pytest.mark.parametrize("path", ["/users/me", "/users/me/stats"])
+async def test_users_me_without_token_is_401(
+    api_client: httpx.AsyncClient, path: str,
+) -> None:
+    response = await api_client.get(f"{settings.API_V1_STR}{path}")
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.headers.get("www-authenticate") == "Bearer"
+
+
+@pytest.mark.parametrize("path", ["/users/me", "/users/me/stats"])
+async def test_users_me_real_teacher_profile_and_empty_schedule(
+    api_client: httpx.AsyncClient, path: str,
+) -> None:
+    from app.db.models import Teacher
+
+    marker = uuid.uuid4().hex
+    profile = Teacher(
+        first_name="Tania", last_name="Docente", bio="Perfil de prueba",
+        user=User(
+            email=f"ir001-teacher-{marker}@example.com",
+            hashed_password="fixture-only",
+            role=UserRole.teacher,
+        ),
+    )
+    async with AsyncSessionLocal() as db:
+        db.add(profile)
+        await db.flush()
+        identity = profile.user_id
+        profile_id = profile.id
+        await db.commit()
+    try:
+        token = create_access_token({"sub": str(identity), "role": UserRole.teacher.value})
+        response = await api_client.get(
+            f"{settings.API_V1_STR}{path}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        body = response.json()
+        assert body["id"] == str(identity)
+        if path.endswith("/me"):
+            assert body["teacher"]["full_name"] == "Tania Docente"
+            assert body["client"] is None
+        else:
+            assert body["total_classes_taught"] == 0
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("DELETE FROM teachers WHERE id = :id"), {"id": profile_id})
+            await db.execute(text("DELETE FROM persons WHERE id = :id"), {"id": profile_id})
+            await db.execute(text("DELETE FROM users WHERE id = :id"), {"id": identity})
+            await db.commit()
+
+
+# IR001 A01: actual two-connection PostgreSQL row-lock serialization.
+@pytest.mark.parametrize("first_commits", [True, False])
+async def test_client_profile_for_update_serializes_real_pg_transactions(
+    profile_fixture: ClientProfileFixture, first_commits: bool,
+) -> None:
+    """Second SELECT FOR UPDATE waits on first transaction, then reads committed state.
+
+    The database must be disposable fitflow_test; this is not a SQL string mock.
+    """
+    first_name = "CommittedByFirst" if first_commits else "RolledBackByFirst"
+    second_name = "AfterFirstCommit" if first_commits else "AfterFirstRollback"
+    async with AsyncSessionLocal() as first, AsyncSessionLocal() as second:
+        locked = await crud_client.get_with_relations(
+            db=first, client_id=profile_fixture.profile_id, for_update=True,
+        )
+        assert locked is not None
+        assert locked.first_name == "Ana"
+        locked.first_name = first_name
+        await first.flush()
+
+        second_pid = await second.scalar(text("SELECT pg_backend_pid()"))
+        assert second_pid is not None
+        contender = asyncio.create_task(crud_client.get_with_relations(
+            db=second, client_id=profile_fixture.profile_id, for_update=True,
+        ))
+        try:
+            # Observe the *specific* PG backend blocked by the first row lock.
+            async with AsyncSessionLocal() as observer:
+                for _ in range(120):
+                    waiting = await observer.scalar(
+                        text("""
+                            SELECT EXISTS (
+                              SELECT 1 FROM pg_stat_activity
+                              WHERE pid = :pid AND datname = current_database()
+                                AND wait_event_type = 'Lock'
+                                AND cardinality(pg_blocking_pids(pid)) > 0
+                                AND query ILIKE '%FOR UPDATE%'
+                                AND query ILIKE '%clients%'
+                            )
+                        """), {"pid": second_pid},
+                    )
+                    await observer.rollback()
+                    if waiting:
+                        break
+                    if contender.done():
+                        await contender
+                        pytest.fail("Second transaction acquired lock before first released it")
+                    await asyncio.sleep(0.05)
+                else:
+                    pytest.fail("Second PG transaction never waited on the client row lock")
+            assert not contender.done()
+            if first_commits:
+                await first.commit()
+            else:
+                await first.rollback()
+            observed = await asyncio.wait_for(contender, timeout=12)
+            assert observed is not None
+            assert observed.first_name == (first_name if first_commits else "Ana")
+            observed.first_name = second_name
+            await second.commit()
+        finally:
+            if not contender.done():
+                contender.cancel()
+            await asyncio.gather(contender, return_exceptions=True)
+            if first.in_transaction():
+                await first.rollback()
+            if second.in_transaction():
+                await second.rollback()
+    async with AsyncSessionLocal() as check:
+        final = await check.scalar(
+            select(Client.first_name).where(Client.id == profile_fixture.profile_id)
+        )
+        assert final == second_name

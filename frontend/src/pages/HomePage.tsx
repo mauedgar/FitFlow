@@ -30,7 +30,7 @@ import UpcomingEvents from '../components/dashboard/UpcomingEvents';
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { currentUser, isAuthenticated, isClient } = useAuth();
+  const { currentUser, isAuthenticated, isClient, isTrainer } = useAuth();
   const weekDays = React.useMemo(() => currentBusinessWeek(), []);
   const weekStart = weekDays[0];
 
@@ -42,6 +42,24 @@ const HomePage = () => {
 
   const agenda = agendaQuery.data;
   const ownBookingsCount = agenda?.items.filter((item) => item.own_booking !== null).length ?? 0;
+
+  if (isTrainer) {
+    return (
+      <Container maxW="80rem" py={6}>
+        <VStack align="stretch" gap={5}>
+          <Heading size="lg">Panel docente</Heading>
+          <Text>Bienvenido, {currentUser?.email ?? 'docente'}.</Text>
+          <Text color="gray.600">
+            Consultá el catálogo de clases. La gestión de asistencia y
+            asignaciones docentes requiere una vista específica aún no publicada.
+          </Text>
+          <Button colorPalette="teal" onClick={() => navigate('/classes')}>
+            <FiCalendar /> Ver clases
+          </Button>
+        </VStack>
+      </Container>
+    );
+  }
 
   return (
     <Container maxW="80rem" py={6}>

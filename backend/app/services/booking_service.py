@@ -11,10 +11,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.enums import (
     BookingStatus,
     ClassSessionStatus,
@@ -26,9 +22,12 @@ from app.db.models import ClassSession
 # Import explícito de schemas que usamos como tipos de retorno
 from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingPublic
 from app.services.errors import BusinessValidationError, ConflictError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
-    from app.db.models import Booking, ClassSchedule, ClassSession, Membership
+    from app.db.models import Booking, ClassSchedule, Membership
 
 # ruff: noqa: UP037
 # --------------------------------------------------------------------------- #
@@ -108,13 +107,13 @@ def validate_membership_access(membership: "Membership | None", schedule: "Class
 # --------------------------------------------------------------------------- #
 # 5. Validación de límites (opcional)
 # --------------------------------------------------------------------------- #
-def validate_daily_limit(client_sessions_today: int, limit: int = 2) -> None:  # noqa: D103
+def validate_daily_limit(client_sessions_today: int, limit: int = 2) -> None:
     if client_sessions_today >= limit:
         msg = "Has alcanzado el límite diario de reservas."
         raise BusinessValidationError(msg)
 
 
-def validate_class_limit(client_class_count: int, limit: int = 4) -> None:  # noqa: D103
+def validate_class_limit(client_class_count: int, limit: int = 4) -> None:
     if client_class_count >= limit:
         msg = "Has alcanzado el límite de reservas para esta clase."
         raise BusinessValidationError(msg)

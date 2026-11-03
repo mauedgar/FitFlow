@@ -1,0 +1,58 @@
+name: FitFlow A11 isolated mounted Chrome E2E
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - frontend/**
+      - backend/tests/api/test_ir012_proxy_origin_http.py
+      - .github/workflows/fitflow-mounted-browser-e2e.yml
+      - docs/contracts/ir012-browser-proxy-evidence.md
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact PR candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify immutable checkout
+        env:
+          SUBJECT: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT"
+          echo "FITFLOW_BROWSER_SUBJECT=$SUBJECT"
+          echo "FITFLOW_BROWSER_TREE=$(git rev-parse 'HEAD^{tree}')"
+      - name: Pinned Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - name: Verify preinstalled Chrome and ChromeDriver (no install)
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v google-chrome
+          google-chrome --version
+          test -x "${CHROMEWEBDRIVER}/chromedriver"
+          "${CHROMEWEBDRIVER}/chromedriver" --version
+      - name: Install only existing locked frontend dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+      - name: Build real Vite/React with synthetic loopback API
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:4180/api/v1
+        run: npm run build
+      - name: Exercise real mounted Chrome UI with bounded synthetic fixture
+        working-directory: frontend
+        env:
+          CI: "true"
+        run: node tests/browser/fitflow-mounted-e2e.cjs

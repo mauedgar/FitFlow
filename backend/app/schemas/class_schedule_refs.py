@@ -3,11 +3,10 @@
 from datetime import time
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
-
 from app.core.enums import AllowedPlan
 from app.schemas.gym_class_refs import GymClassPublic
 from app.schemas.teacher_refs import TeacherInClassScheduleResponse
+from pydantic import BaseModel, ConfigDict
 
 
 class ClassScheduleInResponse(BaseModel):
@@ -19,7 +18,7 @@ class ClassScheduleInResponse(BaseModel):
     start_time: time
     duration_minutes: int
     capacity: int
-    allowed_plan: AllowedPlan
+    allowed_plan: AllowedPlan | None = None
     active: bool
 
     model_config = ConfigDict(from_attributes=True)

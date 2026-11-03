@@ -12,10 +12,6 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.deps import (
     require_admin,
     require_admin_or_teacher,
@@ -26,6 +22,7 @@ from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_class_session import class_session
 from app.crud.crud_teacher import teacher
 from app.crud.crud_user import user as user_crud
+from app.db.models.class_schedule import ClassSchedule
 from app.db.models.teacher import Teacher
 from app.db.models.user import User
 from app.db.session import get_async_session
@@ -52,6 +49,9 @@ from app.services.class_session_service import (
 from app.services.teacher_service import (
     to_teacher_public,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])
 
@@ -65,7 +65,7 @@ async def create_teacher_for_user(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user_id: UUID,
     teacher_in: TeacherCreate,
-    current_user: Annotated[User, Depends(require_admin)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin)],
 ) -> TeacherWithRelations:
     """Crea un perfil de profesor asociado a un usuario existente.
 
@@ -108,7 +108,7 @@ async def read_teachers(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     skip: int = 0,
     limit: int = 100,
-    current_user: Annotated[User, Depends(require_admin_or_teacher)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin)],
 ) -> list[TeacherWithRelations]:
     """Lista profesores en versión operativa (privada).
 
@@ -123,7 +123,10 @@ async def read_teachers(
         db=db,
         skip=skip,
         limit=limit,
-        options=[selectinload(Teacher.class_schedules)], # pyright: ignore[reportArgumentType]
+        options=[
+            selectinload(Teacher.class_schedules).selectinload(ClassSchedule.gym_class),
+            selectinload(Teacher.class_schedules).selectinload(ClassSchedule.teacher),
+        ],
     )
 
     return [TeacherWithRelations.model_validate(t) for t in teachers]
@@ -157,7 +160,7 @@ async def read_teacher_by_id(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],
 ) -> TeacherWithRelations:
     """Obtiene el perfil privado de un profesor por ID.
 
@@ -211,7 +214,7 @@ async def update_teacher(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
     teacher_in: TeacherUpdate,
-    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],
 ) -> TeacherWithRelations:
     """Actualiza el perfil privado de un profesor.
 
@@ -224,7 +227,12 @@ async def update_teacher(
     if not teacher_:
         raise HTTPException(404, "Profesor no encontrado.")
 
-    updated = await teacher.update(db=db, db_obj=teacher_, obj_in=teacher_in)
+    await teacher.update(db=db, db_obj=teacher_, obj_in=teacher_in)
+    # The response includes class_schedules. Reload eagerly after the write
+    # rather than serializing the lazy-raise relationship and returning 500.
+    updated = await teacher.get(db=db, obj_id=teacher_id, include_relations=True)
+    if updated is None:
+        raise HTTPException(404, "Profesor no encontrado.")
     return TeacherWithRelations.model_validate(updated)
 
 
@@ -236,7 +244,7 @@ async def delete_teacher(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin)],
 ) -> dict[str, str]:
     """Elimina un perfil de profesor.
 
@@ -262,7 +270,7 @@ async def read_teacher_classes(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_or_teacher)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_or_teacher)],
 ) -> list[ClassScheduleWithRelations]:
     """Lista las clases/horarios impartidos por un profesor (operativo).
 
@@ -311,7 +319,7 @@ async def read_teacher_schedule(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_or_teacher)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_or_teacher)],
 ) -> list[ClassScheduleWithRelations]:
     """Lista el horario operativo completo de un profesor.
 

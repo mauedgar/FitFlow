@@ -8,13 +8,12 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-from fastapi import status
-
 from app.core.enums import UserRole
 from app.db.session import get_async_session
 from app.main import app
 from app.routers import memberships as memberships_router
 from app.schemas.user import UserPublic
+from fastapi import status
 
 pytestmark = [pytest.mark.api, pytest.mark.asyncio]
 

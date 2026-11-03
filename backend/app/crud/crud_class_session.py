@@ -12,26 +12,22 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.enums import ClassSessionStatus
 from app.crud.base import CRUDBase
-from app.db.models import ClassSchedule, ClassSession
 from app.db.models.class_schedule import ClassSchedule
 from app.db.models.class_session import ClassSession
 from app.schemas.class_session import ClassSessionCreate, ClassSessionUpdate
 from app.services import errors as svc_errors
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
-
-    from app.core.enums import ClassSessionStatus
 
 
 class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUpdate]):
@@ -44,8 +40,9 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         self,
         db: AsyncSession,
         *,
-        obj_id: UUID,
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> ClassSession | None:
         """Obtiene una sesión concreta por su ID, con opción de incluir relaciones."""
         opts: list[ORMOption] | None = (
@@ -56,12 +53,14 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
             if include_relations
             else None
         )
+        if options:
+            opts = (opts or []) + options
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(  # noqa: PLR0913
+    async def get_multi_filtered(
         self,
         db: AsyncSession,
         *,
@@ -160,7 +159,7 @@ class CRUDClassSession(CRUDBase[ClassSession, ClassSessionCreate, ClassSessionUp
         db: "AsyncSession",  # noqa: UP037
         *,
         obj_in: ClassSessionCreate,
-        created_by: object | None = None,  # noqa: ARG002
+        created_by: object | None = None,
     ) -> ClassSession:
         """Crea una ClassSession y persiste el capacity_snapshot tal como viene en el schema."""
         data = obj_in.model_dump()

@@ -9,15 +9,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from sqlalchemy import func, select
-from sqlalchemy.orm import raiseload, selectinload
+from typing import TYPE_CHECKING, SupportsIndex, SupportsInt
 
 from app.crud.base import CRUDBase
 from app.db.models import ClassSchedule, GymClass
 from app.schemas.class_schedule import ClassScheduleCreate, ClassScheduleUpdate
 from app.services import errors as svc_errors
+from sqlalchemy import func, select
+from sqlalchemy.orm import raiseload, selectinload
 
 if TYPE_CHECKING:
     from datetime import date
@@ -37,8 +36,9 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         self,
         db: "AsyncSession",
         *,
-        obj_id: "UUID",
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> ClassSchedule | None:
         """Obtiene un horario recurrente por su ID.
 
@@ -53,12 +53,14 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
             if include_relations
             else None
         )
+        if options:
+            opts = (opts or []) + options
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(  # noqa: PLR0913
+    async def get_multi_filtered(
         self,
         db: "AsyncSession",
         *,
@@ -206,35 +208,57 @@ class CRUDClassSchedule(CRUDBase[ClassSchedule, ClassScheduleCreate, ClassSchedu
         db: "AsyncSession",
         *,
         db_obj: ClassSchedule,
-        obj_in: ClassScheduleUpdate,
+        obj_in: ClassScheduleUpdate | dict[str, object],
         updated_by: UUID | None = None,
     ) -> ClassSchedule:
         """Actualiza un ClassSchedule.
 
         No genera ni borra ClassSession automáticamente; el service decide la generación/actualización de sesiones.
         """
+        if isinstance(obj_in, dict):
+            # The base CRUD dict form must not bypass the schedule schema's field allowlist.
+            if set(obj_in) - set(ClassScheduleUpdate.model_fields):
+                raise svc_errors.BusinessValidationError("Unsupported schedule update fields.")
+            obj_in = ClassScheduleUpdate.model_validate(obj_in)
         update_data = obj_in.model_dump(exclude_unset=True)
         update_data["updated_by_id"] = updated_by
-        if "capacity" in update_data and int(update_data["capacity"]) < 0:
-            msg = "Capacity debe ser >= 0."
-            raise svc_errors.BusinessValidationError(msg)
+        if "capacity" in update_data:
+            capacity = update_data["capacity"]
+            if not isinstance(capacity, (str, bytes, bytearray, SupportsInt, SupportsIndex)):
+                msg = "Capacity debe ser un valor convertible a entero."
+                raise svc_errors.BusinessValidationError(msg)
+            if int(capacity) < 0:
+                msg = "Capacity debe ser >= 0."
+                raise svc_errors.BusinessValidationError(msg)
         return await super().update(db, db_obj=db_obj, obj_in=update_data)
 
     async def remove(
         self,
         db: "AsyncSession",
         *,
-        obj_id: "UUID",
+        db_obj: ClassSchedule | None = None,
+        hard: bool = False,
+        obj_id: "UUID | None" = None,
     ) -> None:
-        """Elimina (o marca como borrado) un ClassSchedule.
+        """Remove a schedule by ID or by the CRUDBase object contract.
 
-        Validar integridad con ClassSession/Bookings en el service si es necesario.
+        The ID path preserves the existing not-found behavior; the object path
+        supports callers typed against CRUDBase without changing soft-delete.
         """
-        obj = await self.get(db, obj_id=obj_id)
-        if not obj:
-            msg = "ClassSchedule no encontrado."
-            raise svc_errors.NotFoundError(msg)
-        await super().remove(db, db_obj=obj)
+        if db_obj is not None and obj_id is not None:
+            raise ValueError("Pass db_obj or obj_id, not both.")
+        if db_obj is None:
+            if obj_id is None:
+                raise TypeError("db_obj or obj_id is required.")
+            if hard:
+                raise ValueError("Hard delete requires explicit db_obj.")
+            obj = await self.get(db, obj_id=obj_id)
+            if obj is None:
+                msg = "ClassSchedule no encontrado."
+                raise svc_errors.NotFoundError(msg)
+        else:
+            obj = db_obj
+        await super().remove(db, db_obj=obj, hard=hard)
 
     # ------------------------------------------------------------------ #
     # Helpers

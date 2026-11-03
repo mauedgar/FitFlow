@@ -5,10 +5,11 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query'; // ⭐ Importamos useMutation
 import { useAuth } from '../context/useAuth'; // ⭐ Importamos el contexto de Auth
 import classService from '../services/classService'; // ⭐ Usaremos classService para el login
-import { UserRole, type TokenResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
+import { type TokenResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
 import { AxiosError } from 'axios'; // ⭐ Para un manejo de errores más específico
 import { type TokenPayload } from '../types';
 import {jwtDecode} from 'jwt-decode'
+import { roleDestination } from '../utils/authRoutes';
 
 
 const LoginPage = () => {
@@ -21,13 +22,16 @@ const LoginPage = () => {
   // ⭐ 1. Definimos la mutación de login
   const loginMutation = useMutation<TokenResponse, AxiosError, { username: string; password: string }>({
     // La función que ejecuta la llamada a la API
-    mutationFn: (credentials) => classService.login(credentials),
+    mutationFn: async (credentials) => {
+      const pair = await classService.login(credentials);
+      await login(pair);
+      return pair;
+    },
 
     // Callback que se ejecuta si la mutación es exitosa
     onSuccess: (data) => {
       // Llamamos a la función login del AuthContext, pasando solo el token
       // El AuthContext ya se encarga de decodificar y establecer el rol
-      login(data.access_token);
       toaster.create({
         title: "Inicio de sesión exitoso",
         type: "success",
@@ -43,11 +47,7 @@ const LoginPage = () => {
       // Por simplicidad, usaremos el userRole actualizado por el AuthContext
       // Decodificas YA el role antes de depender del contexto
       const payload = jwtDecode<TokenPayload>(data.access_token)
-      if (payload.role === UserRole.ADMIN) {
-        navigate('/admin');
-      } else {
-        navigate('/home'); // O '/home' según tu estructura
-      }
+      navigate(roleDestination(payload.role), { replace: true });
     },
 
     // Callback que se ejecuta si la mutación falla

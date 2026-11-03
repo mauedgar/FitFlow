@@ -25,6 +25,7 @@ class LoginUserStub:
     id: uuid.UUID
     hashed_password: str = "synthetic-hash"
     role: UserRole = UserRole.client
+    active: bool = True
 
 
 async def _post_login(
@@ -104,7 +105,7 @@ async def test_login_invalid_password_returns_401_without_refresh_store(
     assert stored == []
 
 
-async def test_login_nonexistent_user_returns_same_401_without_password_check_or_store(
+async def test_login_nonexistent_user_returns_same_401_with_dummy_bcrypt_work(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -113,12 +114,14 @@ async def test_login_nonexistent_user_returns_same_401_without_password_check_or
     async def get_user(*, db: object, email: str) -> None:
         del db, email
 
-    def should_not_verify(_plain: str, _hashed: str) -> bool:
+    def verify_dummy(plain: str, hashed: str) -> bool:
+        assert plain == "FitFlow-R005-Password"
+        assert hashed == auth_router._DUMMY_AUTH_HASH
         events.append("verify")
-        raise AssertionError("password verification must be short-circuited")
+        return False
 
     monkeypatch.setattr(auth_router, "user_get_by_email", get_user)
-    monkeypatch.setattr(auth_router.security, "verify_password", should_not_verify)
+    monkeypatch.setattr(auth_router.security, "verify_password", verify_dummy)
     monkeypatch.setattr(
         auth_router,
         "store_refresh_token",
@@ -130,7 +133,7 @@ async def test_login_nonexistent_user_returns_same_401_without_password_check_or
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json() == {"detail": "Correo o contraseña incorrectos"}
     assert response.headers.get("www-authenticate") == "Bearer"
-    assert events == []
+    assert events == ["verify"]
 
 
 async def test_login_missing_password_preserves_framework_422_boundary(

@@ -9,12 +9,10 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.crud.crud_user import user as user_crud
+from app.db.models import Client, Teacher
 from app.schemas.user import UserPublic, UserWithProfile, UserWithStats
 from app.services.client_service import (
     get_client_total_bookings,
@@ -22,6 +20,7 @@ from app.services.client_service import (
     to_client_public,
 )
 from app.services.teacher_service import to_teacher_public
+from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
     from app.db.models import User
@@ -50,11 +49,11 @@ def to_user_with_profile(user: User) -> UserWithProfile:
     client_public = None
     teacher_public = None
 
-    if user.person_profile and hasattr(user.person_profile, "client"):
-        client_public = to_client_public(user.person_profile.client) # pyright: ignore[reportAttributeAccessIssue]
+    if isinstance(user.person_profile, Client):
+        client_public = to_client_public(user.person_profile)
 
-    if user.person_profile and hasattr(user.person_profile, "teacher"):
-        teacher_public = to_teacher_public(user.person_profile.teacher) # pyright: ignore[reportAttributeAccessIssue]
+    if isinstance(user.person_profile, Teacher):
+        teacher_public = to_teacher_public(user.person_profile)
 
     return UserWithProfile(
         **to_user_public(user).model_dump(),
@@ -69,19 +68,17 @@ def to_user_with_profile(user: User) -> UserWithProfile:
 
 def to_user_with_stats(user: User) -> UserWithStats:
     """Extiende el usuario con estadísticas completas."""
-    now = datetime.now(tz=timezone.utc)  # noqa: F841
-
     total_bookings = 0
     upcoming_bookings = 0
     total_classes_taught = 0
 
-    if user.person_profile and hasattr(user.person_profile, "client"):
-        client = user.person_profile.client # pyright: ignore[reportAttributeAccessIssue]
+    if isinstance(user.person_profile, Client):
+        client = user.person_profile
         total_bookings = get_client_total_bookings(client)
         upcoming_bookings = len(get_client_upcoming_bookings(client))
 
-    if user.person_profile and hasattr(user.person_profile, "teacher"):
-        teacher = user.person_profile.teacher # pyright: ignore[reportAttributeAccessIssue]
+    if isinstance(user.person_profile, Teacher):
+        teacher = user.person_profile
         total_classes_taught = len(teacher.class_schedules)
 
     return UserWithStats(
@@ -93,7 +90,7 @@ def to_user_with_stats(user: User) -> UserWithStats:
 
 
 async def get_by_email(
-    email: str, db: "AsyncSession | None" = None, include_relations: bool = False,
+    email: str, db: AsyncSession | None = None, include_relations: bool = False,
 ) -> User | None:
   if db is None:
     # Handle the case where db session is not provided, or raise an error/get a session

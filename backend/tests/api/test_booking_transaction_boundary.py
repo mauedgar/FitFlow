@@ -5,10 +5,6 @@ from uuid import UUID
 
 import httpx
 import pytest
-from fastapi import status
-from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.config import settings
 from app.core.enums import (
     ActivityType,
@@ -33,6 +29,9 @@ from app.db.models import (
 from app.db.session import AsyncSessionLocal, engine
 from app.main import app
 from app.schemas.booking import BookingCreateInternal
+from fastapi import status
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture(autouse=True)
