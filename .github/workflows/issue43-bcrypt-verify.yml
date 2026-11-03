@@ -162,14 +162,16 @@ jobs:
         env:
           PYTHONPATH: backend
         run: python -m pytest -q backend/tests/unit/test_security_bcrypt_legacy_compat.py
-      - name: Prove legacy Passlib 1.7.4 hashes verify with new code
-        if: matrix.python == '3.11'
+      - name: Verify Passlib 1.7.4 (isolated py311) -> native bcrypt (matrix Python)
         env:
           PYTHONPATH: backend
         shell: bash
         run: |
           set -euo pipefail
-          uv venv /tmp/issue43-legacy --python 3.11
+          # Legacy Passlib runs under Python 3.11 in a disposable venv;
+          # the native candidate verifier stays on matrix.python (3.11/3.12/3.13).
+          uv python install 3.11.17
+          uv venv /tmp/issue43-legacy --python 3.11.17
           uv pip install --python /tmp/issue43-legacy/bin/python --no-cache-dir passlib==1.7.4 bcrypt==3.2.2
           /tmp/issue43-legacy/bin/python - <<'PY'
           import json
@@ -195,8 +197,7 @@ jobs:
           print("ISSUE43_CROSS_ENV_LEGACY_COMPAT_PASS", len(vectors))
           PY
 
-      - name: Prove native bcrypt 4.3 hashes verify under isolated legacy Passlib
-        if: matrix.python == '3.11'
+      - name: Verify native bcrypt (matrix Python) -> Passlib 1.7.4 (isolated py311)
         env:
           PYTHONPATH: backend
         shell: bash
