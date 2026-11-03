@@ -1,7 +1,7 @@
-import React, { useState, useEffect, type ReactNode } from "react";
+import React, { useRef, useState, useEffect, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { jwtDecode } from "jwt-decode";
-import apiClient, { ensureFreshAccess } from "../services/api";
+import apiClient, { ensureFreshAccess, invalidateAuthEpoch } from "../services/api";
 import axios from "axios";
 import classService from "../services/classService";
 import { AuthContext } from "./AuthContext";
@@ -32,8 +32,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
+  // Reject continuations from a previous login, rehydration or logout.
+  const sessionEpoch = useRef(0);
 
   const clearLocalSession = () => {
+    sessionEpoch.current++;
+    invalidateAuthEpoch();
     sessionStorage.removeItem(ACCESS_KEY);
     sessionStorage.removeItem(REFRESH_KEY);
     // Older releases stored only access locally; do not rehydrate it.
@@ -48,6 +52,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     let cancelled = false;
     const rehydrate = async () => {
+      const epoch = ++sessionEpoch.current;
+      setToken(null);
+      setCurrentUser(null);
+      setUserRole(null);
       localStorage.removeItem("access_token");
       const access = sessionStorage.getItem(ACCESS_KEY);
       const refresh = sessionStorage.getItem(REFRESH_KEY);
@@ -64,7 +72,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const response = await apiClient.get<User>("/auth/me", {
           headers: { Authorization: `Bearer ${usableAccess}` },
         });
-        if (cancelled) return;
+        if (cancelled || epoch !== sessionEpoch.current ||
+            sessionStorage.getItem(REFRESH_KEY) !== refresh) return;
         if (!response.data.active || response.data.id !== claim.sub ||
             response.data.role !== claim.role) {
           throw new Error("Principal mismatch");
@@ -75,13 +84,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setCurrentUser(response.data);
         setUserRole(response.data.role);
       } catch (error) {
+        if (cancelled || epoch !== sessionEpoch.current) return;
         // Network outage is not a reason to destroy a live refresh session.
         // It stays unverified (not authenticated) until the next reload/retry.
         if (!cancelled && !(axios.isAxiosError(error) && !error.response)) {
           clearLocalSession();
         }
       } finally {
-        if (!cancelled) setIsLoadingAuth(false);
+        if (!cancelled && epoch === sessionEpoch.current) setIsLoadingAuth(false);
       }
     };
     void rehydrate();
@@ -95,6 +105,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (pair: TokenResponse): Promise<void> => {
+    const epoch = ++sessionEpoch.current;
     try {
       const claim = checkedAccessPayload(pair.access_token);
       if (!pair.refresh_token) throw new Error("Missing refresh token");
@@ -105,6 +116,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           response.data.role !== claim.role) {
         throw new Error("Authenticated principal mismatch");
       }
+      if (epoch !== sessionEpoch.current) throw new Error('Login superseded');
+      invalidateAuthEpoch();
       sessionStorage.setItem(ACCESS_KEY, pair.access_token);
       sessionStorage.setItem(REFRESH_KEY, pair.refresh_token);
       localStorage.removeItem("access_token");
@@ -115,6 +128,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       queryClient.invalidateQueries({ queryKey: ["myBookings"] });
       queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
     } catch (error) {
+      if (epoch !== sessionEpoch.current) throw error;
       // The backend already issued a refresh token. If identity validation
       // fails, attempt to revoke it instead of stranding a server session.
       if (!(axios.isAxiosError(error) && !error.response)) {
@@ -143,11 +157,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Always clear browser state. False means server-side revocation was not
   // confirmed; callers must not claim a complete logout in that case.
   const logout = async (): Promise<boolean> => {
+    const epoch = ++sessionEpoch.current;
     const refresh = sessionStorage.getItem(REFRESH_KEY);
     let revoked = false;
     try {
       if (refresh) {
         const usableAccess = await ensureFreshAccess();
+        if (epoch !== sessionEpoch.current ||
+            sessionStorage.getItem(REFRESH_KEY) !== refresh) return false;
         await apiClient.post("/auth/logout", { refresh_token: refresh }, {
           headers: { Authorization: `Bearer ${usableAccess}` },
         });
@@ -156,7 +173,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch {
       revoked = false;
     } finally {
-      clearLocalSession();
+      if (epoch === sessionEpoch.current &&
+          sessionStorage.getItem(REFRESH_KEY) === refresh) clearLocalSession();
     }
     return revoked;
   };

@@ -17,6 +17,7 @@ from uuid import UUID
 from app.core.deps import (
     require_admin,
     require_admin_or_client,
+    require_operational,
 )
 from app.core.enums import BookingStatus, UserRole
 
@@ -278,6 +279,7 @@ async def read_session_bookings_public(
     *,
     session_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    _: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
     """Devuelve todas las reservas públicas de una sesión."""
     try:
@@ -300,6 +302,7 @@ async def read_class_bookings_public(
     *,
     class_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    _: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
     """Devuelve todas las reservas públicas asociadas a una clase."""
     try:
@@ -322,6 +325,7 @@ async def read_schedule_bookings_public(
     *,
     schedule_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    _: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
     """Devuelve todas las reservas públicas asociadas a un horario."""
     try:
@@ -344,6 +348,7 @@ async def read_bookings_by_day(
     *,
     date_query: "date",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    _: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
     """Devuelve todas las reservas realizadas en un día específico."""
     try:
@@ -367,6 +372,7 @@ async def read_bookings_by_range(
     date_from: "date",
     date_to: "date",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    _: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
     """Devuelve todas las reservas dentro de un rango de fechas."""
     try:

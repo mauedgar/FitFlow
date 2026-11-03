@@ -29,6 +29,9 @@ function setup() {
   const oldAccess = JSON.stringify({
     sub: 'synthetic-user', token_use: 'access', role: 'client', exp: now - 5,
   });
+  const validOldAccess = JSON.stringify({
+    sub: 'synthetic-user', token_use: 'access', role: 'client', exp: now + 300,
+  });
   const newAccess = JSON.stringify({
     sub: 'synthetic-user', token_use: 'access', role: 'client', exp: now + 1800,
   });
@@ -74,6 +77,7 @@ function setup() {
     Promise,
   }, { filename: 'src/services/api.ts' });
   return { api: module.exports, client, storage, events, newAccess, oldAccess,
+    validOldAccess,
     get refreshCalls() { return refreshCalls; } };
 }
 
@@ -115,10 +119,12 @@ test('IR006 login explicit principal token is not replaced by old session token'
   assert.equal(state.refreshCalls, 0);
 });
 
-test('IR006 retried 401 has a bounded one-shot retry', async () => {
+test('IR007 protected 401 has a bounded one-shot retry', async () => {
   const state = setup();
+  state.storage.setItem('fitflow_access_token', state.validOldAccess);
   const cfg = { url: '/bookings/me', headers: headers() };
-  cfg.headers.set('Authorization', 'Bearer ' + state.oldAccess);
+  await state.client.interceptors.request.fn(cfg);
+  assert.equal(cfg.headers.get('Authorization'), 'Bearer ' + state.validOldAccess);
   const error = { isAxiosError: true, response: { status: 401 }, config: cfg };
   const result = await state.client.interceptors.response.fail(error);
   assert.equal(result.status, 200);
@@ -127,4 +133,43 @@ test('IR006 retried 401 has a bounded one-shot retry', async () => {
   assert.equal(cfg._fitflowRetried, true);
   await assert.rejects(state.client.interceptors.response.fail(error));
   assert.equal(state.refreshCalls, 1);
+});
+
+test('IR007 staggered concurrent 401s reuse one new access generation', async () => {
+  const state = setup();
+  state.storage.setItem('fitflow_access_token', state.validOldAccess);
+  const first = { url: '/bookings/me', headers: headers() };
+  const later = { url: '/classes', headers: headers() };
+  await state.client.interceptors.request.fn(first);
+  await state.client.interceptors.request.fn(later);
+  assert.equal(first.headers.get('Authorization'), 'Bearer ' + state.validOldAccess);
+  assert.equal(later.headers.get('Authorization'), 'Bearer ' + state.validOldAccess);
+  const error = cfg => ({ isAxiosError: true, response: { status: 401 }, config: cfg });
+  await state.client.interceptors.response.fail(error(first));
+  assert.equal(state.refreshCalls, 1);
+  await state.client.interceptors.response.fail(error(later));
+  assert.equal(state.refreshCalls, 1);
+  assert.equal(later.headers.get('Authorization'), 'Bearer ' + state.newAccess);
+});
+
+test('IR007 prior session cannot retry after refresh identity changes', async () => {
+  const state = setup();
+  state.storage.setItem('fitflow_access_token', state.validOldAccess);
+  const stale = { url: '/classes', headers: headers() };
+  await state.client.interceptors.request.fn(stale);
+  state.storage.removeItem('fitflow_refresh_token');
+  await assert.rejects(state.client.interceptors.response.fail({
+    isAxiosError: true, response: { status: 401 }, config: stale,
+  }));
+  assert.equal(state.refreshCalls, 0);
+});
+
+test('IR007 provider refuses stale rehydrate after logout by session epoch', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'context', 'AuthProvider.tsx'), 'utf8',
+  );
+  assert.match(source, /const epoch = \+\+sessionEpoch\.current/);
+  assert.match(source, /epoch !== sessionEpoch\.current/);
+  assert.match(source, /sessionStorage\.getItem\(REFRESH_KEY\) !== refresh/);
+  assert.match(source, /sessionEpoch\.current \+= 1/);
 });

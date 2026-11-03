@@ -17,6 +17,23 @@ const apiClient = axios.create({
 const ACCESS_KEY = "fitflow_access_token";
 const REFRESH_KEY = "fitflow_refresh_token";
 let renewalInFlight: Promise<string> | null = null;
+let authEpoch = 0;
+let registeredRefresh: string | null = null;
+
+// A refresh-token change, login or logout invalidates the request lineage.
+function syncAuthEpoch(): number {
+  const current = sessionStorage.getItem(REFRESH_KEY);
+  if (current !== registeredRefresh) {
+    registeredRefresh = current;
+    authEpoch++;
+  }
+  return authEpoch;
+}
+
+export function invalidateAuthEpoch(): void {
+  registeredRefresh = sessionStorage.getItem(REFRESH_KEY);
+  authEpoch++;
+}
 
 function accessUsable(token: string | null): token is string {
   if (!token) return false;
@@ -37,6 +54,7 @@ function protectedEndpoint(url: string | undefined): boolean {
 
 /** Single-flight refresh shared by mounted React views and Axios requests. */
 export async function ensureFreshAccess(force = false): Promise<string> {
+  const epoch = syncAuthEpoch();
   const access = sessionStorage.getItem(ACCESS_KEY);
   if (!force && accessUsable(access)) return access;
   const refresh = sessionStorage.getItem(REFRESH_KEY);
@@ -48,7 +66,8 @@ export async function ensureFreshAccess(force = false): Promise<string> {
         `${API_BASE_URL}/auth/refresh`, { refresh_token: refresh },
       );
       const next = response.data.access_token;
-      if (!accessUsable(next) || sessionStorage.getItem(REFRESH_KEY) !== refresh) {
+      if (!accessUsable(next) || sessionStorage.getItem(REFRESH_KEY) !== refresh ||
+          syncAuthEpoch() !== epoch) {
         throw new Error('Invalidated or malformed renewed access credential');
       }
       sessionStorage.setItem(ACCESS_KEY, next);
@@ -71,9 +90,12 @@ apiClient.interceptors.request.use(async (config) => {
   const passed = config.headers.get('Authorization');
   const stored = sessionStorage.getItem(ACCESS_KEY);
   if (passed && passed !== `Bearer ${stored}`) return config;
+  const epoch = syncAuthEpoch();
   try {
     const token = await ensureFreshAccess();
+    if (syncAuthEpoch() !== epoch) throw new Error('Session changed during request');
     config.headers.set('Authorization', `Bearer ${token}`);
+    (config as typeof config & { _fitflowEpoch?: number })._fitflowEpoch = epoch;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
       window.dispatchEvent(new Event('fitflow:session-invalid'));
@@ -89,17 +111,24 @@ apiClient.interceptors.response.use(
   async (error: unknown) => {
     if (!axios.isAxiosError(error)) return Promise.reject(error);
     const original = error.config;
-    const retry = original as (typeof original & { _fitflowRetried?: boolean }) | undefined;
+    const retry = original as (typeof original & {
+      _fitflowRetried?: boolean;
+      _fitflowEpoch?: number;
+    }) | undefined;
+    const epoch = syncAuthEpoch();
     if (error.response?.status !== 401 || !retry || retry._fitflowRetried ||
         !protectedEndpoint(retry.url) || !sessionStorage.getItem(REFRESH_KEY) ||
-        (retry.headers.get('Authorization') &&
-         retry.headers.get('Authorization') !==
-           `Bearer ${sessionStorage.getItem(ACCESS_KEY)}`)) {
+        retry._fitflowEpoch === undefined || retry._fitflowEpoch !== epoch) {
       return Promise.reject(error);
     }
     retry._fitflowRetried = true;
     try {
-      const token = await ensureFreshAccess(true);
+      const previousBearer = retry.headers.get('Authorization');
+      const current = sessionStorage.getItem(ACCESS_KEY);
+      // A slower 401 may arrive after another request has already renewed.
+      const token = previousBearer !== `Bearer ${current}` && accessUsable(current)
+        ? current : await ensureFreshAccess(true);
+      if (syncAuthEpoch() !== epoch) throw new Error('Session changed during retry');
       retry.headers.set('Authorization', `Bearer ${token}`);
       return await apiClient.request(retry);
     } catch (retryError) {

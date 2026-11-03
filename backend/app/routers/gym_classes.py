@@ -46,6 +46,7 @@ async def create_gym_class(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     class_in: GymClassCreate,
+    _: Annotated[User, Depends(require_admin)],
 ) -> GymClassWithRelations:
     """Crea una nueva clase en el catálogo.
 
@@ -163,6 +164,7 @@ async def update_gym_class(
     class_id: UUID,
     class_in: GymClassUpdate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(require_admin)],
 ) -> GymClassWithRelations:
     """Actualiza una clase del catálogo.
 
@@ -191,6 +193,7 @@ async def delete_gym_class(
     *,
     class_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(require_admin)],
 ) -> dict[str, str]:
     """Elimina una clase del catálogo (soft delete).
 

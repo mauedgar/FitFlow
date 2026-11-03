@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.enums import UserRole
 from app.core.security import decode_token, is_access_token_payload
 from app.crud.crud_user import user as user_crud
+from app.db.models.teacher import Teacher
 from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
@@ -26,6 +27,7 @@ from app.services.errors import AuthError, PermissionDeniedError
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
@@ -164,7 +166,29 @@ require_admin_or_client = require_roles(UserRole.admin, UserRole.client)
 
 require_admin_or_self_guard = require_admin_or_self("user_id")
 require_admin_client_or_self = require_admin_or_self("client_id")
-require_admin_teacher_or_self = require_admin_or_self("teacher_id")
+async def require_admin_teacher_or_self(
+    teacher_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[UserPublic, Depends(require_current_user)],
+) -> UserPublic:
+    """Admin or owner of the Teacher profile, using Person.user_id (not profile id).
+
+    The path contains a Teacher/Person UUID while the JWT subject identifies
+    the User account UUID. Resolve ownership through the persisted relationship.
+    """
+    if current_user.role == UserRole.admin:
+        return current_user
+    if current_user.role != UserRole.teacher:
+        raise PermissionDeniedError("Acceso denegado.")
+    profile = await db.scalar(
+        select(Teacher).where(
+            Teacher.id == teacher_id,
+            Teacher.deleted_at.is_(None),
+        )
+    )
+    if profile is None or profile.user_id != current_user.id:
+        raise PermissionDeniedError("Acceso denegado.")
+    return current_user
 
 require_operational = require_roles(
     UserRole.admin,

@@ -104,6 +104,8 @@ class Settings(BaseSettings):
 
         if self.DEBUG:
             raise ValueError("DEBUG must be false in staging")
+        if self.TESTING:
+            raise ValueError("TESTING must be false in staging")
         if self.REDIS_URL is None:
             raise ValueError("REDIS_URL is required in staging")
         if not self.BACKEND_CORS_ORIGINS:
