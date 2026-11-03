@@ -109,3 +109,39 @@ tests/lint/build, sin secretos pagos, seguida de
 una original Independent Review en contexto separado
 sobre el mismo árbol. Sin integración ni cierre
 automático por CI sola.
+
+
+## IR001 A01 — matriz de pruebas negativas reproducibles
+
+La revisión independiente original IR001 identificó A01 (evidencia insuficiente
+de ramas negativas del clasificador) en el commit e8ef79c0. Esta reparación
+NO traslada el resultado de esa revisión a un candidato nuevo.
+
+Se incorpora scripts/ci/test_fitflow_baseline_scope.py (Python unittest estándar,
+sin dependencias nuevas ni contenedores) y una ejecución previa al clasificador
+de GitHub Actions en el job liviano de scope para PR Ready y push develop.
+El test extrae exactamente el bloque Bash ejecutable del workflow en el
+mismo checkout; si se cambia el bloque, la regresión prueba su nueva
+implementación en vez de una copia simplificada.
+
+La batería usa repositorios Git TEMPORALES y no se conecta a GitHub,
+PostgreSQL, Redis o servicios externos. Prueba diez combinaciones
+de rutas (docs/template/README, backend, frontend, scripts/ci,
+workflow, combinación y desconocida) y siete casos de regresión:
+borrado de backend, push con before válido, push sin before,
+SHA incorrecto, base inválida y fallo real de git diff inyectado
+con un shim de Git que delega todos los demás comandos. Los últimos
+casos comprueban que NO se emitan outputs backend/frontend engañosos.
+
+Preflight local con git y Python standard library: 7 métodos unittest
+(ten scenarios de subTest + seis métodos restantes), PASS en
+repositorios descartables. Ese PASS local no equivale a CI del nuevo SHA.
+El scope CI debe publicar luego el resultado de los mismos tests y
+mantener su propia comprobación de checkout SHA/tree. En Draft, ni
+checkout ni tests se ejecutan: NOT_RUN_DRAFT preservado.
+
+No se cambia la lógica Product, los tests backend/frontend, las
+matrices especializadas, PR42/PR68, dependencias o secretos.
+Solicitar una nueva IR independiente sobre el commit/tree exacto;
+A01 sólo se considera resuelto si la CI y reviewer verifican la
+matriz original, su output, límites y vinculación al sujeto.

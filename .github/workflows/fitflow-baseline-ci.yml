@@ -35,6 +35,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Run bounded scope-classifier Git regression
+        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+        run: python3 -m unittest discover -s scripts/ci -p test_fitflow_baseline_scope.py -v
+
       - name: Record subject SHA/tree and decide changed scope
         if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         id: paths
