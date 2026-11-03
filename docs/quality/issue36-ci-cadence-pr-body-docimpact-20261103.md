@@ -1,6 +1,6 @@
 ---
 document_id: FF-ISSUE36-CI-CADENCE-DOCIMPACT-20261103-001
-status: candidate
+status: review_required
 issue: 36
 baseline_develop: c15bdefc766dfa42fa2b5b86b679ed3bf0f5a47d
 baseline_tree: 9a2033e862535d6c0dc72b97a284811b1f401175
@@ -8,53 +8,63 @@ sot_blob: f36307af0777fd3b493792ad42115fec56ac44b3
 acceptance: false
 ---
 
-# Issue #36 — Reduce unnecessary workflow activity without losing coverage
+# Issue #36 — Retirar el bot destructivo de descripciones
 
-The existing [FitFlow Control cadence](https://github.com/mauedgar/FitFlow/issues/36#issuecomment-6607251180)
-uses local targeted validation during implementation, one broad exact-SHA
-CI set for a frozen candidate, one original separate-context IR per candidate,
-and post-merge verification for the one accepted cumulative integration.
-It does **not** authorize a new Product lifecycle or acceptance bypass.
-`docs/quality-and-validation.md` v5.0 and the Product SOT remain authoritative.
+## Hallazgo y decisión limitada
 
-## Immediate bounded code change
+La [IR001 independiente](https://github.com/mauedgar/FitFlow/pull/69#issuecomment-6607461351)
+del candidato anterior confirmó **F01 MEDIUM y dos advisories A01/A02**.
+Aunque el bot leyera dos veces el cuerpo de un PR, una edición humana
+entre el último GET y el PATCH podía sobrescribirse. Los mensajes
+de commits no sanitizados también entraban al Markdown del resumen.
+El workflow anterior se ejecutaba con `opened`, `reopened` y
+`synchronize` y recreaba el cuerpo entero del PR en cada actualización.
 
-The legacy `.github/workflows/auto-pr-description.yml` uses the
-`synchronize` event and rewrites the entire human-authored PR description
-with every commit message. In long-lived cumulative PRs it causes an
-unbounded, misleading summary, concealing original scope and DocImpact.
+La reparación elimina por completo
+`.github/workflows/auto-pr-description.yml`: ningún job ni token queda
+autorizado a reescribir automáticamente cuerpos de PR por este
+mecanismo, y no hay carrera de lectura-escritura ni Markdown generado
+a partir de mensajes de commit. No hay coste de runner para ese bot.
 
-This candidate changes only that presentation workflow:
-- respond to PR `opened` once, not `synchronize`;
-- fetch current GitHub PR body and **leave any authored description intact**;
-- only initialize an actually empty body with a bounded last-eight-message
-  summary; re-fetch before writing to reduce concurrent edit clobbering;
-- retain existing `GITHUB_TOKEN` permission, no extra secrets, no LLM,
-  no changes to Product, backend/frontend, authentication, tests or migrations.
+Se agrega `.github/pull_request_template.md`, **plantilla pasiva**:
+la persona autora escribe y modifica libremente la descripción, con
+sugerencias breves de propósito, issue, SHA/tree, tests/NOT_RUN,
+DocImpact, IR y aceptación. No envía API requests, no ejecuta
+scripts, no requiere permisos de escritura, secrets, LLM ni
+dependencias, y no crea gates/roles/autoridad Product.
 
-## Remaining Issue #36 work (not falsely declared implemented)
+## Activación / A01
 
-The six costly CI workflows on stacked PR68 remain exactly as authored
-until reconciled with the accepted Product candidate. Github PR path
-filters operate on the cumulative base-to-head diff: even changing one
-backend test on PR68 can retrigger broad backend Python3.11/12/13,
-bcrypt compatibility, browser, topology, migration schema and metadata.
-The bot fix is an independent small step, not a claim that this redundancy
-has already been removed.
+La plantilla solo aparece para **nuevos PR** cuando el archivo está
+en la rama **default** del repositorio, observada actualmente como
+`develop`. No modifica cuerpos de PR abiertos ni se activa por
+crear este candidato: hay que aceptar/integrar primero. Los
+workflows cargados desde la rama base pueden seguir activos antes
+de la integración; no declarar protección retroactiva. El gate
+post-merge apropiado es verificar la eliminación del workflow en
+`develop` y la plantilla en la rama default; observar un PR
+posterior, sin crear uno artificialmente solo para la prueba.
 
-A later bounded isolated workflow refactor must distinguish fast
-developer feedback vs broad exact-SHA qualification, preserve unique
-negative scenarios, required checks, receipt identity and independent
-review, remove duplicate full backend/frontend/quality jobs, and
-retain SHA-pinned deterministic dispatch. Do not skip a required test
-and relabel it PASS; do not remove code coverage to optimize latency.
+## Cobertura / validación y límites
 
-## Validation and review
+Negativos a comprobar contra Git tree inmutable: archivo
+`auto-pr-description.yml` ausente, `.github/pull_request_template.md`
+presente y sin scripts, workflows, GitHub API, secretos o
+referencias a mensajes de commits. Así se elimina F01 por
+construcción y A02 por ausencia de entrada no confiable;
+la condición de activación de A01 queda descrita con precisión,
+no suponemos efectos previos a la integración.
 
-Before accepting this candidate, verify YAML parse and
-`pull_request.types=[opened]`; negative cases with authored, blank
-and concurrently edited body; no `synchronize`, no hidden paid
-LLM or new secret; one original independent review at the frozen
-commit/tree and competent Developer acceptance before merge.
-Only this separate PR is affected, and PR68's security write-set
-remains untouched.
+El resto de [Issue #36](https://github.com/mauedgar/FitFlow/issues/36#issuecomment-6607251180)
+permanece **ABIERTO**: seis validaciones de PR acumulativos,
+backend/frontend duplicados, filtros por diff contra `develop`,
+pruebas completas en un candidato congelado y checks después
+de integrar. Esa refactorización corresponde a otro write-set
+competente; **no** modifica este PR ni #68. El procedimiento
+acordado conserva verificaciones dirigidas durante reparación,
+CI amplia exacta una vez por candidato y una IR independiente.
+
+No cambia Product/API/DB, migrations, deps, credenciales,
+protecciones de rama ni configuración de stages. Requiere una
+nueva IR original en contexto independiente sobre SHA/tree
+actual y aceptación Developer antes del merge.
