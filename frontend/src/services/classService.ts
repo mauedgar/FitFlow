@@ -1,5 +1,5 @@
 // src/services/classService.ts
-import apiClient from './api';
+import apiClient, { acknowledgeRefreshDelivery } from './api';
 
 import {
   type GymClass,
@@ -31,10 +31,7 @@ const classService = {
         'X-FitFlow-Refresh-Ack': 'v1',
       },
     });
-    await apiClient.post('/auth/ack',
-      { refresh_token: response.data.refresh_token },
-      { headers: { Authorization: `Bearer ${response.data.access_token}` } },
-    );
+    await acknowledgeRefreshDelivery(response.data);
     return response.data;
   },
 

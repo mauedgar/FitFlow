@@ -1,7 +1,7 @@
 // src/services/api.ts
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
-import type { TokenPayload } from '../types';
+import type { TokenPayload, TokenResponse } from '../types';
 import { registrationErrorMessage } from '../utils/registrationErrors';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
@@ -141,6 +141,54 @@ apiClient.interceptors.response.use(
   },
 );
 
+
+/**
+ * Negotiate one issued refresh credential, retrying ONLY ambiguous transport or
+ * transient server failures. A lost HTTP 204 may follow a successful activation;
+ * the backend ACK is idempotent for the same signed pair and owner.
+ *
+ * Never request a new token pair during an ACK retry. If all attempts fail,
+ * attempt compensating server revocation before surfacing the login failure.
+ * An unreachable server cannot prove revocation; A10 remains a rollout debt.
+ */
+export async function acknowledgeRefreshDelivery(pair: TokenResponse): Promise<void> {
+  const maxAttempts = 3;
+  let lastFailure: unknown = new Error('Refresh acknowledgement failed');
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      await apiClient.post('/auth/ack', {
+        refresh_token: pair.refresh_token,
+      }, {
+        headers: { Authorization: `Bearer ${pair.access_token}` },
+        timeout: 2500,
+      });
+      return;
+    } catch (error: unknown) {
+      lastFailure = error;
+      const transient = axios.isAxiosError(error) &&
+        (!error.response || error.response.status >= 500);
+      if (!transient || attempt === maxAttempts - 1) break;
+      await new Promise<void>(resolve => setTimeout(resolve, (attempt + 1) * 125));
+    }
+  }
+
+  // A previous ACK may have activated the refresh even when every response
+  // was lost. Revoke the same credential when the server is reachable.
+  try {
+    await apiClient.post('/auth/logout', {
+      refresh_token: pair.refresh_token,
+    }, {
+      headers: { Authorization: `Bearer ${pair.access_token}` },
+      timeout: 2500,
+    });
+  } catch {
+    // A network partition is not evidence of revocation or successful login.
+    // No token or credential data are logged.
+  }
+  throw lastFailure;
+}
+
 // 2. Definimos la función de login
 // Nota: Le cambiamos el nombre a loginUser para evitar confusión con el login del AuthContext
 export const loginUser = async (email: string, password: string) => {
@@ -157,10 +205,7 @@ export const loginUser = async (email: string, password: string) => {
         'X-FitFlow-Refresh-Ack': 'v1',
       },
     });
-    await apiClient.post('/auth/ack',
-      { refresh_token: response.data.refresh_token },
-      { headers: { Authorization: `Bearer ${response.data.access_token}` } },
-    );
+    await acknowledgeRefreshDelivery(response.data);
     // La respuesta de FastAPI contiene { access_token: "...", token_type: "bearer" }
     return response.data; 
   } catch (error) {

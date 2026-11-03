@@ -69,5 +69,19 @@ test('IR005 mounted routes use the canonical teacher/front_desk roles without lo
   assert.doesNotMatch(router, /UserRole\.TRAINER/);
 });
 
+test('IR015 ACK delivery is shared, bounded and compensates terminal ambiguity', () => {
+  const api = read('src/services/api.ts');
+  const service = read('src/services/classService.ts');
+  const browser = read('tests/browser/fitflow-mounted-e2e.cjs');
+  assert.match(api, /export async function acknowledgeRefreshDelivery/);
+  assert.match(api, /const maxAttempts = 3/);
+  assert.match(api, /timeout: 2500/);
+  assert.match(api, /await apiClient.post\('\/auth\/logout'/);
+  assert.match(api, /await acknowledgeRefreshDelivery\(response.data\)/);
+  assert.match(service, /await acknowledgeRefreshDelivery\(response.data\)/);
+  assert.match(browser, /E2E_BROWSER_ACK_LOST_RESPONSE_RETRY_PASS/);
+  assert.match(browser, /issuedPairs, 1/);
+});
+
 // The existing Actions job selects this test file explicitly.
 require('./issue57AuthRenewal.test.cjs');

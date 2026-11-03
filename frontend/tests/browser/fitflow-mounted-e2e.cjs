@@ -21,6 +21,9 @@ let tokenSerial = 0;
 let logoutCalls = 0;
 let refreshCalls = 0;
 let ackCalls = 0;
+let ackDroppedResponses = 0;
+let issuedPairs = 0;
+let firstAckCredential = null;
 const subprocesses = [];
 const tmpProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'fitflow-e2e-chrome-'));
 let session = null;
@@ -79,6 +82,7 @@ function mockApi(req, res) {
           form.get('password') !== 'synthetic-e2e-only') {
         return send(401, { detail: 'Invalid synthetic login' });
       }
+      issuedPairs++;
       return send(200, {
         access_token: jwt(), refresh_token: refreshCredential, token_type: 'bearer',
       });
@@ -88,7 +92,17 @@ function mockApi(req, res) {
       if (!bearer.startsWith('Bearer ') || payload.refresh_token !== refreshCredential) {
         return send(403, { detail: 'Bad synthetic acknowledgement' });
       }
+      const credential = bearer + '|' + payload.refresh_token;
+      if (firstAckCredential === null) firstAckCredential = credential;
+      assert.equal(credential, firstAckCredential, 'ACK retries must preserve exactly the first pair');
       ackCalls++;
+      if (ackCalls === 1) {
+        // The server has accepted the ACK, but the HTTP 204 reply is lost.
+        // A real browser network failure must trigger a retry, not a re-login.
+        ackDroppedResponses++;
+        res.destroy();
+        return;
+      }
       return send(204, {});
     }
     if (method === 'GET' && route === '/api/v1/auth/me') {
@@ -238,6 +252,10 @@ async function browserTest() {
     return location === '/admin' && await documentText('Bienvenido al Panel de Administración');
   }, 'authenticated admin navigation');
   assert.equal(await evaluate("sessionStorage.getItem('fitflow_refresh_token')"), refreshCredential);
+  assert.equal(ackCalls, 2, 'Lost successful ACK reply must cause one same-pair retry');
+  assert.equal(ackDroppedResponses, 1);
+  assert.equal(issuedPairs, 1, 'Retry must not issue a second credential pair');
+  console.log('E2E_BROWSER_ACK_LOST_RESPONSE_RETRY_PASS');
   console.log('E2E_BROWSER_LOGIN_AND_ROLE_ROUTE_PASS');
 
   // Scenario 4: real browser reload with expiring access performs one refresh.
@@ -260,7 +278,7 @@ async function browserTest() {
   await webdriver('POST', '/session/' + session + '/element/' + logoutItem + '/click', {});
   await until(() => evaluate("location.pathname === '/login'"), 'logout navigates to login');
   assert.equal(await evaluate("sessionStorage.getItem('fitflow_refresh_token')"), null);
-  assert.equal(ackCalls, 1);
+  assert.equal(ackCalls, 2);
   assert.equal(logoutCalls, 1);
   await navigate('/admin');
   await until(() => evaluate("location.pathname === '/login'"), 'post-logout redirect');
@@ -272,8 +290,8 @@ async function browserTest() {
     browser, mountedReact: true, apiSynthetic: true, stagingDeployed: false,
     publicRequests: requests.filter(x => x === 'GET /api/v1/gym-classes/public').length,
     authMeRequests: requests.filter(x => x === 'GET /api/v1/auth/me').length,
-    refreshCalls, logoutCalls, screenshotSha256: digest,
-    checks: 5, noExternalCredentials: true, noNewDependencies: true,
+    refreshCalls, logoutCalls, ackCalls, ackDroppedResponses, issuedPairs,
+    screenshotSha256: digest, checks: 6, noExternalCredentials: true, noNewDependencies: true,
   }));
 }
 (async () => {
