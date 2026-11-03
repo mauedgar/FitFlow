@@ -1,12 +1,12 @@
-"""Test-only bounded read-only inventory of legacy plaintext token Redis keys."""
+"""Bounded read-only inventory of legacy plaintext token Redis keys."""
 from __future__ import annotations
 
 import argparse
 import json
 import os
 
-from app.core.redis_client import get_redis_client
-from app.services.errors import ExternalServiceError
+from app.core.config import settings
+from redis import Redis
 from redis.exceptions import RedisError
 
 PREFIXES = ("refresh_token:", "blacklist_token:")
@@ -26,8 +26,14 @@ def summarize_legacy_keys(client: object, max_pages: int = 12) -> dict[str, dict
             cursor, keys = client.scan(cursor=cursor, match=f"{prefix}*", count=64)  # type: ignore[attr-defined]
             counts["pages"] = int(counts["pages"]) + 1
             for raw in keys:
-                key = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
-                variant = "hmac" if key.startswith(prefix + "hmac:") else "raw"
+                # Redis keys are arbitrary bytes. Decode neither raw bearer-key
+                # names nor a possibly malformed historical UTF-8 payload.
+                is_modern = (
+                    raw.startswith((prefix + "hmac:").encode("ascii"))
+                    if isinstance(raw, bytes)
+                    else str(raw).startswith(prefix + "hmac:")
+                )
+                variant = "hmac" if is_modern else "raw"
                 ttl = client.ttl(raw)  # type: ignore[attr-defined]
                 label = "expired_during_scan" if ttl == -2 else (
                     variant + ("_no_ttl" if ttl == -1 else "_has_ttl")
@@ -48,16 +54,25 @@ def main() -> int:
         p.error("explicit read-only authorization required")
     if not 1 <= a.max_pages <= 40:
         p.error("bounded pages only")
+    url = settings.REDIS_URL
+    if url is None:
+        print("LEGACY_INVENTORY_UNAVAILABLE")
+        return 2
     client = None
     try:
-        client = get_redis_client()
+        # Unlike application Redis clients this must not decode raw key bytes.
+        client = Redis.from_url(
+            url, decode_responses=False, socket_connect_timeout=3,
+            socket_timeout=5,
+        )
+        client.ping()
         print(json.dumps({
             "read_only": True,
             "raw_keys_or_values_disclosed": False,
             "report": summarize_legacy_keys(client, a.max_pages),
         }, sort_keys=True))
         return 0
-    except (ExternalServiceError, RedisError, ValueError):
+    except (RedisError, ValueError):
         # Avoid exposing service details and token-bearing key names.
         print("LEGACY_INVENTORY_UNAVAILABLE")
         return 2
