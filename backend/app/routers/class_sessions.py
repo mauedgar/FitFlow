@@ -311,7 +311,9 @@ async def read_sessions_by_class_public(
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> list[ClassSessionInResponse]:
     """Devuelve las sesiones públicas asociadas a una clase."""
-    sessions = await class_session.get_multi_filtered(db=db, schedule_id=class_id, include_relations=True)
+    sessions = await class_session.get_multi_filtered(
+        db=db, gym_class_id=class_id, include_relations=True,
+    )
     return [to_class_session_response(update_session_availability(s)) for s in sessions]
 
 

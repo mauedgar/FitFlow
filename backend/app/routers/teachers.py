@@ -22,6 +22,7 @@ from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_class_session import class_session
 from app.crud.crud_teacher import teacher
 from app.crud.crud_user import user as user_crud
+from app.db.models.class_schedule import ClassSchedule
 from app.db.models.teacher import Teacher
 from app.db.models.user import User
 from app.db.session import get_async_session
@@ -122,7 +123,10 @@ async def read_teachers(
         db=db,
         skip=skip,
         limit=limit,
-        options=[selectinload(Teacher.class_schedules)], # pyright: ignore[reportArgumentType]
+        options=[
+            selectinload(Teacher.class_schedules).selectinload(ClassSchedule.gym_class),
+            selectinload(Teacher.class_schedules).selectinload(ClassSchedule.teacher),
+        ],
     )
 
     return [TeacherWithRelations.model_validate(t) for t in teachers]

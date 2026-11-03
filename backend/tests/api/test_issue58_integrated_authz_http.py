@@ -199,7 +199,7 @@ async def test_ir008_teacher_private_directory_is_admin_only_and_public_safe(
 
 
 @pytest.mark.parametrize("path", [
-    "/gym-classes/",
+    "/gym-classes/{id}",
     "/teachers/",
     "/memberships/client/{id}/public",
 ])
