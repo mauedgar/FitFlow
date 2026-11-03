@@ -189,7 +189,9 @@ async def require_admin_teacher_or_self(
         )
     )
     if profile is None or profile.user_id != current_user.id:
-        raise PermissionDeniedError("Acceso denegado.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado.",
+        )
     return current_user
 
 require_operational = require_roles(

@@ -223,7 +223,12 @@ async def update_teacher(
     if not teacher_:
         raise HTTPException(404, "Profesor no encontrado.")
 
-    updated = await teacher.update(db=db, db_obj=teacher_, obj_in=teacher_in)
+    await teacher.update(db=db, db_obj=teacher_, obj_in=teacher_in)
+    # The response includes class_schedules. Reload eagerly after the write
+    # rather than serializing the lazy-raise relationship and returning 500.
+    updated = await teacher.get(db=db, obj_id=teacher_id, include_relations=True)
+    if updated is None:
+        raise HTTPException(404, "Profesor no encontrado.")
     return TeacherWithRelations.model_validate(updated)
 
 
