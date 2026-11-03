@@ -34,6 +34,6 @@ async def test_required_staging_ack_rejects_headerless_before_db_or_redis(
 async def test_compatibility_policy_is_explicit_and_validated() -> None:
     from app.core.config import Settings
     with pytest.raises(ValidationError, match="REFRESH_ACK_POLICY"):
-        Settings(_env_file=None, DATABASE_URL="postgresql://a:b@localhost/db",
+        Settings(DATABASE_URL="postgresql://a:b@localhost/db",
                  SECRET_KEY="unit-test-only", REFRESH_ACK_POLICY="wildcard")
 
