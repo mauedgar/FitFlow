@@ -72,14 +72,14 @@ class Booking(Base, TimestampMixin, ActiveMixin):
     )
 
     # Relación con el cliente titular de la reserva.
-    client: Mapped["Client"] = relationship(
+    client: Mapped[Client] = relationship(
         "Client",
         back_populates="bookings",
         lazy="raise",
     )
 
     # Relación con la sesión concreta reservada.
-    class_session: Mapped["ClassSession"] = relationship(
+    class_session: Mapped[ClassSession] = relationship(
         "ClassSession",
         back_populates="bookings",
         lazy="raise",

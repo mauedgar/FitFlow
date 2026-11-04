@@ -38,7 +38,7 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
 # --------------------------------------------------------------------------- #
 # Dependency para FastAPI
 # --------------------------------------------------------------------------- #
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_session() -> AsyncGenerator[AsyncSession]:
     """Dependency para FastAPI que provee una AsyncSession.
 
     Se asegura de cerrar la sesión cuando termina la request.

@@ -37,7 +37,7 @@ class Teacher(Person):
         """Nombre completo."""
         return f"{self.first_name} {self.last_name}"
     # Horarios recurrentes asignados al profesor.
-    class_schedules: Mapped[list["ClassSchedule"]] = relationship(
+    class_schedules: Mapped[list[ClassSchedule]] = relationship(
         "ClassSchedule",
         back_populates="teacher",
         lazy="raise",

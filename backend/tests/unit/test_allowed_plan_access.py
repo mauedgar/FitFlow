@@ -13,11 +13,11 @@ if TYPE_CHECKING:
     from app.db.models.membership import Membership
 
 
-def _membership(plan: MembershipPlan) -> "Membership":
+def _membership(plan: MembershipPlan) -> Membership:
     return cast("Membership", SimpleNamespace(plan=plan))
 
 
-def _schedule(allowed_plan: AllowedPlan) -> "ClassSchedule":
+def _schedule(allowed_plan: AllowedPlan) -> ClassSchedule:
     return cast("ClassSchedule", SimpleNamespace(allowed_plan=allowed_plan))
 
 

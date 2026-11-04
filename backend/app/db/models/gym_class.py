@@ -67,7 +67,7 @@ class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     image_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Relación con los horarios recurrentes en los que esta actividad se ofrece.
-    class_schedules: Mapped[list["ClassSchedule"]] = relationship(
+    class_schedules: Mapped[list[ClassSchedule]] = relationship(
         "ClassSchedule",
         back_populates="gym_class",
         cascade="all, delete-orphan",

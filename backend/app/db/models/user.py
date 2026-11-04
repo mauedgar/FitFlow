@@ -41,7 +41,7 @@ class User(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     )
 
     # Relación uno a uno con el perfil personal del usuario.
-    person_profile: Mapped["Person | None"] = relationship(
+    person_profile: Mapped[Person | None] = relationship(
         "Person",
         back_populates="user",
         uselist=False,

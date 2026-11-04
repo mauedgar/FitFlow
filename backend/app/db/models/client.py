@@ -31,7 +31,7 @@ class Client(Person):
     )
 
     # Reservas realizadas por el cliente.
-    bookings: Mapped[list["Booking"]] = relationship(
+    bookings: Mapped[list[Booking]] = relationship(
         "Booking",
         back_populates="client",
         cascade="all, delete-orphan",
@@ -39,7 +39,7 @@ class Client(Person):
     )
 
     # Membresía activa o principal del cliente.
-    membership: Mapped["Membership | None"] = relationship(
+    membership: Mapped[Membership | None] = relationship(
         "Membership",
         back_populates="client",
         uselist=False,

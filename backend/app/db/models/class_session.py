@@ -67,14 +67,14 @@ class ClassSession(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     )
 
     # Relación con el horario recurrente de origen.
-    class_schedule: Mapped["ClassSchedule"] = relationship(
+    class_schedule: Mapped[ClassSchedule] = relationship(
         "ClassSchedule",
         back_populates="class_sessions",
         lazy="raise",
     )
 
     # Reservas asociadas a esta sesión concreta.
-    bookings: Mapped[list["Booking"]] = relationship(
+    bookings: Mapped[list[Booking]] = relationship(
         "Booking",
         back_populates="class_session",
         lazy="raise",

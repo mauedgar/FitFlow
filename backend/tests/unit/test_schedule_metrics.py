@@ -25,7 +25,7 @@ def _session(**overrides: object) -> SimpleNamespace:
     return SimpleNamespace(**base)
 
 
-def _schedule(*sessions: SimpleNamespace) -> "ClassSchedule":
+def _schedule(*sessions: SimpleNamespace) -> ClassSchedule:
     return cast("ClassSchedule", SimpleNamespace(class_sessions=list(sessions)))
 
 

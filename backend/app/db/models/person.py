@@ -60,7 +60,7 @@ class Person(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
         unique=True,
     )
 
-    user: Mapped["User"] = relationship(
+    user: Mapped[User] = relationship(
         "User",
         back_populates="person_profile",
         lazy="raise",
