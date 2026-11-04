@@ -24,7 +24,8 @@ async function settle() {
   for (let i = 0; i < 20; i++) await Promise.resolve();
 }
 
-function setup() {
+function setup({ failures = 1, failureStatus = null } = {}) {
+  let failuresRemaining = failures;
   const expires = Math.floor(Date.now() / 1000) + 600;
   const access = JSON.stringify({
     sub: 'user-id', role: 'client', token_use: 'access', exp: expires,
@@ -89,9 +90,10 @@ function setup() {
     async get(url) {
       assert.equal(url, '/auth/me');
       getCalls++;
-      if (getCalls === 1) {
+      if (failuresRemaining-- > 0) {
         const error = new Error('transient network failure');
         error.isAxiosError = true;
+        if (failureStatus !== null) error.response = { status: failureStatus };
         throw error;
       }
       return { data: user };
@@ -129,6 +131,7 @@ function setup() {
     sessionStorage: storage,
     localStorage: { removeItem() {} },
     window,
+    AbortController,
     setTimeout,
     clearTimeout,
     Date,
@@ -147,6 +150,7 @@ function setup() {
     access, refresh, storage, timers, state,
     render, cleanup: () => cleanups.forEach(callback => callback()),
     getCalls: () => getCalls,
+    emitOnline: () => window.dispatchEvent({ type: 'online' }),
     getValue: () => providerValue,
     fireNext() {
       const next = timers.entries().next().value;
@@ -194,4 +198,56 @@ test('logout fences an already scheduled recovery callback', async () => {
   assert.equal(h.getCalls(), 1);
   assert.equal(h.state.get(0), null);
   h.cleanup();
+});
+
+
+test('online event supersedes pending backoff and reschedules after another outage', async () => {
+  const h = setup({ failures: 2 });
+  await settle();
+  assert.equal(h.getCalls(), 1);
+  assert.equal(h.timers.size, 1);
+  const stale = h.savedTimer();
+  h.emitOnline();
+  await settle();
+  assert.equal(h.getCalls(), 2);
+  assert.equal(h.timers.size, 1);
+  stale();
+  await settle();
+  assert.equal(h.getCalls(), 2);
+  h.fireNext();
+  await settle();
+  assert.equal(h.getCalls(), 3);
+  assert.equal(h.state.get(0), h.access);
+  h.cleanup();
+});
+
+
+test('HTTP 503 and 429 preserve unverified session and recover with bounded backoff', async () => {
+  for (const failureStatus of [503, 429]) {
+    const h = setup({ failures: 7, failureStatus });
+    await settle();
+    for (let i = 0; i < 7; i++) {
+      assert.equal(h.storage.getItem('fitflow_refresh_token'), h.refresh);
+      assert.equal(h.timers.size, 1);
+      const delay = [...h.timers.values()][0].delay;
+      assert.ok(delay >= 1000 && delay <= 30000, delay);
+      if (i === 6) assert.equal(delay, 30000);
+      h.fireNext();
+      await settle();
+    }
+    assert.equal(h.getCalls(), 8);
+    assert.equal(h.state.get(0), h.access);
+    h.cleanup();
+  }
+});
+
+test('provider unmount cancels pending backoff and forbids recovery work', async () => {
+  const h = setup({ failures: 3 });
+  await settle();
+  const old = h.savedTimer();
+  h.cleanup();
+  assert.equal(h.timers.size, 0);
+  old();
+  await settle();
+  assert.equal(h.getCalls(), 1);
 });

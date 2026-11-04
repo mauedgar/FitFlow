@@ -249,6 +249,7 @@ async def check_in_booking(
             selectinload(Booking.class_session),
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     booking = (await db.execute(stmt)).scalar_one_or_none()
     if booking is None:

@@ -30,6 +30,8 @@ from app.db.models import (
 from app.db.session import AsyncSessionLocal, engine
 from app.main import app
 from app.schemas.booking import BookingCreateInternal
+from app.services.errors import ConflictError
+from app.services.front_desk_service import check_in_booking
 from fastapi import status
 from sqlalchemy import select, update
 from sqlalchemy.engine import make_url
@@ -364,3 +366,66 @@ async def test_two_simultaneous_cancellations_have_one_winner() -> None:
         stored = await db.get(Booking, uuid.UUID(booking_id))
         assert stored is not None
         assert stored.status == BookingStatus.cancelled
+
+
+@pytest.mark.api
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_expired_membership_rejected_after_atomic_row_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_id, access_token = await _booking_fixture()
+    original_create = booking_crud.create_with_capacity_check
+
+    async def expire_before_lock(
+        db: AsyncSession, *, client_id: UUID, session_id: UUID,
+        obj_in: BookingCreateInternal, require_eligibility: bool = False,
+    ) -> Booking:
+        assert require_eligibility is True
+        async with AsyncSessionLocal() as competitor:
+            await competitor.execute(
+                update(Membership).where(Membership.client_id == client_id)
+                .values(end_date=datetime.now(UTC) - timedelta(minutes=1))
+            )
+            await competitor.commit()
+        return await original_create(
+            db, client_id=client_id, session_id=session_id,
+            obj_in=obj_in, require_eligibility=require_eligibility,
+        )
+
+    monkeypatch.setattr(booking_crud, "create_with_capacity_check", expire_before_lock)
+    response = await _post_booking(session_id=session_id, access_token=access_token)
+    assert response.status_code == 400, response.text
+    async with AsyncSessionLocal() as db:
+        assert await db.scalar(
+            select(Booking.id).where(Booking.class_session_id == session_id)
+        ) is None
+
+
+@pytest.mark.api
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_checkin_refreshes_stale_booking_after_cancel_commit() -> None:
+    """The FOR UPDATE select must not reuse an already-loaded stale ORM status."""
+    session_id, access_token = await _booking_fixture()
+    created = await _post_booking(session_id=session_id, access_token=access_token)
+    assert created.status_code == 201, created.text
+    booking_id = UUID(created.json()["id"])
+
+    async with AsyncSessionLocal() as stale_db:
+        cached = await stale_db.get(Booking, booking_id)
+        assert cached is not None and cached.status == BookingStatus.confirmed
+        async with AsyncSessionLocal() as competitor:
+            stored = await competitor.get(Booking, booking_id)
+            assert stored is not None
+            stored.status = BookingStatus.cancelled
+            stored.cancelled_at = datetime.now(UTC)
+            await competitor.commit()
+        with pytest.raises(ConflictError):
+            await check_in_booking(stale_db, session_id=session_id, booking_id=booking_id)
+        await stale_db.rollback()
+    async with AsyncSessionLocal() as db:
+        stored = await db.get(Booking, booking_id)
+        assert stored is not None
+        assert stored.status == BookingStatus.cancelled
+        assert stored.checked_in_at is None

@@ -33,11 +33,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
   const recoveryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recoveryScheduler = useRef<(() => void) | null>(null);
+  const rehydrationController = useRef<AbortController | null>(null);
   // Reject continuations from a previous login, rehydration or logout.
   const sessionEpoch = useRef(0);
 
   const clearLocalSession = () => {
     sessionEpoch.current++;
+    rehydrationController.current?.abort();
     if (recoveryTimer.current !== null) {
       clearTimeout(recoveryTimer.current);
       recoveryTimer.current = null;
@@ -62,14 +65,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (cancelled || !refresh || recoveryTimer.current !== null) return;
       const epoch = sessionEpoch.current;
       const delay = Math.min(30000, 1000 * 2 ** Math.min(recoveryFailures++, 5));
-      recoveryTimer.current = setTimeout(() => {
+      const timer = setTimeout(() => {
+        // A cleared callback may race with a newer retry; it cannot clear it.
+        if (recoveryTimer.current !== timer) return;
         recoveryTimer.current = null;
         if (cancelled || epoch !== sessionEpoch.current ||
             sessionStorage.getItem(REFRESH_KEY) !== refresh) return;
         void rehydrate();
       }, delay);
+      recoveryTimer.current = timer;
     };
     const rehydrate = async () => {
+      // An online-triggered attempt supersedes any pending backoff timer;
+      // otherwise that stale timer can prevent the new failure from retrying.
+      if (recoveryTimer.current !== null) {
+        clearTimeout(recoveryTimer.current);
+        recoveryTimer.current = null;
+      }
+      rehydrationController.current?.abort();
+      const controller = new AbortController();
+      rehydrationController.current = controller;
       const epoch = ++sessionEpoch.current;
       setToken(null);
       setCurrentUser(null);
@@ -89,6 +104,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const claim = checkedAccessPayload(usableAccess);
         const response = await apiClient.get<User>("/auth/me", {
           headers: { Authorization: `Bearer ${usableAccess}` },
+          signal: controller.signal,
         });
         if (cancelled || epoch !== sessionEpoch.current ||
             sessionStorage.getItem(REFRESH_KEY) !== refresh) return;
@@ -118,17 +134,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (!cancelled && epoch === sessionEpoch.current) setIsLoadingAuth(false);
       }
     };
+    recoveryScheduler.current = scheduleRecovery;
     void rehydrate();
     window.addEventListener('online', rehydrate);
-    window.addEventListener('fitflow:session-recovery-needed', scheduleRecovery);
     return () => {
       cancelled = true;
+      recoveryScheduler.current = null;
+      rehydrationController.current?.abort();
       if (recoveryTimer.current !== null) {
         clearTimeout(recoveryTimer.current);
         recoveryTimer.current = null;
       }
       window.removeEventListener('online', rehydrate);
-      window.removeEventListener('fitflow:session-recovery-needed', scheduleRecovery);
     };
     // Initialization is deliberately performed only on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,7 +194,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setToken(null);
         setCurrentUser(null);
         setUserRole(null);
-        window.dispatchEvent(new Event('fitflow:session-recovery-needed'));
+        recoveryScheduler.current?.();
       }
       throw error;
     } finally {
@@ -253,7 +270,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setToken(null);
             setCurrentUser(null);
             setUserRole(null);
-            window.dispatchEvent(new Event('fitflow:session-recovery-needed'));
+            recoveryScheduler.current?.();
           }
         });
       }, delay);

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
 from app.core.enums import BookingStatus, ClassSessionStatus
@@ -18,7 +18,7 @@ from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingUpd
 # Excepciones de dominio centralizadas
 from app.services.booking_service import validate_booking_creation
 from app.services.class_schedule_service import validate_membership_access
-from app.services.errors import ConflictError, NotFoundError
+from app.services.errors import BusinessValidationError, ConflictError, NotFoundError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -260,6 +260,12 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
                     ).with_for_update().execution_options(populate_existing=True)
                 )).scalar_one_or_none()
                 validate_booking_creation(session, membership)
+                if membership is None:
+                    raise BusinessValidationError("Necesitas una membresía activa para reservar.")
+                # Membership date validity is an atomic entitlement condition.
+                now = datetime.now(UTC)
+                if not (membership.start_date <= now <= membership.end_date):
+                    raise BusinessValidationError("La membresía está fuera de su período de vigencia.")
                 validate_membership_access(membership, schedule)
 
             # verificar duplicado
