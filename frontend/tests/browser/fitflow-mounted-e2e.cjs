@@ -153,8 +153,8 @@ function registerChild(child) {
   const closed = new Promise(resolve => {
     child.once('close', () => resolve(true));
     child.once('error', error => {
+      // A spawn error is not a close event: the shutdown gate must still observe close.
       console.error('E2E_BROWSER_CHILD_ERROR', String(error).slice(0,180));
-      resolve(true);
     });
   });
   childClosures.set(child, closed);
@@ -366,12 +366,13 @@ async function browserTest() {
     if (driverDiagnostics) console.error('E2E_BROWSER_CHROMEDRIVER_DIAG', driverDiagnostics.slice(-2400));
     process.exitCode = 1;
   } finally {
+    let cleanupFailed = false;
     if (session) {
       try { await webdriver('DELETE', '/session/' + session); } catch (error) {
-        console.error('E2E_BROWSER_DELETE_SESSION_WARNING', String(error).slice(0,180));
+        cleanupFailed = true;
+        console.error('E2E_BROWSER_DELETE_SESSION_FAIL', String(error).slice(0,180));
       }
     }
-    let cleanupFailed = false;
     for (const child of [...subprocesses].reverse()) {
       try { await stopChild(child); } catch (error) {
         cleanupFailed = true;
