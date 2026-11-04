@@ -75,12 +75,17 @@ async def test_register_valid_exact_72_byte_password_reaches_create_without_muta
 
 async def test_user_password_update_http_route_is_not_exposed() -> None:
     """UserUpdate is internal CRUD/schema only; do not invent an HTTP 422 update route."""
+    # Match the actual mounted routes, independently of mutable test settings.
+    # Positive registration HTTP tests above still enforce the configured prefix.
     user_routes = [
         route
         for route in app.routes
-        if getattr(route, "path", "").startswith(f"{settings.API_V1_STR}/users")
+        if "/users" in getattr(route, "path", "")
     ]
-    assert user_routes, "users router must actually be mounted"
+    assert any(
+        getattr(route, "path", "").endswith("/users/register")
+        for route in user_routes
+    ), "users registration router must actually be mounted"
     assert all(
         not ({"PUT", "PATCH"} & set(getattr(route, "methods", set())))
         for route in user_routes

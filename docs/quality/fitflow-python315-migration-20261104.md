@@ -42,3 +42,15 @@ A10 (ACK externos), A12 (infra TLS/IP), A13 (Redis retenido) siguen abiertos; no
 - Los workflows del commit intermedio `65b4cc...` anteriores a la regeneración terminaron con FAIL por `uv lock --check` o backend desechable todavía no calificado; no son evidencia contra el lock regenerado ni PASS transferible.
 - El workflow temporal `.github/workflows/python315-lock-bootstrap.yml`, con permiso `contents: write` exclusivamente en la rama de migración, **se excluye del candidato final** para no mantener un emisor privilegiado sin necesidad. Su historial y resultados quedan trazables; la generación futura corresponde a workflow/Product autorizado separado.
 - G3 CI final y G5 IR siguen NOT_RUN hasta que una nueva revisión exacta del árbol final quede publicada y calificada.
+
+## Reparación posterior a CI 374eebb3
+
+En [PR83 CI Issue52 41769819316](https://github.com/mauedgar/FitFlow/actions/runs/41769819316) la suite de CPython 3.15.2 completó 398 PASS / 2 FAIL: `inspect.get_annotations` con PEP649 intentó evaluar `Client` de una relación SQLAlchemy importada solo bajo `TYPE_CHECKING`; el test de superficie de usuarios dependía de un prefijo mutable, aunque la comprobación positiva de HTTP de registro pasó. Se añade `from __future__ import annotations` a siete modelos con forward refs para preservar evaluación diferida sin silenciar Ruff y se hace que el test verifique el path real de registro y la ausencia de PUT/PATCH de usuarios sin depender del prefijo de configuración mutable.
+
+En [Issue43 bcrypt CI 41769819384](https://github.com/mauedgar/FitFlow/actions/runs/41769819384) las pruebas de compatibilidad histórica/quality/frontend fueron SUCCESS; un test de rutas de usuarios dio el mismo FAIL y recibe la misma corrección, no un waiver.
+
+En [schema CI 41769819336](https://github.com/mauedgar/FitFlow/actions/runs/41769819336) la instalación de requirements generados para 3.15.2 falló porque el workflow todavía elegía 3.11.17. Se alinea ese workflow a 3.15.2 sin cambiar el esquema ni el DB real.
+
+Los otros workflows del candidato 374eebb3 fueron SUCCESS: browser montado, ingress Nginx/PG/Redis desechable, frontend/quality y baseline. Esos PASS históricos siguen vinculados a ese SHA, sin transferencia al nuevo candidato.
+
+**Pendiente:** exact CI de esta nueva corrección, nueva IR independiente y aceptación/integración competente. A10/A12/A13 siguen abiertos.
