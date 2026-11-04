@@ -63,7 +63,7 @@ jobs:
             --schema-only --no-owner > schema.sql
 
       - name: Commit updated schema.sql
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(schema): auto-update schema.sql after migrations"
           file_pattern: schema.sql
