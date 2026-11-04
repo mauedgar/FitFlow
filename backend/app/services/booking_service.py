@@ -70,9 +70,9 @@ def validate_session_future(session: "ClassSession") -> None:
 # 3. Validación de duplicación de reservas
 # --------------------------------------------------------------------------- #
 def validate_no_duplicate_booking(client_id: str, session: "ClassSession") -> None:
-    """Evita que un cliente reserve dos veces la misma sesión."""
+    """Evita duplicados activos, sin bloquear una nueva reserva tras cancelar."""
     for booking in session.bookings:
-        if booking.client_id == client_id:  # pyright: ignore[reportGeneralTypeIssues]
+        if booking.client_id == client_id and booking.status != BookingStatus.cancelled:  # pyright: ignore[reportGeneralTypeIssues]
             msg = "Ya tienes una reserva para esta sesión."
             raise ConflictError(msg)
 

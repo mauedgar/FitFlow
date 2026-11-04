@@ -142,7 +142,7 @@ def get_client_total_bookings(client: Client) -> int:
 
 
 def get_client_weekly_activity(client: Client) -> int:
-    """Devuelve la cantidad de reservas del cliente en la semana actual."""
+    """Cuenta las reservas en los próximos siete días UTC (ventana móvil)."""
     return len(get_client_bookings_this_week(client))
 
 
