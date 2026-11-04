@@ -3,7 +3,7 @@
 // --- Enums ---
 export enum UserRole {
   ADMIN = "admin",
-  TRAINER = "trainer",
+  TEACHER = "teacher",
   CLIENT = "client",
   FRONT_DESK = "front_desk",
 }
@@ -44,13 +44,15 @@ export interface User {
 
 // --- Token Payloads ---
 export interface TokenPayload {
-  sub: string;      // Email del usuario (subject)
-  role: UserRole; // Rol del usuario
-  exp: number;      // Expiración del token (timestamp)
+  sub: string;      // User UUID, not an email
+  role: UserRole;
+  token_use: "access" | "refresh";
+  exp: number;
 }
 
 export interface TokenResponse { // Para la respuesta del endpoint /login/token
   access_token: string;
+  refresh_token: string;
   token_type: string;
 }
 

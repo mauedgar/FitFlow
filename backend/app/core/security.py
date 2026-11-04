@@ -10,31 +10,77 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from math import ceil
+from uuid import uuid4
 
-from jose import ExpiredSignatureError, JWTError, jwt
-from passlib.context import CryptContext
-
+import bcrypt
 from app.core.config import settings
+from jose import ExpiredSignatureError, JWTError, jwt
 
 # --------------------------------------------------------------------------- #
-# Contexto de hashing (bcrypt)
+# Hashing bcrypt nativo; no cambia formato almacenado ni JWT.
 # --------------------------------------------------------------------------- #
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_BCRYPT_MAX_PASSWORD_BYTES = 72
+_BCRYPT_ROUNDS = 12  # Mismo costo por defecto que Passlib 1.7.4.
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica una contraseña en texto plano contra su hash bcrypt."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verifica hashes bcrypt heredados 2a/2b/2y sin migrar usuarios.
+
+    bcrypt 4.3 conserva la semántica de verificación heredada incluso para
+    contraseñas anteriores de más de 72 bytes. Esa limitación SOLO se mantiene
+    al verificar hashes existentes; no se permite crear hashes nuevos truncados.
+    """
+    if not isinstance(plain_password, str) or not isinstance(hashed_password, str):
+        return False
+    if "\x00" in plain_password:
+        return False  # Passlib rechazaba el byte NUL.
+    try:
+        encoded_hash = hashed_password.encode("ascii")
+        if len(encoded_hash) != 60 or encoded_hash[:4] not in (
+            b"$2a$", b"$2b$", b"$2y$"
+        ):
+            return False
+        return bcrypt.checkpw(plain_password.encode("utf-8"), encoded_hash)
+    except (UnicodeError, ValueError):
+        return False  # Hash corrupto, no excepción ni token de sesión.
 
 
 def get_password_hash(password: str) -> str:
-    """Genera un hash bcrypt seguro para almacenar en la base de datos."""
-    return pwd_context.hash(password)
+    """Crea hash 2b sin truncar bytes de contraseña ni cambiar formato de DB."""
+    password_bytes = password.encode("utf-8")
+    if b"\x00" in password_bytes:
+        raise ValueError("La contraseña contiene un byte NUL no admitido")
+    if len(password_bytes) > _BCRYPT_MAX_PASSWORD_BYTES:
+        raise ValueError("La contraseña excede los 72 bytes admitidos por bcrypt")
+    return bcrypt.hashpw(
+        password_bytes, bcrypt.gensalt(rounds=_BCRYPT_ROUNDS, prefix=b"2b")
+    ).decode("ascii")
 
 
 # --------------------------------------------------------------------------- #
+TOKEN_USE_ACCESS = "access"
+TOKEN_USE_REFRESH = "refresh"
+
+
+def is_access_token_payload(payload: dict) -> bool:
+    """Only explicitly typed access JWTs may authenticate HTTP Bearer."""
+    return payload.get("token_use") == TOKEN_USE_ACCESS
+
+
+def is_refresh_token_payload(payload: dict) -> bool:
+    """Permit typed refresh and legacy untyped, role-less refresh candidates.
+
+    The /auth/refresh endpoint separately requires a live Redis registration,
+    an unexpired signature and a nonblacklisted credential.
+    """
+    return payload.get("token_use") == TOKEN_USE_REFRESH or (
+        "token_use" not in payload and "role" not in payload
+    )
+
+
 # JWT: Access Token
 # --------------------------------------------------------------------------- #
 
@@ -48,10 +94,11 @@ def create_access_token(
     • Usa HS256 + SECRET_KEY.
     • Expira rápido (30 min por defecto).
     """
-    expire = datetime.now(tz=timezone.utc) + (
+    expire = datetime.now(tz=UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode = {**data, "exp": expire}
+    # Override any caller-supplied purpose: it is always signed by the issuer.
+    to_encode = {**data, "exp": expire, "token_use": TOKEN_USE_ACCESS}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -67,10 +114,17 @@ def create_refresh_token(data: dict) -> str:
     • No incluye roles.
     • Se usa para renovar el Access Token.
     """
-    expire = datetime.now(tz=timezone.utc) + timedelta(
+    expire = datetime.now(tz=UTC) + timedelta(
         minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
     )
-    to_encode = {**data, "exp": expire}
+    # Prevent identical refresh JWTs for multiple logins within one second.
+    to_encode = {
+        **data,
+        "exp": expire,
+        "token_use": TOKEN_USE_REFRESH,
+        "jti": uuid4().hex,
+    }
+    to_encode.pop("role", None)  # Refresh tokens never assert authorization roles.
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -91,3 +145,14 @@ def decode_token(token: str) -> dict | None:
         return None
     except JWTError:
         return None
+
+
+def token_remaining_ttl(token: str) -> int:
+    """Signed unexpired JWT lifetime in positive whole seconds for Redis EX."""
+    payload = decode_token(token)
+    if payload is None or type(payload.get("exp")) is not int:
+        raise ValueError("El token no tiene una expiración válida")
+    remaining = payload["exp"] - datetime.now(tz=UTC).timestamp()
+    if remaining <= 0:
+        raise ValueError("El token ya expiró")
+    return max(1, ceil(remaining))

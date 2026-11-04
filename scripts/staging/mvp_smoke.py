@@ -24,6 +24,7 @@ def request(
     body: bytes | None = None,
     token: str | None = None,
     content_type: str | None = None,
+    extra_headers: dict[str, str] | None = None,
     expected: int = 200,
 ) -> tuple[int, Any]:
     headers = {"Accept": "application/json"}
@@ -31,6 +32,8 @@ def request(
         headers["Authorization"] = f"Bearer {token}"
     if content_type:
         headers["Content-Type"] = content_type
+    if extra_headers:
+        headers.update(extra_headers)
     req = Request(url, data=body, headers=headers, method=method)
     try:
         with urlopen(req, timeout=15) as response:
@@ -60,8 +63,15 @@ def login(api_url: str, email: str) -> dict[str, str]:
         f"{api_url}/auth/token",
         body=payload,
         content_type="application/x-www-form-urlencoded",
+        extra_headers={"X-FitFlow-Refresh-Ack": "v1"},
     )
     assert tokens["access_token"] and tokens["refresh_token"]
+    request(
+        "POST", f"{api_url}/auth/ack",
+        token=tokens["access_token"],
+        body=json.dumps({"refresh_token": tokens["refresh_token"]}).encode(),
+        content_type="application/json", expected=204,
+    )
     return tokens
 
 

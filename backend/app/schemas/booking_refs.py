@@ -3,9 +3,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
-
 from app.core.enums import BookingStatus
+from pydantic import BaseModel, ConfigDict
 
 
 class BookingPublic(BaseModel):

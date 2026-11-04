@@ -1,5 +1,8 @@
 // src/services/api.ts
 import axios from 'axios';
+import { jwtDecode } from 'jwt-decode';
+import type { TokenPayload, TokenResponse } from '../types';
+import { registrationErrorMessage } from '../utils/registrationErrors';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // 1. Creamos una instancia de Axios con configuración base
@@ -9,6 +12,182 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+
+const ACCESS_KEY = "fitflow_access_token";
+const REFRESH_KEY = "fitflow_refresh_token";
+let renewalInFlight: Promise<string> | null = null;
+let authEpoch = 0;
+let registeredRefresh: string | null = null;
+
+// A refresh-token change, login or logout invalidates the request lineage.
+function syncAuthEpoch(): number {
+  const current = sessionStorage.getItem(REFRESH_KEY);
+  if (current !== registeredRefresh) {
+    registeredRefresh = current;
+    authEpoch++;
+  }
+  return authEpoch;
+}
+
+export function invalidateAuthEpoch(): void {
+  registeredRefresh = sessionStorage.getItem(REFRESH_KEY);
+  authEpoch++;
+}
+
+function accessUsable(token: string | null): token is string {
+  if (!token) return false;
+  try {
+    const payload = jwtDecode<TokenPayload>(token);
+    return payload.token_use === 'access' && !!payload.sub &&
+      ['admin', 'teacher', 'client', 'front_desk'].includes(payload.role) &&
+      Number.isFinite(payload.exp) && payload.exp > Date.now() / 1000 + 15;
+  } catch {
+    return false;
+  }
+}
+
+function protectedEndpoint(url: string | undefined): boolean {
+  const path = url ?? '';
+  return !/\/auth\/(?:token|refresh|logout|ack)(?:\?|$)|\/users\/register(?:\?|$)/.test(path);
+}
+
+/** Single-flight refresh shared by mounted React views and Axios requests. */
+export async function ensureFreshAccess(force = false): Promise<string> {
+  const epoch = syncAuthEpoch();
+  const access = sessionStorage.getItem(ACCESS_KEY);
+  if (!force && accessUsable(access)) return access;
+  const refresh = sessionStorage.getItem(REFRESH_KEY);
+  if (!refresh) throw new Error('No active refresh credential');
+  if (!renewalInFlight) {
+    const flight = (async () => {
+      // Raw Axios instance avoids recursive refresh interceptors.
+      const response = await axios.post<{ access_token: string }>(
+        `${API_BASE_URL}/auth/refresh`, { refresh_token: refresh },
+      );
+      const next = response.data.access_token;
+      if (!accessUsable(next) || sessionStorage.getItem(REFRESH_KEY) !== refresh ||
+          syncAuthEpoch() !== epoch) {
+        throw new Error('Invalidated or malformed renewed access credential');
+      }
+      sessionStorage.setItem(ACCESS_KEY, next);
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${next}`;
+      window.dispatchEvent(new Event('fitflow:access-renewed'));
+      return next;
+    })();
+    renewalInFlight = flight;
+    void flight.finally(() => {
+      if (renewalInFlight === flight) renewalInFlight = null;
+    }).catch(() => undefined);
+  }
+  return renewalInFlight;
+}
+
+apiClient.interceptors.request.use(async (config) => {
+  if (!protectedEndpoint(config.url)) return config;
+  if (!sessionStorage.getItem(REFRESH_KEY)) return config;
+  // Respect a new explicit Bearer supplied by login's /auth/me verification.
+  const passed = config.headers.get('Authorization');
+  const stored = sessionStorage.getItem(ACCESS_KEY);
+  if (passed && passed !== `Bearer ${stored}`) return config;
+  const epoch = syncAuthEpoch();
+  try {
+    const token = await ensureFreshAccess();
+    if (syncAuthEpoch() !== epoch) throw new Error('Session changed during request');
+    config.headers.set('Authorization', `Bearer ${token}`);
+    (config as typeof config & { _fitflowEpoch?: number })._fitflowEpoch = epoch;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      window.dispatchEvent(new Event('fitflow:session-invalid'));
+    }
+    throw error;
+  }
+  return config;
+});
+
+// One retry for a protected 401, never for login, logout or refresh itself.
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error: unknown) => {
+    if (!axios.isAxiosError(error)) return Promise.reject(error);
+    const original = error.config;
+    const retry = original as (typeof original & {
+      _fitflowRetried?: boolean;
+      _fitflowEpoch?: number;
+    }) | undefined;
+    const epoch = syncAuthEpoch();
+    if (error.response?.status !== 401 || !retry || retry._fitflowRetried ||
+        !protectedEndpoint(retry.url) || !sessionStorage.getItem(REFRESH_KEY) ||
+        retry._fitflowEpoch === undefined || retry._fitflowEpoch !== epoch) {
+      return Promise.reject(error);
+    }
+    retry._fitflowRetried = true;
+    try {
+      const previousBearer = retry.headers.get('Authorization');
+      const current = sessionStorage.getItem(ACCESS_KEY);
+      // A slower 401 may arrive after another request has already renewed.
+      const token = previousBearer !== `Bearer ${current}` && accessUsable(current)
+        ? current : await ensureFreshAccess(true);
+      if (syncAuthEpoch() !== epoch) throw new Error('Session changed during retry');
+      retry.headers.set('Authorization', `Bearer ${token}`);
+      return await apiClient.request(retry);
+    } catch (retryError) {
+      if (axios.isAxiosError(retryError) &&
+          (retryError.response?.status === 401 || retryError.response?.status === 403)) {
+        window.dispatchEvent(new Event('fitflow:session-invalid'));
+      }
+      return Promise.reject(retryError);
+    }
+  },
+);
+
+
+/**
+ * Negotiate one issued refresh credential, retrying ONLY ambiguous transport or
+ * transient server failures. A lost HTTP 204 may follow a successful activation;
+ * the backend ACK is idempotent for the same signed pair and owner.
+ *
+ * Never request a new token pair during an ACK retry. If all attempts fail,
+ * attempt compensating server revocation before surfacing the login failure.
+ * An unreachable server cannot prove revocation; A10 remains a rollout debt.
+ */
+export async function acknowledgeRefreshDelivery(pair: TokenResponse): Promise<void> {
+  const maxAttempts = 3;
+  let lastFailure: unknown = new Error('Refresh acknowledgement failed');
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      await apiClient.post('/auth/ack', {
+        refresh_token: pair.refresh_token,
+      }, {
+        headers: { Authorization: `Bearer ${pair.access_token}` },
+        timeout: 2500,
+      });
+      return;
+    } catch (error: unknown) {
+      lastFailure = error;
+      const transient = axios.isAxiosError(error) &&
+        (!error.response || error.response.status >= 500);
+      if (!transient || attempt === maxAttempts - 1) break;
+      await new Promise<void>(resolve => setTimeout(resolve, (attempt + 1) * 125));
+    }
+  }
+
+  // A previous ACK may have activated the refresh even when every response
+  // was lost. Revoke the same credential when the server is reachable.
+  try {
+    await apiClient.post('/auth/logout', {
+      refresh_token: pair.refresh_token,
+    }, {
+      headers: { Authorization: `Bearer ${pair.access_token}` },
+      timeout: 2500,
+    });
+  } catch {
+    // A network partition is not evidence of revocation or successful login.
+    // No token or credential data are logged.
+  }
+  throw lastFailure;
+}
 
 // 2. Definimos la función de login
 // Nota: Le cambiamos el nombre a loginUser para evitar confusión con el login del AuthContext
@@ -20,11 +199,13 @@ export const loginUser = async (email: string, password: string) => {
   formData.append('password', password);
 
   try {
-    const response = await apiClient.post('/login/token', formData, {
+    const response = await apiClient.post('/auth/token', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'X-FitFlow-Refresh-Ack': 'v1',
       },
     });
+    await acknowledgeRefreshDelivery(response.data);
     // La respuesta de FastAPI contiene { access_token: "...", token_type: "bearer" }
     return response.data; 
   } catch (error) {
@@ -53,9 +234,8 @@ export const registerUser = async (fullName: string, email: string, password: st
   } catch (error) {
     // Manejo de errores robusto, igual que en el login
     if (axios.isAxiosError(error) && error.response) {
-      // El backend devuelve un error 400 si el email ya existe.
-      // Extraemos el mensaje de 'detail'.
-      throw new Error(error.response.data.detail || 'Error al registrar la cuenta.');
+      // 422 Pydantic devuelve una lista; nunca mostrar "[object Object]" al usuario.
+      throw new Error(registrationErrorMessage(error.response.status, error.response.data?.detail));
     }
     throw new Error('Ocurrió un error de red inesperado.');
   }

@@ -9,14 +9,13 @@ from __future__ import annotations
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
-
 from app.core.enums import (
     ActivityType,
     BookingStatus,
     ClassSessionStatus,
     DifficultyLevel,
 )
+from pydantic import BaseModel, ConfigDict
 
 # --------------------------------------------------------------------------- #
 # CLIENT LOOKUP

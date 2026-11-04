@@ -1,11 +1,9 @@
 """Structural contract tests for Pydantic v2 schemas."""
 
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
-
 from app.core.enums import (
     ActivityType,
     AllowedPlan,
@@ -18,6 +16,7 @@ from app.schemas.class_schedule import ClassScheduleCreate, ClassScheduleUpdate
 from app.schemas.front_desk import FrontDeskBookingView, FrontDeskClassView
 from app.schemas.membership import MembershipPublic
 from app.schemas.user import UserPublic
+from pydantic import ValidationError
 
 
 def test_booking_create_requires_exactly_one_schedule_or_session_id() -> None:
@@ -94,8 +93,8 @@ def test_public_contracts_exclude_internal_fields() -> None:
             "id": uuid4(),
             "plan": "premium",
             "status": "active",
-            "start_date": datetime(2026, 8, 1, tzinfo=timezone.utc),
-            "end_date": datetime(2026, 9, 1, tzinfo=timezone.utc),
+            "start_date": datetime(2026, 8, 1, tzinfo=UTC),
+            "end_date": datetime(2026, 9, 1, tzinfo=UTC),
             "is_active": True,
             "is_expired": False,
         }

@@ -10,7 +10,7 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from app.schemas.teacher import (
@@ -64,7 +64,7 @@ def validate_teacher_active(teacher: Teacher) -> None:
 
 def has_sessions_today(teacher: Teacher) -> bool:
     """Indica si el profesor tiene sesiones hoy."""
-    today = datetime.now(tz=timezone.utc).date()
+    today = datetime.now(tz=UTC).date()
     return any(
         s.starts_at.date() == today
         for sch in teacher.class_schedules
@@ -74,7 +74,7 @@ def has_sessions_today(teacher: Teacher) -> bool:
 
 def has_future_sessions(teacher: Teacher) -> bool:
     """Indica si el profesor tiene sesiones futuras."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return any(
         s.starts_at > now
         for sch in teacher.class_schedules
@@ -93,7 +93,7 @@ def get_teacher_total_classes(teacher: Teacher) -> int:
 
 def get_teacher_future_sessions_count(teacher: Teacher) -> int:
     """Devuelve la cantidad de sesiones futuras del profesor."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return sum(
         1 for sch in teacher.class_schedules for s in sch.class_sessions if s.starts_at > now # pyright: ignore[reportGeneralTypeIssues]
     )

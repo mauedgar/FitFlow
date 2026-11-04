@@ -15,7 +15,7 @@ Requisitos:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
 
 from pydantic import BaseModel
@@ -131,7 +131,7 @@ class CRUDSync(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             db.delete(db_obj)
         else:
             db_obj.active = False
-            db_obj.deleted_at = datetime.now(timezone.utc)
+            db_obj.deleted_at = datetime.now(UTC)
             db.add(db_obj)
 
         db.commit()

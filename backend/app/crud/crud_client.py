@@ -10,13 +10,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from app.crud.base import CRUDBase
 from app.db.models import Booking, ClassSchedule, ClassSession, Client, Membership, User
 from app.db.models.person import Person
 from app.schemas.client import ClientCreate, ClientUpdate
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -122,7 +121,8 @@ class CRUDClient(CRUDBase[Client, ClientCreate, ClientUpdate]):
         )
         if for_update:
             # Serialize account soft-deletes and profile updates until commit.
-            stmt = stmt.with_for_update(of=(User, Person, Client))
+            # PostgreSQL renders the same table lock targets for mapped ID columns.
+            stmt = stmt.with_for_update(of=(User.id, Person.id, Client.id))
 
         res = await db.execute(stmt)
         return res.scalars().first()

@@ -8,15 +8,14 @@ from dataclasses import dataclass
 
 import httpx
 import pytest
-from fastapi import status
-from redis.exceptions import RedisError
-
 from app.core import redis_client, security
 from app.core.config import Settings, settings
 from app.core.deps import get_current_user
 from app.core.enums import UserRole
 from app.main import app
 from app.routers import auth as auth_router
+from fastapi import status
+from redis.exceptions import RedisError
 
 pytestmark = [
     pytest.mark.api,
@@ -32,6 +31,7 @@ class LoginUserStub:
     id: uuid.UUID
     hashed_password: str = "synthetic-hash"
     role: UserRole = UserRole.client
+    active: bool = True
 
 
 @dataclass(frozen=True)
@@ -57,8 +57,9 @@ async def authenticated_owner() -> AsyncIterator[uuid.UUID]:
 async def test_supported_profile_settings_allow_redis_to_be_unconfigured(
     profile: str,
 ) -> None:
+    # Pydantic BaseSettings supports _env_file at runtime; its generated type signature omits it.
     configured = Settings(
-        _env_file=None,
+        _env_file=None,  # pyright: ignore[reportCallIssue]
         ENV=profile,
         DEBUG=profile == "development",
         TESTING=profile == "test",

@@ -5,10 +5,9 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from pydantic import BaseModel, Field
-
 from app.core.enums import BookingStatus
 from app.schemas.weekly_demand import WeeklyScheduleDemandItem
+from pydantic import BaseModel, Field
 
 
 class ClientWeeklyAgendaBookingState(BaseModel):

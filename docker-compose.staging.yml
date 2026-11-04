@@ -45,8 +45,14 @@ services:
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:?BACKEND_CORS_ORIGINS is required}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       FITFLOW_TIMEZONE: ${FITFLOW_TIMEZONE:-America/Argentina/Buenos_Aires}
+      FITFLOW_TRUSTED_PROXY_IP: ${FITFLOW_TRUSTED_PROXY_IP:-172.30.251.10}
+      REFRESH_ACK_POLICY: ${FITFLOW_REFRESH_ACK_POLICY:-required}
     ports:
-      - "${STAGING_BACKEND_PORT:-18000}:8000"
+      # Host-only operational health/smoke; not a public alternate ingress.
+      - "127.0.0.1:${STAGING_BACKEND_PORT:-18000}:8000"
+    networks:
+      - default
+      - edge
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,7 +81,11 @@ services:
       org.opencontainers.image.revision: ${FITFLOW_REVISION:-unversioned}
     restart: unless-stopped
     ports:
-      - "${STAGING_FRONTEND_PORT:-18080}:8080"
+      # External TLS/ingress provider remains a separate Product decision.
+      - "127.0.0.1:${STAGING_FRONTEND_PORT:-18080}:8080"
+    networks:
+      edge:
+        ipv4_address: ${FITFLOW_TRUSTED_PROXY_IP:-172.30.251.10}
     depends_on:
       backend:
         condition: service_healthy
@@ -84,6 +94,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+networks:
+  edge:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${FITFLOW_EDGE_SUBNET:-172.30.251.0/24}
 
 volumes:
   postgres_data:

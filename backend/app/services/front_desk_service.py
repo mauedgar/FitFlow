@@ -5,11 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from sqlalchemy.orm.interfaces import ORMOption
-
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.core.timezone import LOCAL_TZ
 from app.crud.crud_booking import booking as booking_crud
@@ -29,6 +24,10 @@ from app.schemas.front_desk import (
 from app.services.booking_service import to_booking_internal, validate_booking_creation
 from app.services.class_schedule_service import validate_membership_access
 from app.services.errors import BusinessValidationError, ConflictError, NotFoundError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.interfaces import ORMOption
 
 
 def _session_options() -> list[ORMOption]:

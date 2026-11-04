@@ -1,15 +1,25 @@
 """RRULE-only recurrence contract tests."""
 
 from datetime import date, time
-from uuid import uuid4
+from typing import TypedDict
+from uuid import UUID, uuid4
 
 import pytest
+from app.schemas.class_schedule import ClassScheduleCreate
 from pydantic import ValidationError
 
-from app.schemas.class_schedule import ClassScheduleCreate
+
+class _SchedulePayload(TypedDict):
+    gym_class_id: UUID
+    teacher_id: UUID
+    rrule: str
+    start_time: time
+    duration_minutes: int
+    capacity: int
+    start_date: date
 
 
-def _payload(rrule: str) -> dict[str, object]:
+def _payload(rrule: str) -> _SchedulePayload:
     return {
         "gym_class_id": uuid4(),
         "teacher_id": uuid4(),

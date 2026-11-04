@@ -8,16 +8,15 @@ from datetime import timedelta
 
 import httpx
 import pytest
-from fastapi import status
-from sqlalchemy import delete
-from sqlalchemy.engine import make_url
-
 from app.core import security
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
 from app.routers import auth as auth_router
+from fastapi import status
+from sqlalchemy import delete
+from sqlalchemy.engine import make_url
 
 pytestmark = [
     pytest.mark.api,
@@ -227,6 +226,7 @@ async def test_refresh_registered_token_returns_access_token_with_same_user_id_s
     payload = security.decode_token(body["access_token"])
     assert payload is not None
     assert payload["sub"] == str(user_id)
+    assert payload["role"] == UserRole.client.value
 
 
 async def test_refresh_with_malformed_token_returns_401(

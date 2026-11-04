@@ -6,16 +6,15 @@ from datetime import UTC, datetime, time
 
 import httpx
 import pytest
-from fastapi import status
-from sqlalchemy import event, inspect
-from sqlalchemy.engine import make_url
-from sqlalchemy.exc import InvalidRequestError
-
 from app.core.config import settings
 from app.core.enums import ActivityType, UserRole
 from app.crud.crud_class_schedule import class_schedule as class_schedule_crud
 from app.db.models import ClassSchedule, GymClass, Teacher, User
 from app.db.session import AsyncSessionLocal, engine
+from fastapi import status
+from sqlalchemy import event, inspect
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import InvalidRequestError
 
 
 @pytest.fixture(autouse=True)

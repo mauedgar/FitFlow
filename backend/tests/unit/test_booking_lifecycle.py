@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
-
 from app.core.enums import BookingStatus, ClassSessionStatus, MembershipStatus
 from app.db.models import Booking, ClassSession, Membership
 from app.services.booking_service import (
