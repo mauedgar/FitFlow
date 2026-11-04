@@ -54,3 +54,7 @@ En [schema CI 41769819336](https://github.com/mauedgar/FitFlow/actions/runs/4176
 Los otros workflows del candidato 374eebb3 fueron SUCCESS: browser montado, ingress Nginx/PG/Redis desechable, frontend/quality y baseline. Esos PASS históricos siguen vinculados a ese SHA, sin transferencia al nuevo candidato.
 
 **Pendiente:** exact CI de esta nueva corrección, nueva IR independiente y aceptación/integración competente. A10/A12/A13 siguen abiertos.
+
+## Rutas de usuarios: reconciliación exacta de 24dcc421
+
+El nuevo SHA 24dcc4212f8c49ee320c9ee726a0c05727f0331a conserva las pruebas de registro HTTP positivas (201/422), ORM con anotaciones diferidas (sin NameError), Ruff/Pyright, schema, Chrome e ingress PASS. Las CI [Issue52 41770281387](https://github.com/mauedgar/FitFlow/actions/runs/41770281387) y [Issue43 41770281397](https://github.com/mauedgar/FitFlow/actions/runs/41770281397) fallaron en **la misma aserción aislada** de enumeración `app.routes` (399 PASS/1 FAIL y 42 PASS/1 FAIL). Se delimita la inspección negativa PUT/PATCH a `user_router.router.routes`, incluyendo comprobación positiva `POST /users/register`; los tests de registro HTTP del mismo archivo siguen demostrando el montaje y respuesta real. No se omiten pruebas ni reglas y no se modifica código Product de auth. Requiere CI nueva e IR independiente sobre SHA/tree posteriores.

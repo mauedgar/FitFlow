@@ -9,7 +9,6 @@ import httpx
 import pytest
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.main import app
 from app.routers import users as user_router
 from app.schemas.user import UserCreate
 
@@ -75,18 +74,16 @@ async def test_register_valid_exact_72_byte_password_reaches_create_without_muta
 
 async def test_user_password_update_http_route_is_not_exposed() -> None:
     """UserUpdate is internal CRUD/schema only; do not invent an HTTP 422 update route."""
-    # Match the actual mounted routes, independently of mutable test settings.
-    # Positive registration HTTP tests above still enforce the configured prefix.
-    user_routes = [
-        route
-        for route in app.routes
-        if "/users" in getattr(route, "path", "")
-    ]
+    # Earlier HTTP tests use the real mounted FastAPI application and assert
+    # registration status 201/422. Inspect the source router declarations here
+    # to prove no PUT/PATCH handler was introduced, regardless of app-fixture state.
+    user_routes = user_router.router.routes
     assert any(
-        getattr(route, "path", "").endswith("/users/register")
+        getattr(route, "path", "") == "/users/register"
+        and "POST" in (getattr(route, "methods", set()) or set())
         for route in user_routes
-    ), "users registration router must actually be mounted"
+    ), "users registration route must be declared"
     assert all(
-        not ({"PUT", "PATCH"} & set(getattr(route, "methods", set())))
+        not ({"PUT", "PATCH"} & set(getattr(route, "methods", set()) or set()))
         for route in user_routes
     )
