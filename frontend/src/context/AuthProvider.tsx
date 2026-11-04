@@ -156,13 +156,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (pair: TokenResponse): Promise<void> => {
-    // A new login supersedes all recovery attempts from an older session.
+    // A new login cannot display or reuse a different authenticated principal
+    // while /auth/me verifies the newly issued pair. Clear old credentials and
+    // cached private data before the remote verification, even if it later fails.
+    clearLocalSession();
     const epoch = ++sessionEpoch.current;
-    rehydrationController.current?.abort();
-    if (recoveryTimer.current !== null) {
-      clearTimeout(recoveryTimer.current);
-      recoveryTimer.current = null;
-    }
     try {
       const claim = checkedAccessPayload(pair.access_token);
       if (!pair.refresh_token) throw new Error("Missing refresh token");

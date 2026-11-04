@@ -31,6 +31,10 @@ function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdL
     sub: 'user-id', role: 'client', token_use: 'access', exp: expires,
   });
   const refresh = 'synthetic-refresh';
+  const access2 = JSON.stringify({
+    sub: 'user-two', role: 'teacher', token_use: 'access', exp: expires,
+  });
+  const refresh2 = 'synthetic-refresh-user-two';
   const entries = new Map([
     ['fitflow_access_token', access],
     ['fitflow_refresh_token', refresh],
@@ -94,11 +98,14 @@ function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdL
   let providerValue;
   let getCalls = 0;
   const user = { id: 'user-id', role: 'client', active: true };
+  const secondUser = { id: 'user-two', role: 'teacher', active: true };
   const apiClient = {
     defaults: { headers: { common: {} } },
     async get(url, config) {
       assert.equal(url, '/auth/me');
       getCalls++;
+      const principal = config?.headers?.Authorization === 'Bearer ' + access2
+        ? secondUser : user;
       if (holdFirstGet && getCalls === 1) {
         assert.ok(config?.signal);
         return await new Promise((_resolve, reject) => {
@@ -111,7 +118,7 @@ function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdL
         });
       }
       if (holdLogin && getCalls >= 2) {
-        return await new Promise(resolve => { resolveHeldLogin = () => resolve({ data: user }); });
+        return await new Promise(resolve => { resolveHeldLogin = () => resolve({ data: principal }); });
       }
       if (failuresRemaining-- > 0) {
         const error = new Error('transient network failure');
@@ -119,7 +126,7 @@ function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdL
         if (failureStatus !== null) error.response = { status: failureStatus };
         throw error;
       }
-      return { data: user };
+      return { data: principal };
     },
     async post(url) {
       assert.equal(url, '/auth/logout');
@@ -178,7 +185,8 @@ function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdL
   };
   render();
   return {
-    access, refresh, storage, timers, state,
+    access, refresh, access2, refresh2, storage, timers, state,
+    authHeader: () => apiClient.defaults.headers.common.Authorization,
     render,
     cleanup: () => {
       for (const record of effectRecords.values()) record.cleanup?.();
@@ -353,14 +361,42 @@ test('stale scheduled refresh rejection cannot clear a newly logged-in session',
   h.render();
   const oldEpochValue = h.state.get(0);
   assert.equal(await h.getValue().logout(), true);
-  await h.getValue().login({ access_token: h.access, refresh_token: h.refresh });
+  await h.getValue().login({ access_token: h.access2, refresh_token: h.refresh2 });
   h.render();
   const error = new Error('old token refused');
   error.isAxiosError = true;
   error.response = { status: 401 };
   h.rejectForcedRefresh(error);
   await settle();
-  assert.equal(h.state.get(0), oldEpochValue);
+  assert.notEqual(h.state.get(0), oldEpochValue);
+  assert.equal(h.state.get(0), h.access2);
+  assert.equal(h.state.get(1).id, 'user-two');
+  assert.equal(h.state.get(2), 'teacher');
+  assert.equal(h.storage.getItem('fitflow_refresh_token'), h.refresh2);
+  assert.equal(h.authHeader(), 'Bearer ' + h.access2);
+  h.cleanup();
+});
+
+
+test('account switch hides previous principal while new login is pending', async () => {
+  const h = setup({ failures: 0, holdLogin: true });
+  await settle();
+  h.render();
+  assert.equal(h.state.get(1).id, 'user-id');
   assert.equal(h.storage.getItem('fitflow_refresh_token'), h.refresh);
+  const pending = h.getValue().login({ access_token: h.access2, refresh_token: h.refresh2 });
+  await settle();
+  assert.equal(h.state.get(0), null);
+  assert.equal(h.state.get(1), null);
+  assert.equal(h.state.get(2), null);
+  assert.equal(h.storage.getItem('fitflow_refresh_token'), null);
+  h.resolveHeldLogin();
+  await pending;
+  h.render();
+  assert.equal(h.state.get(0), h.access2);
+  assert.equal(h.state.get(1).id, 'user-two');
+  assert.equal(h.state.get(2), 'teacher');
+  assert.equal(h.storage.getItem('fitflow_refresh_token'), h.refresh2);
+  assert.equal(h.authHeader(), 'Bearer ' + h.access2);
   h.cleanup();
 });
