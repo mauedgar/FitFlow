@@ -9,7 +9,6 @@ import httpx
 import pytest
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.main import app
 from app.routers import users as user_router
 from app.schemas.user import UserCreate
 
@@ -73,7 +72,7 @@ async def test_register_valid_exact_72_byte_password_reaches_create_without_muta
     assert calls == ["lookup", "create"]
 
 
-async def test_user_password_update_http_route_is_not_exposed() -> None:
+async def test_user_password_update_http_route_is_not_exposed(api_client: httpx.AsyncClient) -> None:
     """UserUpdate is internal CRUD/schema only; do not invent an HTTP 422 update route."""
     # The source router must not expose write methods; verify the actual
     # FastAPI app mounts its registration route as well. Match the suffix
@@ -88,16 +87,14 @@ async def test_user_password_update_http_route_is_not_exposed() -> None:
         not ({"PUT", "PATCH"} & set(getattr(route, "methods", set()) or set()))
         for route in declared
     ), "users router declares a disallowed write method"
-    mounted = [
-        route for route in app.routes
-        if "/users" in getattr(route, "path", "")
-    ]
-    assert any(
-        getattr(route, "path", "").endswith("/users/register")
-        and "POST" in (getattr(route, "methods", set()) or set())
-        for route in mounted
-    ), "users registration endpoint must be mounted on FastAPI"
-    assert all(
-        not ({"PUT", "PATCH"} & set(getattr(route, "methods", set()) or set()))
-        for route in mounted
-    ), "mounted FastAPI users surface exposes a disallowed write method"
+    # HTTP 405 proves that a route is really mounted but disallows the
+    # attempted write method. A missing route would return HTTP 404.
+    for path in ("/users/register", "/users/me", "/users/public"):
+        for method in ("PUT", "PATCH"):
+            response = await api_client.request(
+                method, f"{settings.API_V1_STR}{path}", json={}
+            )
+            assert response.status_code == 405, (
+                f"{method} {path}: expected HTTP 405 on mounted user route, "
+                f"received {response.status_code}: {response.text}"
+            )
