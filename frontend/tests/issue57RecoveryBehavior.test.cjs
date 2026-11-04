@@ -24,7 +24,7 @@ async function settle() {
   for (let i = 0; i < 20; i++) await Promise.resolve();
 }
 
-function setup({ failures = 1, failureStatus = null } = {}) {
+function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdLogin = false, delayForcedRefresh = false } = {}) {
   let failuresRemaining = failures;
   const expires = Math.floor(Date.now() / 1000) + 600;
   const access = JSON.stringify({
@@ -59,6 +59,9 @@ function setup({ failures = 1, failureStatus = null } = {}) {
     return id;
   };
   const clearTimeout = id => timers.delete(id);
+  let abortedGets = 0;
+  let resolveHeldLogin;
+  let rejectForcedRefresh;
   const fakeReact = {
     useState(initial) {
       const id = hookCursor++;
@@ -71,7 +74,13 @@ function setup({ failures = 1, failureStatus = null } = {}) {
       if (!refs.has(id)) refs.set(id, { current: initial });
       return refs.get(id);
     },
-    useEffect(callback) { if (firstRender) effects.push(callback); },
+    useEffect(callback, deps) {
+      const id = hookCursor++;
+      const prior = effectRecords.get(id);
+      const changed = !prior || !deps || !prior.deps || deps.length !== prior.deps.length ||
+        deps.some((value, index) => value !== prior.deps[index]);
+      if (changed) pendingEffects.push({ id, callback, deps });
+    },
     createElement(_component, props) {
       providerValue = props.value;
       return null;
@@ -79,17 +88,31 @@ function setup({ failures = 1, failureStatus = null } = {}) {
   };
   const state = new Map();
   const refs = new Map();
-  const effects = [];
+  const effectRecords = new Map();
+  const pendingEffects = [];
   let hookCursor = 0;
-  let firstRender = true;
   let providerValue;
   let getCalls = 0;
   const user = { id: 'user-id', role: 'client', active: true };
   const apiClient = {
     defaults: { headers: { common: {} } },
-    async get(url) {
+    async get(url, config) {
       assert.equal(url, '/auth/me');
       getCalls++;
+      if (holdFirstGet && getCalls === 1) {
+        assert.ok(config?.signal);
+        return await new Promise((_resolve, reject) => {
+          config.signal.addEventListener('abort', () => {
+            abortedGets++;
+            const error = new Error('aborted');
+            error.isAxiosError = true;
+            reject(error);
+          }, { once: true });
+        });
+      }
+      if (holdLogin && getCalls >= 2) {
+        return await new Promise(resolve => { resolveHeldLogin = () => resolve({ data: user }); });
+      }
       if (failuresRemaining-- > 0) {
         const error = new Error('transient network failure');
         error.isAxiosError = true;
@@ -112,7 +135,12 @@ function setup({ failures = 1, failureStatus = null } = {}) {
     'jwt-decode': { jwtDecode: JSON.parse },
     '../services/api': {
       __esModule: true, default: apiClient,
-      ensureFreshAccess: async () => access,
+      ensureFreshAccess: async force => {
+        if (force && delayForcedRefresh) {
+          return await new Promise((_resolve, reject) => { rejectForcedRefresh = reject; });
+        }
+        return access;
+      },
       invalidateAuthEpoch() {},
     },
     axios: { __esModule: true, default: { isAxiosError: e => !!e?.isAxiosError } },
@@ -141,15 +169,31 @@ function setup({ failures = 1, failureStatus = null } = {}) {
   const render = () => {
     hookCursor = 0;
     const output = mod.exports.AuthProvider({ children: null });
-    firstRender = false;
+    for (const e of pendingEffects.splice(0)) {
+      effectRecords.get(e.id)?.cleanup?.();
+      const cleanup = e.callback();
+      effectRecords.set(e.id, { deps: e.deps, cleanup });
+    }
     return output;
   };
   render();
-  const cleanups = effects.map(effect => effect()).filter(Boolean);
   return {
     access, refresh, storage, timers, state,
-    render, cleanup: () => cleanups.forEach(callback => callback()),
+    render,
+    cleanup: () => {
+      for (const record of effectRecords.values()) record.cleanup?.();
+      effectRecords.clear();
+    },
     getCalls: () => getCalls,
+    abortedGets: () => abortedGets,
+    resolveHeldLogin: () => {
+      if (!resolveHeldLogin) throw Error('no pending login');
+      resolveHeldLogin();
+    },
+    rejectForcedRefresh: error => {
+      if (!rejectForcedRefresh) throw Error('no pending refresh');
+      rejectForcedRefresh(error);
+    },
     emitOnline: () => window.dispatchEvent({ type: 'online' }),
     getValue: () => providerValue,
     fireNext() {
@@ -250,4 +294,73 @@ test('provider unmount cancels pending backoff and forbids recovery work', async
   old();
   await settle();
   assert.equal(h.getCalls(), 1);
+});
+
+
+test('new login cancels stale recovery timer and starts a new attempt', async () => {
+  const h = setup({ failures: 2 });
+  await settle();
+  const stale = h.savedTimer();
+  h.render();
+  await assert.rejects(h.getValue().login({
+    access_token: h.access, refresh_token: h.refresh,
+  }));
+  assert.equal(h.getCalls(), 2);
+  assert.equal(h.timers.size, 1);
+  stale();
+  await settle();
+  assert.equal(h.timers.size, 1);
+  h.fireNext();
+  await settle();
+  assert.equal(h.getCalls(), 3);
+  assert.equal(h.state.get(0), h.access);
+  h.cleanup();
+});
+
+test('online supersession aborts pending HTTP identity verification', async () => {
+  const h = setup({ failures: 0, holdFirstGet: true });
+  await settle();
+  assert.equal(h.getCalls(), 1);
+  h.emitOnline();
+  await settle();
+  assert.equal(h.abortedGets(), 1);
+  assert.equal(h.getCalls(), 2);
+  assert.equal(h.state.get(0), h.access);
+  h.cleanup();
+});
+
+test('unmount fences late successful login response', async () => {
+  const h = setup({ failures: 0, holdLogin: true });
+  await settle();
+  h.render();
+  const previousToken = h.state.get(0);
+  const pending = h.getValue().login({ access_token: h.access, refresh_token: h.refresh });
+  await settle();
+  h.cleanup();
+  h.resolveHeldLogin();
+  await assert.rejects(pending, /Login superseded/);
+  assert.equal(h.state.get(0), previousToken);
+});
+
+test('stale scheduled refresh rejection cannot clear a newly logged-in session', async () => {
+  const h = setup({ failures: 0, delayForcedRefresh: true });
+  await settle();
+  h.render();
+  assert.equal(h.state.get(0), h.access);
+  assert.equal(h.timers.size, 1);
+  h.fireNext();
+  await settle();
+  h.render();
+  const oldEpochValue = h.state.get(0);
+  assert.equal(await h.getValue().logout(), true);
+  await h.getValue().login({ access_token: h.access, refresh_token: h.refresh });
+  h.render();
+  const error = new Error('old token refused');
+  error.isAxiosError = true;
+  error.response = { status: 401 };
+  h.rejectForcedRefresh(error);
+  await settle();
+  assert.equal(h.state.get(0), oldEpochValue);
+  assert.equal(h.storage.getItem('fitflow_refresh_token'), h.refresh);
+  h.cleanup();
 });

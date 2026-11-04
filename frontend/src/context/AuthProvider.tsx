@@ -35,6 +35,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const recoveryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recoveryScheduler = useRef<(() => void) | null>(null);
   const rehydrationController = useRef<AbortController | null>(null);
+  const mounted = useRef(false);
   // Reject continuations from a previous login, rehydration or logout.
   const sessionEpoch = useRef(0);
 
@@ -58,6 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
+    mounted.current = true;
     let cancelled = false;
     let recoveryFailures = 0;
     const scheduleRecovery = () => {
@@ -139,6 +141,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     window.addEventListener('online', rehydrate);
     return () => {
       cancelled = true;
+      mounted.current = false;
+      sessionEpoch.current++;
       recoveryScheduler.current = null;
       rehydrationController.current?.abort();
       if (recoveryTimer.current !== null) {
@@ -152,7 +156,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (pair: TokenResponse): Promise<void> => {
+    // A new login supersedes all recovery attempts from an older session.
     const epoch = ++sessionEpoch.current;
+    rehydrationController.current?.abort();
+    if (recoveryTimer.current !== null) {
+      clearTimeout(recoveryTimer.current);
+      recoveryTimer.current = null;
+    }
     try {
       const claim = checkedAccessPayload(pair.access_token);
       if (!pair.refresh_token) throw new Error("Missing refresh token");
@@ -163,7 +173,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           response.data.role !== claim.role) {
         throw new Error("Authenticated principal mismatch");
       }
-      if (epoch !== sessionEpoch.current) throw new Error('Login superseded');
+      if (!mounted.current || epoch !== sessionEpoch.current) throw new Error('Login superseded');
       invalidateAuthEpoch();
       sessionStorage.setItem(ACCESS_KEY, pair.access_token);
       sessionStorage.setItem(REFRESH_KEY, pair.refresh_token);
@@ -175,7 +185,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       queryClient.invalidateQueries({ queryKey: ["myBookings"] });
       queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
     } catch (error) {
-      if (epoch !== sessionEpoch.current) throw error;
+      if (!mounted.current || epoch !== sessionEpoch.current) throw error;
       // The backend already issued a refresh token. If identity validation
       // fails, attempt to revoke it instead of stranding a server session.
       if (!(axios.isAxiosError(error) && !error.response)) {
@@ -198,7 +208,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       throw error;
     } finally {
-      setIsLoadingAuth(false);
+      if (mounted.current && epoch === sessionEpoch.current) setIsLoadingAuth(false);
     }
   };
 
@@ -259,9 +269,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
       const claim = checkedAccessPayload(token);
+      const expiryEpoch = sessionEpoch.current;
+      const expiryRefresh = sessionStorage.getItem(REFRESH_KEY);
+      const sameSession = () => mounted.current &&
+        sessionEpoch.current === expiryEpoch &&
+        sessionStorage.getItem(REFRESH_KEY) === expiryRefresh;
       const delay = Math.max(1000, claim.exp * 1000 - Date.now() - 20000);
       timeout = setTimeout(() => {
+        if (!sameSession()) return;
         void ensureFreshAccess(true).catch((error: unknown) => {
+          if (!sameSession()) return;
           if (axios.isAxiosError(error) &&
               (error.response?.status === 401 || error.response?.status === 403)) {
             clearLocalSession();
