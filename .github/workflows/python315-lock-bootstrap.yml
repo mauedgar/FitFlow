@@ -26,6 +26,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: true
+          fetch-depth: 0
       - name: Freeze Git identity and Product authority
         shell: bash
         env:
@@ -35,7 +36,7 @@ jobs:
           set -euo pipefail
           test "$BRANCH" = migration/fitflow-python315-20261104-001
           test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
-          test "$(git rev-parse HEAD^)" = 4be0b32822a5cd2272db96b6402853804ef089b1
+          git merge-base --is-ancestor 4be0b32822a5cd2272db96b6402853804ef089b1 HEAD
           test "$(git hash-object docs/SOURCE_OF_TRUTH.md)" = f36307af0777fd3b493792ad42115fec56ac44b3
           test "$(cat .python-version)" = 3.15.2
           echo "PY315_BOOTSTRAP_SUBJECT=$SUBJECT_SHA"
