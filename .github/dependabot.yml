@@ -6,6 +6,11 @@ updates:
   # pyproject.toml + uv.lock: prefer newest compatible releases via PRs.
   - package-ecosystem: "uv"
     directory: "/"
+    # Keep root pyproject.toml + uv.lock authoritative; avoid legacy UTF-16
+    # requirements exports under backend/frontend during uv manifest discovery.
+    exclude-paths:
+      - "backend/**"
+      - "frontend/**"
     schedule:
       interval: "cron"
       cronjob: "0 9 * * *"
