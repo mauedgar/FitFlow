@@ -7,11 +7,6 @@ from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
-from fastapi import HTTPException, status
-from sqlalchemy import inspect, select
-from sqlalchemy.engine import make_url
-from sqlalchemy.orm import selectinload
-
 from app.core.config import settings
 from app.core.enums import ActivityType, UserRole
 from app.crud.crud_class_schedule import class_schedule as class_schedule_crud
@@ -22,6 +17,10 @@ from app.schemas.class_schedule import ClassScheduleCreate, ClassScheduleUpdate
 from app.services import class_schedule_service
 from app.services.class_schedule_service import to_class_schedule_public
 from app.services.front_desk_service import to_frontdesk_session_view
+from fastapi import HTTPException, status
+from sqlalchemy import inspect, select
+from sqlalchemy.engine import make_url
+from sqlalchemy.orm import selectinload
 
 pytestmark = [
     pytest.mark.integration,

@@ -6,7 +6,6 @@ Incluye:
 • PersonCreate
 • PersonUpdate (todos opcionales)
 """
-# ruff: noqa: PIE790
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
@@ -41,7 +40,6 @@ class PersonCreate(PersonBase):
     Todos los campos obligatorios vienen de PersonBase.
     """
 
-    pass
 
 
 # --------------------------------------------------------------------------- #

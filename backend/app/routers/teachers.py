@@ -12,10 +12,6 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.deps import (
     require_admin,
     require_admin_or_teacher,
@@ -52,6 +48,9 @@ from app.services.class_session_service import (
 from app.services.teacher_service import (
     to_teacher_public,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/teachers", tags=["teachers"])
 
@@ -65,7 +64,7 @@ async def create_teacher_for_user(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     user_id: UUID,
     teacher_in: TeacherCreate,
-    current_user: Annotated[User, Depends(require_admin)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin)],
 ) -> TeacherWithRelations:
     """Crea un perfil de profesor asociado a un usuario existente.
 
@@ -108,7 +107,7 @@ async def read_teachers(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     skip: int = 0,
     limit: int = 100,
-    current_user: Annotated[User, Depends(require_admin_or_teacher)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_or_teacher)],
 ) -> list[TeacherWithRelations]:
     """Lista profesores en versión operativa (privada).
 
@@ -157,7 +156,7 @@ async def read_teacher_by_id(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],
 ) -> TeacherWithRelations:
     """Obtiene el perfil privado de un profesor por ID.
 
@@ -211,7 +210,7 @@ async def update_teacher(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
     teacher_in: TeacherUpdate,
-    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],
 ) -> TeacherWithRelations:
     """Actualiza el perfil privado de un profesor.
 
@@ -236,7 +235,7 @@ async def delete_teacher(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin)],
 ) -> dict[str, str]:
     """Elimina un perfil de profesor.
 
@@ -262,7 +261,7 @@ async def read_teacher_classes(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_or_teacher)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_or_teacher)],
 ) -> list[ClassScheduleWithRelations]:
     """Lista las clases/horarios impartidos por un profesor (operativo).
 
@@ -311,7 +310,7 @@ async def read_teacher_schedule(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_or_teacher)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(require_admin_or_teacher)],
 ) -> list[ClassScheduleWithRelations]:
     """Lista el horario operativo completo de un profesor.
 

@@ -5,9 +5,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from app.core.enums import ActivityType, ClassSessionStatus
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class WeeklyScheduleDemandItem(BaseModel):

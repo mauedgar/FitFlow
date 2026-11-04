@@ -14,12 +14,15 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.class_schedule import ClassSchedulePublic, NextSessionInfo  # noqa: TC001
+from app.schemas.class_schedule import ClassSchedulePublic, NextSessionInfo
 from app.schemas.person import PersonBase, PersonCreate, PersonUpdate
 from app.schemas.teacher_refs import (
-    TeacherInClassScheduleResponse,
-    TeacherInScheduleResponseMini,
+    TeacherInClassScheduleResponse as _TeacherInClassScheduleResponse,
+    TeacherInScheduleResponseMini as _TeacherInScheduleResponseMini,
 )
+
+TeacherInClassScheduleResponse = _TeacherInClassScheduleResponse
+TeacherInScheduleResponseMini = _TeacherInScheduleResponseMini
 
 # --------------------------------------------------------------------------- #
 # 1. Base (hereda de Person)

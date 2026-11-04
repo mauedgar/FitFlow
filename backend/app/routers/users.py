@@ -15,26 +15,24 @@ import re
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.deps import require_admin_or_self_guard
+from app.crud.crud_user import user as user_crud
 from app.db.models.user import User
 from app.db.session import get_async_session
-from app.services.user_service import (
-    to_user_public,
-    to_user_with_profile,
-    to_user_with_stats,
-)
 from app.schemas.user import (
     UserCreate,
     UserPublic,
     UserWithProfile,
     UserWithStats,
 )
-
-from app.crud.crud_user import user as user_crud
+from app.services.user_service import (
+    to_user_public,
+    to_user_with_profile,
+    to_user_with_stats,
+)
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -127,7 +125,7 @@ async def read_public_user(
 @router.get("/me", response_model=UserWithProfile)
 async def read_my_profile(
     *,
-    db: Annotated[AsyncSession, Depends(get_async_session)],  # noqa: ARG001
+    db: Annotated[AsyncSession, Depends(get_async_session)],
     current_user: Annotated[User, Depends(require_admin_or_self_guard)],
 ) -> UserWithProfile:
     """Devuelve el perfil del usuario actual.
@@ -145,7 +143,7 @@ async def read_my_profile(
 @router.get("/me/stats", response_model=UserWithStats)
 async def read_my_stats(
     *,
-    db: Annotated[AsyncSession, Depends(get_async_session)],  # noqa: ARG001
+    db: Annotated[AsyncSession, Depends(get_async_session)],
     current_user: Annotated[User, Depends(require_admin_or_self_guard)],
 ) -> UserWithStats:
     """Devuelve estadísticas básicas del usuario actual.

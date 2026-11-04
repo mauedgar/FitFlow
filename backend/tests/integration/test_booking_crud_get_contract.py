@@ -3,8 +3,6 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, time, timedelta
 
 import pytest
-from sqlalchemy.engine import make_url
-
 from app.core.config import settings
 from app.core.enums import ActivityType, BookingStatus, ClassSessionStatus, UserRole
 from app.crud.crud_booking import booking as booking_crud
@@ -18,6 +16,7 @@ from app.db.models import (
     User,
 )
 from app.db.session import AsyncSessionLocal, engine
+from sqlalchemy.engine import make_url
 
 
 @pytest.fixture(autouse=True)

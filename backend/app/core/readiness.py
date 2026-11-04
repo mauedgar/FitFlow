@@ -2,10 +2,9 @@
 
 import asyncio
 
-from sqlalchemy import text
-
 from app.core.redis_client import get_redis_client
 from app.db.session import engine
+from sqlalchemy import text
 
 
 async def _check_database() -> None:

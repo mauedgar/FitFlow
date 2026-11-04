@@ -13,11 +13,6 @@ from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.deps import (
     require_admin,
     require_admin_or_front_desk,
@@ -47,6 +42,10 @@ from app.services.class_session_service import (
     to_class_session_response,
     update_session_availability,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 router = APIRouter(prefix="/class-sessions", tags=["class-sessions"])
 
@@ -114,7 +113,7 @@ async def create_class_session(
 # Listar sesiones con filtros (operativo)
 # --------------------------------------------------------------------------- #
 @router.get("/", response_model=list[ClassSessionInResponse])
-async def read_class_sessions(  # noqa: PLR0913
+async def read_class_sessions(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     skip: int = 0,

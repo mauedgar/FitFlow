@@ -10,20 +10,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from app.crud.base import CRUDBase
 from app.db.models import Client, Membership
 from app.schemas.membership import MembershipCreate, MembershipUpdate
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID
 
+    from app.core.enums import MembershipPlan, MembershipStatus
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
-
-    from app.core.enums import MembershipPlan, MembershipStatus
 
 
 class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
@@ -36,8 +34,9 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
         self,
         db: AsyncSession,
         *,
-        obj_id: UUID,
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> Membership | None:
         """Obtiene una membresía por ID, con opción de incluir relaciones."""
         opts: list[ORMOption] | None = (
@@ -45,12 +44,14 @@ class CRUDMembership(CRUDBase[Membership, MembershipCreate, MembershipUpdate]):
             if include_relations
             else None
         )
+        if options:
+            opts = (opts or []) + options
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(  # noqa: PLR0913
+    async def get_multi_filtered(
         self,
         db: AsyncSession,
         *,

@@ -2,23 +2,24 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from app.core.enums import BookingStatus, ClassSessionStatus
+from app.db.base_class import Base
+from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
+from app.db.models.booking import Booking
 from sqlalchemy import (
     DateTime,
-    Enum as SQLAlchemyEnum,
     ForeignKey,
     Integer,
     UniqueConstraint,
     func,
     select,
 )
+from sqlalchemy import (
+    Enum as SQLAlchemyEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.core.enums import BookingStatus, ClassSessionStatus
-from app.db.base_class import Base
-from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
-from app.db.models.booking import Booking
 
 if TYPE_CHECKING:
     from app.db.models.class_schedule import ClassSchedule
@@ -99,7 +100,7 @@ class ClassSession(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
         )
 
     @current_bookings_count.expression  # type: ignore[misc]
-    def current_bookings_count(cls):  # noqa: ANN201, N805
+    def current_bookings_count(cls):
         """Versión SQL para usar en queries."""
         return (
             select(func.count(Booking.id))

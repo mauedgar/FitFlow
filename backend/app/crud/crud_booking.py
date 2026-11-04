@@ -10,9 +10,6 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.crud.base import CRUDBase
 from app.db.models import Booking, ClassSchedule, ClassSession
@@ -20,14 +17,14 @@ from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingUpd
 
 # Excepciones de dominio centralizadas
 from app.services.errors import ConflictError, NotFoundError
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
-
-    from app.core.enums import BookingStatus
 
 # ruff: noqa: UP037
 class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
@@ -40,8 +37,9 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         self,
         db: "AsyncSession",
         *,
-        obj_id: "UUID",
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> Booking | None:
         """Obtiene una reserva por ID, con opción de incluir relaciones profundas."""
         opts: list[ORMOption] | None = (
@@ -54,6 +52,8 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             if include_relations
             else None
         )
+        if options:
+            opts = (opts or []) + options
         stmt = select(Booking).where(Booking.id == obj_id)
         if opts:
             stmt = stmt.options(*opts)
@@ -64,7 +64,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(  # noqa: PLR0913
+    async def get_multi_filtered(
         self,
         db: "AsyncSession",
         *,

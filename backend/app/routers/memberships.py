@@ -14,16 +14,11 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-
 from app.core.deps import oauth2_scheme, require_admin, require_current_user
 from app.core.enums import MembershipStatus
 from app.crud.crud_client import client
 from app.crud.crud_membership import membership
 from app.db.models import Booking, Client, Membership
-from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.membership import (
     MembershipCreate,
@@ -39,8 +34,10 @@ from app.services.membership_service import (
     to_membership_with_client,
     to_membership_with_stats,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-# ruff: noqa: ARG001
 router = APIRouter(prefix="/memberships", tags=["memberships"])
 
 
@@ -100,7 +97,7 @@ async def create_membership(
 # Listar Memberships (admin)
 # --------------------------------------------------------------------------- #
 @router.get("/", response_model=list[MembershipPublic])
-async def read_memberships(  # noqa: PLR0913
+async def read_memberships(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     skip: int = 0,

@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
 import pytest
-
 from app.core.enums import AllowedPlan, MembershipPlan
 from app.services import errors as svc_errors
 from app.services.class_schedule_service import validate_membership_access

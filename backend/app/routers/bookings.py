@@ -14,9 +14,6 @@ from datetime import UTC, date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.deps import (
     require_admin,
     require_admin_or_client,
@@ -52,6 +49,8 @@ from app.services.class_session_service import update_session_availability
 
 # Errores de dominio centralizados
 from app.services.errors import BusinessValidationError, ConflictError, NotFoundError
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("fitflow.bookings")
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -61,7 +60,7 @@ router = APIRouter(prefix="/bookings", tags=["bookings"])
 # Crear Booking (cliente)
 # --------------------------------------------------------------------------- #
 @router.post("/", response_model=BookingPublic, status_code=status.HTTP_201_CREATED)
-async def create_booking(  # noqa: C901
+async def create_booking(
     *,
     db: Annotated["AsyncSession", Depends(get_async_session)],
     booking_in: BookingCreate,
@@ -391,7 +390,7 @@ async def read_bookings_by_client(
     *,
     client_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
-    current_user: Annotated["User", Depends(require_admin)],  # noqa: ARG001
+    current_user: Annotated["User", Depends(require_admin)],
 ) -> list[BookingPublic]:
     """Devuelve todas las reservas de un cliente específico.
 

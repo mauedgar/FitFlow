@@ -1,7 +1,6 @@
 """Startup checks for schema imports and generated API contracts."""
 
 import pytest
-
 from app.main import app
 from app.schemas.class_schedule import ClassSchedulePublic
 from app.schemas.class_schedule_refs import (

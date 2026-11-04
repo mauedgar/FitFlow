@@ -12,13 +12,9 @@ Incluye:
 """
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID
-
-from dateutil.rrule import rrulestr
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.enums import ActivityType, AllowedPlan, ClassSessionStatus, MembershipPlan
 from app.core.timezone import LOCAL_TZ
@@ -26,7 +22,7 @@ from app.crud.crud_class_schedule import (
     class_schedule as crud_class_schedule,
 )
 from app.crud.crud_class_session import class_session as crud_class_session
-from app.db.models.membership import Membership  # noqa: TC001
+from app.db.models.membership import Membership
 from app.db.session import get_async_session
 from app.schemas.class_schedule import (
     ClassSchedulePublic,
@@ -35,14 +31,14 @@ from app.schemas.class_schedule import (
 )
 from app.schemas.class_session import ClassSessionPublic
 from app.services import errors as svc_errors
+from dateutil.rrule import rrulestr
+from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
     from app.db.models.class_schedule import ClassSchedule
     from app.db.models.class_session import ClassSession
     from app.db.models.gym_class import GymClass
-    from app.schemas.user import UserPublic
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 # ruff: noqa: UP037
 # -------------------------
@@ -58,13 +54,13 @@ async def _get_db_session(db: "AsyncSession | None") -> "AsyncSession":
 
 def _now_utc() -> datetime:
     """Hora actual en UTC (tz-aware)."""
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def _to_local(dt: datetime) -> datetime:
     """Convierte datetime aware a LOCAL_TZ."""
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(LOCAL_TZ)
 
 
@@ -72,7 +68,7 @@ def _to_utc(dt: datetime) -> datetime:
     """Convierte datetime aware a UTC."""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=LOCAL_TZ)
-    return dt.astimezone(timezone.utc)
+    return dt.astimezone(UTC)
 
 
 def _build_rrule(schedule: "ClassSchedule"):

@@ -4,7 +4,6 @@ import logging
 
 import httpx
 import pytest
-
 from app.core import readiness
 
 pytestmark = [pytest.mark.api, pytest.mark.asyncio]
