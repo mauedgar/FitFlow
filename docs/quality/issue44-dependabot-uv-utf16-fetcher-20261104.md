@@ -5,81 +5,87 @@ issue: 44
 baseline_develop_commit: b4f4993d7454aa6b49e80e73026a20770f7a8b11
 baseline_develop_tree: 75a9c79214ecf72b14052606a4a66ae5868e7c70
 sot_blob: f36307af0777fd3b493792ad42115fec56ac44b3
+predecessor_pr81_commit: c3d27394836128e4a924950c9e8f746c4f4724c6
 acceptance: false
 ---
 
-# Issue #44 — Dependabot uv: fallo nativo de codificación
+# Issue #44 — Dependabot uv: reparar codificación UTF-16 sin perder cobertura
 
-## Datos reales y causa
+## Evidencia nativa original
 
-El piloto anterior integró PR #45 con excepción operativa explícita
-A01 para obtener evidencia alojada. Los updates de Dependabot uv
+El piloto PR45 activó Dependabot en `develop@b4f4993d...`.
+Los dos jobs alojados uv
 [41751332238](https://github.com/mauedgar/FitFlow/actions/runs/41751332238)
 y [41751336417](https://github.com/mauedgar/FitFlow/actions/runs/41751336417)
-terminaron FAILURE en el mismo commit
-`b4f4993d7454aa6b49e80e73026a20770f7a8b11`.
-Ambos fallaron en `Dependabot::Python::SharedFileFetcher` al
-buscar requisitos: `invalid byte sequence in UTF-8` en
-`String#scan`, **antes de ejecutar uv lock**. Se conserva
-cada intento terminal; no hay autorización de retry.
+terminaron FAILURE antes de `uv lock`:
+`invalid byte sequence in UTF-8`, desde
+`Dependabot::Python::SharedFileFetcher#fetch_child_requirement_files`.
+**No se relanzan** los intentos terminales.
 
-El árbol Git contiene archivos *.txt heredados en UTF-16
-con BOM, por ejemplo:
-- `backend/requirements_backend.txt`,
-  blob `5bb74944e868eaee79e11ec646ae337f4bae2de1`;
-- `frontend/requirements_frontend.txt`,
-  blob `d9519d6f39a8dcabf1c762a8664cd8dce56ab00d`.
+Las dos rutas originales tienen BOM UTF-16 LE; la recuperación
+binaria por GitHub blob da UnicodeDecodeError byte 0xff posición 0,
+mientras la vista Contents devuelve su texto decodificado:
+- `backend/requirements_backend.txt`, blob previo
+  `5bb74944e868eaee79e11ec646ae337f4bae2de1`,
+  1980 bytes, BOM+989 caracteres ASCII,
+  56 líneas de dependencias, 56 CRLF;
+- `frontend/requirements_frontend.txt`, blob previo
+  `d9519d6f39a8dcabf1c762a8664cd8dce56ab00d`,
+  1282 bytes, BOM+640 caracteres ASCII,
+  34 líneas de dependencias, 34 CRLF.
 
-El GitHub blob decoder UTF-8 falla en ambos byte 0xFF/posición 0;
-la API Contents sí puede transcodificarlos para lectura. El
-fetcher de Dependabot uv enumera archivos `.txt` y `.in`
-y procesa recursivamente requisitos. El log nativo no identifica
-cuál de los dos produjo el primer fallo; ambos son incompatibles
-con la lectura UTF-8 prevista.
+La rama inicial de PR81 intentó `uv.exclude-paths` para
+`backend/**` y `frontend/**`. La [IR001 independiente
+sobre el SHA anterior](https://github.com/mauedgar/FitFlow/pull/81#issuecomment-6619838626)
+reportó 0 findings y DOS advisories MEDIUM:
+A01 posible pérdida de cobertura de actualizaciones Python
+y A02 eficacia alojada no comprobada. Por tanto se **descarta
+la exclusión por directorios** y se conserva el escaneo completo.
+No se reclama PASS retroactivo de la IR001.
 
-Este fallo es **distinto** de dependabot-core #15842 (comando
-`uv lock <version>`), cuya sintaxis ya fue corregida en
-código público v0.403.0. No usar una prueba local del CLI
-como prueba alojada.
+## Reparación actual — única transformación de contenido
 
-## Reparación estrictamente acotada
+Ambos archivos de requisitos se convierten **de UTF-16 LE con
+BOM a UTF-8 sin BOM**, manteniendo exactamente el contenido
+decodificado excepto el BOM inicial. Se conservan los caracteres,
+los saltos de línea CRLF, el orden, todas las líneas, nombres
+de paquetes, versiones, marcadores, referencias `-r`,
+comentarios y terminadores. No se regeneran paquetes ni hashes,
+no se editan `pyproject.toml` o `uv.lock`, ni se cambian
+requisitos de seguridad/usuarios reales.
 
-Sólo el bloque `package-ecosystem: uv` del YAML de Dependabot
-recibe `exclude-paths`:
-`backend/**` y `frontend/**`.
+La configuración `.github/dependabot.yml` vuelve al blob
+original de `develop` `82ecd5b59044b4a2e0c1217023f36a34e654d097`,
+SIN `exclude-paths`: uv continúa evaluando raíz y
+subdirectorios, npm conserva `frontend` y GitHub Actions
+conserva su ruta. De este modo se elimina el riesgo introducido
+por la primera reparación: **no se sacrifican rutas de
+actualización Python** para evitar el decoder.
 
-Así sigue buscando `pyproject.toml` y `uv.lock` en la raíz,
-manteniendo la fuente Python que Issue44 normalizará. Evita
-escanear requisitos heredados UTF-16 y las referencias internas
-`-r` entre archivos de backend. El ecosistema `npm` sigue
-escaneando `/frontend`; GitHub Actions no cambia.
+## Precondiciones, pruebas y riesgos
 
-**Riesgo reconocido:** Los requisitos Python exclusivos de
-subdirectorios excluidos dejarán de recibir propuestas uv
-individuales; no se los declara ausentes ni se los elimina
-del repositorio. Issue44 conserva su DoD de alinear los
-exports runtime/test con `pyproject.toml`+`uv.lock` para
-no perder cobertura de dependencias. Este cambio NO modifica
-las versiones, hashes, autenticación, seguridad ni datos, y
-no resuelve la separación de PR46 y PR68.
+El owner de este cambio acotado es Issue44, no los PR46/PR68
+congelados; esos PR contienen ramas divergentes con versiones,
+lockfiles y hashes distintos. Deben reconciliar el formato
+UTF-8 de sus exports al preparar cualquier futuro candidato
+integrado, sin revivir Passlib ni mezclar dependencias.
 
-La opción `exclude-paths` está documentada por GitHub para
-filtrar manifiestos durante el escaneo; su mera configuración
-no equivale a runtime PASS. Tampoco un job FAIL anterior
-se convierte retroactivamente en success.
+Validación negativa prevista en **el nuevo SHA/tree**:
+- blobs UTF-8 recuperables y sin BOM;
+- texto original decodificado byte-a-byte equivalente
+  tras quitar sólo `U+FEFF`; conservar 56/34
+  líneas no vacías y 56/34 CRLF;
+- Dependabot YAML igual al `develop` previo,
+  sin exclusiones ni auto-merge;
+- `git diff` y `CI` exactos; no cambios
+  fuera de estos dos archivos y DocImpact;
+- independiente WEB_INLINE IR002 original sobre SHA/tree
+  nuevo, no transferir el resultado IR001.
 
-## Evidencia y aceptación
-
-Exigir examen del blob YAML exacto, cambios mínimos,
-parseo/eventos y casos de exclusión positivos/negativos
-(root autorizado, backend y frontend excluidos para uv,
-frontend npm todavía activo), CI nativa exacta y revisión
-independiente en contexto separado. El test definitivo
-es otro update alojado *nuevo* sobre el futuro merge
-aceptado (no repetir jobs fallidos). Inspeccionar logs,
-diff de `pyproject.toml` y `uv.lock`, `uv lock --check`
-y resultados de CI antes de aceptar cualquier PR del bot.
-
-A01 queda OPEN mientras no se compruebe ese update alojado.
-No se configura auto-merge, se cambian credenciales,
-instalan dependencias ni se accede a DB reales.
+**Límite operativo:** sólo la siguiente ejecución original
+y alojada de Dependabot uv sobre un commit aceptado en
+la rama default puede probar que ya supera el fetcher.
+A02 permanece NOT_RUN hasta ese efecto; puede aparecer
+otro defecto no relacionado. Ningún job previo se reintenta,
+ningún PR del bot se acepta automáticamente y la
+normalización de fuentes/lock Issue44 sigue ABIERTA.
