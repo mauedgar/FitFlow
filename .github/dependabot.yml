@@ -1,0 +1,37 @@
+# Proposed dependency updates only; acceptance and merge remain Product decisions.
+# Preserve versions in reviewed candidates; never install @latest during CI.
+version: 2
+
+updates:
+  # pyproject.toml + uv.lock: prefer newest compatible releases via PRs.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "cron"
+      cronjob: "0 9 * * *"
+      timezone: "America/Argentina/Cordoba"
+    cooldown:
+      default-days: 1
+    open-pull-requests-limit: 5
+
+  # Frontend changes update package-lock.json together with package.json.
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "cron"
+      cronjob: "0 9 * * *"
+      timezone: "America/Argentina/Cordoba"
+    cooldown:
+      default-days: 1
+    open-pull-requests-limit: 5
+
+  # Propose updates for existing GitHub Actions tags and SHA-pinned references.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "cron"
+      cronjob: "0 9 * * *"
+      timezone: "America/Argentina/Cordoba"
+    cooldown:
+      default-days: 1
+    open-pull-requests-limit: 5
