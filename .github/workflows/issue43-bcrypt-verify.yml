@@ -81,10 +81,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SUBJECT"
           echo "ISSUE43_EXACT_SHA=$SUBJECT"
           echo "ISSUE43_EXACT_TREE=$(git rev-parse 'HEAD^{tree}')"
-      - name: Setup Python 3.11
+      - name: Setup Python 3.15.2
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: "3.11.17"
+          python-version: "3.15.2"
       - name: Setup uv 0.13.6
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
         with:
@@ -133,7 +133,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12", "3.13"]
+        python: ["3.15.2"]
     steps:
       - name: Checkout exact candidate SHA
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -157,7 +157,7 @@ jobs:
           version: "0.13.6"
       - name: Install isolated security dependencies only
         run: |
-          uv pip install --system --no-cache-dir bcrypt==4.3.0 python-jose==3.5.0 pydantic-settings==2.10.1 sqlalchemy==2.0.43 pytest==8.4.1 pytest-asyncio==1.1.0
+          uv pip install --system --no-cache-dir bcrypt==4.3.0 python-jose==3.5.0 pydantic-settings==2.10.1 sqlalchemy==2.0.43 pytest==9.2.0 pytest-asyncio==1.4.1
       - name: Verify synthetic bcrypt vectors
         env:
           PYTHONPATH: backend
@@ -169,7 +169,7 @@ jobs:
         run: |
           set -euo pipefail
           # Legacy Passlib runs under Python 3.11 in a disposable venv;
-          # the native candidate verifier stays on matrix.python (3.11/3.12/3.13).
+          # the native candidate verifier stays on matrix.python (3.15.2).
           uv python install 3.11.17
           uv venv /tmp/issue43-legacy --python 3.11.17
           uv pip install --python /tmp/issue43-legacy/bin/python --no-cache-dir passlib==1.7.4 bcrypt==3.2.2
@@ -278,10 +278,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SUBJECT"
           echo "ISSUE43_QUALITY_SHA=$SUBJECT"
           echo "ISSUE43_QUALITY_TREE=$(git rev-parse 'HEAD^{tree}')"
-      - name: Setup Python 3.11
+      - name: Setup Python 3.15.2
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: "3.11.17"
+          python-version: "3.15.2"
       - name: Setup uv 0.13.6
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
         with:

@@ -1,5 +1,6 @@
 # === ETAPA 1: COMPILACION ===
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
+FROM python:3.15.2-slim-bookworm AS builder
+COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /usr/local/bin/
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
 
 WORKDIR /app
@@ -15,7 +16,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY backend ./backend
 
 # === ETAPA 2: PRODUCCION (imagen ligera) ===
-FROM python:3.11-slim
+FROM python:3.15.2-slim-bookworm
 
 WORKDIR /app
 

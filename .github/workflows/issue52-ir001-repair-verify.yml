@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12", "3.13"]
+        python: ["3.15.2"]
     services:
       postgres:
         image: postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
@@ -93,7 +93,7 @@ jobs:
               lock = tomllib.load(f)
           deps = project["project"]["dependencies"]
           pkgs = {p["name"]: p["version"] for p in lock["package"]}
-          assert project["project"]["requires-python"] == ">=3.11,<3.14"
+          assert project["project"]["requires-python"] == ">=3.15,<3.16"
           assert "bcrypt==4.3.0" in deps and "asyncpg==0.32.0" in deps
           assert pkgs["bcrypt"] == "4.3.0" and pkgs["asyncpg"] == "0.32.0"
           assert "passlib" not in pkgs
@@ -126,7 +126,7 @@ jobs:
           echo "ISSUE52_QUALITY_TREE=$(git rev-parse 'HEAD^{tree}')"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: "3.11"
+          python-version: "3.15.2"
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
         with:
           version: "0.13.6"
