@@ -1,6 +1,6 @@
 ---
 document_id: FF-PY315-MIGRATION-DOCIMPACT-20261104-001
-status: draft_validation_pending
+status: draft_review_incomplete
 date: 2026-11-04
 product_acceptance: not_granted
 source: mauedgar/FitFlow
@@ -18,11 +18,11 @@ Fuente inicial PR #82 `4be0b32822a5cd2272db96b6402853804ef089b1`, tree `181e65f6
 
 ## Gates
 
-- G1: CPython3.15.2 exacto y fuente única: **PREPARADO**.
+- G1: CPython3.15.2 exacto y fuente única en el candidato: **PASS EN CANDIDATO**, no adoptado todavía en `develop`.
 - G2: **PASS** para generación por uv e instalación de dependencias en CPython3.15.2: [run 41768133911](https://github.com/mauedgar/FitFlow/actions/runs/41768133911), base de generación `58d8249ac652966be106f3fee36fe9dcd3a73c4a`, commit generado `5a58bc868b4f38ad9930057511e12c2069ec30fc`, árbol `f0993eed448ae438f6583fda168c7d7bbbc53a9c`. Solo se alteraron `uv.lock`, `backend/requirements_backend.txt` y `backend/requirements_test.txt` mediante uv. Lock/export nuevos siguen sujetos a la CI/IR del candidato compuesto. No editar hashes manualmente. Si el bootstrap falla, preservar FAILED y diagnosticar, no repetir.
-- G3: pruebas completas PG15/Redis7/Alembic, Python3.15.2, Ruff/Pyright, frontend, bcrypt histórico en entorno aislado: **NOT_RUN en candidato nuevo**.
-- G4: Chrome E2E montado en nueva identidad con proceso/cleanup acotados: **PREPARADO / NOT_RUN**. Reparación de harness: diagnóstico de ChromeDriver, sesión 60s, deadline 180s, limpieza acotada, timeout externo 240s y workflow 6m. Sin prueba nueva todavía. Original PR82 run 41763004024 CANCELLED tras timeout WebDriver inicial, no reintentar el mismo run.
-- G5: IR independiente exacta y aceptación competentemente autorizada antes de integrar: **NOT_RUN**.
+- G3: **PASS observado exclusivamente en `bc333139963501544eaee3257df8f4dc1f8e3eff` / tree `acf988991e50f0448ff97466f47e98bd07c261b8`**: suite completa PG15/Redis7/Alembic con 400 PASS y Ruff/Pyright 0 mediante [41772221738](https://github.com/mauedgar/FitFlow/actions/runs/41772221738); bcrypt 43 PASS/legacy y frontend mediante [41772221785](https://github.com/mauedgar/FitFlow/actions/runs/41772221785), schema [41772221659](https://github.com/mauedgar/FitFlow/actions/runs/41772221659), ingress descartable [41772221672](https://github.com/mauedgar/FitFlow/actions/runs/41772221672), baseline classifier [41772221756](https://github.com/mauedgar/FitFlow/actions/runs/41772221756). El classifier omite backend/frontend al ser DRAFT; no atribuirle dichos tests. Ningún PASS se transfiere automáticamente a un commit documental posterior.
+- G4: Chrome E2E sintético montado con teardown y deadline acotados: **PASS observado exclusivamente en `bc333139...`**, [41772221812](https://github.com/mauedgar/FitFlow/actions/runs/41772221812). El intento PR82 [41763004024](https://github.com/mauedgar/FitFlow/actions/runs/41763004024) quedó CANCELLED y no se repitió. No es prueba de staging público.
+- G5: [IR001 independiente](https://github.com/mauedgar/FitFlow/pull/83#issuecomment-6622519876): **COMPLETED / NO_RECOMMEND / REVIEW_INCOMPLETE** sobre `bc333139...`. Sin defecto confirmado en muestra; NO equivale a 0 findings en 204 paths. Requiere cobertura independiente y evidencia de árbol/lock/export; aceptación y merge **NOT_GRANTED**.
 - G6: CI postmerge y reconciliación Issue #44/otros: **NOT_RUN**.
 
 A10 (ACK externos), A12 (infra TLS/IP), A13 (Redis retenido) siguen abiertos; no son eximidos por esta migración ni por pruebas sintéticas.
@@ -41,7 +41,7 @@ A10 (ACK externos), A12 (infra TLS/IP), A13 (Redis retenido) siguen abiertos; no
 - [Run de generación de lock 41769298850](https://github.com/mauedgar/FitFlow/actions/runs/41769298850) SUCCESS en fuente `65b4cc061f7111525d12d33b27bad4cc9becda25`: uv publicó `8a5e0db7ba3cb3d414c7043330fe0d6d5ca79202` / tree `0992b606dcda05a7af01c011f1999fa00e05d730`, **solo** `uv.lock`, requirements runtime y requirements test. Lock incluye Pydantic 2.14.2, pydantic-core 2.50.2, psycopg/psycopg-binary 3.3.6, SQLAlchemy y asyncpg compatibles. No hay hashes manuales.
 - Los workflows del commit intermedio `65b4cc...` anteriores a la regeneración terminaron con FAIL por `uv lock --check` o backend desechable todavía no calificado; no son evidencia contra el lock regenerado ni PASS transferible.
 - El workflow temporal `.github/workflows/python315-lock-bootstrap.yml`, con permiso `contents: write` exclusivamente en la rama de migración, **se excluye del candidato final** para no mantener un emisor privilegiado sin necesidad. Su historial y resultados quedan trazables; la generación futura corresponde a workflow/Product autorizado separado.
-- G3 CI final y G5 IR siguen NOT_RUN hasta que una nueva revisión exacta del árbol final quede publicada y calificada.
+- Nota histórica: al producir el commit intermedio de lock estas validaciones eran NOT_RUN. Estado posterior del candidato `bc333139...` descrito en la tabla de Gates anterior; IR001 no recomienda aceptación.
 
 ## Reparación posterior a CI 374eebb3
 
@@ -53,8 +53,16 @@ En [schema CI 41769819336](https://github.com/mauedgar/FitFlow/actions/runs/4176
 
 Los otros workflows del candidato 374eebb3 fueron SUCCESS: browser montado, ingress Nginx/PG/Redis desechable, frontend/quality y baseline. Esos PASS históricos siguen vinculados a ese SHA, sin transferencia al nuevo candidato.
 
-**Pendiente:** exact CI de esta nueva corrección, nueva IR independiente y aceptación/integración competente. A10/A12/A13 siguen abiertos.
+**Estado histórico de `374eebb3` solamente:** las validaciones posteriores constan en Gates. La aceptación/integración aún no fue concedida; A10/A12/A13 siguen abiertos.
 
 ## Rutas de usuarios: reconciliación exacta de 24dcc421
 
-El nuevo SHA 24dcc4212f8c49ee320c9ee726a0c05727f0331a conserva las pruebas de registro HTTP positivas (201/422), ORM con anotaciones diferidas (sin NameError), Ruff/Pyright, schema, Chrome e ingress PASS. Las CI [Issue52 41770281387](https://github.com/mauedgar/FitFlow/actions/runs/41770281387) y [Issue43 41770281397](https://github.com/mauedgar/FitFlow/actions/runs/41770281397) fallaron en **la misma aserción aislada** de enumeración `app.routes` (399 PASS/1 FAIL y 42 PASS/1 FAIL). Se delimita la inspección negativa PUT/PATCH a `user_router.router.routes`, incluyendo comprobación positiva `POST /users/register`; los tests de registro HTTP del mismo archivo siguen demostrando el montaje y respuesta real. No se omiten pruebas ni reglas y no se modifica código Product de auth. Requiere CI nueva e IR independiente sobre SHA/tree posteriores.
+El nuevo SHA 24dcc4212f8c49ee320c9ee726a0c05727f0331a conserva las pruebas de registro HTTP positivas (201/422), ORM con anotaciones diferidas (sin NameError), Ruff/Pyright, schema, Chrome e ingress PASS. Las CI [Issue52 41770281387](https://github.com/mauedgar/FitFlow/actions/runs/41770281387) y [Issue43 41770281397](https://github.com/mauedgar/FitFlow/actions/runs/41770281397) fallaron en **la misma aserción aislada** de enumeración `app.routes` (399 PASS/1 FAIL y 42 PASS/1 FAIL). Se delimita la inspección negativa PUT/PATCH a `user_router.router.routes`, incluyendo comprobación positiva `POST /users/register`; los tests de registro HTTP del mismo archivo siguen demostrando el montaje y respuesta real. No se omiten pruebas ni reglas y no se modifica código Product de auth. Este antecedente fue calificado en el commit posterior `bc333139...` con seis CI exitosas, seguido de IR001 independiente incompleta.
+
+## IR001 y disposición de cobertura
+
+El receipt independiente [FITFLOW-PY315-IR001](https://github.com/mauedgar/FitFlow/pull/83#issuecomment-6622519876) sobre `bc333139963501544eaee3257df8f4dc1f8e3eff` / tree `acf988991e50f0448ff97466f47e98bd07c261b8` tiene disposición **NO_RECOMMEND por REVIEW_INCOMPLETE**, no por un fallo de código demostrado. Confirmó 204 paths (146 modificados, 58 agregados; ninguno eliminado) y SOT v5.3, sin verificar árbol ni revisar íntegramente todas las diferencias. IR001-A14 (estado documental desactualizado) se repara con el presente cambio de DocImpact, que es **documental exclusivamente**; verificar identidad del commit sucesor y equivalencia exacta de todos los blobs Product antes de reutilizar una conclusión de riesgo, nunca transferir PASS sin reconciliación.
+
+Para completar IR001-A01, revisión independiente distribuida por superficies del **mismo** SHA/tree: (1) Python/uv/CI/migraciones/entorno, (2) auth/JWT/Redis/privacidad/seguridad HTTP, (3) dominio/modelos/services/tests y (4) frontend/Chrome/UX/documentación/contratos. Un control independiente debe comprobar cobertura disjunta y completa del diff, objetos Git exactos, lock + exports con hashes originados por uv y eventuales hallazgos cruzados. Esta partición es solo método de validación, no nuevo TaskCycle ni aceptación.
+
+A10 (ACK externo y rollout), A12 (infra TLS/IP host real) y A13 (Redis retenido y privacidad) siguen pendientes de evidencia real. No deben eliminarse ni recatalogarse como 0 advisories por CI sintética. El merge a `develop`, cualquier rollout y cierre Issue44 siguen sujetos a decisión Product competente, SOT y revisión conclusiva.
