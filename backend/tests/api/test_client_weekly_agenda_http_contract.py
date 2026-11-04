@@ -356,3 +356,25 @@ async def test_client_weekly_agenda_requires_authentication(
         params={"week_start": agenda_fixture.week_start.isoformat()},
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.parametrize("invalid_boundary", ["expired", "not_started"])
+async def test_client_weekly_agenda_rejects_membership_outside_current_validity(
+    api_client: httpx.AsyncClient,
+    agenda_fixture: ClientWeeklyAgendaFixture,
+    invalid_boundary: str,
+) -> None:
+    """The agenda must not advertise eligibility the Booking CRUD will reject."""
+    async with AsyncSessionLocal() as db:
+        membership = await db.get(Membership, agenda_fixture.membership_id)
+        assert membership is not None
+        now = datetime.now(UTC)
+        if invalid_boundary == "expired":
+            membership.end_date = now - timedelta(minutes=1)
+        else:
+            membership.start_date = now + timedelta(days=1)
+        await db.commit()
+
+    response = await _get_agenda(api_client, agenda_fixture)
+    assert response.status_code == status.HTTP_200_OK, response.text
+    assert response.json()["items"] == []

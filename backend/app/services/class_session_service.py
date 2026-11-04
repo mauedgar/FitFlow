@@ -147,6 +147,12 @@ def _membership_allows_agenda_session(
     if membership is None or membership.status != MembershipStatus.active:  # pyright: ignore[reportGeneralTypeIssues]
         return False
 
+    # Keep agenda eligibility aligned with the booking CRUD's current-time
+    # Membership validity contract; this is not a future-session admission rule.
+    now = datetime.now(tz=UTC)
+    if not (membership.start_date <= now <= membership.end_date):
+        return False
+
     try:
         validate_membership_access(membership, session.class_schedule)
     except BusinessValidationError:
