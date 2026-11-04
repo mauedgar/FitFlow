@@ -27,6 +27,14 @@ let firstAckCredential = null;
 const subprocesses = [];
 const tmpProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'fitflow-e2e-chrome-'));
 let session = null;
+let driverDiagnostics = '';
+const watchdog = setTimeout(() => {
+  console.error('E2E_BROWSER_HARD_DEADLINE', '180 seconds exceeded; terminating synthetic fixture');
+  for (const child of subprocesses.reverse()) {
+    try { child.kill('SIGKILL'); } catch {}
+  }
+  process.exit(124);
+}, 180000);
 
 function jwt(seconds = 3600) {
   const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -146,7 +154,7 @@ async function webdriver(method, endpoint, data) {
   const reply = await fetch(driverOrigin + endpoint, {
     method, headers: { 'Content-Type': 'application/json' },
     body: data === undefined ? undefined : JSON.stringify(data),
-    signal: AbortSignal.timeout(12000),
+    signal: AbortSignal.timeout(method === 'POST' && endpoint === '/session' ? 60000 : method === 'DELETE' ? 4000 : 12000),
   });
   const payload = await reply.json();
   if (!reply.ok || payload.value?.error) {
@@ -209,6 +217,8 @@ async function browserTest() {
     stdio: 'pipe',
   });
   subprocesses.push(driver);
+  driver.stderr.on('data', chunk => { driverDiagnostics = (driverDiagnostics + String(chunk)).slice(-3200); });
+  driver.stdout.on('data', chunk => { driverDiagnostics = (driverDiagnostics + String(chunk)).slice(-3200); });
   await until(async () => {
     const response = await fetch(driverOrigin + '/status', { signal: AbortSignal.timeout(750) });
     return response.ok;
@@ -299,14 +309,26 @@ async function browserTest() {
     await browserTest();
   } catch (error) {
     console.error('E2E_BROWSER_FAIL', error?.stack || String(error));
+    if (driverDiagnostics) console.error('E2E_BROWSER_CHROMEDRIVER_DIAG', driverDiagnostics.slice(-2400));
     process.exitCode = 1;
   } finally {
     if (session) {
-      try { await webdriver('DELETE', '/session/' + session); } catch {}
+      try { await webdriver('DELETE', '/session/' + session); } catch (error) {
+        console.error('E2E_BROWSER_DELETE_SESSION_WARNING', String(error).slice(0,180));
+      }
     }
     for (const child of subprocesses.reverse()) {
       try { child.kill('SIGTERM'); } catch {}
     }
-    fs.rmSync(tmpProfile, { recursive: true, force: true });
+    try {
+      await Promise.race([
+        fs.promises.rm(tmpProfile, { recursive: true, force: true }),
+        sleep(3500),
+      ]);
+    } catch (error) {
+      console.error('E2E_BROWSER_PROFILE_CLEANUP_WARNING', String(error).slice(0,180));
+    }
+    clearTimeout(watchdog);
+    process.exit(process.exitCode || 0);
   }
 })();

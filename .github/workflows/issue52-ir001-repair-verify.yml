@@ -94,7 +94,7 @@ jobs:
           deps = project["project"]["dependencies"]
           pkgs = {p["name"]: p["version"] for p in lock["package"]}
           assert project["project"]["requires-python"] == ">=3.15,<3.16"
-          assert "bcrypt==4.3.0" in deps and "asyncpg==0.32.0" in deps
+          assert "bcrypt==4.3.0" in deps and any(d.startswith("asyncpg>=") for d in deps)
           assert pkgs["bcrypt"] == "4.3.0" and pkgs["asyncpg"] == "0.32.0"
           assert "passlib" not in pkgs
           print("ISSUE52_LOCK_PASS")

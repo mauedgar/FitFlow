@@ -15,7 +15,7 @@ permissions:
 jobs:
   browser:
     runs-on: ubuntu-24.04
-    timeout-minutes: 18
+    timeout-minutes: 6
     steps:
       - name: Checkout exact PR candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -55,4 +55,7 @@ jobs:
         working-directory: frontend
         env:
           CI: "true"
-        run: node tests/browser/fitflow-mounted-e2e.cjs
+        run: |
+          set -euo pipefail
+          node --check tests/browser/fitflow-mounted-e2e.cjs
+          timeout --signal=TERM --kill-after=10s 240s node tests/browser/fitflow-mounted-e2e.cjs

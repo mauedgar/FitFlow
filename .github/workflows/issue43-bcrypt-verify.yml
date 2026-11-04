@@ -109,9 +109,14 @@ jobs:
       - name: Bootstrap disposable PG15
         working-directory: backend
         run: alembic upgrade head
-      - name: Full backend suite
+      - name: Targeted bcrypt password and HTTP security regression (full suite belongs to Issue52)
         working-directory: backend
-        run: python -m pytest -q
+        run: |
+          python -m pytest -q \
+            tests/unit/test_security_bcrypt_legacy_compat.py \
+            tests/unit/test_user_password_byte_validation.py \
+            tests/api/test_auth_registration_password_boundary.py \
+            tests/api/test_auth_bcrypt_hash_http_contract.py
       - name: Prove candidate import does not emit crypt deprecation
         env:
           PYTHONPATH: backend

@@ -19,10 +19,17 @@ Fuente inicial PR #82 `4be0b32822a5cd2272db96b6402853804ef089b1`, tree `181e65f6
 ## Gates
 
 - G1: CPython3.15.2 exacto y fuente única: **PREPARADO**.
-- G2: `uv lock --upgrade`, `uv export --locked` para runtime/dev y `uv sync --locked`: **PENDIENTE DE EVIDENCIA NATIVA**. No editar hashes manualmente. Si el bootstrap falla, preservar FAILED y diagnosticar, no repetir.
+- G2: **PASS** para generación por uv e instalación de dependencias en CPython3.15.2: [run 41768133911](https://github.com/mauedgar/FitFlow/actions/runs/41768133911), base de generación `58d8249ac652966be106f3fee36fe9dcd3a73c4a`, commit generado `5a58bc868b4f38ad9930057511e12c2069ec30fc`, árbol `f0993eed448ae438f6583fda168c7d7bbbc53a9c`. Solo se alteraron `uv.lock`, `backend/requirements_backend.txt` y `backend/requirements_test.txt` mediante uv. Lock/export nuevos siguen sujetos a la CI/IR del candidato compuesto. No editar hashes manualmente. Si el bootstrap falla, preservar FAILED y diagnosticar, no repetir.
 - G3: pruebas completas PG15/Redis7/Alembic, Python3.15.2, Ruff/Pyright, frontend, bcrypt histórico en entorno aislado: **NOT_RUN en candidato nuevo**.
-- G4: Chrome E2E montado en nueva identidad con proceso/cleanup acotados: **NOT_RUN**. Original PR82 run 41763004024 CANCELLED tras timeout WebDriver inicial, no reintentar el mismo run.
+- G4: Chrome E2E montado en nueva identidad con proceso/cleanup acotados: **PREPARADO / NOT_RUN**. Reparación de harness: diagnóstico de ChromeDriver, sesión 60s, deadline 180s, limpieza acotada, timeout externo 240s y workflow 6m. Sin prueba nueva todavía. Original PR82 run 41763004024 CANCELLED tras timeout WebDriver inicial, no reintentar el mismo run.
 - G5: IR independiente exacta y aceptación competentemente autorizada antes de integrar: **NOT_RUN**.
 - G6: CI postmerge y reconciliación Issue #44/otros: **NOT_RUN**.
 
 A10 (ACK externos), A12 (infra TLS/IP), A13 (Redis retenido) siguen abiertos; no son eximidos por esta migración ni por pruebas sintéticas.
+
+## Reconciliación de intentos de resolución
+
+- [41767614256](https://github.com/mauedgar/FitFlow/actions/runs/41767614256) FAILED inicial al resolver `HEAD^` en checkout superficial: corregido mediante `fetch-depth: 0` y verificación de ancestralidad. No se relanzó.
+- [41767760202](https://github.com/mauedgar/FitFlow/actions/runs/41767760202) FAILED al instalar Pydantic 2.11.10 / pydantic-core 2.33.2: PyO3 0.24.1 solo admite hasta 3.13, incompatibilidad real de Python3.15. No se eludió guard de PyO3.
+- [41768017083](https://github.com/mauedgar/FitFlow/actions/runs/41768017083) FAILED resolución: Pydantic>=2.14.2 necesita typing-inspection>=0.4.4 y fuente fijaba 0.4.1.
+- [41768133911](https://github.com/mauedgar/FitFlow/actions/runs/41768133911) SUCCESS original: uv regeneró lock y exports, instaló CPython3.15.2, comprobó imports y dependencias; publicación de un commit derivado verificada en GitHub. No se repitieron intentos terminales.
