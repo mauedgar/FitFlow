@@ -33,3 +33,12 @@ A10 (ACK externos), A12 (infra TLS/IP), A13 (Redis retenido) siguen abiertos; no
 - [41767760202](https://github.com/mauedgar/FitFlow/actions/runs/41767760202) FAILED al instalar Pydantic 2.11.10 / pydantic-core 2.33.2: PyO3 0.24.1 solo admite hasta 3.13, incompatibilidad real de Python3.15. No se eludió guard de PyO3.
 - [41768017083](https://github.com/mauedgar/FitFlow/actions/runs/41768017083) FAILED resolución: Pydantic>=2.14.2 necesita typing-inspection>=0.4.4 y fuente fijaba 0.4.1.
 - [41768133911](https://github.com/mauedgar/FitFlow/actions/runs/41768133911) SUCCESS original: uv regeneró lock y exports, instaló CPython3.15.2, comprobó imports y dependencias; publicación de un commit derivado verificada en GitHub. No se repitieron intentos terminales.
+
+## Reparación exacta posterior de Python 3.15.2
+
+- En PR #83 el primer CI exacto [41768605881](https://github.com/mauedgar/FitFlow/actions/runs/41768605881) exhibió la falta de `psycopg` en Alembic, y [su job quality](https://github.com/mauedgar/FitFlow/actions/runs/41768605881) detectó 16 diagnósticos Ruff por objetivo Python3.15. No se ignoraron reglas ni se usó un target-version falso.
+- Se agregó `psycopg[binary]==3.3.6` (wheel CPython3.15), se actualizaron dos clases genéricas a PEP695, anotaciones forward-ref tipadas y AsyncGenerator; sus pruebas exactas aún deben calificar el nuevo sujeto.
+- [Run de generación de lock 41769298850](https://github.com/mauedgar/FitFlow/actions/runs/41769298850) SUCCESS en fuente `65b4cc061f7111525d12d33b27bad4cc9becda25`: uv publicó `8a5e0db7ba3cb3d414c7043330fe0d6d5ca79202` / tree `0992b606dcda05a7af01c011f1999fa00e05d730`, **solo** `uv.lock`, requirements runtime y requirements test. Lock incluye Pydantic 2.14.2, pydantic-core 2.50.2, psycopg/psycopg-binary 3.3.6, SQLAlchemy y asyncpg compatibles. No hay hashes manuales.
+- Los workflows del commit intermedio `65b4cc...` anteriores a la regeneración terminaron con FAIL por `uv lock --check` o backend desechable todavía no calificado; no son evidencia contra el lock regenerado ni PASS transferible.
+- El workflow temporal `.github/workflows/python315-lock-bootstrap.yml`, con permiso `contents: write` exclusivamente en la rama de migración, **se excluye del candidato final** para no mantener un emisor privilegiado sin necesidad. Su historial y resultados quedan trazables; la generación futura corresponde a workflow/Product autorizado separado.
+- G3 CI final y G5 IR siguen NOT_RUN hasta que una nueva revisión exacta del árbol final quede publicada y calificada.
