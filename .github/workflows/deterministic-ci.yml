@@ -69,7 +69,7 @@ jobs:
 
     steps:
       - name: Checkout exact FitFlow subject
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.subject_sha }}
           fetch-depth: 0
@@ -95,11 +95,19 @@ jobs:
           fi
 
       - name: Set up Python 3.15.2
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: "3.15.2"
           cache: pip
           cache-dependency-path: backend/requirements_test.txt
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
+
+      - name: Validate Python dependency lock
+        run: uv lock --check --no-progress
 
       - name: Install backend test dependencies
         run: python -m pip install -r backend/requirements_test.txt
@@ -135,7 +143,7 @@ jobs:
 
       - name: Checkout portable validation contract v0
         if: always()
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: mauedgar/tecnotron-ai
           ref: f28c812cff4d9c6dd27d71a084fbccfffbadd735
@@ -144,7 +152,7 @@ jobs:
 
       - name: Set up Node 22 for contract validation
         if: always()
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22"
           cache: ${{ hashFiles('.tecnotron-contract-v0/package-lock.json') != '' && 'npm' || '' }}
@@ -175,7 +183,7 @@ jobs:
 
       - name: Upload deterministic validation receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: fitflow-deterministic-validation-${{ inputs.subject_sha }}
           path: ${{ runner.temp }}/fitflow-deterministic-validation

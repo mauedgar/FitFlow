@@ -10,7 +10,7 @@ COPY pyproject.toml uv.lock ./
 
 # 2. Instalar dependencias (projecto no-paquete: package=false en pyproject.toml)
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --locked --no-dev
 
 # 3. Copiar el codigo de la aplicacion backend
 COPY backend ./backend
