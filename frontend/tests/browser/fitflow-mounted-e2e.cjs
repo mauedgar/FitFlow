@@ -25,15 +25,26 @@ let ackDroppedResponses = 0;
 let issuedPairs = 0;
 let firstAckCredential = null;
 const subprocesses = [];
+const childClosures = new Map();
+let mockServer = null;
 const tmpProfile = fs.mkdtempSync(path.join(os.tmpdir(), 'fitflow-e2e-chrome-'));
 let session = null;
 let driverDiagnostics = '';
 const watchdog = setTimeout(() => {
-  console.error('E2E_BROWSER_HARD_DEADLINE', '180 seconds exceeded; terminating synthetic fixture');
-  for (const child of subprocesses.reverse()) {
+  console.error('E2E_BROWSER_HARD_DEADLINE', '180 seconds exceeded; forced cleanup');
+  for (const child of [...subprocesses].reverse()) {
     try { child.kill('SIGKILL'); } catch {}
   }
-  process.exit(124);
+  try { mockServer?.closeAllConnections(); mockServer?.close(); } catch {}
+  const forcedExit = setTimeout(() => {
+    console.error('E2E_BROWSER_WATCHDOG_PROFILE_CLEANUP_TIMEOUT');
+    process.exit(124);
+  }, 1500);
+  fs.promises.rm(tmpProfile, { recursive: true, force: true }).then(() => {
+    if (fs.existsSync(tmpProfile)) console.error('E2E_BROWSER_WATCHDOG_PROFILE_REMAINS');
+  }).catch(error => {
+    console.error('E2E_BROWSER_WATCHDOG_PROFILE_ERROR', String(error).slice(0,180));
+  }).finally(() => { clearTimeout(forcedExit); process.exit(124); });
 }, 180000);
 
 function jwt(seconds = 3600) {
@@ -138,6 +149,49 @@ function mockApi(req, res) {
 }
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function registerChild(child) {
+  const closed = new Promise(resolve => {
+    child.once('close', () => resolve(true));
+    child.once('error', error => {
+      console.error('E2E_BROWSER_CHILD_ERROR', String(error).slice(0,180));
+      resolve(true);
+    });
+  });
+  childClosures.set(child, closed);
+  subprocesses.push(child);
+}
+async function stopChild(child) {
+  const closed = childClosures.get(child);
+  if (!closed) throw new Error('untracked child process');
+  if (child.exitCode === null && child.signalCode === null) {
+    try { child.kill('SIGTERM'); } catch {}
+  }
+  if (await Promise.race([closed, sleep(1600).then(() => false)])) return;
+  console.error('E2E_BROWSER_CHILD_ESCALATION', child.pid || 'unknown');
+  try { child.kill('SIGKILL'); } catch {}
+  if (!await Promise.race([closed, sleep(900).then(() => false)])) {
+    throw new Error('child close was not observed after SIGKILL: ' + (child.pid || 'unknown'));
+  }
+}
+async function stopMockServer() {
+  if (!mockServer?.listening) return;
+  const closed = new Promise((resolve, reject) => mockServer.close(error => {
+    if (error) reject(error); else resolve(true);
+  }));
+  mockServer.closeAllConnections();
+  if (!await Promise.race([closed, sleep(1500).then(() => false)])) {
+    throw new Error('synthetic API server did not close');
+  }
+}
+async function removeProfile() {
+  const removed = await Promise.race([
+    fs.promises.rm(tmpProfile, { recursive: true, force: true, maxRetries: 2, retryDelay: 150 }).then(() => true),
+    sleep(3000).then(() => false),
+  ]);
+  if (!removed || fs.existsSync(tmpProfile)) {
+    throw new Error('Chrome temporary profile cleanup incomplete');
+  }
+}
 async function until(fn, label, timeout = 25000) {
   const expiry = Date.now() + timeout;
   let last;
@@ -190,16 +244,16 @@ async function documentText(fragment) {
 }
 async function browserTest() {
   const mock = http.createServer(mockApi);
+  mockServer = mock;
   await new Promise((resolve, reject) => {
     mock.once('error', reject);
     mock.listen(4180, '127.0.0.1', resolve);
   });
-  subprocesses.push({ kill: () => mock.close() });
   const vite = spawn(process.execPath, [
     path.join(frontend, 'node_modules/vite/bin/vite.js'),
     'preview', '--host', '127.0.0.1', '--port', '4173', '--strictPort',
   ], { cwd: frontend, stdio: 'pipe' });
-  subprocesses.push(vite);
+  registerChild(vite);
   let viteLog = '';
   vite.stderr.on('data', d => { viteLog += d.toString().slice(0,800); });
   await until(async () => {
@@ -216,7 +270,7 @@ async function browserTest() {
   const driver = spawn(binary, ['--port=9515', '--allowed-ips=127.0.0.1'], {
     stdio: 'pipe',
   });
-  subprocesses.push(driver);
+  registerChild(driver);
   driver.stderr.on('data', chunk => { driverDiagnostics = (driverDiagnostics + String(chunk)).slice(-3200); });
   driver.stdout.on('data', chunk => { driverDiagnostics = (driverDiagnostics + String(chunk)).slice(-3200); });
   await until(async () => {
@@ -317,18 +371,23 @@ async function browserTest() {
         console.error('E2E_BROWSER_DELETE_SESSION_WARNING', String(error).slice(0,180));
       }
     }
-    for (const child of subprocesses.reverse()) {
-      try { child.kill('SIGTERM'); } catch {}
+    let cleanupFailed = false;
+    for (const child of [...subprocesses].reverse()) {
+      try { await stopChild(child); } catch (error) {
+        cleanupFailed = true;
+        console.error('E2E_BROWSER_CHILD_CLEANUP_FAIL', String(error).slice(0,240));
+      }
     }
-    try {
-      await Promise.race([
-        fs.promises.rm(tmpProfile, { recursive: true, force: true }),
-        sleep(3500),
-      ]);
-    } catch (error) {
-      console.error('E2E_BROWSER_PROFILE_CLEANUP_WARNING', String(error).slice(0,180));
+    try { await stopMockServer(); } catch (error) {
+      cleanupFailed = true;
+      console.error('E2E_BROWSER_SERVER_CLEANUP_FAIL', String(error).slice(0,240));
+    }
+    try { await removeProfile(); } catch (error) {
+      cleanupFailed = true;
+      console.error('E2E_BROWSER_PROFILE_CLEANUP_FAIL', String(error).slice(0,240));
     }
     clearTimeout(watchdog);
-    process.exit(process.exitCode || 0);
+    if (!cleanupFailed) console.log('E2E_BROWSER_CLEANUP_PASS');
+    process.exit(cleanupFailed ? 1 : (process.exitCode || 0));
   }
 })();

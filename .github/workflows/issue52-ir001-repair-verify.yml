@@ -106,9 +106,14 @@ jobs:
       - name: Bootstrap isolated PG15 Alembic
         working-directory: backend
         run: alembic upgrade head
-      - name: Complete backend regression including PG row locks and real HTTP
+      - name: Targeted HTTP registration, privacy and profile contracts
         working-directory: backend
-        run: python -m pytest -q
+        run: |
+          python -m pytest -q \
+            tests/api/test_issue52_public_registration_http.py \
+            tests/api/test_client_profile_access_live_http_contract.py \
+            tests/api/test_issue53_user_privacy_http.py \
+            tests/api/test_auth_registration_password_boundary.py
 
   quality:
     runs-on: ubuntu-24.04

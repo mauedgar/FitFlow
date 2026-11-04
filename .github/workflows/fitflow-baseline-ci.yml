@@ -24,11 +24,7 @@ jobs:
       backend: ${{ steps.paths.outputs.backend }}
       frontend: ${{ steps.paths.outputs.frontend }}
     steps:
-      - name: Explicitly mark draft as NOT_RUN
-        if: github.event_name == 'pull_request' && github.event.pull_request.draft
-        run: echo "FITFLOW_NOT_RUN_DRAFT — set Ready for review to qualify candidate"
       - name: Checkout exact source candidate
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -36,11 +32,9 @@ jobs:
           persist-credentials: false
 
       - name: Run bounded scope-classifier Git regression
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         run: python3 -m unittest discover -s scripts/ci -p test_fitflow_baseline_scope.py -v
 
       - name: Record subject SHA/tree and decide changed scope
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         id: paths
         shell: bash
         env:
@@ -206,3 +200,34 @@ jobs:
         run: npm run lint
       - name: Frontend typecheck/build
         run: npm run build
+
+  qualification:
+    name: Required scope disposition
+    if: always()
+    needs: [scope, backend, frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Require complete and successful scoped validation
+        shell: bash
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          BACKEND_REQUIRED: ${{ needs.scope.outputs.backend }}
+          FRONTEND_REQUIRED: ${{ needs.scope.outputs.frontend }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+        run: |
+          set -euo pipefail
+          if [[ "$SCOPE_RESULT" != "success" ]]; then
+            echo "FITFLOW_QUALIFICATION_FAIL scope=$SCOPE_RESULT" >&2
+            exit 1
+          fi
+          case "$BACKEND_REQUIRED:$BACKEND_RESULT" in
+            true:success|false:skipped) ;;
+            *) echo "FITFLOW_QUALIFICATION_FAIL backend=$BACKEND_REQUIRED:$BACKEND_RESULT" >&2; exit 1 ;;
+          esac
+          case "$FRONTEND_REQUIRED:$FRONTEND_RESULT" in
+            true:success|false:skipped) ;;
+            *) echo "FITFLOW_QUALIFICATION_FAIL frontend=$FRONTEND_REQUIRED:$FRONTEND_RESULT" >&2; exit 1 ;;
+          esac
+          echo "FITFLOW_QUALIFIED backend=$BACKEND_REQUIRED:$BACKEND_RESULT frontend=$FRONTEND_REQUIRED:$FRONTEND_RESULT"
