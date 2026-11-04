@@ -347,7 +347,11 @@ test('unmount fences late successful login response', async () => {
   h.cleanup();
   h.resolveHeldLogin();
   await assert.rejects(pending, /Login superseded/);
-  assert.equal(h.state.get(0), previousToken);
+  assert.equal(h.state.get(0), null);
+  assert.equal(h.state.get(1), null);
+  assert.equal(h.state.get(2), null);
+  assert.equal(h.storage.getItem('fitflow_refresh_token'), null);
+  assert.equal(h.authHeader(), undefined);
 });
 
 test('stale scheduled refresh rejection cannot clear a newly logged-in session', async () => {
