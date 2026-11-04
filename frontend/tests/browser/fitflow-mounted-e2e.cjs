@@ -32,19 +32,28 @@ let session = null;
 let driverDiagnostics = '';
 const watchdog = setTimeout(() => {
   console.error('E2E_BROWSER_HARD_DEADLINE', '180 seconds exceeded; forced cleanup');
-  for (const child of [...subprocesses].reverse()) {
-    try { child.kill('SIGKILL'); } catch {}
-  }
-  try { mockServer?.closeAllConnections(); mockServer?.close(); } catch {}
   const forcedExit = setTimeout(() => {
-    console.error('E2E_BROWSER_WATCHDOG_PROFILE_CLEANUP_TIMEOUT');
+    console.error('E2E_BROWSER_WATCHDOG_FORCED_EXIT');
     process.exit(124);
-  }, 1500);
-  fs.promises.rm(tmpProfile, { recursive: true, force: true }).then(() => {
-    if (fs.existsSync(tmpProfile)) console.error('E2E_BROWSER_WATCHDOG_PROFILE_REMAINS');
-  }).catch(error => {
-    console.error('E2E_BROWSER_WATCHDOG_PROFILE_ERROR', String(error).slice(0,180));
-  }).finally(() => { clearTimeout(forcedExit); process.exit(124); });
+  }, 6500);
+  (async () => {
+    const children = [...subprocesses].reverse();
+    for (const child of children) {
+      try { child.kill('SIGKILL'); } catch {}
+    }
+    const observedClose = await Promise.race([
+      Promise.all(children.map(child => childClosures.get(child) || Promise.resolve(false))).then(() => true),
+      sleep(1500).then(() => false),
+    ]);
+    if (!observedClose) console.error('E2E_BROWSER_WATCHDOG_CHILD_CLOSE_UNCONFIRMED');
+    try { mockServer?.closeAllConnections(); mockServer?.close(); } catch {}
+    await removeProfile();
+  })().catch(error => {
+    console.error('E2E_BROWSER_WATCHDOG_CLEANUP_FAIL', String(error).slice(0,180));
+  }).finally(() => {
+    clearTimeout(forcedExit);
+    process.exit(124);
+  });
 }, 180000);
 
 function jwt(seconds = 3600) {
@@ -184,11 +193,27 @@ async function stopMockServer() {
   }
 }
 async function removeProfile() {
-  const removed = await Promise.race([
-    fs.promises.rm(tmpProfile, { recursive: true, force: true, maxRetries: 2, retryDelay: 150 }).then(() => true),
-    sleep(3000).then(() => false),
-  ]);
-  if (!removed || fs.existsSync(tmpProfile)) {
+  // Isolate blocking filesystem cleanup in a disposable Node child; unlike
+  // Promise.race(fs.promises.rm), the worker can be terminated on timeout.
+  const cleanup = spawn(process.execPath, [
+    '-e',
+    'require("node:fs").rmSync(process.argv[1], { recursive: true, force: true, maxRetries: 2, retryDelay: 150 });',
+    tmpProfile,
+  ], { stdio: 'ignore' });
+  const closed = new Promise(resolve => {
+    cleanup.once('close', (code, signal) => resolve(code === 0 && signal === null));
+    cleanup.once('error', error => {
+      console.error('E2E_BROWSER_PROFILE_WORKER_ERROR', String(error).slice(0,180));
+      resolve(false);
+    });
+  });
+  const result = await Promise.race([closed, sleep(3000).then(() => null)]);
+  if (result === null) {
+    try { cleanup.kill('SIGKILL'); } catch {}
+    await Promise.race([closed, sleep(600).then(() => false)]);
+    throw new Error('Chrome profile cleanup worker exceeded its deadline');
+  }
+  if (result !== true || fs.existsSync(tmpProfile)) {
     throw new Error('Chrome temporary profile cleanup incomplete');
   }
 }
