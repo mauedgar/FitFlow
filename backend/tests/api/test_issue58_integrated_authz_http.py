@@ -350,3 +350,35 @@ async def test_ir009_admin_gym_catalog_create_update_delete_with_loaded_schedule
             if class_id is not None:
                 await db.execute(delete(GymClass).where(GymClass.id == class_id))
             await db.commit()
+
+
+@pytest.mark.parametrize("suffix", ["classes", "schedule"])
+async def test_private_teacher_schedules_require_owner_or_admin(
+    api_client: httpx.AsyncClient,
+    principals: tuple[dict[str, UUID], UUID],
+    suffix: str,
+) -> None:
+    """Teacher may view own operational schedule, not another teacher's."""
+    accounts, profile_id = principals
+    own = await api_client.get(
+        f"{settings.API_V1_STR}/teachers/{profile_id}/{suffix}",
+        headers=bearer(accounts, "teacher"),
+    )
+    assert own.status_code == 200, own.text
+
+    foreign_id = uuid4()
+    foreign = await api_client.get(
+        f"{settings.API_V1_STR}/teachers/{foreign_id}/{suffix}",
+        headers=bearer(accounts, "teacher"),
+    )
+    assert foreign.status_code == 403, foreign.text
+
+    admin = await api_client.get(
+        f"{settings.API_V1_STR}/teachers/{foreign_id}/{suffix}",
+        headers=bearer(accounts, "admin"),
+    )
+    assert admin.status_code == 200, admin.text
+    public = await api_client.get(
+        f"{settings.API_V1_STR}/teachers/{profile_id}/{suffix}/public"
+    )
+    assert public.status_code == 200, public.text

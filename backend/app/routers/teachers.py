@@ -14,7 +14,6 @@ from uuid import UUID
 
 from app.core.deps import (
     require_admin,
-    require_admin_or_teacher,
     require_admin_teacher_or_self,
 )
 from app.core.enums import UserRole
@@ -270,7 +269,7 @@ async def read_teacher_classes(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_or_teacher)],
+    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],
 ) -> list[ClassScheduleWithRelations]:
     """Lista las clases/horarios impartidos por un profesor (operativo).
 
@@ -319,7 +318,7 @@ async def read_teacher_schedule(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_or_teacher)],
+    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],
 ) -> list[ClassScheduleWithRelations]:
     """Lista el horario operativo completo de un profesor.
 

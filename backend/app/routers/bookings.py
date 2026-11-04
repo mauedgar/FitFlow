@@ -37,7 +37,6 @@ from app.schemas.booking import (
     BookingCreate,
     BookingCreateInternal,
     BookingPublic,
-    BookingUpdate,
 )
 from app.schemas.front_desk import SessionCapacity
 
@@ -159,6 +158,7 @@ async def create_booking(
             client_id=client.id,  # pyright: ignore[reportArgumentType]
             session_id=session.id,  # pyright: ignore[reportArgumentType]
             obj_in=booking_internal,  # BookingCreateInternal
+            require_eligibility=True,
         )
     except NotFoundError as exc:
         # Si la sesión desapareció entre checks
@@ -224,49 +224,47 @@ async def cancel_booking(
 
     Los clientes solo pueden cancelar sus propias reservas.
     """
+    # Auth may have opened a read transaction. Re-check ownership and state
+    # inside the same write transaction that locks the Booking row.
+    actor_id = current_user.id
+    actor_role = current_user.role
     try:
-        booking_obj = await booking_crud.get(db=db, obj_id=booking_id, include_relations=True)
-    except Exception as exc:
-        logger.exception("DB error fetching booking id=%s", booking_id)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
-
-    if not booking_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reserva no encontrada.")
-
-    if current_user.role == UserRole.client:
-        try:
-            client = await client_crud.get_by_user_id(db=db, user_id=current_user.id)  # pyright: ignore[reportArgumentType]
-        except Exception as exc:
-            logger.exception("DB error fetching client for cancel_booking user=%s", current_user.id)
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
-
-        if not client:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado.")
-
-        if booking_obj.client_id != client.id:  # pyright: ignore[reportGeneralTypeIssues]
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No puedes cancelar reservas de otros clientes.",
-            )
-
-    try:
-        validate_booking_cancellation(booking_obj)
-        updated = await booking_crud.update(
-            db=db,
-            db_obj=booking_obj,
-            obj_in=BookingUpdate(status=BookingStatus.cancelled, cancelled_at=datetime.now(UTC)),
-        )
+        if db.in_transaction():
+            await db.commit()
+        async with db.begin():
+            booking_obj = (await db.execute(
+                select(Booking).where(Booking.id == booking_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )).scalar_one_or_none()
+            if booking_obj is None:
+                raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+            if actor_role == UserRole.client:
+                client = await client_crud.get_by_user_id(db=db, user_id=actor_id)
+                if client is None:
+                    raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+                if booking_obj.client_id != client.id:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="No puedes cancelar reservas de otros clientes.",
+                    )
+            validate_booking_cancellation(booking_obj)
+            booking_obj.status = BookingStatus.cancelled
+            booking_obj.cancelled_at = datetime.now(UTC)
+            await db.flush()
+    except HTTPException:
+        raise
     except ConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except BusinessValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
-        logger.exception("DB error updating booking id=%s to cancelled", booking_id)
+        logger.exception("DB error cancelling booking id=%s", booking_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
-    booking_with_relations = await booking_crud.get_with_relations(db=db, booking_id=updated.id)
+    booking_with_relations = await booking_crud.get_with_relations(db=db, booking_id=booking_id)
     if booking_with_relations is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Reserva actualizada no disponible.")
+        raise HTTPException(status_code=500, detail="Reserva actualizada no disponible.")
     return to_booking_public(booking_with_relations)
 
 

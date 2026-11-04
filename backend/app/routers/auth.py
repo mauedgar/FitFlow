@@ -78,7 +78,7 @@ async def login_for_tokens(
     candidate_hash = user.hashed_password if user else _DUMMY_AUTH_HASH
     password_valid = security.verify_password(form_data.password, candidate_hash)
     if not user or not user.active or not password_valid:  # pyright: ignore[reportArgumentType]
-        logger.warning("Failed login attempt for email=%s", form_data.username)
+        logger.warning("Failed login attempt (credentials rejected)")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contraseña incorrectos",

@@ -81,6 +81,7 @@ async def test_login_success_returns_token_pair_and_preserves_user_id_subject(
 async def test_login_invalid_password_returns_401_without_refresh_store(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     user = LoginUserStub(id=uuid.uuid4())
     stored: list[str] = []
@@ -103,11 +104,14 @@ async def test_login_invalid_password_returns_401_without_refresh_store(
     assert response.json() == {"detail": "Correo o contraseña incorrectos"}
     assert response.headers.get("www-authenticate") == "Bearer"
     assert stored == []
+    assert "Failed login attempt" in caplog.text
+    assert "r005@example.com" not in caplog.text
 
 
 async def test_login_nonexistent_user_returns_same_401_with_dummy_bcrypt_work(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     events: list[str] = []
 
@@ -134,6 +138,8 @@ async def test_login_nonexistent_user_returns_same_401_with_dummy_bcrypt_work(
     assert response.json() == {"detail": "Correo o contraseña incorrectos"}
     assert response.headers.get("www-authenticate") == "Bearer"
     assert events == ["verify"]
+    assert "Failed login attempt" in caplog.text
+    assert "missing-r005@example.com" not in caplog.text
 
 
 async def test_login_missing_password_preserves_framework_422_boundary(

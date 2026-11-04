@@ -151,6 +151,7 @@ async def ensure_fallback_booking(
             client_id=client.id,
             session_id=session.id,
             obj_in=booking_internal,
+            require_eligibility=True,
         )
         created = True
     except ConflictError:

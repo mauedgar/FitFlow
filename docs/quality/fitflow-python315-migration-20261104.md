@@ -124,3 +124,16 @@ El token de acceso a reglas de protección `develop` responde 403; hay que exigi
 - P-A03: Docker builder usa `uv sync --locked --no-dev` con manifiestos copiados antes del sync y `package=false`, detectando lock obsoleto.
 - P-A04: Python3.11.17 sigue fixture aislado sintético para bcrypt histórico, no segundo runtime Product.
 - Gates: nueva CI sobre el SHA/tree resultante, nueva IR independiente y conciliación de cobertura; no trasladar IR008 parcial. `develop.protected=false`, required checks no establecidos; no aceptar/merge hasta barrera competente. A10 ACK externo, A12 TLS/IP real, A13 Redis histórico y hosted uv conflict permanecen separados. Sin datos reales, aceptación o release.
+
+## Control 003 — reconciliación IR010/IR011 de auth, privacidad y reservas (2026-11-04)
+
+**Candidato padre:** `dbdc1d35c9c17aaea381664957bb8339024e8aeb` / tree `14e242346c3f64968b257f0d3f3ad17a68d0fef2`. Sus seis CI originales fueron SUCCESS; sus receipts no se trasladan automáticamente a un sucesor. Se preservan CPython3.15.2, el lock y los dos exports sin cambio.
+
+- **S1-A01:** retirar el correo de logs de login fallido en `backend/app/routers/auth.py`; pruebas HTTP sintéticas verifican ausencia del identificador. La revocación de access tokens tras logout continúa documentada como limitada por TTL, sin ampliar el contrato JWT fuera de autorización Product.
+- **S2-A01:** los endpoints operativos `/teachers/{teacher_id}/classes` y `/schedule` usan el guard ya existente `require_admin_teacher_or_self` para coherencia con la política aprobada A16/A17 de asignación propia; las proyecciones `/public` siguen públicas. Tests HTTP negativo titular/otro/administrador.
+- **D3-F001:** `create_with_capacity_check` conserva bloqueo `SELECT ... FOR UPDATE` de la sesión y, para los dos consumidores HTTP/recepción, obtiene y refresca con bloqueo los datos de horario y membresía antes de revalidar estado, fecha futura y plan. `populate_existing=True` impide volver a usar objetos en identity-map con valores previos. El helper low-level conserva el flag opcional para sus pruebas directas, sin imponer límite de cupo.
+- **D3-F002:** la cancelación valida titularidad y transición después de bloquear la fila Booking, coordinándose con el check-in que ya utiliza el mismo bloqueo. Los tests sobre PG desechable cubren cancelaciones simultáneas y cambios concurrentes de membresía/fecha antes del commit.
+- **F1-01:** AuthProvider conserva sesión no verificada ante fallos de transporte/5xx y agenda una revalidación automática con backoff acotado y fence por epoch/refresh; al cerrar sesión o desmontar limpia el timer. Pruebas VM ejecutan el provider con timers/HTTP simulados y concurrencia logout↔retry; no son pruebas de navegador real ni despliegue.
+- **Límites conservados:** `develop.protected=false`, A10 ACK externo, A12 host/TLS/IP real, A13 Redis retenido, aislamiento multigimnasio futuro, riesgo XSS de sessionStorage y fechas locales heredadas siguen separados. No hay cambio en datos reales, credenciales, Alembic, integraciones externas ni release.
+
+**Gates:** una CI nueva exacta sobre SHA/tree sucesor con backend PG15/Redis7, quality, frontend, browser, schema e ingress, más Independent Review nueva y análisis de findings/advisories; no aceptar/merge ni declarar 0 deuda por este documento.

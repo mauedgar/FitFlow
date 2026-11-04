@@ -12,10 +12,12 @@ from typing import TYPE_CHECKING
 
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.crud.base import CRUDBase
-from app.db.models import Booking, ClassSchedule, ClassSession, Teacher
+from app.db.models import Booking, ClassSchedule, ClassSession, Membership, Teacher
 from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingUpdate
 
 # Excepciones de dominio centralizadas
+from app.services.booking_service import validate_booking_creation
+from app.services.class_schedule_service import validate_membership_access
 from app.services.errors import ConflictError, NotFoundError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -192,7 +194,8 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         *,
         client_id: "UUID",
         session_id: "UUID",
-        obj_in: "BookingCreateInternal",  # o BookingCreateInternal según tu flujo
+        obj_in: "BookingCreateInternal",
+        require_eligibility: bool = False,
     ) -> Booking:
         """Crea una reserva de forma atómica bloqueando la sesión y evitando duplicados.
 
@@ -224,7 +227,8 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             Si la sesión no admite reservas o ya existe una reserva activa duplicada.
         """
         async with db.begin():  # abre transacción
-            q = select(ClassSession).where(ClassSession.id == session_id).with_for_update()
+            q = (select(ClassSession).where(ClassSession.id == session_id)
+                 .with_for_update().execution_options(populate_existing=True))
             res = await db.execute(q)
             session = res.scalar_one_or_none()
             if session is None:
@@ -236,6 +240,27 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
                 or session.status not in {ClassSessionStatus.scheduled, ClassSessionStatus.open}
             ):
                 raise ConflictError("La sesión no admite reservas.")
+
+            if require_eligibility:
+                # Reload under row locks: values read before this transaction
+                # are not authoritative after concurrent membership/schedule edits.
+                schedule = (await db.execute(
+                    select(ClassSchedule)
+                    .where(ClassSchedule.id == session.class_schedule_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )).scalar_one_or_none()
+                if schedule is None or not schedule.active or schedule.deleted_at is not None:
+                    raise ConflictError("El horario no admite reservas.")
+                membership = (await db.execute(
+                    select(Membership).where(
+                        Membership.client_id == client_id,
+                        Membership.active.is_(True),
+                        Membership.deleted_at.is_(None),
+                    ).with_for_update().execution_options(populate_existing=True)
+                )).scalar_one_or_none()
+                validate_booking_creation(session, membership)
+                validate_membership_access(membership, schedule)
 
             # verificar duplicado
             q2 = select(Booking).where(

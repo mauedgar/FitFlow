@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, time, timedelta
@@ -30,6 +31,7 @@ from app.db.session import AsyncSessionLocal, engine
 from app.main import app
 from app.schemas.booking import BookingCreateInternal
 from fastapi import status
+from sqlalchemy import select, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -168,13 +170,16 @@ async def test_booking_creation_hands_off_real_auth_transaction(
         client_id: UUID,
         session_id: UUID,
         obj_in: BookingCreateInternal,
+        require_eligibility: bool = False,
     ) -> Booking:
         transaction_states_at_crud_entry.append(db.in_transaction())
+        assert require_eligibility is True
         return await original_create(
             db,
             client_id=client_id,
             session_id=session_id,
             obj_in=obj_in,
+            require_eligibility=require_eligibility,
         )
 
     monkeypatch.setattr(
@@ -265,3 +270,97 @@ async def test_duplicate_booking_still_maps_to_http_409() -> None:
     assert first.status_code == status.HTTP_201_CREATED, first.text
     assert duplicate.status_code == status.HTTP_409_CONFLICT, duplicate.text
     assert duplicate.json()["detail"] == "Ya tienes una reserva para esta sesi\u00f3n."
+
+
+@pytest.mark.api
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_membership_change_before_atomic_booking_is_rechecked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A preflight membership read must not authorize a stale booking."""
+    session_id, access_token = await _booking_fixture()
+    original_create = booking_crud.create_with_capacity_check
+
+    async def expire_before_lock(
+        db: AsyncSession, *, client_id: UUID, session_id: UUID,
+        obj_in: BookingCreateInternal, require_eligibility: bool = False,
+    ) -> Booking:
+        assert require_eligibility is True
+        async with AsyncSessionLocal() as competitor:
+            await competitor.execute(
+                update(Membership).where(Membership.client_id == client_id)
+                .values(status=MembershipStatus.expired)
+            )
+            await competitor.commit()
+        return await original_create(
+            db, client_id=client_id, session_id=session_id,
+            obj_in=obj_in, require_eligibility=require_eligibility,
+        )
+
+    monkeypatch.setattr(booking_crud, "create_with_capacity_check", expire_before_lock)
+    response = await _post_booking(session_id=session_id, access_token=access_token)
+    assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+    async with AsyncSessionLocal() as db:
+        existing = await db.scalar(select(Booking.id).where(Booking.class_session_id == session_id))
+        assert existing is None
+
+
+@pytest.mark.api
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_session_expired_before_atomic_booking_is_rechecked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A session cannot become past between preflight and row lock."""
+    session_id, access_token = await _booking_fixture()
+    original_create = booking_crud.create_with_capacity_check
+
+    async def expire_before_lock(
+        db: AsyncSession, *, client_id: UUID, session_id: UUID,
+        obj_in: BookingCreateInternal, require_eligibility: bool = False,
+    ) -> Booking:
+        assert require_eligibility is True
+        async with AsyncSessionLocal() as competitor:
+            await competitor.execute(
+                update(ClassSession).where(ClassSession.id == session_id)
+                .values(starts_at=datetime.now(UTC) - timedelta(minutes=5))
+            )
+            await competitor.commit()
+        return await original_create(
+            db, client_id=client_id, session_id=session_id,
+            obj_in=obj_in, require_eligibility=require_eligibility,
+        )
+
+    monkeypatch.setattr(booking_crud, "create_with_capacity_check", expire_before_lock)
+    response = await _post_booking(session_id=session_id, access_token=access_token)
+    assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+
+
+@pytest.mark.api
+@pytest.mark.integration
+@pytest.mark.concurrency
+@pytest.mark.asyncio
+async def test_two_simultaneous_cancellations_have_one_winner() -> None:
+    """Cancellation takes the same Booking row lock used by front-desk check-in."""
+    session_id, access_token = await _booking_fixture()
+    created = await _post_booking(session_id=session_id, access_token=access_token)
+    assert created.status_code == 201, created.text
+    booking_id = created.json()["id"]
+
+    async def cancel_once() -> httpx.Response:
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://fitflow.test") as client:
+            return await client.post(
+                f"{settings.API_V1_STR}/bookings/{booking_id}/cancel",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+
+    responses = await asyncio.gather(cancel_once(), cancel_once())
+    assert sorted(response.status_code for response in responses) == [200, 409], [
+        (r.status_code, r.text) for r in responses
+    ]
+    async with AsyncSessionLocal() as db:
+        stored = await db.get(Booking, uuid.UUID(booking_id))
+        assert stored is not None
+        assert stored.status == BookingStatus.cancelled

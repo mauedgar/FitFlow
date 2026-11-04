@@ -32,11 +32,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
+  const recoveryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Reject continuations from a previous login, rehydration or logout.
   const sessionEpoch = useRef(0);
 
   const clearLocalSession = () => {
     sessionEpoch.current++;
+    if (recoveryTimer.current !== null) {
+      clearTimeout(recoveryTimer.current);
+      recoveryTimer.current = null;
+    }
     invalidateAuthEpoch();
     sessionStorage.removeItem(ACCESS_KEY);
     sessionStorage.removeItem(REFRESH_KEY);
@@ -51,6 +56,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     let cancelled = false;
+    let recoveryFailures = 0;
+    const scheduleRecovery = () => {
+      const refresh = sessionStorage.getItem(REFRESH_KEY);
+      if (cancelled || !refresh || recoveryTimer.current !== null) return;
+      const epoch = sessionEpoch.current;
+      const delay = Math.min(30000, 1000 * 2 ** Math.min(recoveryFailures++, 5));
+      recoveryTimer.current = setTimeout(() => {
+        recoveryTimer.current = null;
+        if (cancelled || epoch !== sessionEpoch.current ||
+            sessionStorage.getItem(REFRESH_KEY) !== refresh) return;
+        void rehydrate();
+      }, delay);
+    };
     const rehydrate = async () => {
       const epoch = ++sessionEpoch.current;
       setToken(null);
@@ -83,22 +101,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setToken(usableAccess);
         setCurrentUser(response.data);
         setUserRole(response.data.role);
+        recoveryFailures = 0;
+        if (recoveryTimer.current !== null) {
+          clearTimeout(recoveryTimer.current);
+          recoveryTimer.current = null;
+        }
       } catch (error) {
         if (cancelled || epoch !== sessionEpoch.current) return;
-        // Network outage is not a reason to destroy a live refresh session.
-        // It stays unverified (not authenticated) until the next reload/retry.
-        if (!cancelled && !(axios.isAxiosError(error) && !error.response)) {
-          clearLocalSession();
-        }
+        // Keep an unverified session on transport/5xx failures; retry with a
+        // bounded backoff while retaining the same session epoch and refresh.
+        const transient = axios.isAxiosError(error) &&
+          (!error.response || error.response.status >= 500 || error.response.status === 429);
+        if (transient) scheduleRecovery();
+        else clearLocalSession();
       } finally {
         if (!cancelled && epoch === sessionEpoch.current) setIsLoadingAuth(false);
       }
     };
     void rehydrate();
     window.addEventListener('online', rehydrate);
+    window.addEventListener('fitflow:session-recovery-needed', scheduleRecovery);
     return () => {
       cancelled = true;
+      if (recoveryTimer.current !== null) {
+        clearTimeout(recoveryTimer.current);
+        recoveryTimer.current = null;
+      }
       window.removeEventListener('online', rehydrate);
+      window.removeEventListener('fitflow:session-recovery-needed', scheduleRecovery);
     };
     // Initialization is deliberately performed only on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,6 +177,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setToken(null);
         setCurrentUser(null);
         setUserRole(null);
+        window.dispatchEvent(new Event('fitflow:session-recovery-needed'));
       }
       throw error;
     } finally {
@@ -222,6 +253,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setToken(null);
             setCurrentUser(null);
             setUserRole(null);
+            window.dispatchEvent(new Event('fitflow:session-recovery-needed'));
           }
         });
       }, delay);
