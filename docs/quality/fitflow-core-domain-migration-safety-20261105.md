@@ -50,3 +50,17 @@ It must refuse to cross this revision on a populated database.
 
 No real DB/Redis, secrets, production migration, automatic merge, release,
 TaskCycle, or Issue closure is included in this candidate.
+
+## Workflow qualification repair — separate failure before migration
+
+The original push [run 42079896815](https://github.com/mauedgar/FitFlow/actions/runs/42079896815)
+failed during job setup: `Unable to resolve action astral-sh/setup-uv@v10`.
+No migration or test ran in that execution. The legacy workflow also contained
+an unrestricted `git-auto-commit` schema mutation. This candidate adopts the
+**read-only schema validation workflow** from PR #83's exact source blob
+`f7999c6b05ec9ca46385a5585434e6b1342e22cf`, adapting the interpreter
+to `develop` Python 3.11.17 only (not changing Product Python baseline).
+The workflow installs pinned uv, upgrades a disposable PG15 fixture, compares
+two schema dumps and uploads an immutable artifact; it never writes to Git.
+
+Previous run failures are preserved; the successor requires new exact CI.
