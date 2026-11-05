@@ -102,7 +102,7 @@ def test_empty_migration_inputs_lock_targets_before_enumerating_all_relations():
     assert conn.sql[0] == "SELECT current_schema()"
     assert conn.sql[3].startswith("SET LOCAL lock_timeout")
     assert conn.sql[5].startswith('LOCK TABLE "public"."teacher_class_association"')
-    assert "IN ACCESS EXCLUSIVE MODE" in conn.sql[3]
+    assert "IN ACCESS EXCLUSIVE MODE" in conn.sql[5]
     assert len([q for q in conn.sql if q.startswith("SELECT EXISTS (SELECT 1 FROM")]) == len(RELATIONS)
 
 

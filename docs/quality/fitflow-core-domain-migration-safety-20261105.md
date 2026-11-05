@@ -166,3 +166,15 @@ This new candidate must not inherit that CI or review result.
 
 This repair is scoped to PR #89, unchanged Product API and original
 historical migration revision ID; no `develop` integration or beta launch.
+
+## Backend CI assertion correction (successor of c32e7e9)
+
+Native baseline job `42094383673` was terminal **FAILURE** on
+`c32e7e9236b4ddc6fcf6b9bc60c36048da00fbfe`: 266 passed and one
+unit assertion failed because the existing ACCESS EXCLUSIVE SQL index was
+not updated after insertion of two `current_setting` calls.
+`conn.sql[3]` is `SET LOCAL lock_timeout`; the target lock is now
+`conn.sql[5]`. The minimal repair changes only that assertion index.
+The independent PG15 schema workflow `42094383676` was SUCCESS on the
+original failing baseline SHA. Neither CI verdict transfers to this
+successor; fresh exact runs and independent review remain required.
