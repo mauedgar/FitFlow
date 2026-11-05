@@ -64,6 +64,7 @@ function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdL
   };
   const clearTimeout = id => timers.delete(id);
   let abortedGets = 0;
+  let logoutCalls = 0;
   let resolveHeldLogin;
   let rejectForcedRefresh;
   const fakeReact = {
@@ -130,6 +131,7 @@ function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdL
     },
     async post(url) {
       assert.equal(url, '/auth/logout');
+      logoutCalls++;
       return { status: 204 };
     },
   };
@@ -146,7 +148,7 @@ function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdL
         if (force && delayForcedRefresh) {
           return await new Promise((_resolve, reject) => { rejectForcedRefresh = reject; });
         }
-        return access;
+        return storage.getItem('fitflow_refresh_token') === refresh2 ? access2 : access;
       },
       invalidateAuthEpoch() {},
     },
@@ -193,6 +195,7 @@ function setup({ failures = 1, failureStatus = null, holdFirstGet = false, holdL
       effectRecords.clear();
     },
     getCalls: () => getCalls,
+    logoutCalls: () => logoutCalls,
     abortedGets: () => abortedGets,
     resolveHeldLogin: () => {
       if (!resolveHeldLogin) throw Error('no pending login');
@@ -322,6 +325,49 @@ test('new login cancels stale recovery timer and starts a new attempt', async ()
   await settle();
   assert.equal(h.getCalls(), 3);
   assert.equal(h.state.get(0), h.access);
+  h.cleanup();
+});
+
+test('new login HTTP 429/503 keeps only new unverified credentials and recovers without revoke', async () => {
+  for (const failureStatus of [429, 503]) {
+    const h = setup({ failures: 2, failureStatus });
+    await settle(); // initial rehydration fails and schedules a timer
+    h.render();
+    await assert.rejects(h.getValue().login({
+      access_token: h.access2, refresh_token: h.refresh2,
+    }));
+    assert.equal(h.getCalls(), 2);
+    assert.equal(h.logoutCalls(), 0);
+    assert.equal(h.storage.getItem('fitflow_access_token'), h.access2);
+    assert.equal(h.storage.getItem('fitflow_refresh_token'), h.refresh2);
+    assert.equal(h.state.get(0), null);
+    assert.equal(h.state.get(1), null);
+    assert.equal(h.state.get(2), null);
+    assert.equal(h.authHeader(), undefined);
+    assert.equal(h.timers.size, 1);
+    h.fireNext();
+    await settle();
+    assert.equal(h.getCalls(), 3);
+    assert.equal(h.state.get(0), h.access2);
+    assert.equal(h.state.get(1).id, 'user-two');
+    assert.equal(h.state.get(2), 'teacher');
+    assert.equal(h.logoutCalls(), 0);
+    h.cleanup();
+  }
+});
+
+test('new login HTTP 401 is not recoverable and attempts refresh revocation', async () => {
+  const h = setup({ failures: 2, failureStatus: 401 });
+  await settle();
+  h.render();
+  await assert.rejects(h.getValue().login({
+    access_token: h.access2, refresh_token: h.refresh2,
+  }));
+  assert.equal(h.logoutCalls(), 1);
+  assert.equal(h.storage.getItem('fitflow_access_token'), null);
+  assert.equal(h.storage.getItem('fitflow_refresh_token'), null);
+  assert.equal(h.state.get(1), null);
+  assert.equal(h.timers.size, 0);
   h.cleanup();
 });
 

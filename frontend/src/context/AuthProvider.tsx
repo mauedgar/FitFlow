@@ -186,7 +186,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!mounted.current || epoch !== sessionEpoch.current) throw error;
       // The backend already issued a refresh token. If identity validation
       // fails, attempt to revoke it instead of stranding a server session.
-      if (!(axios.isAxiosError(error) && !error.response)) {
+      const transient = axios.isAxiosError(error) &&
+        (!error.response || error.response.status >= 500 || error.response.status === 429);
+      if (!transient) {
         try {
           await apiClient.post("/auth/logout", {
             refresh_token: pair.refresh_token,
