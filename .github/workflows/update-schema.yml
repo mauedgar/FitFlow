@@ -168,6 +168,47 @@ jobs:
           PY
           (cd backend && alembic upgrade head)
           echo "PG15_NON_SUPERUSER_OWNER_MIGRATION_PASS"
+          # RLS regression: a real non-superuser owner with FORCE RLS cannot
+          # see retained gym_classes rows; the migration must still refuse DDL.
+          export DATABASE_URL='postgresql+psycopg2://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/postgres'
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ["DATABASE_URL"], isolation_level="AUTOCOMMIT").connect() as c:
+              c.execute(text("CREATE DATABASE fitflow_ci_rls OWNER fitflow_ci_migrator"))
+          PY
+          export DATABASE_URL='postgresql+psycopg2://fitflow_ci_migrator:fitflow-ci-migrator-only@127.0.0.1:5432/fitflow_ci_rls'
+          (cd backend && alembic upgrade a2b62b427037)
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ["DATABASE_URL"]).begin() as c:
+              assert c.scalar(text("SELECT rolsuper FROM pg_roles WHERE rolname=current_user")) is False
+              c.execute(text("""
+                  INSERT INTO gym_classes (id, name, description, duration_minutes, default_capacity)
+                  VALUES ('00000000-0000-0000-0000-000000000072',
+                          'RLS guard fixture', 'Discardable CI', 45, 8)
+              """))
+              c.execute(text("CREATE POLICY fitflow_guard_hide ON gym_classes FOR SELECT USING (false)"))
+              c.execute(text("ALTER TABLE gym_classes ENABLE ROW LEVEL SECURITY"))
+              c.execute(text("ALTER TABLE gym_classes FORCE ROW LEVEL SECURITY"))
+              assert c.scalar(text("SELECT count(*) FROM gym_classes")) == 0
+          PY
+          if (cd backend && alembic upgrade head) > "$RUNNER_TEMP/fitflow-negative-rls.log" 2>&1; then
+            echo "FAIL: FORCE RLS hidden retained Product data was upgraded" >&2
+            exit 1
+          fi
+          grep -q 'f5453ed20cdc refuses RLS-enabled relation' "$RUNNER_TEMP/fitflow-negative-rls.log"
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ["DATABASE_URL"]).begin() as c:
+              assert c.scalar(text("SELECT version_num FROM alembic_version")) == "a2b62b427037"
+              assert c.scalar(text("SELECT count(*) FROM gym_classes")) == 0
+              c.execute(text("ALTER TABLE gym_classes DISABLE ROW LEVEL SECURITY"))
+              assert c.scalar(text("SELECT count(*) FROM gym_classes")) == 1
+          print("FAIL_CLOSED_PG15_RLS_HIDDEN_ROW_RETENTION_PASS")
+          PY
 
       - name: Generate reviewable schema with PostgreSQL 15 client, no Git write
         shell: bash

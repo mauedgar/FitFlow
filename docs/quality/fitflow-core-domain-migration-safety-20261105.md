@@ -138,3 +138,31 @@ checks. The failure is evidence of an invalid fixture, not a destructive
 migration or observed retained-data loss. Fresh original CI and independent
 review are required on the successor SHA. Earlier 42081839293/42081839356
 PASS and 42083677800 FAILURE remain tied only to their own commits.
+
+## IR005 independent review follow-up — RLS and timeout isolation
+
+IR005 independently verified subject `67ba909fab3e81b3c0c87d49efef19ec624c322d`
+and original schema/baseline success (42084915363 / 42084915404);
+verdict **NO_RECOMMEND** (F001 RLS-hidden rows, A001 transaction-local timeout
+restoration, A002 separate operator retained-data deployment qualification).
+This new candidate must not inherit that CI or review result.
+
+- F001: after acquiring each table lock, re-read `pg_class.relrowsecurity`
+  and `relforcerowsecurity` using bound identifiers; refuse enabled/forced
+  row security before `SELECT EXISTS`, even if the current migrator can
+  bypass policies. Disallow rather than bypass or assume complete visibility.
+- F001 proof: disposable PostgreSQL 15 database owned by a non-superuser,
+  populated legacy `gym_classes`, `ENABLE` + `FORCE ROW LEVEL SECURITY`,
+  deny-all SELECT policy, and exact preservation of the row and predecessor
+  Alembic revision after the rejected upgrade. The unit stub covers the
+  fail-closed path; a new original CI run is needed for empirical proof.
+- A001: capture and restore both `statement_timeout` and `lock_timeout`
+  within the existing Alembic transaction after a successful preflight.
+  Any failure still aborts the whole transaction with no manual override.
+- A002 remains a distinct unqualified external gate: operator-visible
+  preflight, least-privilege migration account, backup/restore rehearsal and
+  a preserving migration for existing data. This guard is **not** a safe
+  populated-database upgrade or authorization to launch staging.
+
+This repair is scoped to PR #89, unchanged Product API and original
+historical migration revision ID; no `develop` integration or beta launch.

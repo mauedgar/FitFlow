@@ -42,18 +42,23 @@ RELATIONS = [("public", name, "r") for name in targets] + [
 
 
 class StubConnection:
-    def __init__(self, occupied=(), relations=None, temporary=False, fail_lock=False, current_schema="public"):
+    def __init__(self, occupied=(), relations=None, temporary=False, fail_lock=False, current_schema="public", rls_relations=()):
         self.occupied = set(occupied)
         self.current_schema = current_schema
+        self.rls_relations = set(rls_relations)
         self.relations = RELATIONS if relations is None else relations
         self.temporary = temporary
         self.fail_lock = fail_lock
         self.dialect = dialect()
         self.sql = []
+        self.calls = []
 
     def execute(self, stmt, params=None):
         sql = str(stmt).strip()
         self.sql.append(sql)
+        self.calls.append((sql, params))
+        if sql.startswith("SELECT current_setting"):
+            return SimpleNamespace(scalar_one=lambda: "0")
         if sql == "SELECT current_schema()":
             return SimpleNamespace(scalar_one=lambda: self.current_schema)
         if sql.startswith("SELECT set_config") or sql.startswith("SET LOCAL"):
@@ -69,6 +74,11 @@ class StubConnection:
             return SimpleNamespace(scalar_one=lambda: qualified in self.occupied)
         if sql.startswith("SELECT n.nspname"):
             return SimpleNamespace(all=lambda: self.relations)
+        if sql.startswith("SELECT c.relrowsecurity"):
+            qualified = (params["schema"], params["name"])
+            return SimpleNamespace(
+                one_or_none=lambda: (qualified in self.rls_relations, False)
+            )
         raise AssertionError(f"Unexpected SQL: {sql}")
 
 
@@ -90,8 +100,8 @@ def test_empty_migration_inputs_lock_targets_before_enumerating_all_relations():
     conn = StubConnection()
     guard(conn)
     assert conn.sql[0] == "SELECT current_schema()"
-    assert conn.sql[1].startswith("SET LOCAL lock_timeout")
-    assert conn.sql[3].startswith('LOCK TABLE "public"."teacher_class_association"')
+    assert conn.sql[3].startswith("SET LOCAL lock_timeout")
+    assert conn.sql[5].startswith('LOCK TABLE "public"."teacher_class_association"')
     assert "IN ACCESS EXCLUSIVE MODE" in conn.sql[3]
     assert len([q for q in conn.sql if q.startswith("SELECT EXISTS (SELECT 1 FROM")]) == len(RELATIONS)
 
@@ -147,3 +157,23 @@ def test_nonpublic_search_path_fails_closed_before_any_lock(schema):
         guard(conn)
     assert conn.sql == ["SELECT current_schema()"]
 
+
+@pytest.mark.unit
+def test_rls_enabled_table_refused_before_occupancy_check():
+    conn = StubConnection(rls_relations={("public", "gym_classes")})
+    with pytest.raises(RuntimeError, match="refuses RLS-enabled relation"):
+        guard(conn)
+    assert not any("TRUNCATE TABLE" in q or "DROP TABLE" in q for q in conn.sql)
+    assert 'SELECT EXISTS (SELECT 1 FROM "public"."gym_classes")' not in conn.sql
+
+
+@pytest.mark.unit
+def test_successful_guard_restores_transaction_local_timeouts():
+    conn = StubConnection()
+    guard(conn)
+    assert conn.calls[-2] == (
+        "SELECT set_config('statement_timeout', :value, true)", {"value": "0"}
+    )
+    assert conn.calls[-1] == (
+        "SELECT set_config('lock_timeout', :value, true)", {"value": "0"}
+    )

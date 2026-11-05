@@ -58,7 +58,7 @@ def _require_empty_core_domain_refactor_inputs(bind) -> None:
     """
     deadline = time.monotonic() + 20.0
 
-    def bounded(sql: str):
+    def bounded(sql: str, params=None):
         # PostgreSQL's statement_timeout is per statement, not per preflight.
         # Recompute it from one monotonic deadline for a bounded total budget.
         remaining_ms = int((deadline - time.monotonic()) * 1000)
@@ -68,7 +68,7 @@ def _require_empty_core_domain_refactor_inputs(bind) -> None:
             sa.text("SELECT set_config('statement_timeout', :ms, true)"),
             {"ms": str(remaining_ms)},
         )
-        return bind.execute(sa.text(sql))
+        return bind.execute(sa.text(sql), params)
 
     schema = bind.execute(sa.text("SELECT current_schema()")).scalar_one()
     if schema != "public":
@@ -76,6 +76,12 @@ def _require_empty_core_domain_refactor_inputs(bind) -> None:
             "f5453ed20cdc requires public schema; "
             "nondefault search_path is not qualified for destructive upgrade"
         )
+    original_statement_timeout = bind.execute(
+        sa.text("SELECT current_setting('statement_timeout')")
+    ).scalar_one()
+    original_lock_timeout = bind.execute(
+        sa.text("SELECT current_setting('lock_timeout')")
+    ).scalar_one()
     quote = bind.dialect.identifier_preparer.quote_identifier
     targets = ", ".join(
         f'{quote("public")}.{quote(name)}'
@@ -117,12 +123,40 @@ def _require_empty_core_domain_refactor_inputs(bind) -> None:
                 f"f5453ed20cdc refuses unsupported relation {qualified} ({kind})"
             )
         bounded(f"LOCK TABLE {qualified} IN ACCESS EXCLUSIVE MODE")
+        # Re-read RLS state AFTER locking. A policy enabled between catalog
+        # inventory and lock acquisition must never hide destructive rows.
+        rls = bounded("""
+            SELECT c.relrowsecurity, c.relforcerowsecurity
+            FROM pg_catalog.pg_class AS c
+            JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+            WHERE n.nspname = :schema AND c.relname = :name
+        """, {"schema": schema, "name": name}).one_or_none()
+        if rls is None:
+            raise RuntimeError(
+                f"f5453ed20cdc cannot verify locked relation {qualified}"
+            )
+        if rls[0] or rls[1]:
+            raise RuntimeError(
+                f"f5453ed20cdc refuses RLS-enabled relation {qualified}; "
+                "row visibility is not qualified for destructive upgrade"
+            )
         if bounded(f"SELECT EXISTS (SELECT 1 FROM {qualified})").scalar_one():
             raise RuntimeError(
                 "f5453ed20cdc refuses to discard retained Product data; "
                 f"nonempty table {qualified}; use separately reviewed "
                 "data-preserving migration"
             )
+
+    # Restore transaction-local timeouts on the successful path. On failure,
+    # Alembic rolls back the transaction, including SET LOCAL changes.
+    bind.execute(
+        sa.text("SELECT set_config('statement_timeout', :value, true)"),
+        {"value": original_statement_timeout},
+    )
+    bind.execute(
+        sa.text("SELECT set_config('lock_timeout', :value, true)"),
+        {"value": original_lock_timeout},
+    )
 
 
 # ===========================================================================
