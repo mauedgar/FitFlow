@@ -4,6 +4,7 @@ Revision ID: f5453ed20cdc
 Revises: a2b62b427037
 Create Date: 2026-08-01 00:11:31.452452
 """
+import time
 from typing import Sequence, Union
 
 from alembic import op
@@ -38,9 +39,8 @@ difficulty_level_enum_new = postgresql.ENUM(
 
 
 # The historical revision below drops teacher_class_association and uses
-# TRUNCATE ... CASCADE. It provides no data-preserving conversion. This hard
-# guard is deliberate: an upgrade from populated legacy databases must use a
-# separately reviewed preservation plan, never silently erase Product data.
+# TRUNCATE ... CASCADE. It provides no data-preserving conversion. A populated
+# legacy database needs a separately reviewed forward-preserving migration.
 _CORE_REFACTOR_TARGETS = (
     "teacher_class_association", "bookings", "class_sessions",
     "class_schedules", "gym_classes", "memberships", "clients",
@@ -49,38 +49,67 @@ _CORE_REFACTOR_TARGETS = (
 
 
 def _require_empty_core_domain_refactor_inputs(bind) -> None:
-    """Fail closed before DDL and hold the PostgreSQL locks through commit.
+    """Fail closed on retained user data before DDL; no override allowed.
 
-    Lock the destructive targets first to prevent a concurrent FK addition,
-    then inspect *all* non-system tables, including possible CASCADE children.
-    A conservative false-positive on an unrelated populated table is safer
-    than deleting retained data. Locks and checks share the Alembic transaction.
+    Lock direct destructive targets first, so new foreign keys cannot race
+    the catalog check. Include regular, partitioned and indirect tables across
+    schemas; reject foreign/materialized relations instead of claiming that
+    pg_tables describes all possible TRUNCATE CASCADE descendants.
     """
-    bind.execute(sa.text("SET LOCAL lock_timeout = '5000ms'"))
-    bind.execute(sa.text(
+    deadline = time.monotonic() + 20.0
+
+    def bounded(sql: str):
+        # PostgreSQL's statement_timeout is per statement, not per preflight.
+        # Recompute it from one monotonic deadline for a bounded total budget.
+        remaining_ms = int((deadline - time.monotonic()) * 1000)
+        if remaining_ms <= 0:
+            raise RuntimeError("f5453ed20cdc preflight time budget exceeded")
+        bind.execute(
+            sa.text("SELECT set_config('statement_timeout', :ms, true)"),
+            {"ms": str(remaining_ms)},
+        )
+        return bind.execute(sa.text(sql))
+
+    bind.execute(sa.text("SET LOCAL lock_timeout = '3000ms'"))
+    bounded(
         "LOCK TABLE " + ", ".join(_CORE_REFACTOR_TARGETS)
         + " IN ACCESS EXCLUSIVE MODE"
-    ))
-    tables = bind.execute(sa.text("""
-        SELECT schemaname, tablename
-        FROM pg_catalog.pg_tables
-        WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-          AND schemaname NOT LIKE 'pg_toast%'
-          AND schemaname NOT LIKE 'pg_temp%'
-          AND NOT (schemaname = current_schema() AND tablename = 'alembic_version')
-        ORDER BY schemaname, tablename
-    """)).all()
-    if not tables:
-        raise RuntimeError("f5453ed20cdc preflight could not inspect user tables")
+    )
+    # A temp relation in our session may indicate an unsupported dependency.
+    # Other sessions' temp relations cannot be TRUNCATE targets of this session.
+    temporary = bounded("""
+        SELECT EXISTS (
+          SELECT 1 FROM pg_catalog.pg_class AS c
+          WHERE c.relnamespace = pg_my_temp_schema()
+            AND c.relkind IN ('r', 'p', 'f', 'm')
+        )
+    """).scalar_one()
+    if temporary:
+        raise RuntimeError("f5453ed20cdc preflight refuses temporary relations")
+
+    relations = bounded("""
+        SELECT n.nspname, c.relname, c.relkind
+        FROM pg_catalog.pg_class AS c
+        JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r', 'p', 'f', 'm')
+          AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+          AND n.nspname NOT LIKE 'pg_toast%'
+          AND n.nspname NOT LIKE 'pg_temp%'
+          AND NOT (n.nspname = current_schema() AND c.relname = 'alembic_version')
+        ORDER BY n.nspname, c.relname
+    """).all()
+    if not relations:
+        raise RuntimeError("f5453ed20cdc preflight could not inspect user relations")
+
     quote = bind.dialect.identifier_preparer.quote_identifier
-    for schema, table in tables:
-        qualified = f"{quote(schema)}.{quote(table)}"
-        bind.execute(sa.text(
-            f"LOCK TABLE {qualified} IN ACCESS EXCLUSIVE MODE"
-        ))
-        if bind.execute(sa.text(
-            f"SELECT EXISTS (SELECT 1 FROM {qualified})"
-        )).scalar_one():
+    for schema, name, kind in relations:
+        qualified = f"{quote(schema)}.{quote(name)}"
+        if kind not in ("r", "p"):
+            raise RuntimeError(
+                f"f5453ed20cdc refuses unsupported relation {qualified} ({kind})"
+            )
+        bounded(f"LOCK TABLE {qualified} IN ACCESS EXCLUSIVE MODE")
+        if bounded(f"SELECT EXISTS (SELECT 1 FROM {qualified})").scalar_one():
             raise RuntimeError(
                 "f5453ed20cdc refuses to discard retained Product data; "
                 f"nonempty table {qualified}; use separately reviewed "

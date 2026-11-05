@@ -1,90 +1,135 @@
-"""Isolated fail-closed unit proof for historical Alembic revision f5453ed20cdc.
+"""Isolated AST-extracted unit proof for Alembic f5453ed20cdc safety.
 
-Does not connect to any database, run Alembic CLI, or touch retained data.
-Integration qualification on disposable PostgreSQL remains a separate gate.
+The repo has a local backend/alembic package that shadows installed Alembic
+under pytest. Compile the exact guard AST without importing the migration
+module; no real database, migration or DDL is executed by this unit test.
 """
-import importlib.util
+import ast
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import dialect
 
 MIGRATION_PATH = (
     Path(__file__).resolve().parents[2] / "alembic" / "versions"
     / "f5453ed20cdc_core_domain_refactor.py"
 )
-spec = importlib.util.spec_from_file_location("fitflow_f5453ed20cdc_guard", MIGRATION_PATH)
-assert spec is not None and spec.loader is not None
-migration = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(migration)
+source = ast.parse(MIGRATION_PATH.read_text(encoding="utf-8"))
+guard_node = next(
+    x for x in source.body
+    if isinstance(x, ast.FunctionDef) and x.name == "_require_empty_core_domain_refactor_inputs"
+)
+targets_node = next(
+    x for x in source.body
+    if isinstance(x, ast.Assign)
+    and any(isinstance(t, ast.Name) and t.id == "_CORE_REFACTOR_TARGETS" for t in x.targets)
+)
+namespace = {"sa": sa, "time": time}
+exec(
+    compile(ast.Module(body=[targets_node, guard_node], type_ignores=[]), str(MIGRATION_PATH), "exec"),
+    namespace,
+)
+guard = namespace["_require_empty_core_domain_refactor_inputs"]
+targets = namespace["_CORE_REFACTOR_TARGETS"]
 
-TABLES = [("public", table) for table in migration._CORE_REFACTOR_TARGETS] + [
-    ("audit", "external_referencing_table"),
-    ("public", "other_data"),
+RELATIONS = [("public", name, "r") for name in targets] + [
+    ("external", "indirect_cascade_child", "r"),
+    ("public", "partitioned_parent", "p"),
 ]
 
 
 class StubConnection:
-    def __init__(self, occupied=(), fail_lock=False, catalog=None):
+    def __init__(self, occupied=(), relations=None, temporary=False, fail_lock=False):
         self.occupied = set(occupied)
+        self.relations = RELATIONS if relations is None else relations
+        self.temporary = temporary
         self.fail_lock = fail_lock
-        self.catalog = TABLES if catalog is None else catalog
-        self.queries = []
         self.dialect = dialect()
+        self.sql = []
 
-    def execute(self, stmt):
+    def execute(self, stmt, params=None):
         sql = str(stmt).strip()
-        self.queries.append(sql)
-        if sql.startswith("SET LOCAL"):
+        self.sql.append(sql)
+        if sql.startswith("SELECT set_config") or sql.startswith("SET LOCAL"):
             return SimpleNamespace()
         if sql.startswith("LOCK TABLE"):
             if self.fail_lock:
                 raise RuntimeError("lock denied")
             return SimpleNamespace()
-        if sql.startswith("SELECT schemaname"):
-            return SimpleNamespace(all=lambda: self.catalog)
         if sql.startswith("SELECT EXISTS"):
+            if "pg_my_temp_schema()" in sql:
+                return SimpleNamespace(scalar_one=lambda: self.temporary)
             qualified = sql.split("FROM ")[1].split(")")[0]
             return SimpleNamespace(scalar_one=lambda: qualified in self.occupied)
+        if sql.startswith("SELECT n.nspname"):
+            return SimpleNamespace(all=lambda: self.relations)
         raise AssertionError(f"Unexpected SQL: {sql}")
 
 
 @pytest.mark.unit
-def test_empty_revision_inputs_lock_before_reading_all_user_tables():
+def test_guard_is_first_upgrade_effect_before_enum_or_drop():
+    upgrade = next(
+        x for x in source.body if isinstance(x, ast.FunctionDef) and x.name == "upgrade"
+    )
+    assert isinstance(upgrade.body[0], ast.Assign)
+    assert isinstance(upgrade.body[1], ast.Expr)
+    call = upgrade.body[1].value
+    assert isinstance(call, ast.Call)
+    assert isinstance(call.func, ast.Name)
+    assert call.func.id == "_require_empty_core_domain_refactor_inputs"
+
+
+@pytest.mark.unit
+def test_empty_migration_inputs_lock_targets_before_enumerating_all_relations():
     conn = StubConnection()
-    migration._require_empty_core_domain_refactor_inputs(conn)
-    assert conn.queries[0].startswith("SET LOCAL lock_timeout")
-    assert conn.queries[1].startswith("LOCK TABLE teacher_class_association")
-    assert "IN ACCESS EXCLUSIVE MODE" in conn.queries[1]
-    assert len([q for q in conn.queries if q.startswith("SELECT EXISTS")]) == len(TABLES)
-    assert 'SELECT EXISTS (SELECT 1 FROM "audit"."external_referencing_table")' in conn.queries
+    guard(conn)
+    assert conn.sql[0].startswith("SET LOCAL lock_timeout")
+    assert conn.sql[2].startswith("LOCK TABLE teacher_class_association")
+    assert "IN ACCESS EXCLUSIVE MODE" in conn.sql[2]
+    assert len([q for q in conn.sql if q.startswith("SELECT EXISTS (SELECT 1 FROM")]) == len(RELATIONS)
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("schema,table", TABLES)
-def test_any_retained_table_blocks_destructive_upgrade_before_ddl(
-    monkeypatch, schema, table,
-):
-    conn = StubConnection([f'"{schema}"."{table}"'])
-    monkeypatch.setattr(migration.op, "get_bind", lambda: conn)
+@pytest.mark.parametrize("schema,name,kind", RELATIONS)
+def test_any_retained_user_table_blocks_destructive_upgrade(schema, name, kind):
+    conn = StubConnection({f'"{schema}"."{name}"'})
     with pytest.raises(RuntimeError, match="refuses to discard retained Product data"):
-        migration.upgrade()
-    assert conn.queries[1].startswith("LOCK TABLE")
-    assert not any("TRUNCATE TABLE" in q or "DROP TABLE" in q for q in conn.queries)
+        guard(conn)
+    assert not any("TRUNCATE TABLE" in q or "DROP TABLE" in q for q in conn.sql)
 
 
 @pytest.mark.unit
-def test_lock_conflict_fails_closed(monkeypatch):
-    conn = StubConnection(fail_lock=True)
-    monkeypatch.setattr(migration.op, "get_bind", lambda: conn)
+@pytest.mark.parametrize("kind", ["f", "m"])
+def test_foreign_and_materialized_relations_refused_without_scanning_remote_data(kind):
+    conn = StubConnection(relations=[("external", "unsupported_relation", kind)])
+    with pytest.raises(RuntimeError, match="unsupported relation"):
+        guard(conn)
+
+
+@pytest.mark.unit
+def test_local_temporary_relation_fails_closed():
+    with pytest.raises(RuntimeError, match="temporary relations"):
+        guard(StubConnection(temporary=True))
+
+
+@pytest.mark.unit
+def test_lock_failure_fails_closed_before_ddl():
     with pytest.raises(RuntimeError, match="lock denied"):
-        migration.upgrade()
-    assert len(conn.queries) == 2
+        guard(StubConnection(fail_lock=True))
 
 
 @pytest.mark.unit
-def test_unknown_catalog_fails_closed():
-    conn = StubConnection(catalog=[])
-    with pytest.raises(RuntimeError, match="could not inspect user tables"):
-        migration._require_empty_core_domain_refactor_inputs(conn)
+def test_missing_catalog_fails_closed():
+    with pytest.raises(RuntimeError, match="could not inspect user relations"):
+        guard(StubConnection(relations=[]))
+
+
+@pytest.mark.unit
+def test_deadline_exhaustion_is_a_fail_closed_result(monkeypatch):
+    values = iter([100.0, 121.0])
+    monkeypatch.setattr(time, "monotonic", lambda: next(values))
+    with pytest.raises(RuntimeError, match="time budget exceeded"):
+        guard(StubConnection())

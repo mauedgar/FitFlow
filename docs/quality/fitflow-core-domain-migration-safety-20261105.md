@@ -64,3 +64,36 @@ The workflow installs pinned uv, upgrades a disposable PG15 fixture, compares
 two schema dumps and uploads an immutable artifact; it never writes to Git.
 
 Previous run failures are preserved; the successor requires new exact CI.
+
+## IR001 repair candidate, after exact run failures
+
+IR001 on commit `94c96fc5207d6bb107a249e501931888108c7cfb`
+reported F001/F002/F003 and A001/A002/A003; no historical PASS is
+transferred. Native baseline [run 42080556397](https://github.com/mauedgar/FitFlow/actions/runs/42080556397)
+failed collection: importing the migration file from pytest resolved the
+local `backend/alembic` package rather than the installed package.
+The new unit tests compile the *exact AST* of the guard and statically
+check that it is the first upgrade effect, avoiding package shadowing.
+
+Scope of repair:
+- Enumerate PostgreSQL `pg_class` regular and partitioned relations
+  across schemas rather than merely `pg_tables`. Reject foreign and
+  materialized relations rather than silently claiming completeness.
+  Refuse session temporary relations. All catalog identifiers are quoted.
+  Lock target relations before catalog inspection and other relations before
+  occupancy checks; fail on permissions or lock conflicts.
+- One 20-second monotonic deadline is converted into remaining PostgreSQL
+  `statement_timeout` for each statement; bounded lock waits (3 seconds).
+  A failure aborts the Alembic transactional upgrade. It may reject unrelated
+  populated tables intentionally; it never attempts to preserve data.
+- Add a disposable PG15 **negative fixture** to `update-schema.yml`:
+  reach predecessor `a2b62b427037`, seed isolated retained data, expect
+  an exact `f5453ed20cdc` fail-closed error, assert both data and revision
+  survive; keep the original positive empty-database migration.
+  No real/staging/production DB, no reset or volume deletion.
+- Residual operator gate: preflight before `docker compose up`, least-
+  privileged role qualification, retained-data upgrade plan and backup/
+  restoration are separate prerequisites. An already-applied revision does not
+  run this historical guard again.
+
+Fresh original CI and a new independent IR are required for this successor.

@@ -70,6 +70,45 @@ jobs:
         working-directory: backend
         run: alembic upgrade head
 
+      - name: Negative proof — retain data and Alembic revision on populated pre-refactor PG15
+        shell: bash
+        env:
+          DATABASE_URL: postgresql+psycopg2://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_guard
+        run: |
+          set -euo pipefail
+          # Only the disposable GitHub Actions service. No staging or external DB.
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          from sqlalchemy.engine import make_url
+          url = make_url(os.environ["DATABASE_URL"])
+          with create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT").connect() as c:
+              c.execute(text("CREATE DATABASE fitflow_guard"))
+          PY
+          (cd backend && alembic upgrade a2b62b427037)
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ["DATABASE_URL"]).begin() as c:
+              c.execute(text("CREATE TABLE core_refactor_guard_probe (id integer primary key)"))
+              c.execute(text("INSERT INTO core_refactor_guard_probe (id) VALUES (1)"))
+          PY
+          if (cd backend && alembic upgrade head) > "$RUNNER_TEMP/fitflow-negative-migration.log" 2>&1; then
+            echo "FAIL: populated disposable database was upgraded" >&2
+            exit 1
+          fi
+          grep -q "f5453ed20cdc refuses to discard retained Product data" "$RUNNER_TEMP/fitflow-negative-migration.log"
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ["DATABASE_URL"]).connect() as c:
+              revision = c.scalar(text("SELECT version_num FROM alembic_version"))
+              count = c.scalar(text("SELECT count(*) FROM core_refactor_guard_probe"))
+          assert revision == "a2b62b427037", revision
+          assert count == 1, count
+          print("FAIL_CLOSED_PG15_RETENTION_PASS")
+          PY
+
       - name: Generate reviewable schema with PostgreSQL 15 client, no Git write
         shell: bash
         env:
