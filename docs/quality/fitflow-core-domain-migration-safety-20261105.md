@@ -178,3 +178,19 @@ not updated after insertion of two `current_setting` calls.
 The independent PG15 schema workflow `42094383676` was SUCCESS on the
 original failing baseline SHA. Neither CI verdict transfers to this
 successor; fresh exact runs and independent review remain required.
+
+## IR006 PASS_SEGMENT follow-up — timeout evidence
+
+IR006 independently verified `4e2c77b055b0e91f22003a2dede8a8fd865159ea`
+with exact CI runs `42095241281` (schema PASS) and `42095241129`
+(backend/frontend PASS, 267 tests). It issued PASS_SEGMENT, 0 findings
+and 2 advisories: A001 requested explicit coverage for pre-existing
+non-default PostgreSQL statement/lock timeouts; A002 remains the
+separate external retained-data deployment gate.
+
+This successor adds parametrized unit coverage of **two distinct
+non-default timeout pairs** and asserts restoration preserves each
+original value. Production migration SQL and its refusal semantics
+remain unchanged. The separate A002 external operator preflight,
+backup/restore and forward-preserving strategy remain unqualified.
+A new exact CI and IR are required before recommending any acceptance.

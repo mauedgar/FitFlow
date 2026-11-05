@@ -42,10 +42,16 @@ RELATIONS = [("public", name, "r") for name in targets] + [
 
 
 class StubConnection:
-    def __init__(self, occupied=(), relations=None, temporary=False, fail_lock=False, current_schema="public", rls_relations=()):
+    def __init__(
+        self, occupied=(), relations=None, temporary=False, fail_lock=False,
+        current_schema="public", rls_relations=(),
+        statement_timeout="0", lock_timeout="0",
+    ):
         self.occupied = set(occupied)
         self.current_schema = current_schema
         self.rls_relations = set(rls_relations)
+        self.statement_timeout = statement_timeout
+        self.lock_timeout = lock_timeout
         self.relations = RELATIONS if relations is None else relations
         self.temporary = temporary
         self.fail_lock = fail_lock
@@ -57,8 +63,10 @@ class StubConnection:
         sql = str(stmt).strip()
         self.sql.append(sql)
         self.calls.append((sql, params))
-        if sql.startswith("SELECT current_setting"):
-            return SimpleNamespace(scalar_one=lambda: "0")
+        if sql == "SELECT current_setting('statement_timeout')":
+            return SimpleNamespace(scalar_one=lambda: self.statement_timeout)
+        if sql == "SELECT current_setting('lock_timeout')":
+            return SimpleNamespace(scalar_one=lambda: self.lock_timeout)
         if sql == "SELECT current_schema()":
             return SimpleNamespace(scalar_one=lambda: self.current_schema)
         if sql.startswith("SELECT set_config") or sql.startswith("SET LOCAL"):
@@ -176,4 +184,23 @@ def test_successful_guard_restores_transaction_local_timeouts():
     )
     assert conn.calls[-1] == (
         "SELECT set_config('lock_timeout', :value, true)", {"value": "0"}
+    )
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "statement_timeout,lock_timeout",
+    [("45s", "1250ms"), ("10min", "7s")],
+)
+def test_nondefault_timeouts_are_restored_exactly(statement_timeout, lock_timeout):
+    conn = StubConnection(
+        statement_timeout=statement_timeout, lock_timeout=lock_timeout
+    )
+    guard(conn)
+    assert conn.calls[-2] == (
+        "SELECT set_config('statement_timeout', :value, true)",
+        {"value": statement_timeout},
+    )
+    assert conn.calls[-1] == (
+        "SELECT set_config('lock_timeout', :value, true)",
+        {"value": lock_timeout},
     )
