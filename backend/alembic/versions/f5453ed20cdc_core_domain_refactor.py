@@ -4,6 +4,7 @@ Revision ID: f5453ed20cdc
 Revises: a2b62b427037
 Create Date: 2026-08-01 00:11:31.452452
 """
+import time
 from typing import Sequence, Union
 
 from alembic import op
@@ -37,11 +38,133 @@ difficulty_level_enum_new = postgresql.ENUM(
 )  # temporal mientras dropeamos la vieja
 
 
+# The historical revision below drops teacher_class_association and uses
+# TRUNCATE ... CASCADE. It provides no data-preserving conversion. A populated
+# legacy database needs a separately reviewed forward-preserving migration.
+_CORE_REFACTOR_TARGETS = (
+    "teacher_class_association", "bookings", "class_sessions",
+    "class_schedules", "gym_classes", "memberships", "clients",
+    "teachers", "persons",
+)
+
+
+def _require_empty_core_domain_refactor_inputs(bind) -> None:
+    """Fail closed on retained user data before DDL; no override allowed.
+
+    Lock direct destructive targets first, so new foreign keys cannot race
+    the catalog check. Include regular, partitioned and indirect tables across
+    schemas; reject foreign/materialized relations instead of claiming that
+    pg_tables describes all possible TRUNCATE CASCADE descendants.
+    """
+    deadline = time.monotonic() + 20.0
+
+    def bounded(sql: str, params=None):
+        # PostgreSQL's statement_timeout is per statement, not per preflight.
+        # Recompute it from one monotonic deadline for a bounded total budget.
+        remaining_ms = int((deadline - time.monotonic()) * 1000)
+        if remaining_ms <= 0:
+            raise RuntimeError("f5453ed20cdc preflight time budget exceeded")
+        bind.execute(
+            sa.text("SELECT set_config('statement_timeout', :ms, true)"),
+            {"ms": str(remaining_ms)},
+        )
+        return bind.execute(sa.text(sql), params)
+
+    schema = bind.execute(sa.text("SELECT current_schema()")).scalar_one()
+    if schema != "public":
+        raise RuntimeError(
+            "f5453ed20cdc requires public schema; "
+            "nondefault search_path is not qualified for destructive upgrade"
+        )
+    original_statement_timeout = bind.execute(
+        sa.text("SELECT current_setting('statement_timeout')")
+    ).scalar_one()
+    original_lock_timeout = bind.execute(
+        sa.text("SELECT current_setting('lock_timeout')")
+    ).scalar_one()
+    quote = bind.dialect.identifier_preparer.quote_identifier
+    targets = ", ".join(
+        f'{quote("public")}.{quote(name)}'
+        for name in _CORE_REFACTOR_TARGETS
+    )
+    bind.execute(sa.text("SET LOCAL lock_timeout = '3000ms'"))
+    bounded("LOCK TABLE " + targets + " IN ACCESS EXCLUSIVE MODE")
+    # A temp relation in our session may indicate an unsupported dependency.
+    # Other sessions' temp relations cannot be TRUNCATE targets of this session.
+    temporary = bounded("""
+        SELECT EXISTS (
+          SELECT 1 FROM pg_catalog.pg_class AS c
+          WHERE c.relnamespace = pg_my_temp_schema()
+            AND c.relkind IN ('r', 'p', 'f', 'm')
+        )
+    """).scalar_one()
+    if temporary:
+        raise RuntimeError("f5453ed20cdc preflight refuses temporary relations")
+
+    relations = bounded("""
+        SELECT n.nspname, c.relname, c.relkind
+        FROM pg_catalog.pg_class AS c
+        JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r', 'p', 'f', 'm')
+          AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+          AND n.nspname NOT LIKE 'pg_toast%'
+          AND n.nspname NOT LIKE 'pg_temp%'
+          AND NOT (n.nspname = 'public' AND c.relname = 'alembic_version')
+        ORDER BY n.nspname, c.relname
+    """).all()
+    if not relations:
+        raise RuntimeError("f5453ed20cdc preflight could not inspect user relations")
+
+    quote = bind.dialect.identifier_preparer.quote_identifier
+    for schema, name, kind in relations:
+        qualified = f"{quote(schema)}.{quote(name)}"
+        if kind not in ("r", "p"):
+            raise RuntimeError(
+                f"f5453ed20cdc refuses unsupported relation {qualified} ({kind})"
+            )
+        bounded(f"LOCK TABLE {qualified} IN ACCESS EXCLUSIVE MODE")
+        # Re-read RLS state AFTER locking. A policy enabled between catalog
+        # inventory and lock acquisition must never hide destructive rows.
+        rls = bounded("""
+            SELECT c.relrowsecurity, c.relforcerowsecurity
+            FROM pg_catalog.pg_class AS c
+            JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+            WHERE n.nspname = :schema AND c.relname = :name
+        """, {"schema": schema, "name": name}).one_or_none()
+        if rls is None:
+            raise RuntimeError(
+                f"f5453ed20cdc cannot verify locked relation {qualified}"
+            )
+        if rls[0] or rls[1]:
+            raise RuntimeError(
+                f"f5453ed20cdc refuses RLS-enabled relation {qualified}; "
+                "row visibility is not qualified for destructive upgrade"
+            )
+        if bounded(f"SELECT EXISTS (SELECT 1 FROM {qualified})").scalar_one():
+            raise RuntimeError(
+                "f5453ed20cdc refuses to discard retained Product data; "
+                f"nonempty table {qualified}; use separately reviewed "
+                "data-preserving migration"
+            )
+
+    # Restore transaction-local timeouts on the successful path. On failure,
+    # Alembic rolls back the transaction, including SET LOCAL changes.
+    bind.execute(
+        sa.text("SELECT set_config('statement_timeout', :value, true)"),
+        {"value": original_statement_timeout},
+    )
+    bind.execute(
+        sa.text("SELECT set_config('lock_timeout', :value, true)"),
+        {"value": original_lock_timeout},
+    )
+
+
 # ===========================================================================
 # UPGRADE
 # ===========================================================================
 def upgrade() -> None:
     bind = op.get_bind()
+    _require_empty_core_domain_refactor_inputs(bind)
 
     # 1. Crear nuevos ENUMS --------------------------------------------------
     for enum_type in (
