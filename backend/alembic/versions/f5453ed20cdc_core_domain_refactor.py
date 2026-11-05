@@ -37,11 +37,63 @@ difficulty_level_enum_new = postgresql.ENUM(
 )  # temporal mientras dropeamos la vieja
 
 
+# The historical revision below drops teacher_class_association and uses
+# TRUNCATE ... CASCADE. It provides no data-preserving conversion. This hard
+# guard is deliberate: an upgrade from populated legacy databases must use a
+# separately reviewed preservation plan, never silently erase Product data.
+_CORE_REFACTOR_TARGETS = (
+    "teacher_class_association", "bookings", "class_sessions",
+    "class_schedules", "gym_classes", "memberships", "clients",
+    "teachers", "persons",
+)
+
+
+def _require_empty_core_domain_refactor_inputs(bind) -> None:
+    """Fail closed before DDL and hold the PostgreSQL locks through commit.
+
+    Lock the destructive targets first to prevent a concurrent FK addition,
+    then inspect *all* non-system tables, including possible CASCADE children.
+    A conservative false-positive on an unrelated populated table is safer
+    than deleting retained data. Locks and checks share the Alembic transaction.
+    """
+    bind.execute(sa.text("SET LOCAL lock_timeout = '5000ms'"))
+    bind.execute(sa.text(
+        "LOCK TABLE " + ", ".join(_CORE_REFACTOR_TARGETS)
+        + " IN ACCESS EXCLUSIVE MODE"
+    ))
+    tables = bind.execute(sa.text("""
+        SELECT schemaname, tablename
+        FROM pg_catalog.pg_tables
+        WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
+          AND schemaname NOT LIKE 'pg_toast%'
+          AND schemaname NOT LIKE 'pg_temp%'
+          AND NOT (schemaname = current_schema() AND tablename = 'alembic_version')
+        ORDER BY schemaname, tablename
+    """)).all()
+    if not tables:
+        raise RuntimeError("f5453ed20cdc preflight could not inspect user tables")
+    quote = bind.dialect.identifier_preparer.quote_identifier
+    for schema, table in tables:
+        qualified = f"{quote(schema)}.{quote(table)}"
+        bind.execute(sa.text(
+            f"LOCK TABLE {qualified} IN ACCESS EXCLUSIVE MODE"
+        ))
+        if bind.execute(sa.text(
+            f"SELECT EXISTS (SELECT 1 FROM {qualified})"
+        )).scalar_one():
+            raise RuntimeError(
+                "f5453ed20cdc refuses to discard retained Product data; "
+                f"nonempty table {qualified}; use separately reviewed "
+                "data-preserving migration"
+            )
+
+
 # ===========================================================================
 # UPGRADE
 # ===========================================================================
 def upgrade() -> None:
     bind = op.get_bind()
+    _require_empty_core_domain_refactor_inputs(bind)
 
     # 1. Crear nuevos ENUMS --------------------------------------------------
     for enum_type in (
