@@ -58,6 +58,7 @@ class StubConnection:
         self.dialect = dialect()
         self.sql = []
         self.calls = []
+        self.timeout_transitions = []
 
     def execute(self, stmt, params=None):
         sql = str(stmt).strip()
@@ -69,7 +70,27 @@ class StubConnection:
             return SimpleNamespace(scalar_one=lambda: self.lock_timeout)
         if sql == "SELECT current_schema()":
             return SimpleNamespace(scalar_one=lambda: self.current_schema)
-        if sql.startswith("SELECT set_config") or sql.startswith("SET LOCAL"):
+        if sql == "SELECT set_config('statement_timeout', :ms, true)":
+            self.statement_timeout = params["ms"]
+            self.timeout_transitions.append(
+                ("statement_timeout", self.statement_timeout)
+            )
+            return SimpleNamespace()
+        if sql == "SELECT set_config('statement_timeout', :value, true)":
+            self.statement_timeout = params["value"]
+            self.timeout_transitions.append(
+                ("statement_timeout", self.statement_timeout)
+            )
+            return SimpleNamespace()
+        if sql == "SELECT set_config('lock_timeout', :value, true)":
+            self.lock_timeout = params["value"]
+            self.timeout_transitions.append(
+                ("lock_timeout", self.lock_timeout)
+            )
+            return SimpleNamespace()
+        if sql == "SET LOCAL lock_timeout = '3000ms'":
+            self.lock_timeout = "3000ms"
+            self.timeout_transitions.append(("lock_timeout", self.lock_timeout))
             return SimpleNamespace()
         if sql.startswith("LOCK TABLE"):
             if self.fail_lock:
@@ -204,3 +225,16 @@ def test_nondefault_timeouts_are_restored_exactly(statement_timeout, lock_timeou
         "SELECT set_config('lock_timeout', :value, true)",
         {"value": lock_timeout},
     )
+    # The stub models the intermediate mutations as well as their reversal,
+    # rather than merely recording the final SQL and bound parameters.
+    assert any(
+        name == "statement_timeout" and value != statement_timeout
+        for name, value in conn.timeout_transitions
+    )
+    assert ("lock_timeout", "3000ms") in conn.timeout_transitions
+    assert conn.timeout_transitions[-2:] == [
+        ("statement_timeout", statement_timeout),
+        ("lock_timeout", lock_timeout),
+    ]
+    assert conn.statement_timeout == statement_timeout
+    assert conn.lock_timeout == lock_timeout

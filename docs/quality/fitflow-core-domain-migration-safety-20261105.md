@@ -194,3 +194,24 @@ original value. Production migration SQL and its refusal semantics
 remain unchanged. The separate A002 external operator preflight,
 backup/restore and forward-preserving strategy remain unqualified.
 A new exact CI and IR are required before recommending any acceptance.
+
+## IR007 A001 repair — stateful timeout stub (new candidate)
+
+IR007 reviewed `982bd63a7fcc160c39d761f49a428128a6502180`
+with native schema run `42096307879` and baseline run `42096308473`
+(both SUCCESS), returning `PASS_SEGMENT / 0F / 1A`. Advisory A001
+(LOW) observed that the test stub only recorded `set_config` calls
+without modeling their effect on effective timeout settings.
+
+This successor changes **only the isolated test stub and DocImpact**.
+The stub tracks transaction-local `statement_timeout` changes and
+`SET LOCAL lock_timeout`, then tracks their restoration. Parametrized
+non-default timeout tests assert both an intermediate change and
+exact final value restoration. The production migration and schema
+workflow are not modified.
+
+R007 remains `NOT_READY`. Deployment prerequisites (operator
+preflight, backup/restore, least-privilege runtime and a data-preserving
+upgrade for populated databases) remain separate and unresolved.
+Fresh original CI and independent IR are necessary for this successor;
+prior CI/IR verdicts do not transfer.
