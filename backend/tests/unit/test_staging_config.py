@@ -1,11 +1,10 @@
 """Configuration contract for staging without weakening development or tests."""
 
 import pytest
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import ValidationError
-
 from app.core.config import Settings, settings
 from app.main import app
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import ValidationError
 
 
 def make_settings(**overrides: object) -> Settings:
@@ -13,6 +12,7 @@ def make_settings(**overrides: object) -> Settings:
         "_env_file": None,
         "ENV": "staging",
         "DEBUG": False,
+        "TESTING": False,
         "DATABASE_URL": "postgresql://fitflow:secret@postgres:5432/fitflow",
         "SECRET_KEY": "injected-at-runtime",
         "REDIS_URL": "redis://redis:6379/0",
@@ -60,6 +60,7 @@ def test_application_uses_configured_cors_origins() -> None:
     ("override", "message"),
     [
         ({"DEBUG": True}, "DEBUG must be false"),
+        ({"TESTING": True}, "TESTING must be false"),
         ({"REDIS_URL": None}, "REDIS_URL is required"),
         ({"BACKEND_CORS_ORIGINS": []}, "BACKEND_CORS_ORIGINS is required"),
         (

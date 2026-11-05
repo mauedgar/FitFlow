@@ -1,9 +1,8 @@
 import sys
 
 import pytest
-from sqlalchemy.orm import configure_mappers
-
 from app.db.base import Base
+from sqlalchemy.orm import configure_mappers
 
 
 @pytest.mark.smoke

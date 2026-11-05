@@ -1,13 +1,15 @@
+from __future__ import annotations
+
 import uuid
 from typing import TYPE_CHECKING
-
-from sqlalchemy import CheckConstraint, Enum as SQLAlchemyEnum, Integer, String
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.enums import ActivityType, DifficultyLevel
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, SoftDeleteMixin, TimestampMixin
+from sqlalchemy import CheckConstraint, Integer, String
+from sqlalchemy import Enum as SQLAlchemyEnum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from app.db.models.class_schedule import ClassSchedule
@@ -67,7 +69,7 @@ class GymClass(Base, TimestampMixin, ActiveMixin, SoftDeleteMixin):
     image_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Relación con los horarios recurrentes en los que esta actividad se ofrece.
-    class_schedules: Mapped[list["ClassSchedule"]] = relationship(
+    class_schedules: Mapped[list[ClassSchedule]] = relationship(
         "ClassSchedule",
         back_populates="gym_class",
         cascade="all, delete-orphan",

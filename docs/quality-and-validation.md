@@ -2,8 +2,8 @@
 document_id: FF-QUALITY-001
 status: canonical
 machine_context: true
-version: 5.0
-updated: 2026-08-18
+version: 5.1
+updated: 2026-11-02
 ---
 
 # Calidad y validación
@@ -37,6 +37,32 @@ powershell -ExecutionPolicy Bypass -File scripts/quality/run_backend_validation.
 
 Los wrappers usan exclusivamente Compose `fitflow-test` y la base
 `fitflow_test`; no el Python local ni la DB de desarrollo.
+
+## Dependencias Python (Product backend)
+
+La autoridad de versiones es `pyproject.toml` junto con `uv.lock`.
+Los archivos `backend/requirements_backend.txt` (runtime) y
+`backend/requirements_test.txt` (runtime + herramientas dev/test) son
+**exportaciones derivadas**, con hashes, nunca fuentes independientes ni archivos
+para modificar manualmente. La actualización de dependencias se propone en un
+candidato aislado, con lock y tests exactos antes de aceptación Product.
+
+Comandos de regeneración, desde la raíz, con `uv==0.13.6` en un entorno aislado:
+
+```sh
+uv lock --upgrade
+uv lock --check
+uv export --locked --no-dev --format requirements.txt --output-file backend/requirements_backend.txt
+uv export --locked --group dev --format requirements.txt --output-file backend/requirements_test.txt
+```
+
+Versionar los cuatro archivos de manifiesto/lock/exports como un mismo cambio.
+Calificar instalación y `pip check`, suite backend, Ruff y Pyright con versiones
+fijadas, Docker build y compatibilidad de PostgreSQL según riesgo. El historial
+Alembic no se autofixea junto a código Product. Las validaciones anteriores de
+compatibilidad cubren CPython 3.15.2 como único baseline operativo; versiones anteriores se admiten exclusivamente como fixtures históricos aislados y
+modificación explícita del rango de soporte en un candidato nuevo. Una
+actualización del driver de base de datos puede requerir validación TLS aislada.
 
 ## Gates por cambio
 
@@ -84,3 +110,8 @@ resultado ya observado.
 
 Endpoints, funciones públicas, métodos CRUD, services y helpers no triviales
 requieren docstring breve que describa contrato o comportamiento, no la sintaxis.
+
+
+## Baseline de Python 3.15 (2026-11-04)
+
+La responsabilidad `FITFLOW-PY315-BASELINE-20261104-001` fija CPython 3.15.2 como intérprete operativo de backend, contenedores y CI, mediante `.python-version` y `requires-python = ">=3.15,<3.16"`. El entorno de Python 3.11 de las pruebas de compatibilidad de hashes bcrypt es exclusivamente una herramienta de caracterización heredada, no soporte de producto. Cada actualización de parche requiere nuevo candidato con `uv lock --check`, exports originados por uv, CI exacta e Independent Review. No se aceptan hashes regenerados a mano ni despliegue real por el mero cambio de baseline. La adopción en develop requiere integración y validación posteriores.

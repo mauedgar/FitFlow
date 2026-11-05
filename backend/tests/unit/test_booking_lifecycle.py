@@ -3,12 +3,12 @@ from types import SimpleNamespace
 from typing import cast
 
 import pytest
-
 from app.core.enums import BookingStatus, ClassSessionStatus, MembershipStatus
 from app.db.models import Booking, ClassSession, Membership
 from app.services.booking_service import (
     validate_booking_cancellation,
     validate_booking_creation,
+    validate_no_duplicate_booking,
 )
 from app.services.errors import BusinessValidationError, ConflictError
 
@@ -61,3 +61,22 @@ def test_cancellation_rejects_a_second_cancellation() -> None:
 def test_cancellation_does_not_rewrite_attendance_history(status: BookingStatus) -> None:
     with pytest.raises(BusinessValidationError):
         validate_booking_cancellation(cast(Booking, SimpleNamespace(status=status)))
+
+
+@pytest.mark.parametrize("status", [BookingStatus.cancelled])
+def test_cancelled_history_does_not_block_new_booking(status: BookingStatus) -> None:
+    """The pure duplicate validator agrees with the atomic CRUD rebooking rule."""
+    session = cast(ClassSession, SimpleNamespace(bookings=[SimpleNamespace(client_id="client1", status=status)]))
+    validate_no_duplicate_booking("client1", session)
+
+
+@pytest.mark.parametrize("status", [BookingStatus.confirmed, BookingStatus.attended, BookingStatus.no_show])
+def test_active_or_historical_noncancelled_booking_prevents_duplicate(status: BookingStatus) -> None:
+    session = cast(ClassSession, SimpleNamespace(bookings=[SimpleNamespace(client_id="client1", status=status)]))
+    with pytest.raises(ConflictError):
+        validate_no_duplicate_booking("client1", session)
+
+
+def test_other_client_booking_does_not_trigger_duplicate() -> None:
+    session = cast(ClassSession, SimpleNamespace(bookings=[SimpleNamespace(client_id="other", status=BookingStatus.confirmed)]))
+    validate_no_duplicate_booking("client1", session)

@@ -141,6 +141,9 @@ $configurationValues = [ordered]@{
     LOG_LEVEL = (Get-EnvironmentValueOrDefault -Name "LOG_LEVEL" -DefaultValue "INFO")
     STAGING_BACKEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_BACKEND_PORT" -DefaultValue "18000")
     STAGING_FRONTEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_FRONTEND_PORT" -DefaultValue "18080")
+    FITFLOW_EDGE_SUBNET = (Get-EnvironmentValueOrDefault -Name "FITFLOW_EDGE_SUBNET" -DefaultValue "172.30.251.0/24")
+    FITFLOW_TRUSTED_PROXY_IP = (Get-EnvironmentValueOrDefault -Name "FITFLOW_TRUSTED_PROXY_IP" -DefaultValue "172.30.251.10")
+    FITFLOW_REFRESH_ACK_POLICY = (Get-EnvironmentValueOrDefault -Name "FITFLOW_REFRESH_ACK_POLICY" -DefaultValue "required")
     VITE_API_BASE_URL = (Get-EnvironmentValueOrDefault -Name "VITE_API_BASE_URL" -DefaultValue "/api/v1")
     FITFLOW_TIMEZONE = (Get-EnvironmentValueOrDefault -Name "FITFLOW_TIMEZONE" -DefaultValue "America/Argentina/Buenos_Aires")
 }

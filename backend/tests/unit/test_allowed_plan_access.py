@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
 import pytest
-
 from app.core.enums import AllowedPlan, MembershipPlan
 from app.services import errors as svc_errors
 from app.services.class_schedule_service import validate_membership_access
@@ -14,11 +13,11 @@ if TYPE_CHECKING:
     from app.db.models.membership import Membership
 
 
-def _membership(plan: MembershipPlan) -> "Membership":
+def _membership(plan: MembershipPlan) -> Membership:
     return cast("Membership", SimpleNamespace(plan=plan))
 
 
-def _schedule(allowed_plan: AllowedPlan) -> "ClassSchedule":
+def _schedule(allowed_plan: AllowedPlan) -> ClassSchedule:
     return cast("ClassSchedule", SimpleNamespace(allowed_plan=allowed_plan))
 
 

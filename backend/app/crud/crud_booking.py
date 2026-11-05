@@ -7,27 +7,26 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
-
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.crud.base import CRUDBase
-from app.db.models import Booking, ClassSchedule, ClassSession
+from app.db.models import Booking, ClassSchedule, ClassSession, Membership, Teacher
 from app.schemas.booking import BookingCreate, BookingCreateInternal, BookingUpdate
 
 # Excepciones de dominio centralizadas
-from app.services.errors import ConflictError, NotFoundError
+from app.services.booking_service import validate_booking_creation
+from app.services.class_schedule_service import validate_membership_access
+from app.services.errors import BusinessValidationError, ConflictError, NotFoundError
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
     from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
-
-    from app.core.enums import BookingStatus
 
 # ruff: noqa: UP037
 class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
@@ -40,8 +39,9 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         self,
         db: "AsyncSession",
         *,
-        obj_id: "UUID",
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> Booking | None:
         """Obtiene una reserva por ID, con opción de incluir relaciones profundas."""
         opts: list[ORMOption] | None = (
@@ -54,6 +54,8 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             if include_relations
             else None
         )
+        if options:
+            opts = (opts or []) + options
         stmt = select(Booking).where(Booking.id == obj_id)
         if opts:
             stmt = stmt.options(*opts)
@@ -64,7 +66,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
     # ------------------------------------------------------------------ #
     # Filtros avanzados
     # ------------------------------------------------------------------ #
-    async def get_multi_filtered(  # noqa: PLR0913
+    async def get_multi_filtered(
         self,
         db: "AsyncSession",
         *,
@@ -72,6 +74,7 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         session_id: "UUID | None" = None,
         schedule_id: "UUID | None" = None,
         gym_class_id: "UUID | None" = None,
+        teacher_user_id: "UUID | None" = None,
         status: "BookingStatus | None" = None,
         date: "date | None" = None,
         date_from: "date | None" = None,
@@ -91,14 +94,22 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             stmt = stmt.where(Booking.status == status)
 
         # Join only when a session or schedule attribute is filtered.
-        if date_from or date_to or date or schedule_id or gym_class_id:
+        if date_from or date_to or date or schedule_id or gym_class_id or teacher_user_id:
             stmt = stmt.join(Booking.class_session)
-        if schedule_id or gym_class_id:
+        if schedule_id or gym_class_id or teacher_user_id:
             stmt = stmt.join(ClassSession.class_schedule)
         if schedule_id:
             stmt = stmt.where(ClassSchedule.id == schedule_id)
         if gym_class_id:
             stmt = stmt.where(ClassSchedule.gym_class_id == gym_class_id)
+        if teacher_user_id is not None:
+            # Apply assignment filtering inside SQL, *before* limit/offset.
+            # Teacher.id (profile) differs from Person.user_id (account).
+            stmt = stmt.join(Teacher, Teacher.id == ClassSchedule.teacher_id).where(
+                Teacher.user_id == teacher_user_id,
+                Teacher.deleted_at.is_(None),
+                ClassSchedule.deleted_at.is_(None),
+            )
 
         if date_from:
             stmt = stmt.where(
@@ -183,7 +194,8 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
         *,
         client_id: "UUID",
         session_id: "UUID",
-        obj_in: "BookingCreateInternal",  # o BookingCreateInternal según tu flujo
+        obj_in: "BookingCreateInternal",
+        require_eligibility: bool = False,
     ) -> Booking:
         """Crea una reserva de forma atómica bloqueando la sesión y evitando duplicados.
 
@@ -215,7 +227,8 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
             Si la sesión no admite reservas o ya existe una reserva activa duplicada.
         """
         async with db.begin():  # abre transacción
-            q = select(ClassSession).where(ClassSession.id == session_id).with_for_update()
+            q = (select(ClassSession).where(ClassSession.id == session_id)
+                 .with_for_update().execution_options(populate_existing=True))
             res = await db.execute(q)
             session = res.scalar_one_or_none()
             if session is None:
@@ -227,6 +240,33 @@ class CRUDBooking(CRUDBase[Booking, BookingCreate, BookingUpdate]):
                 or session.status not in {ClassSessionStatus.scheduled, ClassSessionStatus.open}
             ):
                 raise ConflictError("La sesión no admite reservas.")
+
+            if require_eligibility:
+                # Reload under row locks: values read before this transaction
+                # are not authoritative after concurrent membership/schedule edits.
+                schedule = (await db.execute(
+                    select(ClassSchedule)
+                    .where(ClassSchedule.id == session.class_schedule_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )).scalar_one_or_none()
+                if schedule is None or not schedule.active or schedule.deleted_at is not None:
+                    raise ConflictError("El horario no admite reservas.")
+                membership = (await db.execute(
+                    select(Membership).where(
+                        Membership.client_id == client_id,
+                        Membership.active.is_(True),
+                        Membership.deleted_at.is_(None),
+                    ).with_for_update().execution_options(populate_existing=True)
+                )).scalar_one_or_none()
+                validate_booking_creation(session, membership)
+                if membership is None:
+                    raise BusinessValidationError("Necesitas una membresía activa para reservar.")
+                # Membership date validity is an atomic entitlement condition.
+                now = datetime.now(UTC)
+                if not (membership.start_date <= now <= membership.end_date):
+                    raise BusinessValidationError("La membresía está fuera de su período de vigencia.")
+                validate_membership_access(membership, schedule)
 
             # verificar duplicado
             q2 = select(Booking).where(

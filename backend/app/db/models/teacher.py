@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import uuid
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+from app.db.models.person import Person
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from app.db.models.person import Person
 
 if TYPE_CHECKING:
     from .class_schedule import ClassSchedule
@@ -37,12 +39,13 @@ class Teacher(Person):
         """Nombre completo."""
         return f"{self.first_name} {self.last_name}"
     # Horarios recurrentes asignados al profesor.
-    class_schedules: Mapped[list["ClassSchedule"]] = relationship(
+    class_schedules: Mapped[list[ClassSchedule]] = relationship(
         "ClassSchedule",
         back_populates="teacher",
         lazy="raise",
     )
 
-    __mapper_args__ = {  # noqa: RUF012
+    # SQLAlchemy accepts immutable mapper metadata; avoid shared mutable class defaults.
+    __mapper_args__ = MappingProxyType({
         "polymorphic_identity": "teacher",
-    }
+    })

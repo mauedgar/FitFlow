@@ -14,20 +14,17 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.deps import (
+    oauth2_scheme,
     require_admin,
     require_admin_or_client,
     require_client,
     require_current_user,
-    oauth2_scheme,
 )
 from app.core.enums import UserRole
 from app.crud.crud_client import client
-from app.db.models.client import Client
 from app.crud.crud_user import user as user_crud
+from app.db.models.client import Client
 from app.db.models.user import User
 from app.db.session import get_async_session
 from app.schemas.client import (
@@ -41,17 +38,17 @@ from app.schemas.client import (
     ClientWithStats,
 )
 from app.schemas.user import UserPublic
-from app.services.errors import AuthError, PermissionDeniedError
 from app.services.client_service import (
     to_client_public,
-    to_client_with_relations,
     to_client_with_activity,
     to_client_with_bookings,
     to_client_with_membership,
+    to_client_with_relations,
     to_client_with_stats,
 )
-
-# ruff: noqa: ARG001
+from app.services.errors import AuthError, PermissionDeniedError
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 

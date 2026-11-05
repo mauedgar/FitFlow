@@ -5,11 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from sqlalchemy.orm.interfaces import ORMOption
-
 from app.core.enums import BookingStatus, ClassSessionStatus
 from app.core.timezone import LOCAL_TZ
 from app.crud.crud_booking import booking as booking_crud
@@ -29,6 +24,10 @@ from app.schemas.front_desk import (
 from app.services.booking_service import to_booking_internal, validate_booking_creation
 from app.services.class_schedule_service import validate_membership_access
 from app.services.errors import BusinessValidationError, ConflictError, NotFoundError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.interfaces import ORMOption
 
 
 def _session_options() -> list[ORMOption]:
@@ -152,6 +151,7 @@ async def ensure_fallback_booking(
             client_id=client.id,
             session_id=session.id,
             obj_in=booking_internal,
+            require_eligibility=True,
         )
         created = True
     except ConflictError:
@@ -249,6 +249,7 @@ async def check_in_booking(
             selectinload(Booking.class_session),
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     booking = (await db.execute(stmt)).scalar_one_or_none()
     if booking is None:

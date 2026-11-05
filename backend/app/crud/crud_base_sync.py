@@ -15,8 +15,8 @@ Requisitos:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel
 
@@ -35,12 +35,7 @@ class ModelProtocol(Protocol):
     active: bool
 
 
-ModelType = TypeVar("ModelType", bound=ModelProtocol)
-CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
-UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
-
-
-class CRUDSync(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+class CRUDSync[ModelType: ModelProtocol, CreateSchemaType: BaseModel, UpdateSchemaType: BaseModel]:
     """Clase base para operaciones CRUD sincrónicas."""
 
     def __init__(self, model: type[ModelType]) -> None:
@@ -131,7 +126,7 @@ class CRUDSync(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             db.delete(db_obj)
         else:
             db_obj.active = False
-            db_obj.deleted_at = datetime.now(timezone.utc)
+            db_obj.deleted_at = datetime.now(UTC)
             db.add(db_obj)
 
         db.commit()

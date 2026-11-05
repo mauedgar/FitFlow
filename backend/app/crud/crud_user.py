@@ -1,4 +1,3 @@
-# pyright: ignore-all
 """CRUD para User (asíncrono, Sprint 6-7).
 
 --------------------------------------
@@ -12,17 +11,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-
 from app.core.security import get_password_hash
 from app.crud.base import CRUDBase
 from app.db.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
 
@@ -37,8 +33,9 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         self,
         db: AsyncSession,
         *,
-        obj_id: UUID,
+        obj_id: object,
         include_relations: bool = False,
+        options: list[ORMOption] | None = None,
     ) -> User | None:
         """Obtiene un usuario por ID, con opción de incluir su perfil Person."""
         opts: list[ORMOption] | None = (
@@ -46,6 +43,8 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             if include_relations
             else None
         )
+        if options:
+            opts = (opts or []) + options
         return await super().get(db, obj_id=obj_id, options=opts)
 
     # ------------------------------------------------------------------ #
@@ -101,13 +100,23 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         db: AsyncSession,
         *,
         db_obj: User,
-        obj_in: UserUpdate,
+        obj_in: UserUpdate | dict[str, object],
     ) -> User:
         """Actualiza parcialmente un usuario. Si cambia la contraseña, se hashea."""
+        if isinstance(obj_in, dict):
+            # Preserve UserUpdate's field allowlist for callers using CRUDBase's dict contract.
+            if set(obj_in) - set(UserUpdate.model_fields):
+                raise ValueError("Unsupported user update fields.")
+            if "password" in obj_in and not isinstance(obj_in["password"], str):
+                raise TypeError("Password must be a string.")
+            obj_in = UserUpdate.model_validate(obj_in)
         update_data = obj_in.model_dump(exclude_unset=True)
 
         if "password" in update_data:
-            update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
+            password = update_data.pop("password")
+            if not isinstance(password, str):
+                raise TypeError("Password must be a string.")
+            update_data["hashed_password"] = get_password_hash(password)
 
         return await super().update(db, db_obj=db_obj, obj_in=update_data)
 

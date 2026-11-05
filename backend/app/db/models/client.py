@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import uuid
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey
@@ -30,7 +33,7 @@ class Client(Person):
     )
 
     # Reservas realizadas por el cliente.
-    bookings: Mapped[list["Booking"]] = relationship(
+    bookings: Mapped[list[Booking]] = relationship(
         "Booking",
         back_populates="client",
         cascade="all, delete-orphan",
@@ -38,7 +41,7 @@ class Client(Person):
     )
 
     # Membresía activa o principal del cliente.
-    membership: Mapped["Membership | None"] = relationship(
+    membership: Mapped[Membership | None] = relationship(
         "Membership",
         back_populates="client",
         uselist=False,
@@ -46,6 +49,7 @@ class Client(Person):
         lazy="raise",
     )
 
-    __mapper_args__ = {  # noqa: RUF012
+    # SQLAlchemy accepts immutable mapper metadata; avoid shared mutable class defaults.
+    __mapper_args__ = MappingProxyType({
         "polymorphic_identity": "client",
-    }
+    })

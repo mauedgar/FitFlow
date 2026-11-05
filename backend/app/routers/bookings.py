@@ -14,12 +14,10 @@ from datetime import UTC, date, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.deps import (
     require_admin,
     require_admin_or_client,
+    require_operational,
 )
 from app.core.enums import BookingStatus, UserRole
 
@@ -27,6 +25,10 @@ from app.core.enums import BookingStatus, UserRole
 from app.crud.crud_booking import booking as booking_crud
 from app.crud.crud_class_session import class_session as class_session_crud
 from app.crud.crud_client import client as client_crud
+from app.db.models.booking import Booking
+from app.db.models.class_schedule import ClassSchedule
+from app.db.models.class_session import ClassSession
+from app.db.models.teacher import Teacher
 from app.db.models.user import User
 from app.db.session import get_async_session
 
@@ -35,7 +37,6 @@ from app.schemas.booking import (
     BookingCreate,
     BookingCreateInternal,
     BookingPublic,
-    BookingUpdate,
 )
 from app.schemas.front_desk import SessionCapacity
 
@@ -52,16 +53,50 @@ from app.services.class_session_service import update_session_availability
 
 # Errores de dominio centralizados
 from app.services.errors import BusinessValidationError, ConflictError, NotFoundError
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger("fitflow.bookings")
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 # ruff:noqa: UP037
+
+
+def _assigned_teacher_id(current_user: User) -> UUID | None:
+    """Return account UUID for SQL-scoped booking reads, never profile UUID."""
+    return current_user.id if current_user.role == UserRole.teacher else None
+
+
+async def _require_schedule_assignment(
+    db: AsyncSession, current_user: User, schedule_id: UUID,
+) -> None:
+    """Teacher can inspect only bookings on a schedule assigned to their profile."""
+    if current_user.role != UserRole.teacher:
+        return
+    owned = await db.scalar(
+        select(ClassSchedule.id)
+        .join(Teacher, Teacher.id == ClassSchedule.teacher_id)
+        .where(
+            ClassSchedule.id == schedule_id,
+            ClassSchedule.deleted_at.is_(None),
+            Teacher.deleted_at.is_(None),
+            Teacher.user_id == current_user.id,
+        )
+    )
+    if owned is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado.",
+        )
+
+
 # --------------------------------------------------------------------------- #
 # Crear Booking (cliente)
 # --------------------------------------------------------------------------- #
 @router.post("/", response_model=BookingPublic, status_code=status.HTTP_201_CREATED)
-async def create_booking(  # noqa: C901
+async def create_booking(
     *,
     db: Annotated["AsyncSession", Depends(get_async_session)],
     booking_in: BookingCreate,
@@ -123,6 +158,7 @@ async def create_booking(  # noqa: C901
             client_id=client.id,  # pyright: ignore[reportArgumentType]
             session_id=session.id,  # pyright: ignore[reportArgumentType]
             obj_in=booking_internal,  # BookingCreateInternal
+            require_eligibility=True,
         )
     except NotFoundError as exc:
         # Si la sesión desapareció entre checks
@@ -188,49 +224,47 @@ async def cancel_booking(
 
     Los clientes solo pueden cancelar sus propias reservas.
     """
+    # Auth may have opened a read transaction. Re-check ownership and state
+    # inside the same write transaction that locks the Booking row.
+    actor_id = current_user.id
+    actor_role = current_user.role
     try:
-        booking_obj = await booking_crud.get(db=db, obj_id=booking_id, include_relations=True)
-    except Exception as exc:
-        logger.exception("DB error fetching booking id=%s", booking_id)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
-
-    if not booking_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reserva no encontrada.")
-
-    if current_user.role == UserRole.client:
-        try:
-            client = await client_crud.get_by_user_id(db=db, user_id=current_user.id)  # pyright: ignore[reportArgumentType]
-        except Exception as exc:
-            logger.exception("DB error fetching client for cancel_booking user=%s", current_user.id)
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
-
-        if not client:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado.")
-
-        if booking_obj.client_id != client.id:  # pyright: ignore[reportGeneralTypeIssues]
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="No puedes cancelar reservas de otros clientes.",
-            )
-
-    try:
-        validate_booking_cancellation(booking_obj)
-        updated = await booking_crud.update(
-            db=db,
-            db_obj=booking_obj,
-            obj_in=BookingUpdate(status=BookingStatus.cancelled, cancelled_at=datetime.now(UTC)),
-        )
+        if db.in_transaction():
+            await db.commit()
+        async with db.begin():
+            booking_obj = (await db.execute(
+                select(Booking).where(Booking.id == booking_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )).scalar_one_or_none()
+            if booking_obj is None:
+                raise HTTPException(status_code=404, detail="Reserva no encontrada.")
+            if actor_role == UserRole.client:
+                client = await client_crud.get_by_user_id(db=db, user_id=actor_id)
+                if client is None:
+                    raise HTTPException(status_code=404, detail="Cliente no encontrado.")
+                if booking_obj.client_id != client.id:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="No puedes cancelar reservas de otros clientes.",
+                    )
+            validate_booking_cancellation(booking_obj)
+            booking_obj.status = BookingStatus.cancelled
+            booking_obj.cancelled_at = datetime.now(UTC)
+            await db.flush()
+    except HTTPException:
+        raise
     except ConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except BusinessValidationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except Exception as exc:
-        logger.exception("DB error updating booking id=%s to cancelled", booking_id)
+        logger.exception("DB error cancelling booking id=%s", booking_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
-    booking_with_relations = await booking_crud.get_with_relations(db=db, booking_id=updated.id)
+    booking_with_relations = await booking_crud.get_with_relations(db=db, booking_id=booking_id)
     if booking_with_relations is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Reserva actualizada no disponible.")
+        raise HTTPException(status_code=500, detail="Reserva actualizada no disponible.")
     return to_booking_public(booking_with_relations)
 
 
@@ -279,10 +313,23 @@ async def read_session_bookings_public(
     *,
     session_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    current_user: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
-    """Devuelve todas las reservas públicas de una sesión."""
+    """Lista privada: staff o profesor asignado a la sesión."""
     try:
-        session = await class_session_crud.get(db=db, obj_id=session_id, include_relations=True)
+        session = await class_session_crud.get(
+            db=db,
+            obj_id=session_id,
+            include_relations=True,
+            options=[
+                # BookingPublic traverses booking -> session -> schedule -> gym class.
+                # Explicit nested loading prevents lazy="raise" HTTP500 with data.
+                selectinload(ClassSession.bookings)
+                .selectinload(Booking.class_session)
+                .selectinload(ClassSession.class_schedule)
+                .selectinload(ClassSchedule.gym_class),
+            ],
+        )
     except Exception as exc:
         logger.exception("DB error fetching class_session id=%s for public bookings", session_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
@@ -290,6 +337,7 @@ async def read_session_bookings_public(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ClassSession no encontrada.")
 
+    await _require_schedule_assignment(db, current_user, session.class_schedule_id)
     return [to_booking_public(b) for b in session.bookings]
 
 
@@ -301,12 +349,14 @@ async def read_class_bookings_public(
     *,
     class_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    current_user: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
-    """Devuelve todas las reservas públicas asociadas a una clase."""
+    """Staff ve la clase completa; profesor solo sus horarios asignados."""
     try:
         bookings = await booking_crud.get_multi_filtered(
             db=db,
             gym_class_id=class_id,
+            teacher_user_id=_assigned_teacher_id(current_user),
         )
     except Exception as exc:
         logger.exception("DB error fetching bookings for class_id=%s", class_id)
@@ -323,8 +373,10 @@ async def read_schedule_bookings_public(
     *,
     schedule_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    current_user: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
-    """Devuelve todas las reservas públicas asociadas a un horario."""
+    """Reserva por horario, con verificación de profesor asignado."""
+    await _require_schedule_assignment(db, current_user, schedule_id)
     try:
         bookings = await booking_crud.get_multi_filtered(
             db=db,
@@ -345,12 +397,14 @@ async def read_bookings_by_day(
     *,
     date_query: "date",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    current_user: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
-    """Devuelve todas las reservas realizadas en un día específico."""
+    """Reservas diarias filtradas por propiedad docente antes de paginar."""
     try:
         bookings = await booking_crud.get_multi_filtered(
             db=db,
-            date=date_query,  # pyright: ignore[reportCallIssue]
+            date=date_query,
+            teacher_user_id=_assigned_teacher_id(current_user),
         )
     except Exception as exc:
         logger.exception("DB error fetching bookings by day=%s", date_query)
@@ -368,13 +422,15 @@ async def read_bookings_by_range(
     date_from: "date",
     date_to: "date",
     db: Annotated["AsyncSession", Depends(get_async_session)],
+    current_user: Annotated["User", Depends(require_operational)],
 ) -> list[BookingPublic]:
-    """Devuelve todas las reservas dentro de un rango de fechas."""
+    """Reservas por rango, privadas a la asignación del profesor."""
     try:
         bookings = await booking_crud.get_multi_filtered(
             db=db,
             date_from=date_from,
             date_to=date_to,
+            teacher_user_id=_assigned_teacher_id(current_user),
         )
     except Exception as exc:
         logger.exception("DB error fetching bookings by range %s - %s", date_from, date_to)
@@ -391,7 +447,7 @@ async def read_bookings_by_client(
     *,
     client_id: "UUID",
     db: Annotated["AsyncSession", Depends(get_async_session)],
-    current_user: Annotated["User", Depends(require_admin)],  # noqa: ARG001
+    current_user: Annotated["User", Depends(require_admin)],
 ) -> list[BookingPublic]:
     """Devuelve todas las reservas de un cliente específico.
 

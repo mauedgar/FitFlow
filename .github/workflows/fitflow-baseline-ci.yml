@@ -24,11 +24,7 @@ jobs:
       backend: ${{ steps.paths.outputs.backend }}
       frontend: ${{ steps.paths.outputs.frontend }}
     steps:
-      - name: Explicitly mark draft as NOT_RUN
-        if: github.event_name == 'pull_request' && github.event.pull_request.draft
-        run: echo "FITFLOW_NOT_RUN_DRAFT — set Ready for review to qualify candidate"
       - name: Checkout exact source candidate
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -36,11 +32,9 @@ jobs:
           persist-credentials: false
 
       - name: Run bounded scope-classifier Git regression
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         run: python3 -m unittest discover -s scripts/ci -p test_fitflow_baseline_scope.py -v
 
       - name: Record subject SHA/tree and decide changed scope
-        if: github.event_name != 'pull_request' || !github.event.pull_request.draft
         id: paths
         shell: bash
         env:
@@ -99,7 +93,7 @@ jobs:
           echo "FITFLOW_SCOPE backend=$backend frontend=$frontend"
 
   backend:
-    name: Backend PostgreSQL/Redis (Python 3.11)
+    name: Backend PostgreSQL/Redis (Python 3.15.2)
     needs: scope
     if: needs.scope.outputs.backend == 'true'
     runs-on: ubuntu-24.04
@@ -154,11 +148,25 @@ jobs:
       - name: Python pinned
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: "3.11.17"
+          python-version: "3.15.2"
           cache: pip
           cache-dependency-path: backend/requirements_test.txt
+      - name: Install pinned uv for lock verification
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
+      - name: Verify lock and deterministic backend exports
+        run: |
+          set -euo pipefail
+          uv lock --check --no-progress
+          uv export --locked --no-dev --format requirements.txt --output-file backend/requirements_backend.txt
+          uv export --locked --group dev --format requirements.txt --output-file backend/requirements_test.txt
+          git diff --exit-code -- backend/requirements_backend.txt backend/requirements_test.txt
+          echo "FITFLOW_LOCK_AND_EXPORT_PASS"
       - name: Install existing backend test requirements
-        run: python -m pip install -r backend/requirements_test.txt
+        run: |
+          python -m pip install -r backend/requirements_test.txt
+          python -m pip check
       - name: Migrate disposable PostgreSQL
         working-directory: backend
         run: alembic upgrade head
@@ -206,3 +214,34 @@ jobs:
         run: npm run lint
       - name: Frontend typecheck/build
         run: npm run build
+
+  qualification:
+    name: Required scope disposition
+    if: always()
+    needs: [scope, backend, frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Require complete and successful scoped validation
+        shell: bash
+        env:
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          BACKEND_REQUIRED: ${{ needs.scope.outputs.backend }}
+          FRONTEND_REQUIRED: ${{ needs.scope.outputs.frontend }}
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+        run: |
+          set -euo pipefail
+          if [[ "$SCOPE_RESULT" != "success" ]]; then
+            echo "FITFLOW_QUALIFICATION_FAIL scope=$SCOPE_RESULT" >&2
+            exit 1
+          fi
+          case "$BACKEND_REQUIRED:$BACKEND_RESULT" in
+            true:success|false:skipped) ;;
+            *) echo "FITFLOW_QUALIFICATION_FAIL backend=$BACKEND_REQUIRED:$BACKEND_RESULT" >&2; exit 1 ;;
+          esac
+          case "$FRONTEND_REQUIRED:$FRONTEND_RESULT" in
+            true:success|false:skipped) ;;
+            *) echo "FITFLOW_QUALIFICATION_FAIL frontend=$FRONTEND_REQUIRED:$FRONTEND_RESULT" >&2; exit 1 ;;
+          esac
+          echo "FITFLOW_QUALIFIED backend=$BACKEND_REQUIRED:$BACKEND_RESULT frontend=$FRONTEND_REQUIRED:$FRONTEND_RESULT"

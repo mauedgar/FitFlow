@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     @property
-    def DATABASE_URL_ASYNC(self) -> str:  # noqa: N802
+    def DATABASE_URL_ASYNC(self) -> str:
         """Convierte la URL sincrónica en una URL asyncpg."""
         url: URL = make_url(self.DATABASE_URL)
         url = url.set(drivername="postgresql+asyncpg")
@@ -64,7 +64,18 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
-    REFRESH_TOKEN_ROTATION: bool = True
+    # /auth/refresh returns access only; no token replacement is implemented.
+    REFRESH_TOKEN_ROTATION: bool = False
+    # compatible: legacy callers remain supported; required: negotiate ACK v1.
+    # Staging Compose selects required; production defaults compatible until approved rollout.
+    REFRESH_ACK_POLICY: str = "compatible"
+
+    @field_validator("REFRESH_ACK_POLICY")
+    @classmethod
+    def validate_refresh_ack_policy(cls, value: str) -> str:
+        if value not in {"compatible", "required"}:
+            raise ValueError("REFRESH_ACK_POLICY must be compatible or required")
+        return value
 
     # -----------------------------------------------------------------------
     # API
@@ -92,12 +103,19 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_staging_contract(self) -> Self:
-        """Reject development defaults that are unsafe in staging."""
+        """Fail closed for unsupported rotation and unsafe staging settings."""
+        if self.REFRESH_TOKEN_ROTATION:
+            raise ValueError(
+                "REFRESH_TOKEN_ROTATION=true is unsupported: "
+                "refresh returns only an access token"
+            )
         if self.ENV != "staging":
             return self
 
         if self.DEBUG:
             raise ValueError("DEBUG must be false in staging")
+        if self.TESTING:
+            raise ValueError("TESTING must be false in staging")
         if self.REDIS_URL is None:
             raise ValueError("REDIS_URL is required in staging")
         if not self.BACKEND_CORS_ORIGINS:
@@ -121,12 +139,12 @@ class Settings(BaseSettings):
         "REDIS_URL",
         mode="before",
     )
-    def empty_to_none(cls, v):  # noqa: ANN001, ANN201, N805
+    def empty_to_none(cls, v):
         """Convierte strings vacíos ("") en None.
         Esto evita errores cuando el .env contiene líneas como:
             SMTP_PORT=
         que de otra forma causarían fallos de validación.
-        """  # noqa: D205
+        """
         if v == "":
             return None
         return v

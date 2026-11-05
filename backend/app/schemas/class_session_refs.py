@@ -3,9 +3,8 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
-
 from app.core.enums import ClassSessionStatus
+from pydantic import BaseModel, ConfigDict
 
 
 class ClassSessionInResponse(BaseModel):

@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from app.core.config import settings
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-
-from app.core.config import settings
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -39,7 +38,7 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
 # --------------------------------------------------------------------------- #
 # Dependency para FastAPI
 # --------------------------------------------------------------------------- #
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_session() -> AsyncGenerator[AsyncSession]:
     """Dependency para FastAPI que provee una AsyncSession.
 
     Se asegura de cerrar la sesión cuando termina la request.

@@ -10,7 +10,7 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from app.core.enums import MembershipPlan, MembershipStatus
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 def to_membership_public(m: Membership) -> MembershipPublic:
     """Transforma un modelo ORM Membership en su versión pública."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     return MembershipPublic(
         id=m.id, # pyright: ignore[reportArgumentType]
@@ -57,7 +57,7 @@ def validate_membership_active(m: Membership) -> None:
 
 def validate_membership_not_expired(m: Membership) -> None:
     """Valida que la membresía no esté vencida."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     if m.end_date < now: # pyright: ignore[reportGeneralTypeIssues]
         msg = "La membresía está vencida."
         raise ValueError(msg)
@@ -100,7 +100,7 @@ def to_membership_with_stats(m: Membership) -> MembershipWithStats:
 
     upcoming = [
         b for b in m.client.bookings
-        if b.class_session.starts_at > datetime.now(tz=timezone.utc) # pyright: ignore[reportGeneralTypeIssues]
+        if b.class_session.starts_at > datetime.now(tz=UTC) # pyright: ignore[reportGeneralTypeIssues]
     ]
 
     return MembershipWithStats(
@@ -116,13 +116,13 @@ def to_membership_with_stats(m: Membership) -> MembershipWithStats:
 
 def is_membership_expiring_soon(m: Membership, days: int = 5) -> bool:
     """Indica si la membresía está por vencer dentro de X días."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return 0 < (m.end_date - now).days <= days
 
 
 def is_membership_valid_for_booking(m: Membership) -> bool:
     """Indica si la membresía permite reservar."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return (
         m.status == MembershipStatus.active
         and m.end_date > now

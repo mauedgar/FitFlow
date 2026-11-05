@@ -1,19 +1,22 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import (
-    DateTime,
-    Enum as SQLAlchemyEnum,
-    ForeignKey,
-    Index,
-)
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
 from app.core.enums import BookingStatus
 from app.db.base_class import Base
 from app.db.mixins import ActiveMixin, TimestampMixin
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+)
+from sqlalchemy import (
+    Enum as SQLAlchemyEnum,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from app.db.models.class_session import ClassSession
@@ -71,14 +74,14 @@ class Booking(Base, TimestampMixin, ActiveMixin):
     )
 
     # Relación con el cliente titular de la reserva.
-    client: Mapped["Client"] = relationship(
+    client: Mapped[Client] = relationship(
         "Client",
         back_populates="bookings",
         lazy="raise",
     )
 
     # Relación con la sesión concreta reservada.
-    class_session: Mapped["ClassSession"] = relationship(
+    class_session: Mapped[ClassSession] = relationship(
         "ClassSession",
         back_populates="bookings",
         lazy="raise",

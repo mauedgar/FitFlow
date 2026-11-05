@@ -12,13 +12,11 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TC003
-from uuid import UUID  # noqa: TC003
-
-from pydantic import BaseModel, ConfigDict, model_validator
+from datetime import datetime
+from uuid import UUID
 
 # Importar enums SIEMPRE en runtime (Pydantic v2 los necesita)
-from app.core.enums import BookingStatus  # noqa: TC001
+from app.core.enums import BookingStatus
 from app.schemas.booking_refs import BookingPublic
 from app.schemas.class_session import (
     ClassSessionInBookingResponse,
@@ -26,7 +24,8 @@ from app.schemas.class_session import (
 )
 
 # Importar client normalmente (no genera ciclos)
-from app.schemas.client import ClientInBookingResponse, ClientPublic  # noqa: TC001
+from app.schemas.client import ClientInBookingResponse, ClientPublic
+from pydantic import BaseModel, ConfigDict, model_validator
 
 # --------------------------------------------------------------------------- #
 # 1. Base

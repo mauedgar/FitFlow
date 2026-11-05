@@ -8,9 +8,8 @@ on:
         required: true
         type: string
       expected_tree:
-        description: Optional exact FitFlow tree OID
-        required: false
-        default: ''
+        description: Required exact FitFlow tree OID
+        required: true
         type: string
       operation_id:
         description: Optional Product operation correlation id
@@ -70,7 +69,7 @@ jobs:
 
     steps:
       - name: Checkout exact FitFlow subject
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.subject_sha }}
           fetch-depth: 0
@@ -80,6 +79,7 @@ jobs:
         shell: bash
         env:
           SUBJECT_SHA: ${{ inputs.subject_sha }}
+          EXPECTED_TREE: ${{ inputs.expected_tree }}
         run: |
           set -euo pipefail
           observed="$(git rev-parse HEAD)"
@@ -87,13 +87,27 @@ jobs:
             echo "SUBJECT_MISMATCH expected=$SUBJECT_SHA observed=$observed" >&2
             exit 1
           fi
+          [[ "$EXPECTED_TREE" =~ ^[0-9a-f]{40}$ ]] || { echo "MISSING_OR_INVALID_EXPECTED_TREE" >&2; exit 2; }
+          actual_tree="$(git rev-parse 'HEAD^{tree}')"
+          if [[ "$actual_tree" != "$EXPECTED_TREE" ]]; then
+            echo "TREE_MISMATCH expected=$EXPECTED_TREE observed=$actual_tree" >&2
+            exit 1
+          fi
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - name: Set up Python 3.15.2
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: "3.11"
+          python-version: "3.15.2"
           cache: pip
           cache-dependency-path: backend/requirements_test.txt
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
+
+      - name: Validate Python dependency lock
+        run: uv lock --check --no-progress
 
       - name: Install backend test dependencies
         run: python -m pip install -r backend/requirements_test.txt
@@ -121,9 +135,7 @@ jobs:
             --request-output "$RECEIPT_DIR/request.json"
             --receipt-output "$RECEIPT_DIR/receipt.json"
           )
-          if [ -n "$EXPECTED_TREE" ]; then
-            args+=(--expected-tree "$EXPECTED_TREE")
-          fi
+          args+=(--expected-tree "$EXPECTED_TREE")
           if [ -n "$OPERATION_ID" ] || [ -n "$EXECUTION_ATTEMPT_ID" ]; then
             args+=(--operation-id "$OPERATION_ID" --execution-attempt-id "$EXECUTION_ATTEMPT_ID")
           fi
@@ -131,7 +143,7 @@ jobs:
 
       - name: Checkout portable validation contract v0
         if: always()
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: mauedgar/tecnotron-ai
           ref: f28c812cff4d9c6dd27d71a084fbccfffbadd735
@@ -140,7 +152,7 @@ jobs:
 
       - name: Set up Node 22 for contract validation
         if: always()
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22"
           cache: ${{ hashFiles('.tecnotron-contract-v0/package-lock.json') != '' && 'npm' || '' }}
@@ -171,7 +183,7 @@ jobs:
 
       - name: Upload deterministic validation receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: fitflow-deterministic-validation-${{ inputs.subject_sha }}
           path: ${{ runner.temp }}/fitflow-deterministic-validation

@@ -11,24 +11,18 @@ Requisitos:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Generic, TypeVar
-
-from pydantic import BaseModel
-from sqlalchemy import select
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from app.db.base_class import Base
+from pydantic import BaseModel
+from sqlalchemy import select
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
     from sqlalchemy.orm.interfaces import ORMOption
 
-ModelType = TypeVar("ModelType", bound=Base)
-CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
-UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
-
-
-class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+class CRUDBase[ModelType: Base, CreateSchemaType: BaseModel, UpdateSchemaType: BaseModel]:
     """Clase base para operaciones CRUD asíncronas."""
 
     def __init__(self, model: type[ModelType]) -> None:
@@ -144,7 +138,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             await db.delete(db_obj)
         else:
             db_obj.active = False  # type: ignore[attr-defined]
-            db_obj.deleted_at = datetime.now(timezone.utc)  # type: ignore[attr-defined]
+            db_obj.deleted_at = datetime.now(UTC)  # type: ignore[attr-defined]
             db.add(db_obj)
 
         await db.commit()

@@ -1,9 +1,8 @@
 """Schemas de GymClass reutilizables sin dependencias de otros dominios."""
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
-
 from app.core.enums import ActivityType, DifficultyLevel
 from app.schemas.base import IDSchema
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class GymClassBase(BaseModel):

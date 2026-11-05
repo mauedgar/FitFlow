@@ -11,12 +11,8 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.enums import BookingStatus, ClassSessionStatus, MembershipStatus
 from app.core.timezone import LOCAL_TZ
@@ -36,6 +32,9 @@ from app.schemas.weekly_demand import (
 )
 from app.services.class_schedule_service import validate_membership_access
 from app.services.errors import BusinessValidationError
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 # --------------------------------------------------------------------------- #
 # 1. Transformación automática: ClassSession → ClassSessionInResponse
@@ -66,9 +65,9 @@ async def _get_weekly_schedule_demand_sessions(
     """Load the exact active/future session set used by weekly demand reads."""
     local_start = datetime.combine(week_start, time.min, tzinfo=LOCAL_TZ)
     local_end = local_start + timedelta(days=7)
-    starts_at = local_start.astimezone(timezone.utc)
-    ends_at = local_end.astimezone(timezone.utc)
-    now = datetime.now(tz=timezone.utc)
+    starts_at = local_start.astimezone(UTC)
+    ends_at = local_end.astimezone(UTC)
+    now = datetime.now(tz=UTC)
 
     stmt = (
         select(ClassSession)
@@ -146,6 +145,12 @@ def _membership_allows_agenda_session(
 ) -> bool:
     """Return whether an active Membership/Plan permits this occurrence."""
     if membership is None or membership.status != MembershipStatus.active:  # pyright: ignore[reportGeneralTypeIssues]
+        return False
+
+    # Keep agenda eligibility aligned with the booking CRUD's current-time
+    # Membership validity contract; this is not a future-session admission rule.
+    now = datetime.now(tz=UTC)
+    if not (membership.start_date <= now <= membership.end_date):
         return False
 
     try:
@@ -238,7 +243,7 @@ def validate_session_active(session: ClassSession) -> None:
 
 def validate_session_future(session: ClassSession) -> None:
     """Valida que la sesión no haya ocurrido aún."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     if session.starts_at <= now: # pyright: ignore[reportGeneralTypeIssues]
         msg = "La sesión ya ocurrió."
         raise ValueError(msg)
@@ -257,20 +262,20 @@ def validate_no_overbooking(session: ClassSession) -> None:
 
 def is_session_live(session: ClassSession) -> bool:
     """Indica si la sesión está ocurriendo en este momento."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return session.starts_at <= now <= session.ends_at # pyright: ignore[reportReturnType]
 
 
 def is_session_upcoming(session: ClassSession, minutes: int = 15) -> bool:
     """Indica si la sesión comienza dentro de X minutos."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     delta = session.starts_at - now
     return 0 < delta.total_seconds() <= minutes * 60
 
 
 def is_session_finished(session: ClassSession) -> bool:
     """Indica si la sesión ya terminó."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     return session.ends_at < now # pyright: ignore[reportReturnType]
 
 
@@ -301,7 +306,7 @@ def is_session_empty(session: ClassSession) -> bool:
 
 def get_future_sessions(schedule: ClassSchedule, days: int = 15) -> list[ClassSession]:
     """Devuelve las sesiones futuras del horario dentro de X días."""
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     limit = now + timedelta(days=days)
 
     return [
