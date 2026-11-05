@@ -93,9 +93,9 @@ jobs:
           from sqlalchemy import create_engine, text
           with create_engine(os.environ["DATABASE_URL"]).begin() as c:
               c.execute(text("""
-                  INSERT INTO gym_classes (id, name, description, duration_minutes)
+                  INSERT INTO gym_classes (id, name, description, duration_minutes, default_capacity)
                   VALUES ('00000000-0000-0000-0000-000000000071',
-                          'Guard fixture', 'Discardable CI', 45)
+                          'Guard fixture', 'Discardable CI', 45, 8)
               """))
           PY
           if (cd backend && alembic upgrade head) > "$RUNNER_TEMP/fitflow-negative-migration.log" 2>&1; then

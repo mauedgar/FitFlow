@@ -125,3 +125,16 @@ No retained real data, destructive rerun, deployment, or preflight override.
 Operator-side preflight before `docker compose up`, backup/restore
 qualification, and a forward-preserving migration strategy for populated
 legacy DBs remain separate non-negotiable gates.
+
+## Native CI fixture correction (new candidate)
+
+Source `4dd2145da0ab580387a71cbe6325dc3967f71f9b` schema run 42083677800 terminated FAILURE **before** reaching
+negative migration invocation: the pre-refactor column `gym_classes.default_capacity`
+is NOT NULL (historical revision `6beb1fc321fd`). Inserted fixture omitted
+this column and was rejected by PostgreSQL with NotNullViolation. The
+successfully verified fixture schema now supplies `default_capacity=8`
+while preserving the same synthetic gym_classes UUID and FK-dependent child
+checks. The failure is evidence of an invalid fixture, not a destructive
+migration or observed retained-data loss. Fresh original CI and independent
+review are required on the successor SHA. Earlier 42081839293/42081839356
+PASS and 42083677800 FAILURE remain tied only to their own commits.
