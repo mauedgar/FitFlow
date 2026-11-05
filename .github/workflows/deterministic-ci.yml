@@ -171,7 +171,7 @@ jobs:
 
       - name: Upload deterministic validation receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fitflow-deterministic-validation-${{ inputs.subject_sha }}
           path: ${{ runner.temp }}/fitflow-deterministic-validation
