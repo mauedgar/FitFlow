@@ -22,8 +22,8 @@ It must refuse to cross this revision on a populated database.
   non-system relation catalog and lock/check every user table. Any retained
   user row, including in a possible indirect CASCADE table or a separate
   association table, fails closed. The guard is deliberately conservative.
-- Hold locks until the Alembic transaction commits or aborts. Fixed 5-second
-  lock timeout fails closed rather than waiting indefinitely for contention.
+- Hold locks until the Alembic transaction commits or aborts. The implementation
+  uses a 3-second per-lock timeout and a 20-second overall preflight budget.
 - SQL identifiers from the catalog are identifier-quoted. No data is read
   beyond EXISTS predicates; no retained records are modified by the guard.
 - Readiness or CI on an **empty disposable** database is not evidence of
@@ -97,3 +97,31 @@ Scope of repair:
   run this historical guard again.
 
 Fresh original CI and a new independent IR are required for this successor.
+
+## IR002 follow-up — direct target, FK child, explicit schema and non-superuser
+
+IR002 (subject `fe21a34a46e055a12ae86d9a8b8a0ddf2e245f0f`, tree `76346bbb4b9dcfcc0647804937577eedb7c2b546`) was PARTIAL,
+not a global PASS. Baseline run 42081839293 and schema run 42081839356
+subsequently finished SUCCESS on their **original** subject; they do not
+qualify a successor commit.
+
+This candidate closes the missing scope of the real disposable PG15 negative:
+1. Seed a nonempty `gym_classes` legacy table immediately before
+   `f5453ed20cdc`, attempt upgrade and verify explicit rejection and row+
+   Alembic predecessor revision preservation.
+2. Create a real FK-dependent child with a preserved row. Repeat upgrade,
+   expect the same refusal and verify both parent and child survive.
+3. Exercise a non-superuser database-owner migration account against a
+   third disposable PG15 database (rather than assuming CI superuser
+   equivalence). This qualifies owner permissions, **not** least-privilege
+   non-owner deployment grants.
+4. Reject `current_schema() != 'public'` before any DDL and lock every
+   direct target using explicit `"public"."table"` names. PostgreSQL
+   catalog scans continue to include other schemas; a user table with data
+   in another schema also blocks. The requirement for a public-schema
+   historical revision is fail-closed, not support for arbitrary search_path.
+
+No retained real data, destructive rerun, deployment, or preflight override.
+Operator-side preflight before `docker compose up`, backup/restore
+qualification, and a forward-preserving migration strategy for populated
+legacy DBs remain separate non-negotiable gates.

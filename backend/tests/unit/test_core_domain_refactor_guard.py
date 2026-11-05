@@ -42,8 +42,9 @@ RELATIONS = [("public", name, "r") for name in targets] + [
 
 
 class StubConnection:
-    def __init__(self, occupied=(), relations=None, temporary=False, fail_lock=False):
+    def __init__(self, occupied=(), relations=None, temporary=False, fail_lock=False, current_schema="public"):
         self.occupied = set(occupied)
+        self.current_schema = current_schema
         self.relations = RELATIONS if relations is None else relations
         self.temporary = temporary
         self.fail_lock = fail_lock
@@ -53,6 +54,8 @@ class StubConnection:
     def execute(self, stmt, params=None):
         sql = str(stmt).strip()
         self.sql.append(sql)
+        if sql == "SELECT current_schema()":
+            return SimpleNamespace(scalar_one=lambda: self.current_schema)
         if sql.startswith("SELECT set_config") or sql.startswith("SET LOCAL"):
             return SimpleNamespace()
         if sql.startswith("LOCK TABLE"):
@@ -86,9 +89,10 @@ def test_guard_is_first_upgrade_effect_before_enum_or_drop():
 def test_empty_migration_inputs_lock_targets_before_enumerating_all_relations():
     conn = StubConnection()
     guard(conn)
-    assert conn.sql[0].startswith("SET LOCAL lock_timeout")
-    assert conn.sql[2].startswith("LOCK TABLE teacher_class_association")
-    assert "IN ACCESS EXCLUSIVE MODE" in conn.sql[2]
+    assert conn.sql[0] == "SELECT current_schema()"
+    assert conn.sql[1].startswith("SET LOCAL lock_timeout")
+    assert conn.sql[3].startswith('LOCK TABLE "public"."teacher_class_association"')
+    assert "IN ACCESS EXCLUSIVE MODE" in conn.sql[3]
     assert len([q for q in conn.sql if q.startswith("SELECT EXISTS (SELECT 1 FROM")]) == len(RELATIONS)
 
 
@@ -133,3 +137,13 @@ def test_deadline_exhaustion_is_a_fail_closed_result(monkeypatch):
     monkeypatch.setattr(time, "monotonic", lambda: next(values))
     with pytest.raises(RuntimeError, match="time budget exceeded"):
         guard(StubConnection())
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("schema", ["pg_catalog", "custom", None])
+def test_nonpublic_search_path_fails_closed_before_any_lock(schema):
+    conn = StubConnection(current_schema=schema)
+    with pytest.raises(RuntimeError, match="requires public schema"):
+        guard(conn)
+    assert conn.sql == ["SELECT current_schema()"]
+

@@ -86,28 +86,88 @@ jobs:
               c.execute(text("CREATE DATABASE fitflow_guard"))
           PY
           (cd backend && alembic upgrade a2b62b427037)
+          # Real legacy target from the pre-refactor schema; no unrelated
+          # sentinel table that could be detected first by the catalog scan.
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
           with create_engine(os.environ["DATABASE_URL"]).begin() as c:
-              c.execute(text("CREATE TABLE core_refactor_guard_probe (id integer primary key)"))
-              c.execute(text("INSERT INTO core_refactor_guard_probe (id) VALUES (1)"))
+              c.execute(text("""
+                  INSERT INTO gym_classes (id, name, description, duration_minutes)
+                  VALUES ('00000000-0000-0000-0000-000000000071',
+                          'Guard fixture', 'Discardable CI', 45)
+              """))
           PY
           if (cd backend && alembic upgrade head) > "$RUNNER_TEMP/fitflow-negative-migration.log" 2>&1; then
-            echo "FAIL: populated disposable database was upgraded" >&2
+            echo "FAIL: populated direct Product table was upgraded" >&2
             exit 1
           fi
-          grep -q "f5453ed20cdc refuses to discard retained Product data" "$RUNNER_TEMP/fitflow-negative-migration.log"
+          grep -q 'nonempty table "public"."gym_classes"' "$RUNNER_TEMP/fitflow-negative-migration.log"
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
           with create_engine(os.environ["DATABASE_URL"]).connect() as c:
               revision = c.scalar(text("SELECT version_num FROM alembic_version"))
-              count = c.scalar(text("SELECT count(*) FROM core_refactor_guard_probe"))
+              count = c.scalar(text("SELECT count(*) FROM gym_classes"))
           assert revision == "a2b62b427037", revision
           assert count == 1, count
-          print("FAIL_CLOSED_PG15_RETENTION_PASS")
+          print("FAIL_CLOSED_PG15_DIRECT_TARGET_PASS")
           PY
+          # A real FK child is a potential TRUNCATE CASCADE target even with
+          # its own rows; the refusal must preserve the entire dependency.
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ["DATABASE_URL"]).begin() as c:
+              c.execute(text("""
+                  CREATE TABLE core_refactor_guard_child (
+                      id integer PRIMARY KEY,
+                      gym_class_id uuid NOT NULL REFERENCES gym_classes(id)
+                  )
+              """))
+              c.execute(text("""
+                  INSERT INTO core_refactor_guard_child (id, gym_class_id)
+                  VALUES (1, '00000000-0000-0000-0000-000000000071')
+              """))
+          PY
+          if (cd backend && alembic upgrade head) > "$RUNNER_TEMP/fitflow-negative-fk.log" 2>&1; then
+            echo "FAIL: retained FK-dependent Product data was upgraded" >&2
+            exit 1
+          fi
+          grep -q "f5453ed20cdc refuses to discard retained Product data" "$RUNNER_TEMP/fitflow-negative-fk.log"
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ["DATABASE_URL"]).connect() as c:
+              revision = c.scalar(text("SELECT version_num FROM alembic_version"))
+              parent_count = c.scalar(text("SELECT count(*) FROM gym_classes"))
+              child_count = c.scalar(text("SELECT count(*) FROM core_refactor_guard_child"))
+          assert revision == "a2b62b427037", revision
+          assert parent_count == 1, parent_count
+          assert child_count == 1, child_count
+          print("FAIL_CLOSED_PG15_FK_CASCADE_RETENTION_PASS")
+          PY
+          # Role is not a superuser. The database owner is deliberately
+          # distinct from the CI bootstrap cluster administrator.
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          from sqlalchemy.engine import make_url
+          url = make_url(os.environ["DATABASE_URL"])
+          with create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT").connect() as c:
+              c.execute(text("CREATE ROLE fitflow_ci_migrator LOGIN PASSWORD 'fitflow-ci-migrator-only'"))
+              c.execute(text("CREATE DATABASE fitflow_ci_role OWNER fitflow_ci_migrator"))
+          PY
+          export DATABASE_URL='postgresql+psycopg2://fitflow_ci_migrator:fitflow-ci-migrator-only@127.0.0.1:5432/fitflow_ci_role'
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          with create_engine(os.environ["DATABASE_URL"]).connect() as c:
+              assert c.scalar(text("SELECT rolsuper FROM pg_roles WHERE rolname=current_user")) is False
+              assert c.scalar(text("SELECT current_schema()")) == "public"
+          PY
+          (cd backend && alembic upgrade head)
+          echo "PG15_NON_SUPERUSER_OWNER_MIGRATION_PASS"
 
       - name: Generate reviewable schema with PostgreSQL 15 client, no Git write
         shell: bash

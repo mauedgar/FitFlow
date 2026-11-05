@@ -70,11 +70,19 @@ def _require_empty_core_domain_refactor_inputs(bind) -> None:
         )
         return bind.execute(sa.text(sql))
 
-    bind.execute(sa.text("SET LOCAL lock_timeout = '3000ms'"))
-    bounded(
-        "LOCK TABLE " + ", ".join(_CORE_REFACTOR_TARGETS)
-        + " IN ACCESS EXCLUSIVE MODE"
+    schema = bind.execute(sa.text("SELECT current_schema()")).scalar_one()
+    if schema != "public":
+        raise RuntimeError(
+            "f5453ed20cdc requires public schema; "
+            "nondefault search_path is not qualified for destructive upgrade"
+        )
+    quote = bind.dialect.identifier_preparer.quote_identifier
+    targets = ", ".join(
+        f'{quote("public")}.{quote(name)}'
+        for name in _CORE_REFACTOR_TARGETS
     )
+    bind.execute(sa.text("SET LOCAL lock_timeout = '3000ms'"))
+    bounded("LOCK TABLE " + targets + " IN ACCESS EXCLUSIVE MODE")
     # A temp relation in our session may indicate an unsupported dependency.
     # Other sessions' temp relations cannot be TRUNCATE targets of this session.
     temporary = bounded("""
@@ -95,7 +103,7 @@ def _require_empty_core_domain_refactor_inputs(bind) -> None:
           AND n.nspname NOT IN ('pg_catalog', 'information_schema')
           AND n.nspname NOT LIKE 'pg_toast%'
           AND n.nspname NOT LIKE 'pg_temp%'
-          AND NOT (n.nspname = current_schema() AND c.relname = 'alembic_version')
+          AND NOT (n.nspname = 'public' AND c.relname = 'alembic_version')
         ORDER BY n.nspname, c.relname
     """).all()
     if not relations:
