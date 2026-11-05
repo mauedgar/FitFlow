@@ -356,6 +356,20 @@ test('new login HTTP 429/503 keeps only new unverified credentials and recovers 
   }
 });
 
+test('initial HTTP 401 hydration clears invalid pair and exits loading without retry', async () => {
+  const h = setup({ failures: 1, failureStatus: 401 });
+  await settle();
+  h.render();
+  assert.ok(h.getValue(), 'provider must mount after rejecting stored credentials');
+  assert.equal(h.getValue().isLoadingAuth, false);
+  assert.equal(h.getValue().isAuthenticated, false);
+  assert.equal(h.storage.getItem('fitflow_access_token'), null);
+  assert.equal(h.storage.getItem('fitflow_refresh_token'), null);
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.logoutCalls(), 0);
+  h.cleanup();
+});
+
 test('new login HTTP 401 is not recoverable and attempts refresh revocation', async () => {
   const h = setup({ failures: 2, failureStatus: 401 });
   await settle();

@@ -131,7 +131,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const transient = axios.isAxiosError(error) &&
           (!error.response || error.response.status >= 500 || error.response.status === 429);
         if (transient) scheduleRecovery();
-        else clearLocalSession();
+        else {
+          // clearLocalSession advances the epoch; the guarded finally below
+          // would otherwise leave initial hydration loading forever on 401.
+          clearLocalSession();
+          setIsLoadingAuth(false);
+        }
       } finally {
         if (!cancelled && epoch === sessionEpoch.current) setIsLoadingAuth(false);
       }
