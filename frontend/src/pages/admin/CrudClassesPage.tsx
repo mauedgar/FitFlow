@@ -13,10 +13,10 @@ const matches = (gymClass: AdminGymClassSummary, term: string) =>
     .some((field) => field.toLocaleLowerCase().includes(term));
 
 const CrudClassesPage = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, sessionGeneration } = useAuth();
   const [search, setSearch] = useState('');
   const { data = [], isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ['adminGymClassSummaries', currentUser?.email],
+    queryKey: ['adminGymClassSummaries', currentUser?.email, sessionGeneration],
     queryFn: ({ signal }) => getAdminGymClassSummaries(signal),
     enabled: currentUser?.role === 'admin',
     retry: 1,

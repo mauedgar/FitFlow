@@ -13,10 +13,10 @@ const matches = (teacher: AdminTeacherSummary, term: string) =>
     .some((field) => field.toLocaleLowerCase().includes(term));
 
 const TeachersPage = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, sessionGeneration } = useAuth();
   const [search, setSearch] = useState('');
   const { data = [], isLoading, isError, isFetching, refetch } = useQuery({
-    queryKey: ['adminTeacherSummaries', currentUser?.email],
+    queryKey: ['adminTeacherSummaries', currentUser?.email, sessionGeneration],
     queryFn: ({ signal }) => getAdminTeacherSummaries(signal),
     enabled: currentUser?.role === 'admin',
     retry: 1,

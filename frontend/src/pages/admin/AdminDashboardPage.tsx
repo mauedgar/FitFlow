@@ -37,23 +37,23 @@ const SummaryCard = ({ title, label, count, isLoading, isError, to }: SummaryCar
 );
 
 const AdminDashboardPage = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, sessionGeneration } = useAuth();
   const adminEnabled = currentUser?.role === 'admin';
 
   const clients = useQuery({
-    queryKey: ['adminClients', currentUser?.email, 0, 100],
+    queryKey: ['adminClients', currentUser?.email, sessionGeneration, 0, 100],
     queryFn: ({ signal }) => getAdminClients(signal),
     enabled: adminEnabled,
     retry: 1,
   });
   const teachers = useQuery({
-    queryKey: ['adminTeacherSummaries', currentUser?.email],
+    queryKey: ['adminTeacherSummaries', currentUser?.email, sessionGeneration],
     queryFn: ({ signal }) => getAdminTeacherSummaries(signal),
     enabled: adminEnabled,
     retry: 1,
   });
   const classes = useQuery({
-    queryKey: ['adminGymClassSummaries', currentUser?.email],
+    queryKey: ['adminGymClassSummaries', currentUser?.email, sessionGeneration],
     queryFn: ({ signal }) => getAdminGymClassSummaries(signal),
     enabled: adminEnabled,
     retry: 1,
