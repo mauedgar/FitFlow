@@ -50,14 +50,21 @@ outside Git if a later application rollback must reproduce it.
   untracked files inside the Docker-copied `backend/` or `frontend/` trees;
 - Git, PowerShell 7+, Docker Engine, and Docker Compose;
 - populated staging configuration in process environment or an untracked file;
-- exclusive operator ownership of Compose project `fitflow-staging`;
-- local ports selected by `STAGING_BACKEND_PORT` and
-  `STAGING_FRONTEND_PORT` are available.
+- explicit isolated Compose project name via `-ProjectName`; historical
+  `fitflow-staging` and `fitflow` projects are rejected;
+- explicit, distinct ports `STAGING_BACKEND_PORT` and
+  `STAGING_FRONTEND_PORT`, excluding reserved historical ports 18000/18080;
+- no existing state, project containers or volumes for initial deployment.
+  Ports are published on 127.0.0.1 only and images are project-namespaced.
 
 Example invocation from the release worktree:
 
 ```powershell
-pwsh ./scripts/staging/release.ps1 -Action deploy -Revision (git rev-parse HEAD)
+$env:STAGING_BACKEND_PORT = "18100"
+$env:STAGING_FRONTEND_PORT = "18180"
+pwsh ./scripts/staging/release.ps1 -Action preflight -ProjectName fitflow-m4-qual-001 -Revision (git rev-parse HEAD)
+# Deploy requires separately verified environment and effect authorization:
+pwsh ./scripts/staging/release.ps1 -Action deploy -ProjectName fitflow-m4-qual-001 -Revision (git rev-parse HEAD)
 ```
 
 Use `-EnvFile <untracked-path>` when configuration is stored in a local file.
@@ -86,7 +93,7 @@ migration prevents the backend and dependent frontend from becoming healthy.
 Redeploy is an in-place replacement of the same recorded revision:
 
 ```powershell
-pwsh ./scripts/staging/release.ps1 -Action redeploy -Revision (git rev-parse HEAD)
+pwsh ./scripts/staging/release.ps1 -Action redeploy -ProjectName fitflow-m4-qual-001 -Revision (git rev-parse HEAD)
 ```
 
 The command rebuilds the images and force-recreates services while preserving
@@ -104,6 +111,7 @@ the target's reviewed configuration material:
 ```powershell
 pwsh ./scripts/staging/release.ps1 `
   -Action rollback `
+  -ProjectName fitflow-m4-qual-001 `
   -Revision (git rev-parse HEAD) `
   -DatabaseForwardCompatible
 ```
@@ -151,3 +159,42 @@ but neither volume is deleted by deploy, redeploy, or rollback. Destructive
 volume reset is outside R005 and must never be used on retained staging data.
 The R006 smoke environment defines its own isolated, explicitly destructive
 reset boundary.
+
+## Isolated staging preflight
+
+`-Action preflight` only verifies exact clean worktree identity, required
+configuration, Compose rendering and empty project state/containers/volumes.
+It does not build, start services, migrate, seed, write release state or qualify
+runtime. Its result `CONFIG_PREFLIGHT_ONLY` is neither R002–R006 PASS nor
+permission to deploy. Port liveness, secrets provenance, backup, TLS and data
+safety still require separate native checks and a competent effect grant.
+
+State defaults to a project-specific local app-data directory:
+`FitFlow/staging/<ProjectName>/deployment-state.json`. The example ports above
+are illustrative and must be checked against real host listeners first.
+
+Direct `docker compose up` without an explicit project identity is not a
+supported release path: Compose requires `FITFLOW_COMPOSE_PROJECT` and
+`FITFLOW_RELEASE_IMAGE_NAMESPACE` instead of defaulting to historical names.
+Use `release.ps1`, which supplies both values and checks project ownership.
+
+The first-deployment refusal includes preexisting project-namespaced Docker
+networks, not only containers and volumes. This protects against unintentionally
+joining an unrelated or stale Compose network. The preflight does not remove or
+recreate any network; an existing collision is `BLOCKED_PRECONDITION`.
+
+## Retained-resource ownership receipt (schema v2)
+
+`redeploy` and `rollback` reject historical or incomplete state. Before any
+build or migration, the operator requires an exact matching configuration digest,
+full previous revision/tree metadata and recorded backend/frontend image IDs.
+It then verifies four running project-labelled services, the exact backend and
+frontend revision labels and published loopback ports, PostgreSQL/Redis named
+mounts and Compose-owned volume/network labels. Inventory and image IDs are
+checked again immediately before `up`; new post-release identities and source
+tree SHA are stored in the v2 receipt with `cleanup_performed=false`.
+Schema v1 receipts are intentionally not upgraded automatically.
+A configuration change on retained state is blocked pending separate review.
+
+These checks do not make Docker inventories atomic: a qualified exclusive host
+and project owner are required before authorizing any real execution.

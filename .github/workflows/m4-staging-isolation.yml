@@ -1,0 +1,185 @@
+name: M4 isolated staging release contract (no deploy)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/staging/release.ps1"
+      - "scripts/staging/staging-configuration.ps1"
+      - "scripts/staging/staging-ownership.ps1"
+      - "backend/tests/integration/test_staging_fixture_ownership_db.py"
+      - "backend/scripts/staging_smoke_seed.py"
+      - "backend/tests/unit/test_staging_smoke_fixture_ownership.py"
+      - "scripts/staging/smoke.ps1"
+      - "docker-compose.staging.yml"
+      - "docs/operations/staging-release-runbook.md"
+      - "docs/operations/staging-mvp-smoke.md"
+      - ".github/workflows/m4-staging-isolation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  powershell-contract:
+    name: PowerShell parsing + fail-closed read-only preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Parse PowerShell scripts without executing them
+        shell: pwsh
+        run: |
+          foreach ($path in @("scripts/staging/release.ps1", "scripts/staging/smoke.ps1", "scripts/staging/staging-configuration.ps1", "scripts/staging/staging-ownership.ps1")) {
+            $tokens = $null
+            $parseErrors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $env:GITHUB_WORKSPACE $path), [ref]$tokens, [ref]$parseErrors
+            )
+            if ($parseErrors.Count -gt 0) {
+              throw "Powershell parser errors in $path : $($parseErrors | Out-String)"
+            }
+          }
+      - name: Verify legacy project refusal without Docker effects
+        shell: pwsh
+        run: |
+          $output = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/release.ps1 -Action preflight -ProjectName fitflow-staging 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $output -notmatch "Refusing retained historical") {
+            throw "Historical release project was not rejected."
+          }
+          $output = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/smoke.ps1 -ProjectName fitflow-staging -Revision ("a" * 40) -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/ 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $output -notmatch "Explicit non-legacy") {
+            throw "Historical smoke project was not rejected."
+          }
+          # GitHub's pwsh wrapper propagates the final native exit code.
+          $global:LASTEXITCODE = 0
+      - name: Negative ports, then isolated no-effect Compose preflight
+        shell: pwsh
+        env:
+          POSTGRES_PASSWORD: synthetic-ci-postgres-only
+          SECRET_KEY: synthetic-ci-signing-only
+          BACKEND_CORS_ORIGINS: '["http://127.0.0.1"]'
+          STAGING_BACKEND_PORT: "18000"
+          STAGING_FRONTEND_PORT: "18180"
+        run: |
+          $sha = (git rev-parse HEAD).Trim()
+          if ($sha -cne "${{ github.event.pull_request.head.sha }}") {
+            throw "Wrong checked-out revision."
+          }
+          $project = "fitflow-m4-ci-${{ github.run_id }}"
+          $output = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/release.ps1 -Action preflight -ProjectName $project -Revision $sha 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $output -notmatch "STAGING_BACKEND_PORT must be a non-privileged port") {
+            throw "Legacy host-port guard did not fail before Compose. exit=$LASTEXITCODE output=$output"
+          }
+          # Direct Compose must never silently select the retained historical project.
+          $direct = & docker compose --file docker-compose.staging.yml config --quiet 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $direct -notmatch "FITFLOW_COMPOSE_PROJECT") {
+            throw "Direct Compose without explicit project identity was not rejected."
+          }
+          $env:STAGING_BACKEND_PORT = "18100"
+          $containersBefore = (docker ps -a --format '{{.ID}}' | Sort-Object) -join ";"
+          $volumesBefore = (docker volume ls --format '{{.Name}}' | Sort-Object) -join ";"
+          $imagesBefore = (docker image ls --format '{{.ID}}' | Sort-Object) -join ";"
+          $networksBefore = (docker network ls --format '{{.Name}}' | Sort-Object) -join ";"
+          $output = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/release.ps1 -Action preflight -ProjectName $project -Revision $sha
+          if ($LASTEXITCODE -ne 0) {
+            throw "Read-only preflight unexpectedly failed."
+          }
+          $receipt = $output | ConvertFrom-Json
+          if ($receipt.result -cne "CONFIG_PREFLIGHT_ONLY" -or
+              $receipt.project -cne $project -or
+              $receipt.revision -cne $sha -or
+              $receipt.data_effect -cne "NONE" -or
+              $receipt.staging_runtime_qualified -ne $false) {
+            throw "Unexpected preflight identity or overclaim."
+          }
+          if (((docker ps -a --format '{{.ID}}' | Sort-Object) -join ";") -cne $containersBefore -or
+              ((docker volume ls --format '{{.Name}}' | Sort-Object) -join ";") -cne $volumesBefore -or
+              ((docker image ls --format '{{.ID}}' | Sort-Object) -join ";") -cne $imagesBefore -or
+              ((docker network ls --format '{{.Name}}' | Sort-Object) -join ";") -cne $networksBefore) {
+            throw "Preflight unexpectedly modified Docker state."
+          }
+          if (Test-Path (Join-Path (Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "FitFlow/staging/$project") "deployment-state.json")) {
+            throw "Read-only preflight wrote a release receipt."
+          }
+          $env:FITFLOW_SMOKE_ALLOW_FIXTURE_RESET = "1"
+          $wrongRevision = "a" * 40
+          if ($wrongRevision -ceq $sha) { $wrongRevision = "b" * 40 }
+          $wrongSource = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/smoke.ps1 -ProjectName $project -Revision $wrongRevision -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/ 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $wrongSource -notmatch "Smoke source HEAD mismatch") {
+            throw "Smoke failed to reject mismatched source revision before fixture activity."
+          }
+          $output = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/smoke.ps1 -ProjectName $project -Revision $sha -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/ 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $output -notmatch "Missing isolated release receipt") {
+            throw "Smoke refused no-state precondition incorrectly."
+          }
+
+          # F002 negative: complete-looking but mismatched release receipt
+          # must fail before querying Docker services or resetting fixtures.
+          $syntheticState = Join-Path $env:RUNNER_TEMP "m4-config-digest-negative"
+          New-Item -ItemType Directory -Path $syntheticState -Force | Out-Null
+          $falseReceipt = @{
+            project = $project
+            current_revision = $sha
+            configuration_sha256 = ("f" * 64)
+            database_revision = "synthetic-only"
+            migrations_downgraded = $false
+          } | ConvertTo-Json
+          $falseReceipt | Set-Content -LiteralPath (Join-Path $syntheticState "deployment-state.json")
+          $badHash = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/smoke.ps1 -ProjectName $project -StateDirectory $syntheticState -Revision $sha -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/ 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $badHash -notmatch "configuration SHA-256 does not match") {
+            throw "Smoke accepted mismatched configuration digest or touched Docker."
+          }
+          Remove-Item -LiteralPath $syntheticState -Recurse -Force
+
+          # F001 IR003 synthetic network membership checks: no Docker writes.
+          . ./scripts/staging/staging-ownership.ps1
+          $projectNetwork = "fitflow-m4-network-negative_default"
+          $id1 = "a" * 64
+          $id2 = "b" * 64
+          $id3 = "c" * 64
+          $id4 = "d" * 64
+          $members = @($id1, $id2, $id3, $id4)
+          $makeNetwork = {
+            param($extra = $false)
+            $links = [pscustomobject]@{
+              $projectNetwork = [pscustomobject]@{ NetworkID = "network-identity-synthetic" }
+            }
+            if ($extra) {
+              $links | Add-Member -NotePropertyName "foreign_extra" -NotePropertyValue (
+                [pscustomobject]@{ NetworkID = "other-network" }
+              )
+            }
+            return $links
+          }
+          $views = @($members | ForEach-Object {
+            [pscustomobject]@{ Id = $_; Networks = (& $makeNetwork) }
+          })
+          Assert-StagingNetworkMembership -ExpectedNetworkName $projectNetwork `
+            -ExpectedNetworkId "network-identity-synthetic" `
+            -ExpectedContainerIds $members -ServiceNetworks $views `
+            -ActualMemberIds $members
+          $views[0].Networks = & $makeNetwork $true
+          try {
+            Assert-StagingNetworkMembership -ExpectedNetworkName $projectNetwork `
+              -ExpectedNetworkId "network-identity-synthetic" `
+              -ExpectedContainerIds $members -ServiceNetworks $views `
+              -ActualMemberIds $members
+            throw "Unexpected extra network passed."
+          } catch {
+            if ($_.Exception.Message -notmatch "unexpected extra or missing Docker network") { throw }
+          }
+          $views[0].Networks = & $makeNetwork
+          try {
+            Assert-StagingNetworkMembership -ExpectedNetworkName $projectNetwork `
+              -ExpectedNetworkId "network-identity-synthetic" `
+              -ExpectedContainerIds $members -ServiceNetworks $views `
+              -ActualMemberIds @($id1, $id2, $id3, ("e" * 64))
+            throw "Foreign connected container passed."
+          } catch {
+            if ($_.Exception.Message -notmatch "foreign or missing") { throw }
+          }
+          Write-Output "M4_ISOLATED_STAGING_NO_EFFECT_CONTRACT_PASS"
+          $global:LASTEXITCODE = 0

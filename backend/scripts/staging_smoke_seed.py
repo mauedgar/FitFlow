@@ -32,7 +32,7 @@ from app.db.models import (
     User,
 )
 from app.db.session import AsyncSessionLocal, engine
-from sqlalchemy import delete
+from sqlalchemy import delete, or_, select
 
 CLIENT_USER_ID = UUID("00000000-0000-4000-8000-000000000101")
 CLIENT_ID = UUID("00000000-0000-4000-8000-000000000102")
@@ -50,6 +50,96 @@ FRONT_DESK_EMAIL = "m4-wave-b-front-desk@example.com"
 SMOKE_PASSWORD = "FitFlow-Smoke-Only-2026!"
 
 
+
+async def assert_fixture_ownership(db) -> None:  # noqa: ANN001
+    """Fail closed on overlapping data before deleting any R006 fixture row.
+
+    The operator must independently qualify exclusive ownership of the
+    disposable staging DB; these row locks do not qualify a shared database.
+    """
+
+    async def require_owned(statement, allowed: set[tuple], label: str) -> None:  # noqa: ANN001
+        rows = (await db.execute(statement.with_for_update())).all()
+        if any(tuple(row) not in allowed for row in rows):
+            raise RuntimeError(f"Unowned {label} overlaps reserved R006 fixture; refusing reset.")
+
+    await require_owned(
+        select(User.id, User.email, User.role).where(
+            or_(
+                User.id.in_([CLIENT_USER_ID, TEACHER_USER_ID, FRONT_DESK_USER_ID]),
+                User.email.in_([CLIENT_EMAIL, TEACHER_EMAIL, FRONT_DESK_EMAIL]),
+            )
+        ),
+        {
+            (CLIENT_USER_ID, CLIENT_EMAIL, UserRole.client),
+            (TEACHER_USER_ID, TEACHER_EMAIL, UserRole.teacher),
+            (FRONT_DESK_USER_ID, FRONT_DESK_EMAIL, UserRole.front_desk),
+        },
+        "user/email",
+    )
+    await require_owned(
+        select(Person.id, Person.user_id, Person.person_type, Person.document_number).where(
+            or_(
+                Person.id.in_([CLIENT_ID, TEACHER_ID]),
+                Person.user_id.in_([CLIENT_USER_ID, TEACHER_USER_ID, FRONT_DESK_USER_ID]),
+                Person.document_number == "M4-WAVE-B-SMOKE-CLIENT",
+            )
+        ),
+        {
+            (CLIENT_ID, CLIENT_USER_ID, "client", "M4-WAVE-B-SMOKE-CLIENT"),
+            (TEACHER_ID, TEACHER_USER_ID, "teacher", None),
+        },
+        "person/profile",
+    )
+    await require_owned(
+        select(Teacher.id, Teacher.cuil).where(
+            or_(Teacher.id == TEACHER_ID, Teacher.cuil == "M4-WAVE-B-SMOKE-TEACHER")
+        ),
+        {(TEACHER_ID, "M4-WAVE-B-SMOKE-TEACHER")},
+        "teacher/cuil",
+    )
+    await require_owned(
+        select(GymClass.id, GymClass.name).where(GymClass.id == GYM_CLASS_ID),
+        {(GYM_CLASS_ID, "M4 Wave B Smoke Class")},
+        "gym class",
+    )
+    await require_owned(
+        select(ClassSchedule.id, ClassSchedule.gym_class_id, ClassSchedule.teacher_id).where(
+            or_(
+                ClassSchedule.id == SCHEDULE_ID,
+                ClassSchedule.gym_class_id == GYM_CLASS_ID,
+                ClassSchedule.teacher_id == TEACHER_ID,
+            )
+        ),
+        {(SCHEDULE_ID, GYM_CLASS_ID, TEACHER_ID)},
+        "schedule",
+    )
+    await require_owned(
+        select(ClassSession.id, ClassSession.class_schedule_id).where(
+            or_(ClassSession.id == SESSION_ID, ClassSession.class_schedule_id == SCHEDULE_ID)
+        ),
+        {(SESSION_ID, SCHEDULE_ID)},
+        "session",
+    )
+    await require_owned(
+        select(Membership.id, Membership.client_id).where(
+            or_(Membership.id == MEMBERSHIP_ID, Membership.client_id == CLIENT_ID)
+        ),
+        {(MEMBERSHIP_ID, CLIENT_ID)},
+        "membership",
+    )
+    # The HTTP API creates booking IDs. Its reserved owner and session
+    # must BOTH match; any collision with external data is an immediate STOP.
+    booking_rows = (
+        await db.execute(
+            select(Booking.client_id, Booking.class_session_id)
+            .where(or_(Booking.client_id == CLIENT_ID, Booking.class_session_id == SESSION_ID))
+            .with_for_update()
+        )
+    ).all()
+    if any((client, session) != (CLIENT_ID, SESSION_ID) for client, session in booking_rows):
+        raise RuntimeError("Unowned booking overlaps reserved R006 fixture; refusing reset.")
+
 async def reset_fixture() -> dict[str, str]:
     """Delete only the reserved fixture IDs, then recreate deterministic data."""
     if settings.ENV != "staging":
@@ -64,7 +154,13 @@ async def reset_fixture() -> dict[str, str]:
 
     async with AsyncSessionLocal() as db:
         async with db.begin():
-            await db.execute(delete(Booking).where(Booking.client_id == CLIENT_ID))
+            await assert_fixture_ownership(db)
+            await db.execute(
+                delete(Booking).where(
+                    Booking.client_id == CLIENT_ID,
+                    Booking.class_session_id == SESSION_ID,
+                )
+            )
             await db.execute(delete(ClassSession).where(ClassSession.id == SESSION_ID))
             await db.execute(delete(ClassSchedule).where(ClassSchedule.id == SCHEDULE_ID))
             await db.execute(delete(Membership).where(Membership.id == MEMBERSHIP_ID))
@@ -78,78 +174,78 @@ async def reset_fixture() -> dict[str, str]:
             )
             await db.execute(delete(GymClass).where(GymClass.id == GYM_CLASS_ID))
 
-        password_hash = get_password_hash(SMOKE_PASSWORD)
-        client_user = User(
-            id=CLIENT_USER_ID,
-            email=CLIENT_EMAIL,
-            hashed_password=password_hash,
-            role=UserRole.client,
-        )
-        teacher_user = User(
-            id=TEACHER_USER_ID,
-            email=TEACHER_EMAIL,
-            hashed_password=password_hash,
-            role=UserRole.teacher,
-        )
-        front_desk_user = User(
-            id=FRONT_DESK_USER_ID,
-            email=FRONT_DESK_EMAIL,
-            hashed_password=password_hash,
-            role=UserRole.front_desk,
-        )
-        client = Client(
-            id=CLIENT_ID,
-            first_name="Wave B",
-            last_name="Client",
-            document_number="M4-WAVE-B-SMOKE-CLIENT",
-            user=client_user,
-        )
-        teacher = Teacher(
-            id=TEACHER_ID,
-            first_name="Wave B",
-            last_name="Teacher",
-            cuil="M4-WAVE-B-SMOKE-TEACHER",
-            user=teacher_user,
-        )
-        membership = Membership(
-            id=MEMBERSHIP_ID,
-            client=client,
-            plan=MembershipPlan.classes,
-            status=MembershipStatus.active,
-            start_date=now - timedelta(days=1),
-            end_date=now + timedelta(days=30),
-        )
-        gym_class = GymClass(
-            id=GYM_CLASS_ID,
-            name="M4 Wave B Smoke Class",
-            description="Reserved non-production fixture for the staging MVP smoke.",
-            activity_type=ActivityType.group_class,
-            duration_minutes=60,
-            difficulty=DifficultyLevel.beginner,
-            default_capacity=5,
-        )
-        schedule = ClassSchedule(
-            id=SCHEDULE_ID,
-            gym_class=gym_class,
-            teacher=teacher,
-            rrule="RRULE:FREQ=DAILY;COUNT=1",
-            start_time=time(12, 0),
-            duration_minutes=60,
-            capacity=5,
-            start_date=local_tomorrow,
-            end_date=local_tomorrow,
-            allowed_plan=AllowedPlan.classes,
-        )
-        session = ClassSession(
-            id=SESSION_ID,
-            class_schedule=schedule,
-            starts_at=starts_at,
-            ends_at=ends_at,
-            capacity_snapshot=5,
-            status=ClassSessionStatus.scheduled,
-        )
-        db.add_all([front_desk_user, membership, session])
-        await db.commit()
+            password_hash = get_password_hash(SMOKE_PASSWORD)
+            client_user = User(
+                id=CLIENT_USER_ID,
+                email=CLIENT_EMAIL,
+                hashed_password=password_hash,
+                role=UserRole.client,
+            )
+            teacher_user = User(
+                id=TEACHER_USER_ID,
+                email=TEACHER_EMAIL,
+                hashed_password=password_hash,
+                role=UserRole.teacher,
+            )
+            front_desk_user = User(
+                id=FRONT_DESK_USER_ID,
+                email=FRONT_DESK_EMAIL,
+                hashed_password=password_hash,
+                role=UserRole.front_desk,
+            )
+            client = Client(
+                id=CLIENT_ID,
+                first_name="Wave B",
+                last_name="Client",
+                document_number="M4-WAVE-B-SMOKE-CLIENT",
+                user=client_user,
+            )
+            teacher = Teacher(
+                id=TEACHER_ID,
+                first_name="Wave B",
+                last_name="Teacher",
+                cuil="M4-WAVE-B-SMOKE-TEACHER",
+                user=teacher_user,
+            )
+            membership = Membership(
+                id=MEMBERSHIP_ID,
+                client=client,
+                plan=MembershipPlan.classes,
+                status=MembershipStatus.active,
+                start_date=now - timedelta(days=1),
+                end_date=now + timedelta(days=30),
+            )
+            gym_class = GymClass(
+                id=GYM_CLASS_ID,
+                name="M4 Wave B Smoke Class",
+                description="Reserved non-production fixture for the staging MVP smoke.",
+                activity_type=ActivityType.group_class,
+                duration_minutes=60,
+                difficulty=DifficultyLevel.beginner,
+                default_capacity=5,
+            )
+            schedule = ClassSchedule(
+                id=SCHEDULE_ID,
+                gym_class=gym_class,
+                teacher=teacher,
+                rrule="RRULE:FREQ=DAILY;COUNT=1",
+                start_time=time(12, 0),
+                duration_minutes=60,
+                capacity=5,
+                start_date=local_tomorrow,
+                end_date=local_tomorrow,
+                allowed_plan=AllowedPlan.classes,
+            )
+            session = ClassSession(
+                id=SESSION_ID,
+                class_schedule=schedule,
+                starts_at=starts_at,
+                ends_at=ends_at,
+                capacity_snapshot=5,
+                status=ClassSessionStatus.scheduled,
+            )
+            db.add_all([front_desk_user, membership, session])
+
 
     return {
         "client_id": str(CLIENT_ID),

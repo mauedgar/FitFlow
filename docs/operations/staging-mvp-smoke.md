@@ -53,12 +53,18 @@ process environment used by that deployment, run:
 
 ```powershell
 $env:FITFLOW_SMOKE_ALLOW_FIXTURE_RESET = "1"
-pwsh ./scripts/staging/smoke.ps1
+pwsh ./scripts/staging/smoke.ps1 `
+  -ProjectName fitflow-m4-qual-001 `
+  -Revision (git rev-parse HEAD) `
+  -FrontendUrl "http://127.0.0.1:18180/" `
+  -BackendUrl "http://127.0.0.1:18100/"
 ```
 
-Optional `-FrontendUrl` and `-BackendUrl` parameters support non-default local
-ports. The script fails on any unexpected status, payload, state transition, or
-missing fixture identity. It does not print access or refresh tokens.
+The project, exact revision and both loopback URLs are required, not optional.
+Before any synthetic fixture reset, the script checks the project-specific
+release receipt, running backend/frontend container labels, and actual published
+ports. Missing or mismatched identity fails closed. The script fails on any
+unexpected status, payload, state transition, or missing fixture identity. It does not print access or refresh tokens.
 
 Run the command twice to establish repeatability. A second pass must reset the
 previous attended booking and reproduce the same full vertical from an empty
@@ -73,3 +79,37 @@ Stop and return to CONTROL if:
 - a Product defect prevents the real HTTP vertical;
 - the smoke would require external staging, a public URL, or real-user data;
 - authentication, booking, or front-desk behavior must be bypassed to pass.
+
+When `release.ps1` was invoked with `-StateDirectory`, pass that same
+external path to `smoke.ps1 -StateDirectory`; otherwise both scripts use the
+same project-specific local app-data directory. This path is only read during
+smoke and its receipt must identify the selected project and full revision.
+
+The smoke now also refuses when the calling Git worktree is not the exact
+`-Revision` or is dirty (including ignored build inputs). It validates the
+release receipt's configuration digest and migration safety fields, and checks
+both PostgreSQL and Redis container project/service labels and exact named
+volume mounts before executing any fixture reset. These checks are necessary
+but do not replace qualifying a new isolated database or the external A002
+backup/preservation gate.
+
+When deployment supplies `-EnvFile`, pass the same untracked `-EnvFile` to
+`smoke.ps1` or provide equivalent process environment inputs. Smoke disables
+implicit default `.env` loading and requires all Compose interpolation inputs.
+The script never prints credentials or embeds them in a receipt.
+
+## Single-transaction fixture and shared ownership boundary
+
+The R006 reset performs SELECT/FOR UPDATE reserved-identity ownership checks,
+deletions and fixture re-creation within **one** database transaction.
+A failure during hash generation, seed inserts or constraints rolls back the
+whole operation; it does not persist a deleted-only fixture.
+
+Smoke dot-sources the same read-only `staging-ownership.ps1` guard as R005.
+Before any seed execution it requires schema-v2 release state with full source
+tree and backend/frontend image IDs, exact configuration digest, all four
+Compose-labelled running services, volume names/mount paths **and** ownership
+labels, precisely the expected project default network and loopback ports.
+A locally valid-looking receipt with different images/resources fails closed.
+The operator must independently demonstrate host/project exclusivity and a
+disposable database; these read-only checks are not a replacement for that grant.

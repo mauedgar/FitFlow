@@ -1,9 +1,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("deploy", "redeploy", "rollback")]
+    [ValidateSet("preflight", "deploy", "redeploy", "rollback")]
     [string]$Action,
 
+    [string]$ProjectName,
     [string]$Revision = "HEAD",
     [string]$EnvFile,
     [string]$StateDirectory,
@@ -12,6 +13,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if ([string]::IsNullOrWhiteSpace($ProjectName) -or $ProjectName -cnotmatch '^[a-z][a-z0-9_-]{2,50}$') {
+    throw "Explicit -ProjectName is required for an isolated staging project."
+}
+if ($ProjectName -in @("fitflow-staging", "fitflow")) {
+    throw "Refusing retained historical/shared Compose project."
+}
 
 function Invoke-Checked {
     param(
@@ -42,70 +50,21 @@ function Invoke-CapturedChecked {
     return ($output -join "`n").Trim()
 }
 
-function Get-RequiredEnvironmentValue {
-    param([Parameter(Mandatory = $true)][string]$Name)
+. (Join-Path $PSScriptRoot "staging-configuration.ps1")
 
-    $value = [Environment]::GetEnvironmentVariable($Name, "Process")
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        throw "$Name must be supplied through the process environment or -EnvFile."
-    }
-    return $value
-}
 
-function Get-EnvironmentValueOrDefault {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Name,
-        [Parameter(Mandatory = $true)]
-        [string]$DefaultValue
-    )
-
-    $value = [Environment]::GetEnvironmentVariable($Name, "Process")
-    if ([string]::IsNullOrEmpty($value)) {
-        return $DefaultValue
-    }
-    return $value
-}
-
-function Import-EnvironmentFile {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        throw "Environment file does not exist: $Path"
-    }
-
-    foreach ($line in Get-Content -LiteralPath $Path) {
-        $trimmed = $line.Trim()
-        if (-not $trimmed -or $trimmed.StartsWith("#")) {
-            continue
-        }
-        $parts = $trimmed.Split("=", 2)
-        if ($parts.Count -ne 2 -or [string]::IsNullOrWhiteSpace($parts[0])) {
-            throw "Invalid environment entry in $Path."
-        }
-        [Environment]::SetEnvironmentVariable($parts[0], $parts[1], "Process")
-    }
-}
-
-function Get-Sha256 {
-    param([Parameter(Mandatory = $true)][string]$Value)
-
-    $bytes = [Text.Encoding]::UTF8.GetBytes($Value)
-    $hash = [Security.Cryptography.SHA256]::HashData($bytes)
-    return [Convert]::ToHexString($hash).ToLowerInvariant()
-}
+. (Join-Path $PSScriptRoot "staging-ownership.ps1")
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 if ($EnvFile) {
     $EnvFile = (Resolve-Path $EnvFile).Path
-    Import-EnvironmentFile -Path $EnvFile
+    Import-StagingEnvironmentFile -Path $EnvFile
 }
 
 if ([string]::IsNullOrWhiteSpace($StateDirectory)) {
-    $StateDirectory = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "FitFlow/staging"
+    $StateDirectory = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "FitFlow/staging/$ProjectName"
 }
 $StateDirectory = [IO.Path]::GetFullPath($StateDirectory)
-[IO.Directory]::CreateDirectory($StateDirectory) | Out-Null
 $statePath = Join-Path $StateDirectory "deployment-state.json"
 
 $resolvedRevision = Invoke-CapturedChecked -Program "git" -Arguments @(
@@ -132,43 +91,21 @@ if ($ignoredBuildInputs) {
     throw "Git-ignored files exist inside Docker-copied source trees; refusing to build an unidentified release."
 }
 
-$configurationValues = [ordered]@{
-    POSTGRES_DB = (Get-EnvironmentValueOrDefault -Name "POSTGRES_DB" -DefaultValue "fitflow_staging")
-    POSTGRES_USER = (Get-EnvironmentValueOrDefault -Name "POSTGRES_USER" -DefaultValue "fitflow_staging")
-    POSTGRES_PASSWORD = (Get-RequiredEnvironmentValue -Name "POSTGRES_PASSWORD")
-    SECRET_KEY = (Get-RequiredEnvironmentValue -Name "SECRET_KEY")
-    BACKEND_CORS_ORIGINS = (Get-RequiredEnvironmentValue -Name "BACKEND_CORS_ORIGINS")
-    LOG_LEVEL = (Get-EnvironmentValueOrDefault -Name "LOG_LEVEL" -DefaultValue "INFO")
-    STAGING_BACKEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_BACKEND_PORT" -DefaultValue "18000")
-    STAGING_FRONTEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_FRONTEND_PORT" -DefaultValue "18080")
-    VITE_API_BASE_URL = (Get-EnvironmentValueOrDefault -Name "VITE_API_BASE_URL" -DefaultValue "/api/v1")
-    FITFLOW_TIMEZONE = (Get-EnvironmentValueOrDefault -Name "FITFLOW_TIMEZONE" -DefaultValue "America/Argentina/Buenos_Aires")
-}
-# A Vite build-time override must never contradict the backend's Product timezone.
-$requestedFrontendTimezone = [Environment]::GetEnvironmentVariable("VITE_FITFLOW_TIMEZONE", "Process")
-if (-not [string]::IsNullOrEmpty($requestedFrontendTimezone) -and $requestedFrontendTimezone -cne $configurationValues.FITFLOW_TIMEZONE) {
-    throw "VITE_FITFLOW_TIMEZONE must exactly equal FITFLOW_TIMEZONE."
-}
-try {
-    [void][TimeZoneInfo]::FindSystemTimeZoneById([string]$configurationValues.FITFLOW_TIMEZONE)
-} catch {
-    throw "FITFLOW_TIMEZONE must be a valid IANA timezone: $($configurationValues.FITFLOW_TIMEZONE)"
-}
-[Environment]::SetEnvironmentVariable("VITE_FITFLOW_TIMEZONE", $configurationValues.FITFLOW_TIMEZONE, "Process")
-foreach ($entry in $configurationValues.GetEnumerator()) {
-    [Environment]::SetEnvironmentVariable([string]$entry.Key, [string]$entry.Value, "Process")
-}
-[Environment]::SetEnvironmentVariable("COMPOSE_DISABLE_ENV_FILE", "1", "Process")
-$configurationMaterial = foreach ($entry in $configurationValues.GetEnumerator()) {
-    "$($entry.Key)=$($entry.Value)"
-}
-$configurationHash = Get-Sha256 -Value ($configurationMaterial -join "`n")
+$normalizedConfiguration = Resolve-StagingConfiguration -ProjectName $ProjectName
+$configurationValues = $normalizedConfiguration.Values
+$configurationHash = $normalizedConfiguration.Sha256
 
 $previousState = $null
 if (Test-Path -LiteralPath $statePath -PathType Leaf) {
     $previousState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
 }
 
+if ($null -ne $previousState -and [string]$previousState.project -cne $ProjectName) {
+    throw "Deployment state belongs to another project."
+}
+if ($Action -eq "deploy" -and $null -ne $previousState) {
+    throw "Deploy refuses previous state; use an explicitly reviewed redeploy."
+}
 if ($Action -eq "redeploy") {
     if ($null -eq $previousState -or $previousState.current_revision -ne $resolvedRevision) {
         throw "Redeploy requires deployment-state.json to identify the same current revision."
@@ -184,13 +121,63 @@ if ($Action -eq "rollback") {
 }
 
 [Environment]::SetEnvironmentVariable("FITFLOW_REVISION", $resolvedRevision, "Process")
+[Environment]::SetEnvironmentVariable("FITFLOW_COMPOSE_PROJECT", $ProjectName, "Process")
 $composeArguments = @("compose")
 if ($EnvFile) {
     $composeArguments += @("--env-file", $EnvFile)
 }
-$composeArguments += @("--project-name", "fitflow-staging", "--file", (Join-Path $repositoryRoot "docker-compose.staging.yml"))
+$composeArguments += @("--project-name", $ProjectName, "--file", (Join-Path $repositoryRoot "docker-compose.staging.yml"))
 
 Invoke-Checked -Program "docker" -Arguments ($composeArguments + @("config", "--quiet"))
+# Read-only identity inventory before Docker build/up or any Alembic migration.
+$existingContainers = Invoke-CapturedChecked -Program "docker" -Arguments @(
+    "ps", "--all", "--quiet", "--filter", "label=com.docker.compose.project=$ProjectName"
+)
+$allVolumes = Invoke-CapturedChecked -Program "docker" -Arguments @("volume", "ls", "--quiet")
+$volumeNames = @($allVolumes -split '\r?\n')
+$expectedVolumes = @("${ProjectName}_postgres_data", "${ProjectName}_redis_data")
+$foundVolumes = @($expectedVolumes | Where-Object { $volumeNames -contains $_ })
+$allNetworks = Invoke-CapturedChecked -Program "docker" -Arguments @("network", "ls", "--format", "{{.Name}}")
+$networkNames = @($allNetworks -split '\r?\n')
+$projectNetworks = @($networkNames | Where-Object { $_ -match ("^" + [regex]::Escape($ProjectName) + "_") })
+if ($Action -in @("preflight", "deploy")) {
+    if ($null -ne $previousState -or $existingContainers -or $foundVolumes.Count -gt 0 -or $projectNetworks.Count -gt 0) {
+        throw "Isolated first release refuses existing project state, containers, volumes or networks."
+    }
+}
+if ($Action -in @("redeploy", "rollback")) {
+    if (-not $existingContainers -or $foundVolumes.Count -ne 2 -or $projectNetworks.Count -lt 1) {
+        throw "Existing release requires current project containers and both named volumes."
+    }
+}
+if ($Action -in @("redeploy", "rollback")) {
+    if ($null -eq $previousState -or $previousState.schema_version -ne 2 -or
+        $previousState.current_revision -notmatch '^[0-9a-f]{40}$' -or
+        $previousState.git_tree_sha -notmatch '^[0-9a-f]{40}$' -or
+        $previousState.configuration_sha256 -cne $configurationHash -or
+        -not $previousState.backend_image_id -or -not $previousState.frontend_image_id) {
+        throw "Retained release receipt lacks v2 resource ownership or matching configuration."
+    }
+    $before = Get-VerifiedStagingOwnership -ExpectedRevision $previousState.current_revision `
+        -ExpectedProject $ProjectName -ComposeArguments $composeArguments `
+        -BackendPort $configurationValues.STAGING_BACKEND_PORT `
+        -FrontendPort $configurationValues.STAGING_FRONTEND_PORT
+    if ($before.backend_image_id -cne $previousState.backend_image_id -or
+        $before.frontend_image_id -cne $previousState.frontend_image_id) {
+        throw "Retained staging image IDs diverge from release receipt."
+    }
+}
+if ($Action -eq "preflight") {
+    [ordered]@{
+        result = "CONFIG_PREFLIGHT_ONLY"
+        project = $ProjectName
+        revision = $resolvedRevision
+        configuration_sha256 = $configurationHash
+        data_effect = "NONE"
+        staging_runtime_qualified = $false
+    } | ConvertTo-Json
+    return
+}
 
 $databaseRevisionBefore = $null
 if ($Action -eq "rollback") {
@@ -214,6 +201,20 @@ $upArguments = @("up", "--detach", "--wait")
 if ($Action -eq "redeploy") {
     $upArguments += "--force-recreate"
 }
+# A second inventory narrows (but cannot eliminate) Docker's TOCTOU window.
+# An exclusive project owner is mandatory before any runtime grant.
+if ($Action -eq "deploy") {
+    Assert-EmptyStagingProject -ExpectedProject $ProjectName
+} else {
+    $stillOwned = Get-VerifiedStagingOwnership -ExpectedRevision $previousState.current_revision `
+        -ExpectedProject $ProjectName -ComposeArguments $composeArguments `
+        -BackendPort $configurationValues.STAGING_BACKEND_PORT `
+        -FrontendPort $configurationValues.STAGING_FRONTEND_PORT
+    if ($stillOwned.backend_image_id -cne $previousState.backend_image_id -or
+        $stillOwned.frontend_image_id -cne $previousState.frontend_image_id) {
+        throw "Retained staging container identity changed during build."
+    }
+}
 Invoke-Checked -Program "docker" -Arguments ($composeArguments + $upArguments)
 
 $backendPort = $configurationValues.STAGING_BACKEND_PORT
@@ -226,6 +227,16 @@ if ($live.status -ne "alive" -or $ready.status -ne "ready" -or $frontend.StatusC
     throw "Post-release verification failed."
 }
 
+$after = Get-VerifiedStagingOwnership -ExpectedRevision $resolvedRevision `
+    -ExpectedProject $ProjectName -ComposeArguments $composeArguments `
+    -BackendPort $configurationValues.STAGING_BACKEND_PORT `
+    -FrontendPort $configurationValues.STAGING_FRONTEND_PORT
+$gitTree = Invoke-CapturedChecked -Program "git" -Arguments @(
+    "-C", $repositoryRoot, "rev-parse", "HEAD^{tree}"
+)
+if ($gitTree -notmatch '^[0-9a-f]{40}$') {
+    throw "Cannot verify staging source tree."
+}
 $databaseRevisionAfter = Invoke-CapturedChecked -Program "docker" -Arguments (
     $composeArguments + @("exec", "-T", "--workdir", "/app/backend", "backend", "alembic", "current")
 )
@@ -235,16 +246,22 @@ if ($null -ne $previousState) {
     $priorRevision = $previousState.current_revision
 }
 $state = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     action = $Action
     current_revision = $resolvedRevision
+    git_tree_sha = $gitTree
+    backend_image_id = $after.backend_image_id
+    frontend_image_id = $after.frontend_image_id
+    release_command = $Action
+    cleanup_performed = $false
     previous_revision = $priorRevision
     configuration_sha256 = $configurationHash
     database_revision = $databaseRevisionAfter
     database_revision_before = $databaseRevisionBefore
     migrations_downgraded = $false
-    project = "fitflow-staging"
+    project = $ProjectName
     verified_at = [DateTimeOffset]::UtcNow.ToString("o")
 }
+[IO.Directory]::CreateDirectory($StateDirectory) | Out-Null
 $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
 $state | ConvertTo-Json
