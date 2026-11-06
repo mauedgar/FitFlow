@@ -26,7 +26,7 @@ const SummaryCard = ({ title, label, count, isLoading, isError, to }: SummaryCar
       <Skeleton height="40px" my={3} role="status" aria-label={`Cargando ${title}`} />
     ) : (
       <Heading as="h2" size="2xl" my={3} color={isError ? 'red.700' : 'gray.800'}>
-        {isError ? 'No disponible' : (count ?? 0).toLocaleString('es-AR')}
+        {isError || count === undefined ? 'No disponible' : count.toLocaleString('es-AR')}
       </Heading>
     )}
     <Text color="gray.600" fontSize="xs" mb={4}>{label}</Text>

@@ -92,3 +92,44 @@ test('ADMIN JWT expiry and role checks execute over synthetically encoded tokens
   assert.equal(expiry(token({ sub: 'synthetic@example.invalid', role: 'admin', exp: -1 })), null);
   assert.equal(expiry('not-a-jwt'), null);
 });
+
+test('admin read services execute safe HTTP projections and propagate AbortSignal', async () => {
+  const ts = require('typescript');
+  const serviceSource = read('src/services/adminReadService.ts');
+  const output = ts.transpileModule(serviceSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const observed = [];
+  const fakeApi = {
+    get: async (url, options) => {
+      observed.push({ url, signal: options.signal });
+      return { data: url === '/teachers/public'
+        ? [{ id: 'synthetic-t', full_name: 'Profesora Prueba' }]
+        : [{ id: 'synthetic-c', name: 'Clase Prueba' }] };
+    },
+  };
+  const exports = {};
+  new Function('require', 'exports', output)(
+    (name) => name === './api' ? { __esModule: true, default: fakeApi } : require(name),
+    exports,
+  );
+  const controller = new AbortController();
+  const teacherRows = await exports.getAdminTeacherSummaries(controller.signal);
+  const classRows = await exports.getAdminGymClassSummaries(controller.signal);
+  assert.equal(teacherRows[0].full_name, 'Profesora Prueba');
+  assert.equal(classRows[0].name, 'Clase Prueba');
+  assert.deepEqual(observed.map((x) => x.url), ['/teachers/public', '/gym-classes/public']);
+  assert.ok(observed.every((x) => x.signal === controller.signal));
+  fakeApi.get = (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener('abort', () => reject(new Error('Synthetic request aborted')), { once: true });
+  });
+  const cancelled = new AbortController();
+  const pending = exports.getAdminTeacherSummaries(cancelled.signal);
+  cancelled.abort();
+  await assert.rejects(pending, /Synthetic request aborted/);
+});
+
+test('dashboard unknown data must not become a fabricated zero', () => {
+  assert.match(dashboard, /isError \|\| count === undefined \? 'No disponible'/);
+  assert.doesNotMatch(dashboard, /count \?\? 0/);
+});
