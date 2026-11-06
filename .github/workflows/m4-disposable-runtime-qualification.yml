@@ -66,6 +66,30 @@ jobs:
           evidence="$RUNNER_TEMP/m4-evidence"
           state="$RUNNER_TEMP/m4-state"
           mkdir -p "$evidence"
+          # Exit trap records one sanitized terminal receipt even after early failure.
+          # Never include process environment, Docker logs or token payloads.
+          gate=PRECONDITIONS
+          on_exit() {
+            local rc=$?
+            local outcome=FAIL
+            trap - EXIT
+            if [ "$rc" -eq 0 ]; then outcome=PASS; fi
+            {
+              printf 'outcome=%s\n' "$outcome"
+              printf 'exit_code=%s\n' "$rc"
+              printf 'terminal_gate=%s\n' "$gate"
+              printf 'product_sha=%s\n' "$M4_SOURCE_SHA"
+              printf 'product_tree=%s\n' "$M4_SOURCE_TREE"
+              printf 'isolated_project=%s\n' "$M4_PROJECT"
+              printf 'runner_run_id=%s\n' "$GITHUB_RUN_ID"
+              printf 'runner_run_attempt=%s\n' "$GITHUB_RUN_ATTEMPT"
+              printf 'host_class=%s\n' "$RUNNER_KIND"
+            } > "$evidence/terminal-receipt.txt" || {
+              if [ "$rc" -eq 0 ]; then rc=96; fi
+            }
+            exit "$rc"
+          }
+          trap on_exit EXIT
           printf 'PRECONDITIONS_PENDING\n' > "$evidence/status.txt"
           test "$RUNNER_KIND" = github-hosted
           test -z "${DOCKER_HOST:-}"
@@ -101,6 +125,7 @@ jobs:
           df -h "$RUNNER_TEMP"
           # The one provider-hosted runner is the sole owner of this fresh
           # project. No operation addresses historical desktop resources.
+          gate=R002_PREFLIGHT
           pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/release.ps1 \
             -Action preflight -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
             -StateDirectory "$state" > "$evidence/preflight.json"
@@ -112,6 +137,7 @@ jobs:
           docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml config --quiet
           printf 'R002_PREFLIGHT_PASS\n' >> "$evidence/status.txt"
 
+          gate=R005_DEPLOY
           echo "M4_R005_DEPLOY_START"
           pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/release.ps1 \
             -Action deploy -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
@@ -123,6 +149,7 @@ jobs:
              (.configuration_sha256|length)==64 and
              (.backend_image_id|length)>0 and (.frontend_image_id|length)>0' \
             "$evidence/deploy-state.json" >/dev/null
+          gate=R003_RUNTIME_AND_ALEMBIC
           curl --silent --show-error --fail "http://127.0.0.1:18100/health/live" | jq -e '.status=="alive"'
           curl --silent --show-error --fail "http://127.0.0.1:18100/health/ready" | jq -e '.status=="ready"'
           curl --silent --show-error --fail "http://127.0.0.1:18180/" > /dev/null
@@ -134,6 +161,7 @@ jobs:
           printf 'R003_RUNTIME_ALEMBIC_PASS\n' >> "$evidence/status.txt"
 
           # A controlled Redis outage must be visible as readiness failure.
+          gate=R004_READINESS_DEGRADE_RECOVER
           echo "M4_R004_DISPOSABLE_REDIS_FAILURE_START"
           docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml stop redis
           observed="none"
@@ -150,6 +178,7 @@ jobs:
           printf 'R004_READINESS_DEGRADE_RECOVER_PASS\n' >> "$evidence/status.txt"
           docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml \
             logs --no-color --tail 250 backend | sha256sum > "$evidence/backend-logs.sha256"
+          gate=R006_SMOKE_1
           echo "M4_R006_SMOKE_1_START"
           pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/smoke.ps1 \
             -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
@@ -157,6 +186,7 @@ jobs:
             -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/
           printf 'R006_SMOKE_1_PASS\n' >> "$evidence/status.txt"
 
+          gate=R005_REDEPLOY
           echo "M4_R005_REDEPLOY_START"
           pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/release.ps1 \
             -Action redeploy -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
@@ -166,6 +196,7 @@ jobs:
             '.action=="redeploy" and .current_revision==$s and
              .migrations_downgraded==false' "$evidence/redeploy-state.json" >/dev/null
           printf 'R005_REDEPLOY_PASS\n' >> "$evidence/status.txt"
+          gate=R006_SMOKE_2
           echo "M4_R006_SMOKE_2_START"
           pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/smoke.ps1 \
             -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
@@ -175,6 +206,7 @@ jobs:
 
           # Second accepted, migration-compatible PR90 source. Separate clean
           # worktree; rollback expressly does not downgrade the database.
+          gate=R005_ROLLBACK
           echo "M4_R005_COMPATIBLE_APPLICATION_ROLLBACK_START"
           target="$RUNNER_TEMP/m4-accepted-rollback-source"
           git worktree add --detach "$target" "$M4_ROLLBACK_SHA"
@@ -189,13 +221,17 @@ jobs:
              .previous_revision==$new and .migrations_downgraded==false and
              (.database_revision_before|length)>0' "$evidence/rollback-state.json" >/dev/null
           printf 'R005_COMPATIBLE_ROLLBACK_PASS\n' >> "$evidence/status.txt"
+          gate=FINAL_EVIDENCE
           test -z "$(git status --porcelain --untracked-files=all)"
           printf 'R002_R006_SYNTHETIC_RUNTIME_PASS\n' >> "$evidence/status.txt"
-          # Deliberately no Docker volume deletion: the standard GitHub-hosted
-          # VM is discarded by the provider after the job. Not evidence of
-          # cleanup on a retained host, legacy DB safety, or beta readiness.
+          # A003: cleanup evidence is provider-ephemeral only. This job does
+          # not claim to prove disposal of a persisted Docker host; never
+          # apply this acceptance boundary to historical volumes or staging.
+          # A001: successful activation is only established by a future
+          # terminal first-attempt run on the frozen reviewed workflow.
           printf 'DISPOSAL_PROVIDER_EPHEMERAL_NOT_HOST_VERIFIED\n' >> "$evidence/status.txt"
           sha256sum "$evidence"/*state.json > "$evidence/state-receipts.sha256"
+          gate=COMPLETE
 
       - name: Preserve revision-bound synthetic receipts
         if: always()
