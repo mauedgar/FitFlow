@@ -16,6 +16,221 @@ async function login(page, username) {
   await page.getByRole('button', { name: 'Ingresar' }).click();
 }
 
+
+const within = async (promise, label, timeoutMs = 10000) => {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Timed out waiting for ' + label)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+async function runtimeSessionState(page) {
+  // Vite serves exactly the same modules consumed by the mounted Product app.
+  // This is test-only introspection; no production debug endpoint is added.
+  return page.evaluate(async () => {
+    const epochs = await import('/src/utils/authSessionGeneration.ts');
+    const axiosModule = await import('/src/services/api.ts');
+    return {
+      generation: epochs.getAuthSessionGeneration(),
+      activeInterceptors: axiosModule.default.interceptors.response.handlers.filter(Boolean).length,
+    };
+  });
+}
+
+async function loginUsingSignedToken(page, token) {
+  // Replays the same *real backend-signed* token to exercise identical-token
+  // re-login. Other API requests continue against the real disposable backend.
+  const routePattern = '**/api/v1/auth/token';
+  await page.route(routePattern, (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ access_token: token, token_type: 'bearer', refresh_token: 'synthetic-e2e-only' }),
+  }));
+  try {
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Contraseña').fill(password);
+    await page.getByRole('button', { name: 'Ingresar' }).click();
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), token);
+  } finally {
+    await page.unroute(routePattern);
+  }
+}
+
+async function verifyRapidReLoginAndStale401(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  let authMeRequests = 0;
+  let releaseHeldRequest;
+  try {
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/v1/auth/me') authMeRequests += 1;
+    });
+    await login(page, email);
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const signedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+    assert.ok(signedToken, 'Live browser session must retain signed token');
+    const firstState = await runtimeSessionState(page);
+    assert.equal(firstState.activeInterceptors, 1, 'Exactly one Axios response interceptor on initial mount');
+    assert.ok(firstState.generation > 0, 'Login must synchronously create an auth generation');
+    assert.ok(authMeRequests >= 1 && authMeRequests <= 2, 'Shared identity query should be deduplicated');
+    const requestsBeforeNavigation = authMeRequests;
+
+    for (const section of ['Profesores', 'Clases', 'Clientes']) {
+      await page.locator('aside').getByRole('link', { name: section, exact: true }).click();
+      await page.getByRole('heading', { name: section, exact: true }).waitFor();
+    }
+    assert.equal(authMeRequests, requestsBeforeNavigation,
+      'ADMIN navigation must reuse verified /auth/me result without redundant requests');
+    assert.equal((await runtimeSessionState(page)).activeInterceptors, 1,
+      'Changing ADMIN routes must not accumulate Axios interceptors');
+
+    // Full browser rehydration is distinct from SPA login. It must validate the
+    // retained signed token again without installing duplicate interceptors.
+    await page.reload();
+    await page.getByRole('heading', { name: 'Clientes', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken);
+    assert.ok(authMeRequests > requestsBeforeNavigation &&
+      authMeRequests <= requestsBeforeNavigation + 2, 'Rehydration rechecks one verified identity');
+    assert.equal((await runtimeSessionState(page)).activeInterceptors, 1,
+      'Rehydration must have exactly one active response interceptor');
+    await page.locator('aside').getByRole('link', { name: 'Dashboard', exact: true }).click();
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+
+    // Deliberately start a no-AbortSignal Axios request with a captured older
+    // interceptor; hold its synthetic 401 until AFTER logout + same-JWT login.
+    let seenResolve;
+    let settledResolve;
+    const seen = new Promise((resolve) => { seenResolve = resolve; });
+    const settled = new Promise((resolve) => { settledResolve = resolve; });
+    let heldOnce = false;
+    let releaseResolve;
+    const release = new Promise((resolve) => { releaseResolve = resolve; });
+    releaseHeldRequest = releaseResolve;
+    await page.route('**/api/v1/clients/**', async (route) => {
+      if (heldOnce) {
+        await route.continue();
+        return;
+      }
+      heldOnce = true;
+      seenResolve();
+      await release;
+      try {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: '{"detail":"synthetic stale session"}',
+        });
+      } catch {
+        // Browser may already have cancelled the old request; no JWT is logged.
+      } finally {
+        settledResolve();
+      }
+    });
+    await page.evaluate(async () => {
+      const api = (await import('/src/services/api.ts')).default;
+      window.__fitflowOldRequest = api.get('/clients/?skip=0&limit=100')
+        .then(() => 'success', () => 'rejected');
+    });
+    await within(seen, 'captured pre-logout Axios request');
+    await page.getByRole('button', { name: 'Menú de perfil' }).click();
+    await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await page.waitForURL('**/login');
+    await page.waitForFunction(async () => {
+      const api = (await import('/src/services/api.ts')).default;
+      return api.interceptors.response.handlers.filter(Boolean).length === 0;
+    });
+    const loggedOutGeneration = (await runtimeSessionState(page)).generation;
+    assert.ok(loggedOutGeneration > firstState.generation,
+      'Logout must advance the auth generation before React state changes');
+    await loginUsingSignedToken(page, signedToken);
+    const newGeneration = (await runtimeSessionState(page)).generation;
+    assert.ok(newGeneration > loggedOutGeneration,
+      'Same-token re-login must have a distinct generation');
+    assert.equal((await runtimeSessionState(page)).activeInterceptors, 1,
+      'New ADMIN session must install exactly one interceptor');
+    releaseResolve();
+    await within(settled, 'late 401 delivery attempt');
+    await page.evaluate(() => window.__fitflowOldRequest);
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken,
+      'Old 401 must not log out a newer same-token generation');
+    assert.equal((await runtimeSessionState(page)).generation, newGeneration,
+      'Late old-generation 401 must not change session generation');
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    console.log('ADMIN_SESSION_EPOCH_AND_STALE_401_PASS');
+  } finally {
+    if (releaseHeldRequest) releaseHeldRequest();
+    await context.close();
+  }
+}
+
+async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  let releaseHeldIdentity;
+  try {
+    let firstProfileResolve;
+    let settledResolve;
+    const firstProfileSeen = new Promise((resolve) => { firstProfileResolve = resolve; });
+    const settled = new Promise((resolve) => { settledResolve = resolve; });
+    let releaseResolve;
+    const release = new Promise((resolve) => { releaseResolve = resolve; });
+    releaseHeldIdentity = releaseResolve;
+    let identityCount = 0;
+    await page.route('**/api/v1/auth/me', async (route) => {
+      identityCount += 1;
+      if (identityCount > 1) {
+        await route.continue();
+        return;
+      }
+      firstProfileResolve();
+      await release;
+      try {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: '{"detail":"synthetic old identity rejection"}',
+        });
+      } catch {
+        // The old authenticated query may already have been cancelled.
+      } finally {
+        settledResolve();
+      }
+    });
+    await login(page, email);
+    await within(firstProfileSeen, 'old /auth/me request in pending ADMIN guard');
+    const firstSignedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+    assert.ok(firstSignedToken, 'Signed JWT must be present while first profile is pending');
+    await page.evaluate(() => {
+      history.pushState({}, '', '/login');
+      dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await page.getByRole('heading', { name: 'Iniciar Sesión' }).waitFor();
+    await loginUsingSignedToken(page, firstSignedToken);
+    const newState = await runtimeSessionState(page);
+    assert.ok(newState.generation >= 2, 'Second same-token login must advance generation');
+    assert.equal(newState.activeInterceptors, 1, 'Only current identity guard interceptor survives');
+    assert.ok(identityCount >= 2, 'New generation must independently confirm backend identity');
+    releaseResolve();
+    await within(settled, 'late old /auth/me response');
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), firstSignedToken);
+    assert.equal((await runtimeSessionState(page)).generation, newState.generation,
+      'Old profile 401 must not invalidate the newer same-token login');
+    console.log('ADMIN_DELAYED_IDENTITY_RACE_PASS');
+  } finally {
+    if (releaseHeldIdentity) releaseHeldIdentity();
+    await context.close();
+  }
+}
+
 async function run() {
   if (process.env.GITHUB_ACTIONS !== 'true' || process.env.FITFLOW_E2E_SYNTHETIC_ONLY !== '1' ||
       !email?.endsWith('@example.com') || !clientEmail?.endsWith('@example.com')) {
@@ -160,7 +375,9 @@ async function run() {
     assert.equal(await wrongPage.getByRole('heading', { name: 'Panel de administración' }).count(), 0);
     await wrongRole.close();
     await context.close();
-    console.log('ADMIN_SIGNED_E2E_PASS: JWT login, backend identity, real data, privacy, 390/1280, role, expired, anonymous, logout');
+    await verifyRapidReLoginAndStale401(browser);
+    await verifyDelayedIdentityAcrossSameTokenReLogin(browser);
+    console.log('ADMIN_SIGNED_E2E_PASS: JWT login, backend identity, real data, privacy, 390/1280, role, expired, anonymous, logout, stale session races');
   } finally {
     await browser.close();
   }
