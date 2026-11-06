@@ -16,6 +16,7 @@ const ClassesPage = React.lazy(() => import('../pages/ClassesPage'));
 const JoinUsPage = React.lazy(() => import('../pages/JoinUsPage'));
 const NutritionPage = React.lazy(() => import('../pages/NutritionPage'));
 const AdminLayout = React.lazy(() => import('../components/admin/layout/AdminLayout'));
+const AdminSessionGate = React.lazy(() => import('../components/admin/auth/AdminSessionGate'));
 const ProtectedRoute = React.lazy(() => import('../components/auth/ProtectedRoute'));
 const AdminDashboardPage = React.lazy(() => import('../pages/admin/AdminDashboardPage'));
 const ClientsPage = React.lazy(() => import('../pages/admin/ClientsPage'));
@@ -63,7 +64,7 @@ export const AppRouter: React.FC = () => {
         </Route>
         <Route element={<ProtectedRoute allowedRoles={[UserRole.ADMIN]} />}>
           {/* Todas las rutas anidadas aquí usarán el AdminLayout */}
-          <Route path="/admin" element={<AdminLayout />}>
+          <Route path="/admin" element={<AdminSessionGate><AdminLayout /></AdminSessionGate>}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="teachers" element={<TeachersPage />} />

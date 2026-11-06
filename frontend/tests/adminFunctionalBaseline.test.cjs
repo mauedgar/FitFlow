@@ -56,3 +56,18 @@ test('ADMIN sections are routed and navigable on desktop and mobile, with no fak
     assert.ok(dashboard.includes(url));
   }
 });
+
+const gate = read('src/components/admin/auth/AdminSessionGate.tsx');
+test('ADMIN guard rejects locally expired JWTs and isolates stale HTTP 401 from different accounts', () => {
+  assert.match(gate, /jwtDecode<TokenPayload>/);
+  assert.match(gate, /payload\.role !== UserRole\.ADMIN/);
+  assert.match(gate, /payload\.exp <= 0/);
+  assert.match(gate, /expiresAt > Date\.now\(\)/);
+  assert.match(gate, /window\.setTimeout\(recheck/);
+  assert.match(gate, /window\.clearTimeout\(timeoutId\)/);
+  assert.match(gate, /error\.response\?\.status === 401/);
+  assert.match(gate, /sent === `Bearer/);
+  assert.match(gate, /localStorage\.getItem\('access_token'\) === token/);
+  assert.match(gate, /<Navigate to="\/login" replace \/>/);
+  assert.match(routes, /<AdminSessionGate><AdminLayout \/><\/AdminSessionGate>/);
+});
