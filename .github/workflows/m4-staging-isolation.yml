@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "scripts/staging/release.ps1"
+      - "scripts/staging/staging-configuration.ps1"
+      - "backend/scripts/staging_smoke_seed.py"
+      - "backend/tests/unit/test_staging_smoke_fixture_ownership.py"
       - "scripts/staging/smoke.ps1"
       - "docker-compose.staging.yml"
       - "docs/operations/staging-release-runbook.md"
@@ -27,7 +30,7 @@ jobs:
       - name: Parse PowerShell scripts without executing them
         shell: pwsh
         run: |
-          foreach ($path in @("scripts/staging/release.ps1", "scripts/staging/smoke.ps1")) {
+          foreach ($path in @("scripts/staging/release.ps1", "scripts/staging/smoke.ps1", "scripts/staging/staging-configuration.ps1")) {
             $tokens = $null
             $parseErrors = $null
             $null = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -110,5 +113,23 @@ jobs:
           if ($LASTEXITCODE -eq 0 -or $output -notmatch "Missing isolated release receipt") {
             throw "Smoke refused no-state precondition incorrectly."
           }
+
+          # F002 negative: complete-looking but mismatched release receipt
+          # must fail before querying Docker services or resetting fixtures.
+          $syntheticState = Join-Path $env:RUNNER_TEMP "m4-config-digest-negative"
+          New-Item -ItemType Directory -Path $syntheticState -Force | Out-Null
+          $falseReceipt = @{
+            project = $project
+            current_revision = $sha
+            configuration_sha256 = ("f" * 64)
+            database_revision = "synthetic-only"
+            migrations_downgraded = $false
+          } | ConvertTo-Json
+          $falseReceipt | Set-Content -LiteralPath (Join-Path $syntheticState "deployment-state.json")
+          $badHash = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/smoke.ps1 -ProjectName $project -StateDirectory $syntheticState -Revision $sha -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/ 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $badHash -notmatch "configuration SHA-256 does not match") {
+            throw "Smoke accepted mismatched configuration digest or touched Docker."
+          }
+          Remove-Item -LiteralPath $syntheticState -Recurse -Force
           Write-Output "M4_ISOLATED_STAGING_NO_EFFECT_CONTRACT_PASS"
           $global:LASTEXITCODE = 0

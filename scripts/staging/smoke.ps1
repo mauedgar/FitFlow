@@ -27,6 +27,7 @@ if ([Environment]::GetEnvironmentVariable("FITFLOW_SMOKE_ALLOW_FIXTURE_RESET", "
 }
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+. (Join-Path $PSScriptRoot "staging-configuration.ps1")
 # The seed and HTTP test implementation must be from the exact reviewed release.
 $sourceSha = (& git -C $repositoryRoot rev-parse HEAD) -join "`n"
 if ($LASTEXITCODE -ne 0 -or $sourceSha.Trim() -cne $Revision) {
@@ -50,7 +51,9 @@ if ($EnvFile) {
     if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
         throw "Explicit smoke -EnvFile does not exist."
     }
-    $composeArguments += @("--env-file", (Resolve-Path -LiteralPath $EnvFile).Path)
+    $EnvFile = (Resolve-Path -LiteralPath $EnvFile).Path
+    Import-StagingEnvironmentFile -Path $EnvFile
+    $composeArguments += @("--env-file", $EnvFile)
 }
 $composeArguments += @("--project-name", $ProjectName, "--file", $composeFile)
 
@@ -68,6 +71,13 @@ if ($state.project -cne $ProjectName -or $state.current_revision -cne $Revision 
     $state.migrations_downgraded -ne $false) {
     throw "Release receipt identity or migration safety mismatch."
 }
+# F002: same ordered inputs and normalization as release.ps1, not merely
+# the presence of a plausible hash in deployment-state.json.
+$effectiveConfiguration = Resolve-StagingConfiguration -ProjectName $ProjectName
+if ([string]$state.configuration_sha256 -cne [string]$effectiveConfiguration.Sha256) {
+    throw "Staging smoke configuration SHA-256 does not match the recorded release."
+}
+
 function Assert-StagingService {
     param([string]$Service, [string]$ContainerPort, [string]$Url)
     $uri = $null

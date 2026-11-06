@@ -50,63 +50,12 @@ function Invoke-CapturedChecked {
     return ($output -join "`n").Trim()
 }
 
-function Get-RequiredEnvironmentValue {
-    param([Parameter(Mandatory = $true)][string]$Name)
-
-    $value = [Environment]::GetEnvironmentVariable($Name, "Process")
-    if ([string]::IsNullOrWhiteSpace($value)) {
-        throw "$Name must be supplied through the process environment or -EnvFile."
-    }
-    return $value
-}
-
-function Get-EnvironmentValueOrDefault {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Name,
-        [Parameter(Mandatory = $true)]
-        [string]$DefaultValue
-    )
-
-    $value = [Environment]::GetEnvironmentVariable($Name, "Process")
-    if ([string]::IsNullOrEmpty($value)) {
-        return $DefaultValue
-    }
-    return $value
-}
-
-function Import-EnvironmentFile {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        throw "Environment file does not exist: $Path"
-    }
-
-    foreach ($line in Get-Content -LiteralPath $Path) {
-        $trimmed = $line.Trim()
-        if (-not $trimmed -or $trimmed.StartsWith("#")) {
-            continue
-        }
-        $parts = $trimmed.Split("=", 2)
-        if ($parts.Count -ne 2 -or [string]::IsNullOrWhiteSpace($parts[0])) {
-            throw "Invalid environment entry in $Path."
-        }
-        [Environment]::SetEnvironmentVariable($parts[0], $parts[1], "Process")
-    }
-}
-
-function Get-Sha256 {
-    param([Parameter(Mandatory = $true)][string]$Value)
-
-    $bytes = [Text.Encoding]::UTF8.GetBytes($Value)
-    $hash = [Security.Cryptography.SHA256]::HashData($bytes)
-    return [Convert]::ToHexString($hash).ToLowerInvariant()
-}
+. (Join-Path $PSScriptRoot "staging-configuration.ps1")
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 if ($EnvFile) {
     $EnvFile = (Resolve-Path $EnvFile).Path
-    Import-EnvironmentFile -Path $EnvFile
+    Import-StagingEnvironmentFile -Path $EnvFile
 }
 
 if ([string]::IsNullOrWhiteSpace($StateDirectory)) {
@@ -139,48 +88,9 @@ if ($ignoredBuildInputs) {
     throw "Git-ignored files exist inside Docker-copied source trees; refusing to build an unidentified release."
 }
 
-$configurationValues = [ordered]@{
-    POSTGRES_DB = (Get-EnvironmentValueOrDefault -Name "POSTGRES_DB" -DefaultValue "fitflow_staging")
-    POSTGRES_USER = (Get-EnvironmentValueOrDefault -Name "POSTGRES_USER" -DefaultValue "fitflow_staging")
-    POSTGRES_PASSWORD = (Get-RequiredEnvironmentValue -Name "POSTGRES_PASSWORD")
-    SECRET_KEY = (Get-RequiredEnvironmentValue -Name "SECRET_KEY")
-    BACKEND_CORS_ORIGINS = (Get-RequiredEnvironmentValue -Name "BACKEND_CORS_ORIGINS")
-    LOG_LEVEL = (Get-EnvironmentValueOrDefault -Name "LOG_LEVEL" -DefaultValue "INFO")
-    STAGING_BACKEND_PORT = (Get-RequiredEnvironmentValue -Name "STAGING_BACKEND_PORT")
-    STAGING_FRONTEND_PORT = (Get-RequiredEnvironmentValue -Name "STAGING_FRONTEND_PORT")
-    FITFLOW_RELEASE_IMAGE_NAMESPACE = "fitflow-$ProjectName"
-    VITE_API_BASE_URL = (Get-EnvironmentValueOrDefault -Name "VITE_API_BASE_URL" -DefaultValue "/api/v1")
-    FITFLOW_TIMEZONE = (Get-EnvironmentValueOrDefault -Name "FITFLOW_TIMEZONE" -DefaultValue "America/Argentina/Buenos_Aires")
-}
-foreach ($portName in @("STAGING_BACKEND_PORT", "STAGING_FRONTEND_PORT")) {
-    $portValue = 0
-    if (-not [int]::TryParse([string]$configurationValues[$portName], [ref]$portValue) -or
-        $portValue -lt 1024 -or $portValue -gt 65535 -or $portValue -in @(18000, 18080)) {
-        throw "$portName must be a non-privileged port other than legacy 18000/18080."
-    }
-}
-if ($configurationValues.STAGING_BACKEND_PORT -eq $configurationValues.STAGING_FRONTEND_PORT) {
-    throw "Backend and frontend host ports must differ."
-}
-# A Vite build-time override must never contradict the backend's Product timezone.
-$requestedFrontendTimezone = [Environment]::GetEnvironmentVariable("VITE_FITFLOW_TIMEZONE", "Process")
-if (-not [string]::IsNullOrEmpty($requestedFrontendTimezone) -and $requestedFrontendTimezone -cne $configurationValues.FITFLOW_TIMEZONE) {
-    throw "VITE_FITFLOW_TIMEZONE must exactly equal FITFLOW_TIMEZONE."
-}
-try {
-    [void][TimeZoneInfo]::FindSystemTimeZoneById([string]$configurationValues.FITFLOW_TIMEZONE)
-} catch {
-    throw "FITFLOW_TIMEZONE must be a valid IANA timezone: $($configurationValues.FITFLOW_TIMEZONE)"
-}
-[Environment]::SetEnvironmentVariable("VITE_FITFLOW_TIMEZONE", $configurationValues.FITFLOW_TIMEZONE, "Process")
-foreach ($entry in $configurationValues.GetEnumerator()) {
-    [Environment]::SetEnvironmentVariable([string]$entry.Key, [string]$entry.Value, "Process")
-}
-[Environment]::SetEnvironmentVariable("COMPOSE_DISABLE_ENV_FILE", "1", "Process")
-$configurationMaterial = foreach ($entry in $configurationValues.GetEnumerator()) {
-    "$($entry.Key)=$($entry.Value)"
-}
-$configurationHash = Get-Sha256 -Value ($configurationMaterial -join "`n")
+$normalizedConfiguration = Resolve-StagingConfiguration -ProjectName $ProjectName
+$configurationValues = $normalizedConfiguration.Values
+$configurationHash = $normalizedConfiguration.Sha256
 
 $previousState = $null
 if (Test-Path -LiteralPath $statePath -PathType Leaf) {
