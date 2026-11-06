@@ -4,6 +4,7 @@ import {
   FiHome,
   FiUsers,
   FiBriefcase,
+  FiCalendar,
 } from 'react-icons/fi';
 
 
@@ -12,6 +13,7 @@ const sidebarLinks = [
   { label: 'Dashboard', to: '/admin', icon: FiHome, end: true },
   { label: 'Clientes', to: '/admin/clients', icon: FiUsers },
   { label: 'Profesores', to: '/admin/teachers', icon: FiBriefcase },
+  { label: 'Clases', to: '/admin/classes', icon: FiCalendar },
 ];
 
 const AdminSideBar = () => {

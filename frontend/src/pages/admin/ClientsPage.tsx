@@ -13,11 +13,11 @@ const matches = (client: AdminClientSummary, term: string) =>
     .some((field) => field.toLocaleLowerCase().includes(term));
 
 const ClientsPage = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, sessionGeneration } = useAuth();
   const [search, setSearch] = useState('');
   const { data = [], isLoading, isError, isFetching, refetch } = useQuery({
     // Partition cached results by authenticated account, not only by page.
-    queryKey: ['adminClients', currentUser?.email, 0, 100],
+    queryKey: ['adminClients', currentUser?.email, sessionGeneration, 0, 100],
     queryFn: ({ signal }) => getAdminClients(signal),
     enabled: currentUser?.role === 'admin',
     retry: 1,

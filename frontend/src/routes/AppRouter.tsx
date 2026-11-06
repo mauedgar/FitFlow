@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
 import { Spinner, Center } from '@chakra-ui/react';
 import React, { Suspense } from 'react';
@@ -16,6 +16,7 @@ const ClassesPage = React.lazy(() => import('../pages/ClassesPage'));
 const JoinUsPage = React.lazy(() => import('../pages/JoinUsPage'));
 const NutritionPage = React.lazy(() => import('../pages/NutritionPage'));
 const AdminLayout = React.lazy(() => import('../components/admin/layout/AdminLayout'));
+const AdminSessionGate = React.lazy(() => import('../components/admin/auth/AdminSessionGate'));
 const ProtectedRoute = React.lazy(() => import('../components/auth/ProtectedRoute'));
 const AdminDashboardPage = React.lazy(() => import('../pages/admin/AdminDashboardPage'));
 const ClientsPage = React.lazy(() => import('../pages/admin/ClientsPage'));
@@ -63,11 +64,12 @@ export const AppRouter: React.FC = () => {
         </Route>
         <Route element={<ProtectedRoute allowedRoles={[UserRole.ADMIN]} />}>
           {/* Todas las rutas anidadas aquí usarán el AdminLayout */}
-          <Route path="/admin" element={<AdminLayout />}>
+          <Route path="/admin" element={<AdminSessionGate><AdminLayout /></AdminSessionGate>}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="teachers" element={<TeachersPage />} />
-            <Route path="CruClasses" element={<CrudClassesPage />} />
+            <Route path="classes" element={<CrudClassesPage />} />
+            <Route path="CruClasses" element={<Navigate to="/admin/classes" replace />} />
             {/* Si un admin va a /admin/ruta-inexistente, puedes mostrar un NotFound específico */}
             <Route path="*" element={<NotFoundPage />} /> 
           </Route>
