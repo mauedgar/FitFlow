@@ -18,15 +18,58 @@ async function login(page, username) {
 
 async function run() {
   if (process.env.GITHUB_ACTIONS !== 'true' || process.env.FITFLOW_E2E_SYNTHETIC_ONLY !== '1' ||
-      !email?.endsWith('@example.invalid') || !clientEmail?.endsWith('@example.invalid')) {
+      !email?.endsWith('@example.com') || !clientEmail?.endsWith('@example.com')) {
     throw new Error('BLOCKED_PRECONDITION: CI synthetic-only E2E');
   }
+  // Validate the real signed HTTP contract before attributing any failure to React.
+  const form = new URLSearchParams({ username: email, password });
+  const loginResponse = await fetch(API + '/auth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form,
+  });
+  assert.equal(loginResponse.status, 200, 'Synthetic ADMIN login must return signed credentials');
+  const { access_token: signed } = await loginResponse.json();
+  assert.ok(signed, 'Backend must return access token');
+  const profileResponse = await fetch(API + '/auth/me', {
+    headers: { Authorization: 'Bearer ' + signed },
+  });
+  assert.equal(profileResponse.status, 200, 'Signed /auth/me must resolve real user profile');
+  const identity = await profileResponse.json();
+  assert.equal(identity.email, email);
+  assert.equal(identity.role, 'admin');
+  assert.equal(identity.active, true);
+  const clientResponse = await fetch(API + '/clients/', {
+    headers: { Authorization: 'Bearer ' + signed },
+  });
+  assert.equal(clientResponse.status, 200, 'Signed ADMIN must list real clients');
+  assert.ok((await clientResponse.json()).some((x) => x.full_name === 'Cliente Sintético'));
+  const teacherResponse = await fetch(API + '/teachers/public');
+  assert.equal(teacherResponse.status, 200);
+  const teacherRows = await teacherResponse.json();
+  assert.ok(teacherRows.some((x) => x.full_name === 'Profesora Sintética'));
+  assert.ok(teacherRows.every((x) => !Object.hasOwn(x, 'cuil')), 'TeacherPublic must omit CUIL');
+  const classesResponse = await fetch(API + '/gym-classes/public');
+  assert.equal(classesResponse.status, 200);
+  assert.ok((await classesResponse.json()).some((x) => x.name === 'Clase Sintética E2E'));
+  console.log('ADMIN_SIGNED_HTTP_PREFLIGHT_PASS');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     await login(page, email);
-    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor({ timeout: 20000 });
+    try {
+      await page.getByRole('heading', { name: 'Panel de administración' }).waitFor({ timeout: 20000 });
+    } catch (error) {
+      // Bounded synthetic-only diagnostics. Never log Authorization or form values.
+      const state = {
+        path: new URL(page.url()).pathname,
+        headings: await page.getByRole('heading').allTextContents(),
+        alerts: await page.getByRole('alert').allTextContents(),
+      };
+      console.error('ADMIN_BROWSER_DIAGNOSTIC', JSON.stringify(state));
+      throw error;
+    }
     assert.equal(new URL(page.url()).pathname, '/admin');
     const widthMobile = await page.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth]);
     assert.equal(widthMobile[0], 390);

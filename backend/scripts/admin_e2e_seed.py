@@ -37,7 +37,7 @@ async def main() -> None:
     admin_email = os.environ["FITFLOW_E2E_ADMIN_EMAIL"]
     client_email = os.environ["FITFLOW_E2E_CLIENT_EMAIL"]
     password = os.environ["FITFLOW_E2E_PASSWORD"]
-    if not (admin_email.endswith("@example.invalid") and client_email.endswith("@example.invalid")):
+    if not (admin_email.endswith("@example.com") and client_email.endswith("@example.com")):
         raise SystemExit("BLOCKED_PRECONDITION: synthetic identities required")
 
     async with AsyncSessionLocal() as db:
@@ -50,7 +50,7 @@ async def main() -> None:
         client = User(id=uuid.uuid4(), email=client_email,
                       hashed_password=security.get_password_hash(password),
                       role=UserRole.client, active=True)
-        trainer = User(id=uuid.uuid4(), email="teacher-fitflow@example.invalid",
+        trainer = User(id=uuid.uuid4(), email="teacher-fitflow@example.com",
                        hashed_password=security.get_password_hash(password),
                        role=UserRole.teacher, active=True)
         db.add_all((admin, client, trainer))
