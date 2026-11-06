@@ -48,6 +48,8 @@ jobs:
           if ($LASTEXITCODE -eq 0 -or $output -notmatch "Explicit non-legacy") {
             throw "Historical smoke project was not rejected."
           }
+          # GitHub's pwsh wrapper propagates the final native exit code.
+          $global:LASTEXITCODE = 0
       - name: Negative ports, then isolated no-effect Compose preflight
         shell: pwsh
         env:
@@ -96,3 +98,4 @@ jobs:
             throw "Smoke refused no-state precondition incorrectly."
           }
           Write-Output "M4_ISOLATED_STAGING_NO_EFFECT_CONTRACT_PASS"
+          $global:LASTEXITCODE = 0
