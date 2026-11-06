@@ -135,6 +135,27 @@ jobs:
             } > "$evidence/terminal-receipt.txt" || {
               if [ "$rc" -eq 0 ]; then rc=96; fi
             }
+            # A004: classify only bounded synthetic-backend startup evidence.
+            # Raw container logs stay in this short-lived process pipe; never
+            # echo or archive log lines, secrets, SQL, or HTTP request bodies.
+            if [ "$rc" -ne 0 ] && [ "$gate" != PRECONDITIONS ]; then
+              {
+                docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml \
+                  logs --no-color --tail 160 backend 2>/dev/null || true
+              } | python3 -c 'import hashlib, sys
+payload = sys.stdin.buffer.read(1000000)
+markers = (
+    ("STAGING_CORS_REJECTED", b"localhost CORS origins are forbidden in staging"),
+    ("PYDANTIC_VALIDATION", b"pydantic_core._pydantic_core.ValidationError"),
+    ("ALEMBIC_ERROR", b"alembic.util.exc"),
+    ("SQLALCHEMY_ERROR", b"sqlalchemy.exc."),
+    ("APP_SERVER_STARTED", b"Starting FastAPI server..."),
+)
+classification = next((name for name, marker in markers if marker in payload), "UNCLASSIFIED")
+print("backend_diagnostic_class=" + classification)
+print("backend_log_sample_sha256=" + hashlib.sha256(payload).hexdigest())
+' >> "$evidence/terminal-receipt.txt" || true
+            fi
             exit "$rc"
           }
           trap on_exit EXIT
