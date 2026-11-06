@@ -22,7 +22,7 @@ export interface AdminGymClassSummary {
 }
 
 export const getAdminTeacherSummaries = async (signal?: AbortSignal): Promise<AdminTeacherSummary[]> => {
-  // TeacherPublic intentionally has no CUIL, email or other private fields.
+  // This public teacher projection contains display-only fields.
   const { data } = await apiClient.get<AdminTeacherSummary[]>('/teachers/public', { signal });
   return data;
 };
