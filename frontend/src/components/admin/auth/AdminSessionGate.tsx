@@ -1,28 +1,14 @@
 import { useEffect, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
-import { jwtDecode } from 'jwt-decode';
 import axios from 'axios';
 import apiClient from '../../../services/api';
 import { useAuth } from '../../../context/useAuth';
-import { UserRole, type TokenPayload } from '../../../types';
+import { adminTokenExpiryMs } from '../../../utils/adminSession';
 
 /**
  * This is a browser UX boundary, not a replacement for backend JWT signature
  * verification or server-side RBAC. API 401 is authoritative.
  */
-export const adminTokenExpiryMs = (accessToken: string): number | null => {
-  try {
-    const payload = jwtDecode<TokenPayload>(accessToken);
-    if (payload.role !== UserRole.ADMIN || typeof payload.exp !== 'number' ||
-        !Number.isFinite(payload.exp) || payload.exp <= 0) {
-      return null;
-    }
-    return payload.exp * 1000;
-  } catch {
-    return null;
-  }
-};
-
 const AdminSessionGate = ({ children }: { children: ReactNode }) => {
   const { token, logout } = useAuth();
   const expiresAt = token ? adminTokenExpiryMs(token) : null;

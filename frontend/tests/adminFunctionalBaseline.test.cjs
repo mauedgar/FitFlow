@@ -58,10 +58,11 @@ test('ADMIN sections are routed and navigable on desktop and mobile, with no fak
 });
 
 const gate = read('src/components/admin/auth/AdminSessionGate.tsx');
+const session = read('src/utils/adminSession.ts');
 test('ADMIN guard rejects locally expired JWTs and isolates stale HTTP 401 from different accounts', () => {
-  assert.match(gate, /jwtDecode<TokenPayload>/);
-  assert.match(gate, /payload\.role !== UserRole\.ADMIN/);
-  assert.match(gate, /payload\.exp <= 0/);
+  assert.match(session, /jwtDecode<TokenPayload>/);
+  assert.match(session, /payload\.role !== 'admin'/);
+  assert.match(session, /payload\.exp <= 0/);
   assert.match(gate, /expiresAt > Date\.now\(\)/);
   assert.match(gate, /window\.setTimeout\(recheck/);
   assert.match(gate, /window\.clearTimeout\(timeoutId\)/);
@@ -70,4 +71,24 @@ test('ADMIN guard rejects locally expired JWTs and isolates stale HTTP 401 from 
   assert.match(gate, /localStorage\.getItem\('access_token'\) === token/);
   assert.match(gate, /<Navigate to="\/login" replace \/>/);
   assert.match(routes, /<AdminSessionGate><AdminLayout \/><\/AdminSessionGate>/);
+});
+
+test('ADMIN JWT expiry and role checks execute over synthetically encoded tokens', () => {
+  const ts = require('typescript');
+  const output = ts.transpileModule(session, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exported = {};
+  new Function('require', 'exports', output)(require, exported);
+  const expiry = exported.adminTokenExpiryMs;
+  const token = (claims) => [
+    Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+    Buffer.from(JSON.stringify(claims)).toString('base64url'),
+    '',
+  ].join('.');
+  assert.equal(expiry(token({ sub: 'synthetic@example.invalid', role: 'admin', exp: 1_800_000_000 })), 1_800_000_000_000);
+  assert.equal(expiry(token({ sub: 'synthetic@example.invalid', role: 'client', exp: 1_800_000_000 })), null);
+  assert.equal(expiry(token({ sub: 'synthetic@example.invalid', role: 'admin' })), null);
+  assert.equal(expiry(token({ sub: 'synthetic@example.invalid', role: 'admin', exp: -1 })), null);
+  assert.equal(expiry('not-a-jwt'), null);
 });
