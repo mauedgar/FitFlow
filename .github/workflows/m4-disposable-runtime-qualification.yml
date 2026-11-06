@@ -140,9 +140,10 @@ jobs:
             # echo or archive log lines, secrets, SQL, or HTTP request bodies.
             if [ "$rc" -ne 0 ] && [ "$gate" != PRECONDITIONS ]; then
               {
-                docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml \
+                # Bound only the diagnostic Docker client, never the service.
+                timeout --signal=TERM 8s docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml \
                   logs --no-color --tail 160 backend 2>/dev/null || true
-              } | python3 -c 'import hashlib, sys
+              } | head -c 1000000 | python3 -c 'import hashlib, sys
           payload = sys.stdin.buffer.read(1000000)
           markers = (
               ("STAGING_CORS_REJECTED", b"localhost CORS origins are forbidden in staging"),
