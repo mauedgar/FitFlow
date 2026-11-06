@@ -74,15 +74,22 @@ async function run() {
     const widthMobile = await page.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth]);
     assert.equal(widthMobile[0], 390);
     assert.ok(widthMobile[1] <= 390, 'ADMIN dashboard must not overflow at 390px');
-    await page.getByRole('button', { name: 'Menú', exact: true }).click();
-    await page.getByRole('link', { name: 'Profesores' }).click();
+    const mobileMenu = page.getByRole('button', { name: 'Menú', exact: true });
+    await mobileMenu.click();
+    await page.keyboard.press('Escape');
+    assert.equal(await mobileMenu.getAttribute('aria-expanded'), 'false');
+    assert.equal(await mobileMenu.evaluate((element) => element === document.activeElement), true,
+      'Escape must restore keyboard focus to mobile menu trigger');
+    await mobileMenu.click();
+    await page.getByRole('link', { name: 'Profesores' }).focus();
+    await page.keyboard.press('Enter');
     await page.getByRole('heading', { name: 'Profesores' }).waitFor();
-    await page.getByText('Profesora Sintética').first().waitFor();
+    await page.getByText('Profesora Sintética', { exact: true }).filter({ visible: true }).first().waitFor();
     assert.equal(await page.getByText('20999999999').count(), 0, 'Teacher CUIL must not appear');
     await page.getByRole('button', { name: 'Menú', exact: true }).click();
     await page.getByRole('link', { name: 'Clases' }).click();
     await page.getByRole('heading', { name: 'Clases', exact: true }).waitFor();
-    await page.getByText('Clase Sintética E2E').first().waitFor();
+    await page.getByText('Clase Sintética E2E', { exact: true }).filter({ visible: true }).first().waitFor();
     await page.setViewportSize({ width: 1280, height: 800 });
     const widthDesktop = await page.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth]);
     assert.equal(widthDesktop[0], 1280);
