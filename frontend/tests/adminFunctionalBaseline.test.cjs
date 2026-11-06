@@ -59,7 +59,7 @@ test('ADMIN sections are routed and navigable on desktop and mobile, with no fak
 
 const gate = read('src/components/admin/auth/AdminSessionGate.tsx');
 const session = read('src/utils/adminSession.ts');
-test('ADMIN guard rejects locally expired JWTs and isolates stale HTTP 401 from different accounts', () => {
+test('ADMIN guard rejects expired tokens and retires same-token stale interceptors', () => {
   assert.match(session, /jwtDecode<TokenPayload>/);
   assert.match(session, /payload\.role !== 'admin'/);
   assert.match(session, /payload\.exp <= 0/);
@@ -67,8 +67,11 @@ test('ADMIN guard rejects locally expired JWTs and isolates stale HTTP 401 from 
   assert.match(gate, /window\.setTimeout\(recheck/);
   assert.match(gate, /window\.clearTimeout\(timeoutId\)/);
   assert.match(gate, /error\.response\?\.status === 401/);
-  assert.match(gate, /sent === `Bearer/);
-  assert.match(gate, /localStorage\.getItem\('access_token'\) === token/);
+  assert.match(gate, /sessionActive = false/);
+  assert.match(gate, /\[token, currentUser\]/);
+  assert.match(gate, /logoutRef\.current/);
+  assert.match(gate, /shouldInvalidateCurrentAdminSession/);
+  assert.match(gate, /localStorage\.getItem\('access_token'\)/);
   assert.match(gate, /<Navigate to="\/login" replace \/>/);
   assert.match(routes, /<AdminSessionGate><AdminLayout \/><\/AdminSessionGate>/);
 });
@@ -132,4 +135,19 @@ test('admin read services execute safe HTTP projections and propagate AbortSigna
 test('dashboard unknown data must not become a fabricated zero', () => {
   assert.match(dashboard, /isError \|\| count === undefined \? 'No disponible'/);
   assert.doesNotMatch(dashboard, /count \?\? 0/);
+});
+
+test('retired same-token 401 interceptor generation cannot close newer ADMIN session', () => {
+  const ts = require('typescript');
+  const output = ts.transpileModule(session, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exported = {};
+  new Function('require', 'exports', output)(require, exported);
+  const guard = exported.shouldInvalidateCurrentAdminSession;
+  assert.equal(guard(true, 'Bearer same-token', 'same-token', 'same-token'), true);
+  assert.equal(guard(false, 'Bearer same-token', 'same-token', 'same-token'), false);
+  assert.equal(guard(true, 'Bearer prior-token', 'current-token', 'current-token'), false);
+  assert.equal(guard(true, 'Bearer current-token', 'current-token', 'other-token'), false);
+  assert.equal(guard(true, undefined, 'current-token', 'current-token'), false);
 });

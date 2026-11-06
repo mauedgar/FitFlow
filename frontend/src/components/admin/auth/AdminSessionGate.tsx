@@ -1,58 +1,75 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import axios from 'axios';
 import apiClient from '../../../services/api';
 import { useAuth } from '../../../context/useAuth';
-import { adminTokenExpiryMs } from '../../../utils/adminSession';
+import { adminTokenExpiryMs, shouldInvalidateCurrentAdminSession } from '../../../utils/adminSession';
 
 /**
- * This is a browser UX boundary, not a replacement for backend JWT signature
- * verification or server-side RBAC. API 401 is authoritative.
+ * Browser-only UX guard. Real signature verification and role authorization
+ * remain exclusively backend responsibilities.
  */
 const AdminSessionGate = ({ children }: { children: ReactNode }) => {
-  const { token, logout } = useAuth();
+  const { token, currentUser, logout } = useAuth();
+
+  // AuthProvider currently recreates logout; keep effects stable by token/user
+  // identity and call the latest action without rebinding each response handler.
+  const logoutRef = useRef(logout);
+  useEffect(() => {
+    logoutRef.current = logout;
+  }, [logout]);
+
   const expiresAt = token ? adminTokenExpiryMs(token) : null;
-  const active = expiresAt !== null && expiresAt > Date.now();
+  const active = currentUser?.role === 'admin' && expiresAt !== null && expiresAt > Date.now();
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !currentUser) return;
+    let sessionActive = true;
     if (expiresAt === null) {
-      logout();
+      logoutRef.current();
       return;
     }
     let timeoutId: number | undefined;
     const recheck = () => {
+      if (!sessionActive) return;
       const remaining = expiresAt - Date.now();
       if (remaining <= 0) {
-        logout();
+        logoutRef.current();
       } else {
-        // Long-lived tokens must not be logged out prematurely due to timer clamp.
         timeoutId = window.setTimeout(recheck, Math.min(remaining, 2_147_483_647));
       }
     };
     recheck();
     return () => {
+      sessionActive = false;
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
-  }, [token, expiresAt, logout]);
+  }, [token, currentUser, expiresAt]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !currentUser) return;
+    let sessionActive = true;
     const interceptorId = apiClient.interceptors.response.use(
       (response) => response,
       (error: unknown) => {
         if (axios.isAxiosError(error) && error.response?.status === 401) {
-          // Never let a stale 401 from an old account sign out a newly logged-in one.
           const sent = error.config?.headers?.get?.('Authorization');
-          if (sent === `Bearer ${token}` && localStorage.getItem('access_token') === token) {
-            logout();
+          if (shouldInvalidateCurrentAdminSession(
+            sessionActive, sent, token, localStorage.getItem('access_token')
+          )) {
+            logoutRef.current();
           }
         }
         return Promise.reject(error);
       },
     );
-    return () => apiClient.interceptors.response.eject(interceptorId);
-  }, [token, logout]);
+    return () => {
+      // A pending Axios request may retain the former callback after eject.
+      // Always retire its generation BEFORE it can handle a delayed 401.
+      sessionActive = false;
+      apiClient.interceptors.response.eject(interceptorId);
+    };
+  }, [token, currentUser]);
 
   if (!active) return <Navigate to="/login" replace />;
   return <>{children}</>;
