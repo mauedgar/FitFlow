@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Avatar, Box, Button, CloseButton, Drawer, Flex, HStack, Icon, Menu, Portal, Spacer, Text, VStack } from '@chakra-ui/react';
 import { NavLink as RouterNavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/useAuth';
+import { useAdminIdentity } from '../auth/useAdminIdentity';
 import { FiHome, FiUsers, FiLogOut, FiBriefcase, FiMenu, FiCalendar } from 'react-icons/fi';
 import { LuChevronDown } from 'react-icons/lu';
 
@@ -13,7 +14,9 @@ const adminLinks = [
 ];
 
 const AdminNavBar: React.FC = () => {
-  const { currentUser, logout } = useAuth();
+  const { logout } = useAuth();
+  const verified = useAdminIdentity();
+  const displayName = verified.data?.email ?? 'Administrador';
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTrigger = useRef<HTMLButtonElement>(null);
@@ -86,9 +89,9 @@ const AdminNavBar: React.FC = () => {
       <Menu.Root>
         <Menu.Trigger asChild><Button variant="ghost" p={2} rounded="full" flexShrink={0} aria-label="Menú de perfil">
             <HStack gap="2">
-              <Avatar.Root size="sm"><Avatar.Fallback name={currentUser?.email || 'Admin'} /></Avatar.Root>
+              <Avatar.Root size="sm"><Avatar.Fallback name={displayName} /></Avatar.Root>
               <Text display={{ base: 'none', lg: 'block' }} fontSize="sm" fontWeight="medium">
-                {currentUser?.email || 'Administrador'}
+                {displayName}
               </Text>
               <LuChevronDown />
             </HStack>

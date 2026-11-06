@@ -31,3 +31,15 @@ export const getAdminGymClassSummaries = async (signal?: AbortSignal): Promise<A
   const { data } = await apiClient.get<AdminGymClassSummary[]>('/gym-classes/public', { signal });
   return data;
 };
+
+/** Real server identity: signed access JWT sub is an ID, not an email. */
+export interface AdminAuthenticatedIdentity {
+  id: string;
+  email: string;
+  role: string;
+  active: boolean;
+}
+export const getAdminAuthenticatedIdentity = async (signal?: AbortSignal): Promise<AdminAuthenticatedIdentity> => {
+  const { data } = await apiClient.get<AdminAuthenticatedIdentity>('/auth/me', { signal });
+  return data;
+};
