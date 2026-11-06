@@ -2,13 +2,14 @@ import { useRef, useState } from 'react';
 import { Avatar, Box, Button, CloseButton, Drawer, Flex, HStack, Icon, Menu, Portal, Spacer, Text, VStack } from '@chakra-ui/react';
 import { NavLink as RouterNavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/useAuth';
-import { FiHome, FiUsers, FiLogOut, FiBriefcase, FiMenu } from 'react-icons/fi';
+import { FiHome, FiUsers, FiLogOut, FiBriefcase, FiMenu, FiCalendar } from 'react-icons/fi';
 import { LuChevronDown } from 'react-icons/lu';
 
 const adminLinks = [
   { label: 'Dashboard', to: '/admin', icon: FiHome, end: true },
   { label: 'Clientes', to: '/admin/clients', icon: FiUsers },
   { label: 'Profesores', to: '/admin/teachers', icon: FiBriefcase },
+  { label: 'Clases', to: '/admin/classes', icon: FiCalendar },
 ];
 
 const AdminNavBar: React.FC = () => {

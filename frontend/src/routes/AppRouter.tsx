@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from '../components/layout/Layout';
 import { Spinner, Center } from '@chakra-ui/react';
 import React, { Suspense } from 'react';
@@ -67,7 +67,8 @@ export const AppRouter: React.FC = () => {
             <Route index element={<AdminDashboardPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="teachers" element={<TeachersPage />} />
-            <Route path="CruClasses" element={<CrudClassesPage />} />
+            <Route path="classes" element={<CrudClassesPage />} />
+            <Route path="CruClasses" element={<Navigate to="/admin/classes" replace />} />
             {/* Si un admin va a /admin/ruta-inexistente, puedes mostrar un NotFound específico */}
             <Route path="*" element={<NotFoundPage />} /> 
           </Route>
