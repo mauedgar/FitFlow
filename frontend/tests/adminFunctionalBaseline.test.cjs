@@ -68,7 +68,7 @@ test('ADMIN guard rejects expired tokens and retires same-token stale intercepto
   assert.match(gate, /window\.clearTimeout\(timeoutId\)/);
   assert.match(gate, /error\.response\?\.status === 401/);
   assert.match(gate, /sessionActive = false/);
-  assert.match(gate, /\[token, currentUser\]/);
+  assert.match(gate, /\[token, currentUser, sessionGeneration\]/);
   assert.match(gate, /logoutRef\.current/);
   assert.match(gate, /shouldInvalidateCurrentAdminSession/);
   assert.match(gate, /localStorage\.getItem\('access_token'\)/);
@@ -137,17 +137,35 @@ test('dashboard unknown data must not become a fabricated zero', () => {
   assert.doesNotMatch(dashboard, /count \?\? 0/);
 });
 
-test('retired same-token 401 interceptor generation cannot close newer ADMIN session', () => {
+test('session-generation mismatch rejects same-token stale 401 callbacks', () => {
   const ts = require('typescript');
-  const output = ts.transpileModule(session, {
+  const mod = ts.transpileModule(session, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const exported = {};
-  new Function('require', 'exports', output)(require, exported);
-  const guard = exported.shouldInvalidateCurrentAdminSession;
-  assert.equal(guard(true, 'Bearer same-token', 'same-token', 'same-token'), true);
-  assert.equal(guard(false, 'Bearer same-token', 'same-token', 'same-token'), false);
-  assert.equal(guard(true, 'Bearer prior-token', 'current-token', 'current-token'), false);
-  assert.equal(guard(true, 'Bearer current-token', 'current-token', 'other-token'), false);
-  assert.equal(guard(true, undefined, 'current-token', 'current-token'), false);
+  new Function('require', 'exports', mod)(require, exported);
+  const check = exported.shouldInvalidateCurrentAdminSession;
+  assert.equal(check(true, 4, 4, 'Bearer tok', 'tok', 'tok'), true);
+  assert.equal(check(true, 4, 5, 'Bearer tok', 'tok', 'tok'), false);
+  assert.equal(check(false, 4, 4, 'Bearer tok', 'tok', 'tok'), false);
+  assert.equal(check(true, 4, 4, 'Bearer old', 'tok', 'tok'), false);
+  assert.equal(check(true, 4, 4, 'Bearer tok', 'tok', 'other'), false);
+});
+
+test('auth entrypoints advance their epoch before notifying React context', () => {
+  const hook = read('src/context/useAuth.tsx');
+  assert.match(hook, /advanceAuthSessionGeneration\(\);\s*context\.login/);
+  assert.match(hook, /advanceAuthSessionGeneration\(\);\s*context\.logout/);
+  assert.match(gate, /expectedGeneration !== getAuthSessionGeneration\(\)/);
+  assert.match(gate, /sessionActive, expectedGeneration, getAuthSessionGeneration\(\)/);
+  const ts = require('typescript');
+  const source = read('src/utils/authSessionGeneration.ts');
+  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
+  const mod = {};
+  new Function('exports', js)(mod);
+  assert.equal(mod.getAuthSessionGeneration(), 0);
+  const before = mod.advanceAuthSessionGeneration();
+  assert.equal(before, 1);
+  assert.equal(mod.advanceAuthSessionGeneration(), 2);
+  assert.equal(mod.getAuthSessionGeneration(), 2);
 });

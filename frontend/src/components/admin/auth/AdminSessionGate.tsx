@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import axios from 'axios';
 import apiClient from '../../../services/api';
 import { useAuth } from '../../../context/useAuth';
+import { getAuthSessionGeneration } from '../../../utils/authSessionGeneration';
 import { adminTokenExpiryMs, shouldInvalidateCurrentAdminSession } from '../../../utils/adminSession';
 
 /**
@@ -10,7 +11,7 @@ import { adminTokenExpiryMs, shouldInvalidateCurrentAdminSession } from '../../.
  * remain exclusively backend responsibilities.
  */
 const AdminSessionGate = ({ children }: { children: ReactNode }) => {
-  const { token, currentUser, logout } = useAuth();
+  const { token, currentUser, logout, sessionGeneration } = useAuth();
 
   // AuthProvider currently recreates logout; keep effects stable by token/user
   // identity and call the latest action without rebinding each response handler.
@@ -24,6 +25,7 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!token || !currentUser) return;
+    const expectedGeneration = sessionGeneration;
     let sessionActive = true;
     if (expiresAt === null) {
       logoutRef.current();
@@ -31,7 +33,7 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
     }
     let timeoutId: number | undefined;
     const recheck = () => {
-      if (!sessionActive) return;
+      if (!sessionActive || expectedGeneration !== getAuthSessionGeneration()) return;
       const remaining = expiresAt - Date.now();
       if (remaining <= 0) {
         logoutRef.current();
@@ -44,10 +46,11 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
       sessionActive = false;
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
-  }, [token, currentUser, expiresAt]);
+  }, [token, currentUser, expiresAt, sessionGeneration]);
 
   useEffect(() => {
     if (!token || !currentUser) return;
+    const expectedGeneration = sessionGeneration;
     let sessionActive = true;
     const interceptorId = apiClient.interceptors.response.use(
       (response) => response,
@@ -55,7 +58,8 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
         if (axios.isAxiosError(error) && error.response?.status === 401) {
           const sent = error.config?.headers?.get?.('Authorization');
           if (shouldInvalidateCurrentAdminSession(
-            sessionActive, sent, token, localStorage.getItem('access_token')
+            sessionActive, expectedGeneration, getAuthSessionGeneration(),
+            sent, token, localStorage.getItem('access_token')
           )) {
             logoutRef.current();
           }
@@ -69,7 +73,7 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
       sessionActive = false;
       apiClient.interceptors.response.eject(interceptorId);
     };
-  }, [token, currentUser]);
+  }, [token, currentUser, sessionGeneration]);
 
   if (!active) return <Navigate to="/login" replace />;
   return <>{children}</>;

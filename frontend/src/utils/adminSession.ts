@@ -18,11 +18,14 @@ export const adminTokenExpiryMs = (accessToken: string): number | null => {
 /** Only the live interceptor generation may sign out its own token. */
 export const shouldInvalidateCurrentAdminSession = (
   sessionActive: boolean,
+  expectedGeneration: number,
+  currentGeneration: number,
   sentAuthorization: unknown,
   expectedToken: string,
   currentStoredToken: string | null,
 ): boolean => (
   sessionActive &&
+  expectedGeneration === currentGeneration &&
   currentStoredToken === expectedToken &&
   sentAuthorization === `Bearer ${expectedToken}`
 );
