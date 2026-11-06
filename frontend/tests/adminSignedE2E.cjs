@@ -52,6 +52,18 @@ async function run() {
   const classesResponse = await fetch(API + '/gym-classes/public');
   assert.equal(classesResponse.status, 200);
   assert.ok((await classesResponse.json()).some((x) => x.name === 'Clase Sintética E2E'));
+  const clientForm = new URLSearchParams({ username: clientEmail, password });
+  const clientLogin = await fetch(API + '/auth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: clientForm,
+  });
+  assert.equal(clientLogin.status, 200, 'Synthetic client must obtain backend-signed token');
+  const clientTokens = await clientLogin.json();
+  const denied = await fetch(API + '/clients/', {
+    headers: { Authorization: 'Bearer ' + clientTokens.access_token },
+  });
+  assert.equal(denied.status, 403, 'Backend must deny the client role access to admin list');
   console.log('ADMIN_SIGNED_HTTP_PREFLIGHT_PASS');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
@@ -81,13 +93,22 @@ async function run() {
     assert.equal(await mobileMenu.evaluate((element) => element === document.activeElement), true,
       'Escape must restore keyboard focus to mobile menu trigger');
     await mobileMenu.click();
-    await page.getByRole('link', { name: 'Profesores' }).focus();
+    await page.getByRole('link', { name: 'Profesores', exact: true }).focus();
     await page.keyboard.press('Enter');
     await page.getByRole('heading', { name: 'Profesores' }).waitFor();
     await page.getByText('Profesora Sintética', { exact: true }).filter({ visible: true }).first().waitFor();
+    // Controlled synthetic outage: prove error/retry without changing Product data.
+    const teacherApi = '**/api/v1/teachers/public';
+    await page.route(teacherApi, (route) => route.abort('failed'));
+    await page.getByRole('button', { name: 'Actualizar', exact: true }).click();
+    await page.getByRole('alert').getByText('No pudimos cargar los profesores.').waitFor();
+    await page.unroute(teacherApi);
+    await page.getByRole('button', { name: 'Actualizar', exact: true }).click();
+    await page.getByText('Profesora Sintética', { exact: true }).filter({ visible: true }).first().waitFor();
+
     assert.equal(await page.getByText('20999999999').count(), 0, 'Teacher CUIL must not appear');
     await page.getByRole('button', { name: 'Menú', exact: true }).click();
-    await page.getByRole('link', { name: 'Clases' }).click();
+    await page.getByRole('link', { name: 'Clases', exact: true }).click();
     await page.getByRole('heading', { name: 'Clases', exact: true }).waitFor();
     await page.getByText('Clase Sintética E2E', { exact: true }).filter({ visible: true }).first().waitFor();
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -95,7 +116,7 @@ async function run() {
     assert.equal(widthDesktop[0], 1280);
     assert.ok(widthDesktop[1] <= 1280, 'ADMIN desktop must not overflow');
     await page.getByText(email).first().waitFor();
-    await page.getByRole('link', { name: 'Clientes' }).click();
+    await page.getByRole('link', { name: 'Clientes', exact: true }).click();
     await page.getByRole('heading', { name: 'Clientes' }).waitFor();
     await page.getByText('Cliente Sintético').first().waitFor();
     await page.goto(WEB + '/admin');
