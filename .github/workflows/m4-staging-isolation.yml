@@ -65,7 +65,7 @@ jobs:
           }
           $project = "fitflow-m4-ci-${{ github.run_id }}"
           $output = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/release.ps1 -Action preflight -ProjectName $project -Revision $sha 2>&1 | Out-String
-          if ($LASTEXITCODE -eq 0 -or $output -notmatch "other than legacy 18000/18080") {
+          if ($LASTEXITCODE -eq 0 -or $output -notmatch "STAGING_BACKEND_PORT must be a non-privileged port") {
             throw "Legacy host-port guard did not fail before Compose. exit=$LASTEXITCODE output=$output"
           }
           $env:STAGING_BACKEND_PORT = "18100"
