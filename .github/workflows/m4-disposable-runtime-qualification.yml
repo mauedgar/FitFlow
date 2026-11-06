@@ -3,7 +3,7 @@ name: M4 disposable runtime qualification (gated)
 on:
   pull_request:
     branches: [develop]
-    types: [ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - ".github/workflows/m4-disposable-runtime-qualification.yml"
 
@@ -15,10 +15,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  disposable-staging:
-    # An opened draft does not dispatch. A single deliberate ready-for-review
-    # transition is required after review of this exact workflow candidate.
+  static-contract:
+    # Runs on PR synchronize while DRAFT. It never invokes Docker or Product
+    # scripts; confirms native Actions YAML acceptance and Bash parser syntax.
     if: >-
+      github.repository == 'mauedgar/FitFlow' &&
+      github.event.pull_request.head.repo.full_name == 'mauedgar/FitFlow' &&
+      github.event.pull_request.head.ref == 'test/m4-disposable-runtime-qualification-20261106-001' &&
+      github.event.pull_request.base.sha == 'd0a6b99c7cba0a0def2f921b29620dde834bbd8b' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact PR workflow revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Validate workflow YAML, embedded Bash and exact Git identity
+        shell: bash
+        env:
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          ruby - <<'RUBY'
+          require "yaml"
+          path = ".github/workflows/m4-disposable-runtime-qualification.yml"
+          doc = YAML.load_file(path)
+          job = doc.fetch("jobs").fetch("disposable-staging")
+          step = job.fetch("steps").find { |x| x["name"] == "Qualify R002-R006 with exclusive synthetic Docker and evidence" }
+          raise "Missing frozen executable Bash step" unless step
+          File.write(File.join(ENV.fetch("RUNNER_TEMP"), "m4-embedded.bash"), step.fetch("run"))
+          puts "M4_STATIC_YAML_PARSE_PASS"
+          RUBY
+          bash -n "$RUNNER_TEMP/m4-embedded.bash"
+          echo "M4_STATIC_BASH_PARSE_PASS"
+          echo "M4_WORKFLOW_HEAD=$SUBJECT_SHA"
+          echo "M4_WORKFLOW_TREE=$(git rev-parse HEAD^{tree})"
+          test -z "$(git status --porcelain --untracked-files=all)"
+
+  disposable-staging:
+    # PR synchronization only parses; this positive job requires a deliberate
+    # ready_for_review transition, a non-draft PR and a frozen base revision.
+    if: >-
+      github.event.action == 'ready_for_review' &&
+      github.event.pull_request.draft == false &&
       github.repository == 'mauedgar/FitFlow' &&
       github.event.pull_request.head.repo.full_name == 'mauedgar/FitFlow' &&
       github.event.pull_request.head.ref == 'test/m4-disposable-runtime-qualification-20261106-001' &&
