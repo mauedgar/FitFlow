@@ -99,7 +99,8 @@ async function verifyRapidReLoginAndStale401(browser) {
     assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken);
     assert.ok(authMeRequests > requestsBeforeNavigation &&
       authMeRequests <= requestsBeforeNavigation + 2, 'Rehydration rechecks one verified identity');
-    assert.equal((await runtimeSessionState(page)).activeInterceptors, 1,
+    const rehydratedState = await runtimeSessionState(page);
+    assert.equal(rehydratedState.activeInterceptors, 1,
       'Rehydration must have exactly one active response interceptor');
     await page.locator('aside').getByRole('link', { name: 'Dashboard', exact: true }).click();
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
@@ -148,8 +149,8 @@ async function verifyRapidReLoginAndStale401(browser) {
       return api.interceptors.response.handlers.filter(Boolean).length === 0;
     });
     const loggedOutGeneration = (await runtimeSessionState(page)).generation;
-    assert.ok(loggedOutGeneration > firstState.generation,
-      'Logout must advance the auth generation before React state changes');
+    assert.ok(loggedOutGeneration > rehydratedState.generation,
+      'Logout must advance the epoch within the rehydrated browser module');
     await loginUsingSignedToken(page, signedToken);
     const newGeneration = (await runtimeSessionState(page)).generation;
     assert.ok(newGeneration > loggedOutGeneration,
