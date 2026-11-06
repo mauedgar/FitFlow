@@ -112,6 +112,8 @@ async function verifyRapidReLoginAndStale401(browser) {
     const seen = new Promise((resolve) => { seenResolve = resolve; });
     const settled = new Promise((resolve) => { settledResolve = resolve; });
     let heldOnce = false;
+    let old401Fulfilled = false;
+    let old401FulfillError = null;
     let releaseResolve;
     const release = new Promise((resolve) => { releaseResolve = resolve; });
     releaseHeldRequest = releaseResolve;
@@ -129,8 +131,9 @@ async function verifyRapidReLoginAndStale401(browser) {
           contentType: 'application/json',
           body: '{"detail":"synthetic stale session"}',
         });
-      } catch {
-        // Browser may already have cancelled the old request; no JWT is logged.
+        old401Fulfilled = true;
+      } catch (error) {
+        old401FulfillError = String(error);
       } finally {
         settledResolve();
       }
@@ -138,7 +141,9 @@ async function verifyRapidReLoginAndStale401(browser) {
     await page.evaluate(async () => {
       const api = (await import('/src/services/api.ts')).default;
       window.__fitflowOldRequest = api.get('/clients/?skip=0&limit=100')
-        .then(() => 'success', () => 'rejected');
+        .then((response) => ({ kind: 'resolved', status: response.status }),
+          (error) => ({ kind: 'rejected', status: error?.response?.status ?? null,
+            code: error?.code ?? null }));
     });
     await within(seen, 'captured pre-logout Axios request');
     await page.getByRole('button', { name: 'Menú de perfil' }).click();
@@ -159,7 +164,12 @@ async function verifyRapidReLoginAndStale401(browser) {
       'New ADMIN session must install exactly one interceptor');
     releaseResolve();
     await within(settled, 'late 401 delivery attempt');
-    await page.evaluate(() => window.__fitflowOldRequest);
+    assert.equal(old401Fulfilled, true,
+      'Old Axios response must be fulfilled, not silently canceled: ' + (old401FulfillError || ''));
+    const oldResult = await within(page.evaluate(() => window.__fitflowOldRequest),
+      'old Axios promise rejected with actual HTTP 401');
+    assert.equal(oldResult.kind, 'rejected', 'Old response must reject in the original Axios consumer');
+    assert.equal(oldResult.status, 401, 'Old Axios consumer must observe HTTP 401, not cancellation');
     assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken,
       'Old 401 must not log out a newer same-token generation');
     assert.equal((await runtimeSessionState(page)).generation, newGeneration,
@@ -176,39 +186,104 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   let releaseHeldIdentity;
+  let releaseHeldProbe;
   try {
     let firstProfileResolve;
-    let settledResolve;
+    let oldSettledResolve;
+    let probeSeenResolve;
+    let probeSettledResolve;
     const firstProfileSeen = new Promise((resolve) => { firstProfileResolve = resolve; });
-    const settled = new Promise((resolve) => { settledResolve = resolve; });
-    let releaseResolve;
-    const release = new Promise((resolve) => { releaseResolve = resolve; });
-    releaseHeldIdentity = releaseResolve;
+    const oldSettled = new Promise((resolve) => { oldSettledResolve = resolve; });
+    const probeSeen = new Promise((resolve) => { probeSeenResolve = resolve; });
+    const probeSettled = new Promise((resolve) => { probeSettledResolve = resolve; });
+    let releaseOldResolve;
+    const releaseOld = new Promise((resolve) => { releaseOldResolve = resolve; });
+    releaseHeldIdentity = releaseOldResolve;
+    let releaseProbeResolve;
+    const releaseProbe = new Promise((resolve) => { releaseProbeResolve = resolve; });
+    releaseHeldProbe = releaseProbeResolve;
+
+    let firstNetworkRequest;
+    let oldProfileFulfilled = false;
+    let oldProfileRouteError = null;
+    let probe401Fulfilled = false;
+    let probe401RouteError = null;
     let identityCount = 0;
-    await page.route('**/api/v1/auth/me', async (route) => {
+    let resolveNetworkOutcome;
+    const originalNetworkOutcome = new Promise((resolve) => { resolveNetworkOutcome = resolve; });
+    page.on('requestfailed', (request) => {
+      if (request === firstNetworkRequest) {
+        resolveNetworkOutcome({
+          kind: 'requestfailed',
+          reason: request.failure()?.errorText ?? '',
+        });
+      }
+    });
+    page.on('response', (response) => {
+      if (response.request() === firstNetworkRequest) {
+        resolveNetworkOutcome({ kind: 'httpResponse', status: response.status() });
+      }
+    });
+
+    await page.route('**/api/v1/auth/me**', async (route) => {
+      const requestUrl = new URL(route.request().url());
+      if (requestUrl.searchParams.get('fitflow_old_identity_probe') === '1') {
+        probeSeenResolve();
+        await releaseProbe;
+        try {
+          await route.fulfill({
+            status: 401,
+            contentType: 'application/json',
+            body: '{"detail":"synthetic delayed identity response"}',
+          });
+          probe401Fulfilled = true;
+        } catch (error) {
+          probe401RouteError = String(error);
+        } finally {
+          probeSettledResolve();
+        }
+        return;
+      }
       identityCount += 1;
       if (identityCount > 1) {
         await route.continue();
         return;
       }
+      firstNetworkRequest = route.request();
       firstProfileResolve();
-      await release;
+      await releaseOld;
       try {
         await route.fulfill({
           status: 401,
           contentType: 'application/json',
           body: '{"detail":"synthetic old identity rejection"}',
         });
-      } catch {
-        // The old authenticated query may already have been cancelled.
+        oldProfileFulfilled = true;
+      } catch (error) {
+        oldProfileRouteError = String(error);
       } finally {
-        settledResolve();
+        oldSettledResolve();
       }
     });
+
     await login(page, email);
-    await within(firstProfileSeen, 'old /auth/me request in pending ADMIN guard');
+    await within(firstProfileSeen, 'first pending TanStack /auth/me request');
     const firstSignedToken = await page.evaluate(() => localStorage.getItem('access_token'));
-    assert.ok(firstSignedToken, 'Signed JWT must be present while first profile is pending');
+    assert.ok(firstSignedToken, 'Signed JWT must exist during the first pending identity check');
+
+    // Hold an additional *noncancellable* Axios /auth/me request from the OLD
+    // session to verify a real 401 is consumed by its original interceptor.
+    // TanStack's actual query is allowed to abort on unmount, but that is
+    // checked independently and never misreported as delivered HTTP 401.
+    await page.evaluate(async () => {
+      const api = (await import('/src/services/api.ts')).default;
+      window.__fitflowOldIdentityProbe = api.get('/auth/me?fitflow_old_identity_probe=1')
+        .then((response) => ({ kind: 'resolved', status: response.status }),
+          (error) => ({ kind: 'rejected', status: error?.response?.status ?? null,
+            code: error?.code ?? null }));
+    });
+    await within(probeSeen, 'old noncancellable /auth/me Axios probe');
+
     await page.evaluate(() => {
       history.pushState({}, '', '/login');
       dispatchEvent(new PopStateEvent('popstate'));
@@ -216,18 +291,48 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
     await page.getByRole('heading', { name: 'Iniciar Sesión' }).waitFor();
     await loginUsingSignedToken(page, firstSignedToken);
     const newState = await runtimeSessionState(page);
-    assert.ok(newState.generation >= 2, 'Second same-token login must advance generation');
+    assert.ok(newState.generation >= 2, 'New same-token login must advance auth generation');
     assert.equal(newState.activeInterceptors, 1, 'Only current identity guard interceptor survives');
     assert.ok(identityCount >= 2, 'New generation must independently confirm backend identity');
-    releaseResolve();
-    await within(settled, 'late old /auth/me response');
+
+    releaseOldResolve();
+    releaseProbeResolve();
+    await within(oldSettled, 'old TanStack /auth/me request terminal route action');
+    await within(probeSettled, 'forced old Axios /auth/me 401 delivery attempt');
+
+    // There are two valid cases for the old TanStack request: cancellation by
+    // AbortSignal, or actual HTTP 401. We REQUIRE an observed network outcome
+    // in either case, and do not claim delivery when it was canceled.
+    const networkOutcome = await within(originalNetworkOutcome,
+      'old TanStack /auth/me response or explicit request failure');
+    assert.ok(oldProfileFulfilled || oldProfileRouteError,
+      'Old TanStack query must reach a definite route delivery/cancel result');
+    if (networkOutcome.kind === 'httpResponse') {
+      assert.equal(networkOutcome.status, 401, 'Old network response must be a 401');
+      assert.equal(oldProfileFulfilled, true, 'Old network HTTP 401 must come from the held route');
+    } else {
+      assert.equal(networkOutcome.kind, 'requestfailed');
+      assert.ok(networkOutcome.reason, 'Canceled old query must have a recorded network failure');
+    }
+
+    // F002 cannot pass from a cancellation alone: REQUIRE HTTP 401 to be
+    // fulfilled AND rejected by the Axios consumer captured before relogin.
+    assert.equal(probe401Fulfilled, true,
+      'Old Axios /auth/me 401 must be delivered: ' + (probe401RouteError || ''));
+    const probeResult = await within(page.evaluate(() => window.__fitflowOldIdentityProbe),
+      'old /auth/me Axios consumer rejection');
+    assert.equal(probeResult.kind, 'rejected', 'Original /auth/me Axios consumer must reject');
+    assert.equal(probeResult.status, 401, 'Old /auth/me Axios consumer must receive 401, not cancellation');
+
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), firstSignedToken);
     assert.equal((await runtimeSessionState(page)).generation, newState.generation,
-      'Old profile 401 must not invalidate the newer same-token login');
-    console.log('ADMIN_DELAYED_IDENTITY_RACE_PASS');
+      'Old delivered identity 401 must not invalidate the newer same-token login');
+    console.log('ADMIN_DELAYED_IDENTITY_RACE_PASS: original query network outcome=' + networkOutcome.kind
+      + ', old Axios 401 delivered to consumer');
   } finally {
     if (releaseHeldIdentity) releaseHeldIdentity();
+    if (releaseHeldProbe) releaseHeldProbe();
     await context.close();
   }
 }
