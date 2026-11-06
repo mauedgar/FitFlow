@@ -42,9 +42,14 @@ jobs:
           test -z "$(git status --porcelain --untracked-files=all)"
           ruby - <<'RUBY'
           require "yaml"
+          require "json"
+          require "uri"
           path = ".github/workflows/m4-disposable-runtime-qualification.yml"
           doc = YAML.load_file(path)
           job = doc.fetch("jobs").fetch("disposable-staging")
+          origins = JSON.parse(job.fetch("env").fetch("BACKEND_CORS_ORIGINS"))
+          raise "Invalid synthetic staging CORS origin" unless origins.any? && origins.all? { |origin| !["localhost", "127.0.0.1", "::1"].include?(URI.parse(origin).host) }
+          puts "M4_STATIC_STAGING_CORS_PASS"
           step = job.fetch("steps").find { |x| x["name"] == "Qualify R002-R006 with exclusive synthetic Docker and evidence" }
           raise "Missing frozen executable Bash step" unless step
           File.write(File.join(ENV.fetch("RUNNER_TEMP"), "m4-embedded.bash"), step.fetch("run"))
@@ -82,7 +87,7 @@ jobs:
       POSTGRES_USER: fitflow_m4_synthetic
       POSTGRES_PASSWORD: "synthetic-pg-only-${{ github.run_id }}"
       SECRET_KEY: "synthetic-signing-only-${{ github.run_id }}-not-for-real-accounts"
-      BACKEND_CORS_ORIGINS: '["http://127.0.0.1:18180"]'
+      BACKEND_CORS_ORIGINS: '["https://synthetic-m4.fitflow.test"]'
       STAGING_BACKEND_PORT: "18100"
       STAGING_FRONTEND_PORT: "18180"
       VITE_API_BASE_URL: /api/v1
