@@ -32,6 +32,9 @@ jobs:
       M4_ROLLBACK_SHA: ee17e85db8fdbba6f244b7dbf89a39336a01fc7a
       M4_ROLLBACK_TREE: 38d3b4a5845a1f08fbf9e795decf95cc73d30cef
       M4_PROJECT: fitflow-m4-ci-${{ github.run_id }}
+      FITFLOW_COMPOSE_PROJECT: fitflow-m4-ci-${{ github.run_id }}
+      FITFLOW_RELEASE_IMAGE_NAMESPACE: fitflow-fitflow-m4-ci-${{ github.run_id }}
+      FITFLOW_REVISION: d0a6b99c7cba0a0def2f921b29620dde834bbd8b
       RUNNER_KIND: ${{ runner.environment }}
       POSTGRES_DB: fitflow_m4_synthetic
       POSTGRES_USER: fitflow_m4_synthetic
