@@ -15,6 +15,41 @@ function Invoke-StagingCaptured {
 }
 
 # F003: no resumed deployment may trust resource names alone.
+
+# Docker's network ownership label alone does not prove container membership.
+# This pure verifier is also exercised with synthetic metadata in no-effect CI.
+function Assert-StagingNetworkMembership {
+    param(
+        [string]$ExpectedNetworkName,
+        [string]$ExpectedNetworkId,
+        [string[]]$ExpectedContainerIds,
+        [object[]]$ServiceNetworks,
+        [string[]]$ActualMemberIds
+    )
+    if ($ServiceNetworks.Count -ne 4 -or $ActualMemberIds.Count -ne 4) {
+        throw "Staging network must contain exactly four qualified service members."
+    }
+    foreach ($view in $ServiceNetworks) {
+        $networks = $view.Networks
+        if ($null -eq $networks) {
+            throw "Service has no qualified Docker network."
+        }
+        $names = @($networks.PSObject.Properties.Name)
+        if ($names.Count -ne 1 -or $names[0] -cne $ExpectedNetworkName) {
+            throw "Service has an unexpected extra or missing Docker network."
+        }
+        $networkId = [string]$networks.PSObject.Properties[$ExpectedNetworkName].Value.NetworkID
+        if ($networkId -cne $ExpectedNetworkId) {
+            throw "Service network ID does not match the Compose network."
+        }
+    }
+    $expected = (@($ExpectedContainerIds | Sort-Object) -join ";")
+    $observed = (@($ActualMemberIds | Sort-Object) -join ";")
+    if ($expected -cne $observed) {
+        throw "Compose network has foreign or missing connected container IDs."
+    }
+}
+
 function Get-VerifiedStagingOwnership {
     param(
         [string]$ExpectedRevision, [string]$ExpectedProject,
@@ -29,6 +64,7 @@ function Get-VerifiedStagingOwnership {
         throw "Expected exactly four qualified containers for the retained project."
     }
     $snapshot = [ordered]@{}
+    $networkViews = @()
     foreach ($service in @("postgres", "redis", "backend", "frontend")) {
         $id = Invoke-StagingCaptured -Program "docker" -Arguments (
             $ComposeArguments + @("ps", "--all", "--no-trunc", "--quiet", $service)
@@ -40,6 +76,10 @@ function Get-VerifiedStagingOwnership {
             "inspect", "--format", "{{json .}}", $id
         )
         $metadata = $json | ConvertFrom-Json
+        $networkViews += [pscustomobject]@{
+            Id = $id
+            Networks = $metadata.NetworkSettings.Networks
+        }
         if ($metadata.Config.Labels.'com.docker.compose.project' -cne $ExpectedProject -or
             $metadata.Config.Labels.'com.docker.compose.service' -cne $service -or
             $metadata.State.Running -ne $true) {
@@ -95,6 +135,11 @@ function Get-VerifiedStagingOwnership {
         $network.Labels.'com.docker.compose.network' -cne "default") {
         throw "Compose network ownership labels mismatch."
     }
+    $actualMembers = @($network.Containers.PSObject.Properties.Name)
+    Assert-StagingNetworkMembership -ExpectedNetworkName $networkName `
+        -ExpectedNetworkId ([string]$network.Id) `
+        -ExpectedContainerIds $projectIds -ServiceNetworks $networkViews `
+        -ActualMemberIds $actualMembers
     return [pscustomobject]$snapshot
 }
 

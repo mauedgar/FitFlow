@@ -133,5 +133,53 @@ jobs:
             throw "Smoke accepted mismatched configuration digest or touched Docker."
           }
           Remove-Item -LiteralPath $syntheticState -Recurse -Force
+
+          # F001 IR003 synthetic network membership checks: no Docker writes.
+          . ./scripts/staging/staging-ownership.ps1
+          $projectNetwork = "fitflow-m4-network-negative_default"
+          $id1 = "a" * 64
+          $id2 = "b" * 64
+          $id3 = "c" * 64
+          $id4 = "d" * 64
+          $members = @($id1, $id2, $id3, $id4)
+          $makeNetwork = {
+            param($extra = $false)
+            $links = [pscustomobject]@{
+              $projectNetwork = [pscustomobject]@{ NetworkID = "network-identity-synthetic" }
+            }
+            if ($extra) {
+              $links | Add-Member -NotePropertyName "foreign_extra" -NotePropertyValue (
+                [pscustomobject]@{ NetworkID = "other-network" }
+              )
+            }
+            return $links
+          }
+          $views = @($members | ForEach-Object {
+            [pscustomobject]@{ Id = $_; Networks = (& $makeNetwork) }
+          })
+          Assert-StagingNetworkMembership -ExpectedNetworkName $projectNetwork `
+            -ExpectedNetworkId "network-identity-synthetic" `
+            -ExpectedContainerIds $members -ServiceNetworks $views `
+            -ActualMemberIds $members
+          $views[0].Networks = & $makeNetwork $true
+          try {
+            Assert-StagingNetworkMembership -ExpectedNetworkName $projectNetwork `
+              -ExpectedNetworkId "network-identity-synthetic" `
+              -ExpectedContainerIds $members -ServiceNetworks $views `
+              -ActualMemberIds $members
+            throw "Unexpected extra network passed."
+          } catch {
+            if ($_.Exception.Message -notmatch "unexpected extra or missing Docker network") { throw }
+          }
+          $views[0].Networks = & $makeNetwork
+          try {
+            Assert-StagingNetworkMembership -ExpectedNetworkName $projectNetwork `
+              -ExpectedNetworkId "network-identity-synthetic" `
+              -ExpectedContainerIds $members -ServiceNetworks $views `
+              -ActualMemberIds @($id1, $id2, $id3, ("e" * 64))
+            throw "Foreign connected container passed."
+          } catch {
+            if ($_.Exception.Message -notmatch "foreign or missing") { throw }
+          }
           Write-Output "M4_ISOLATED_STAGING_NO_EFFECT_CONTRACT_PASS"
           $global:LASTEXITCODE = 0
