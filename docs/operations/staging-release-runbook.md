@@ -172,3 +172,8 @@ safety still require separate native checks and a competent effect grant.
 State defaults to a project-specific local app-data directory:
 `FitFlow/staging/<ProjectName>/deployment-state.json`. The example ports above
 are illustrative and must be checked against real host listeners first.
+
+Direct `docker compose up` without an explicit project identity is not a
+supported release path: Compose requires `FITFLOW_COMPOSE_PROJECT` and
+`FITFLOW_RELEASE_IMAGE_NAMESPACE` instead of defaulting to historical names.
+Use `release.ps1`, which supplies both values and checks project ownership.

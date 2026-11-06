@@ -68,6 +68,11 @@ jobs:
           if ($LASTEXITCODE -eq 0 -or $output -notmatch "STAGING_BACKEND_PORT must be a non-privileged port") {
             throw "Legacy host-port guard did not fail before Compose. exit=$LASTEXITCODE output=$output"
           }
+          # Direct Compose must never silently select the retained historical project.
+          $direct = & docker compose --file docker-compose.staging.yml config --quiet 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $direct -notmatch "FITFLOW_COMPOSE_PROJECT") {
+            throw "Direct Compose without explicit project identity was not rejected."
+          }
           $env:STAGING_BACKEND_PORT = "18100"
           $containersBefore = (docker ps -a --format '{{.ID}}' | Sort-Object) -join ";"
           $volumesBefore = (docker volume ls --format '{{.Name}}' | Sort-Object) -join ";"

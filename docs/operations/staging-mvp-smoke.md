@@ -79,3 +79,8 @@ Stop and return to CONTROL if:
 - a Product defect prevents the real HTTP vertical;
 - the smoke would require external staging, a public URL, or real-user data;
 - authentication, booking, or front-desk behavior must be bypassed to pass.
+
+When `release.ps1` was invoked with `-StateDirectory`, pass that same
+external path to `smoke.ps1 -StateDirectory`; otherwise both scripts use the
+same project-specific local app-data directory. This path is only read during
+smoke and its receipt must identify the selected project and full revision.

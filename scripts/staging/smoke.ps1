@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$ProjectName,
+    [string]$StateDirectory,
     [string]$Revision,
     [string]$FrontendUrl,
     [string]$BackendUrl
@@ -26,6 +27,8 @@ if ([Environment]::GetEnvironmentVariable("FITFLOW_SMOKE_ALLOW_FIXTURE_RESET", "
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $composeFile = Join-Path $repositoryRoot "docker-compose.staging.yml"
+[Environment]::SetEnvironmentVariable("FITFLOW_COMPOSE_PROJECT", $ProjectName, "Process")
+[Environment]::SetEnvironmentVariable("FITFLOW_RELEASE_IMAGE_NAMESPACE", "fitflow-$ProjectName", "Process")
 $composeArguments = @(
     "compose",
     "--project-name", $ProjectName,
@@ -33,7 +36,10 @@ $composeArguments = @(
 )
 
 # No fixture writes before verifying the precise released project, services and ports.
-$statePath = Join-Path (Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "FitFlow/staging/$ProjectName") "deployment-state.json"
+if ([string]::IsNullOrWhiteSpace($StateDirectory)) {
+    $StateDirectory = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "FitFlow/staging/$ProjectName"
+}
+$statePath = Join-Path ([IO.Path]::GetFullPath($StateDirectory)) "deployment-state.json"
 if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {
     throw "Missing isolated release receipt."
 }

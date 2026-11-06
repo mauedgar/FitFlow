@@ -1,4 +1,4 @@
-name: fitflow-staging
+name: ${FITFLOW_COMPOSE_PROJECT:?FITFLOW_COMPOSE_PROJECT must be explicit}
 
 services:
   postgres:
@@ -29,7 +29,7 @@ services:
       retries: 12
 
   backend:
-    image: ${FITFLOW_RELEASE_IMAGE_NAMESPACE:-fitflow}-backend:${FITFLOW_REVISION:-unversioned}
+    image: ${FITFLOW_RELEASE_IMAGE_NAMESPACE:?FITFLOW_RELEASE_IMAGE_NAMESPACE must be explicit}-backend:${FITFLOW_REVISION:-unversioned}
     build:
       context: .
       dockerfile: Dockerfile
@@ -64,7 +64,7 @@ services:
       start_period: 10s
 
   frontend:
-    image: ${FITFLOW_RELEASE_IMAGE_NAMESPACE:-fitflow}-frontend:${FITFLOW_REVISION:-unversioned}
+    image: ${FITFLOW_RELEASE_IMAGE_NAMESPACE:?FITFLOW_RELEASE_IMAGE_NAMESPACE must be explicit}-frontend:${FITFLOW_REVISION:-unversioned}
     build:
       context: frontend
       dockerfile: Dockerfile

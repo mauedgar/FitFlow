@@ -208,6 +208,7 @@ if ($Action -eq "rollback") {
 }
 
 [Environment]::SetEnvironmentVariable("FITFLOW_REVISION", $resolvedRevision, "Process")
+[Environment]::SetEnvironmentVariable("FITFLOW_COMPOSE_PROJECT", $ProjectName, "Process")
 $composeArguments = @("compose")
 if ($EnvFile) {
     $composeArguments += @("--env-file", $EnvFile)
