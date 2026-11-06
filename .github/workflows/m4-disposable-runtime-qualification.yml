@@ -35,7 +35,6 @@ jobs:
       FITFLOW_COMPOSE_PROJECT: fitflow-m4-ci-${{ github.run_id }}
       FITFLOW_RELEASE_IMAGE_NAMESPACE: fitflow-fitflow-m4-ci-${{ github.run_id }}
       FITFLOW_REVISION: d0a6b99c7cba0a0def2f921b29620dde834bbd8b
-      RUNNER_KIND: ${{ runner.environment }}
       POSTGRES_DB: fitflow_m4_synthetic
       POSTGRES_USER: fitflow_m4_synthetic
       POSTGRES_PASSWORD: "synthetic-pg-only-${{ github.run_id }}"
@@ -60,6 +59,8 @@ jobs:
 
       - name: Qualify R002-R006 with exclusive synthetic Docker and evidence
         shell: bash
+        env:
+          RUNNER_KIND: ${{ runner.environment }}
         run: |
           set -euo pipefail
           evidence="$RUNNER_TEMP/m4-evidence"
