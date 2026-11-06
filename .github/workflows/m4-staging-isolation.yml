@@ -98,6 +98,12 @@ jobs:
             throw "Read-only preflight wrote a release receipt."
           }
           $env:FITFLOW_SMOKE_ALLOW_FIXTURE_RESET = "1"
+          $wrongRevision = "a" * 40
+          if ($wrongRevision -ceq $sha) { $wrongRevision = "b" * 40 }
+          $wrongSource = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/smoke.ps1 -ProjectName $project -Revision $wrongRevision -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/ 2>&1 | Out-String
+          if ($LASTEXITCODE -eq 0 -or $wrongSource -notmatch "Smoke source HEAD mismatch") {
+            throw "Smoke failed to reject mismatched source revision before fixture activity."
+          }
           $output = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/smoke.ps1 -ProjectName $project -Revision $sha -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/ 2>&1 | Out-String
           if ($LASTEXITCODE -eq 0 -or $output -notmatch "Missing isolated release receipt") {
             throw "Smoke refused no-state precondition incorrectly."

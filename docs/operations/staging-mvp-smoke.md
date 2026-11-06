@@ -84,3 +84,11 @@ When `release.ps1` was invoked with `-StateDirectory`, pass that same
 external path to `smoke.ps1 -StateDirectory`; otherwise both scripts use the
 same project-specific local app-data directory. This path is only read during
 smoke and its receipt must identify the selected project and full revision.
+
+The smoke now also refuses when the calling Git worktree is not the exact
+`-Revision` or is dirty (including ignored build inputs). It validates the
+release receipt's configuration digest and migration safety fields, and checks
+both PostgreSQL and Redis container project/service labels and exact named
+volume mounts before executing any fixture reset. These checks are necessary
+but do not replace qualifying a new isolated database or the external A002
+backup/preservation gate.
