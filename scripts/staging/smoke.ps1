@@ -28,6 +28,7 @@ if ([Environment]::GetEnvironmentVariable("FITFLOW_SMOKE_ALLOW_FIXTURE_RESET", "
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 . (Join-Path $PSScriptRoot "staging-configuration.ps1")
+. (Join-Path $PSScriptRoot "staging-ownership.ps1")
 # The seed and HTTP test implementation must be from the exact reviewed release.
 $sourceSha = (& git -C $repositoryRoot rev-parse HEAD) -join "`n"
 if ($LASTEXITCODE -ne 0 -or $sourceSha.Trim() -cne $Revision) {
@@ -78,62 +79,37 @@ if ([string]$state.configuration_sha256 -cne [string]$effectiveConfiguration.Sha
     throw "Staging smoke configuration SHA-256 does not match the recorded release."
 }
 
-function Assert-StagingService {
-    param([string]$Service, [string]$ContainerPort, [string]$Url)
+# F001 IR002: the very same Docker labels, volumes, network and image
+# identity proof used by R005 is mandatory immediately before fixture writes.
+if ($state.schema_version -ne 2 -or
+    $state.git_tree_sha -notmatch '^[0-9a-f]{40}$' -or
+    -not $state.backend_image_id -or -not $state.frontend_image_id) {
+    throw "Smoke requires a complete schema-v2 ownership receipt."
+}
+$sourceTree = (& git -C $repositoryRoot rev-parse 'HEAD^{tree}') -join "`n"
+if ($LASTEXITCODE -ne 0 -or $sourceTree.Trim() -cne $state.git_tree_sha) {
+    throw "Smoke source tree differs from the released source tree."
+}
+foreach ($pair in @(
+    @{ Service = "backend"; Url = $BackendUrl; Port = $effectiveConfiguration.Values.STAGING_BACKEND_PORT },
+    @{ Service = "frontend"; Url = $FrontendUrl; Port = $effectiveConfiguration.Values.STAGING_FRONTEND_PORT }
+)) {
     $uri = $null
-    if (-not [Uri]::TryCreate($Url, [UriKind]::Absolute, [ref]$uri) -or
+    if (-not [Uri]::TryCreate($pair.Url, [UriKind]::Absolute, [ref]$uri) -or
         $uri.Scheme -cne "http" -or $uri.Host -cne "127.0.0.1" -or
-        $uri.UserInfo -or $uri.AbsolutePath -cne "/" -or $uri.Query -or $uri.Fragment) {
-        throw "$Service URL must be a plain IPv4 loopback HTTP origin."
-    }
-    $published = (& docker @composeArguments port $Service $ContainerPort) -join "`n"
-    if ($LASTEXITCODE -ne 0 -or $published.Trim() -cne "127.0.0.1:$($uri.Port)") {
-        throw "$Service URL must match the selected project's exact published port."
-    }
-    $containerId = (& docker @composeArguments ps --quiet $Service) -join "`n"
-    if ($LASTEXITCODE -ne 0 -or -not $containerId.Trim()) {
-        throw "Missing $Service container."
-    }
-    $labelsJson = (& docker inspect --format '{{json .Config.Labels}}' $containerId.Trim()) -join "`n"
-    if ($LASTEXITCODE -ne 0) {
-        throw "Cannot verify $Service labels."
-    }
-    $labels = $labelsJson | ConvertFrom-Json
-    if ($labels.'com.docker.compose.project' -cne $ProjectName -or
-        $labels.'com.docker.compose.service' -cne $Service -or
-        $labels.'org.opencontainers.image.revision' -cne $Revision) {
-        throw "$Service container identity mismatch."
+        $uri.UserInfo -or $uri.AbsolutePath -cne "/" -or $uri.Query -or $uri.Fragment -or
+        [string]$uri.Port -cne [string]$pair.Port) {
+        throw "$($pair.Service) smoke origin must match the recorded loopback port."
     }
 }
-function Assert-IsolatedDataService {
-    param([string]$Service, [string]$ExpectedVolume)
-    $containerId = (& docker @composeArguments ps --quiet $Service) -join "`n"
-    if ($LASTEXITCODE -ne 0 -or -not $containerId.Trim()) {
-        throw "Missing isolated $Service container."
-    }
-    $metadataText = (& docker inspect --format '{{json .}}' $containerId.Trim()) -join "`n"
-    if ($LASTEXITCODE -ne 0 -or -not $metadataText.Trim()) {
-        throw "Cannot inspect isolated $Service container."
-    }
-    $metadata = $metadataText | ConvertFrom-Json
-    if ($metadata.Config.Labels.'com.docker.compose.project' -cne $ProjectName -or
-        $metadata.Config.Labels.'com.docker.compose.service' -cne $Service) {
-        throw "$Service belongs to another Compose project/service."
-    }
-    $volumes = @($metadata.Mounts | Where-Object { $_.Type -eq "volume" -and $_.Name -ceq $ExpectedVolume })
-    if ($volumes.Count -ne 1) {
-        throw "$Service must mount only its expected project-owned data volume at the declared data path."
-    }
-    $expectedTarget = if ($Service -eq "postgres") { "/var/lib/postgresql/data" } else { "/data" }
-    if ($volumes[0].Destination -cne $expectedTarget -or
-        @($metadata.Mounts).Count -ne 1) {
-        throw "$Service has an unexpected data mount; refusing fixture reset."
-    }
+$runtime = Get-VerifiedStagingOwnership -ExpectedRevision $Revision `
+    -ExpectedProject $ProjectName -ComposeArguments $composeArguments `
+    -BackendPort $effectiveConfiguration.Values.STAGING_BACKEND_PORT `
+    -FrontendPort $effectiveConfiguration.Values.STAGING_FRONTEND_PORT
+if ($runtime.backend_image_id -cne $state.backend_image_id -or
+    $runtime.frontend_image_id -cne $state.frontend_image_id) {
+    throw "Smoke image IDs differ from the released images; refusing fixture reset."
 }
-Assert-StagingService -Service "backend" -ContainerPort "8000" -Url $BackendUrl
-Assert-StagingService -Service "frontend" -ContainerPort "8080" -Url $FrontendUrl
-Assert-IsolatedDataService -Service "postgres" -ExpectedVolume "${ProjectName}_postgres_data"
-Assert-IsolatedDataService -Service "redis" -ExpectedVolume "${ProjectName}_redis_data"
 $seedArguments = $composeArguments + @(
     "exec", "-T",
     "-e", "FITFLOW_SMOKE_ALLOW_FIXTURE_RESET=1",

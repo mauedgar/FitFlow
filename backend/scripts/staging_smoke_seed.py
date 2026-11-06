@@ -174,78 +174,78 @@ async def reset_fixture() -> dict[str, str]:
             )
             await db.execute(delete(GymClass).where(GymClass.id == GYM_CLASS_ID))
 
-        password_hash = get_password_hash(SMOKE_PASSWORD)
-        client_user = User(
-            id=CLIENT_USER_ID,
-            email=CLIENT_EMAIL,
-            hashed_password=password_hash,
-            role=UserRole.client,
-        )
-        teacher_user = User(
-            id=TEACHER_USER_ID,
-            email=TEACHER_EMAIL,
-            hashed_password=password_hash,
-            role=UserRole.teacher,
-        )
-        front_desk_user = User(
-            id=FRONT_DESK_USER_ID,
-            email=FRONT_DESK_EMAIL,
-            hashed_password=password_hash,
-            role=UserRole.front_desk,
-        )
-        client = Client(
-            id=CLIENT_ID,
-            first_name="Wave B",
-            last_name="Client",
-            document_number="M4-WAVE-B-SMOKE-CLIENT",
-            user=client_user,
-        )
-        teacher = Teacher(
-            id=TEACHER_ID,
-            first_name="Wave B",
-            last_name="Teacher",
-            cuil="M4-WAVE-B-SMOKE-TEACHER",
-            user=teacher_user,
-        )
-        membership = Membership(
-            id=MEMBERSHIP_ID,
-            client=client,
-            plan=MembershipPlan.classes,
-            status=MembershipStatus.active,
-            start_date=now - timedelta(days=1),
-            end_date=now + timedelta(days=30),
-        )
-        gym_class = GymClass(
-            id=GYM_CLASS_ID,
-            name="M4 Wave B Smoke Class",
-            description="Reserved non-production fixture for the staging MVP smoke.",
-            activity_type=ActivityType.group_class,
-            duration_minutes=60,
-            difficulty=DifficultyLevel.beginner,
-            default_capacity=5,
-        )
-        schedule = ClassSchedule(
-            id=SCHEDULE_ID,
-            gym_class=gym_class,
-            teacher=teacher,
-            rrule="RRULE:FREQ=DAILY;COUNT=1",
-            start_time=time(12, 0),
-            duration_minutes=60,
-            capacity=5,
-            start_date=local_tomorrow,
-            end_date=local_tomorrow,
-            allowed_plan=AllowedPlan.classes,
-        )
-        session = ClassSession(
-            id=SESSION_ID,
-            class_schedule=schedule,
-            starts_at=starts_at,
-            ends_at=ends_at,
-            capacity_snapshot=5,
-            status=ClassSessionStatus.scheduled,
-        )
-        db.add_all([front_desk_user, membership, session])
-        await db.commit()
+            password_hash = get_password_hash(SMOKE_PASSWORD)
+            client_user = User(
+                id=CLIENT_USER_ID,
+                email=CLIENT_EMAIL,
+                hashed_password=password_hash,
+                role=UserRole.client,
+            )
+            teacher_user = User(
+                id=TEACHER_USER_ID,
+                email=TEACHER_EMAIL,
+                hashed_password=password_hash,
+                role=UserRole.teacher,
+            )
+            front_desk_user = User(
+                id=FRONT_DESK_USER_ID,
+                email=FRONT_DESK_EMAIL,
+                hashed_password=password_hash,
+                role=UserRole.front_desk,
+            )
+            client = Client(
+                id=CLIENT_ID,
+                first_name="Wave B",
+                last_name="Client",
+                document_number="M4-WAVE-B-SMOKE-CLIENT",
+                user=client_user,
+            )
+            teacher = Teacher(
+                id=TEACHER_ID,
+                first_name="Wave B",
+                last_name="Teacher",
+                cuil="M4-WAVE-B-SMOKE-TEACHER",
+                user=teacher_user,
+            )
+            membership = Membership(
+                id=MEMBERSHIP_ID,
+                client=client,
+                plan=MembershipPlan.classes,
+                status=MembershipStatus.active,
+                start_date=now - timedelta(days=1),
+                end_date=now + timedelta(days=30),
+            )
+            gym_class = GymClass(
+                id=GYM_CLASS_ID,
+                name="M4 Wave B Smoke Class",
+                description="Reserved non-production fixture for the staging MVP smoke.",
+                activity_type=ActivityType.group_class,
+                duration_minutes=60,
+                difficulty=DifficultyLevel.beginner,
+                default_capacity=5,
+            )
+            schedule = ClassSchedule(
+                id=SCHEDULE_ID,
+                gym_class=gym_class,
+                teacher=teacher,
+                rrule="RRULE:FREQ=DAILY;COUNT=1",
+                start_time=time(12, 0),
+                duration_minutes=60,
+                capacity=5,
+                start_date=local_tomorrow,
+                end_date=local_tomorrow,
+                allowed_plan=AllowedPlan.classes,
+            )
+            session = ClassSession(
+                id=SESSION_ID,
+                class_schedule=schedule,
+                starts_at=starts_at,
+                ends_at=ends_at,
+                capacity_snapshot=5,
+                status=ClassSessionStatus.scheduled,
+            )
+            db.add_all([front_desk_user, membership, session])
+
 
     return {
         "client_id": str(CLIENT_ID),

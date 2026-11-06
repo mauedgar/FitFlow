@@ -5,6 +5,8 @@ on:
     paths:
       - "scripts/staging/release.ps1"
       - "scripts/staging/staging-configuration.ps1"
+      - "scripts/staging/staging-ownership.ps1"
+      - "backend/tests/integration/test_staging_fixture_ownership_db.py"
       - "backend/scripts/staging_smoke_seed.py"
       - "backend/tests/unit/test_staging_smoke_fixture_ownership.py"
       - "scripts/staging/smoke.ps1"
@@ -30,7 +32,7 @@ jobs:
       - name: Parse PowerShell scripts without executing them
         shell: pwsh
         run: |
-          foreach ($path in @("scripts/staging/release.ps1", "scripts/staging/smoke.ps1", "scripts/staging/staging-configuration.ps1")) {
+          foreach ($path in @("scripts/staging/release.ps1", "scripts/staging/smoke.ps1", "scripts/staging/staging-configuration.ps1", "scripts/staging/staging-ownership.ps1")) {
             $tokens = $null
             $parseErrors = $null
             $null = [System.Management.Automation.Language.Parser]::ParseFile(

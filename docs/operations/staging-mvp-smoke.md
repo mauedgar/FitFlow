@@ -97,3 +97,19 @@ When deployment supplies `-EnvFile`, pass the same untracked `-EnvFile` to
 `smoke.ps1` or provide equivalent process environment inputs. Smoke disables
 implicit default `.env` loading and requires all Compose interpolation inputs.
 The script never prints credentials or embeds them in a receipt.
+
+## Single-transaction fixture and shared ownership boundary
+
+The R006 reset performs SELECT/FOR UPDATE reserved-identity ownership checks,
+deletions and fixture re-creation within **one** database transaction.
+A failure during hash generation, seed inserts or constraints rolls back the
+whole operation; it does not persist a deleted-only fixture.
+
+Smoke dot-sources the same read-only `staging-ownership.ps1` guard as R005.
+Before any seed execution it requires schema-v2 release state with full source
+tree and backend/frontend image IDs, exact configuration digest, all four
+Compose-labelled running services, volume names/mount paths **and** ownership
+labels, precisely the expected project default network and loopback ports.
+A locally valid-looking receipt with different images/resources fails closed.
+The operator must independently demonstrate host/project exclusivity and a
+disposable database; these read-only checks are not a replacement for that grant.
