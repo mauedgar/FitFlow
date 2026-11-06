@@ -1,9 +1,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("deploy", "redeploy", "rollback")]
+    [ValidateSet("preflight", "deploy", "redeploy", "rollback")]
     [string]$Action,
 
+    [string]$ProjectName,
     [string]$Revision = "HEAD",
     [string]$EnvFile,
     [string]$StateDirectory,
@@ -12,6 +13,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if ([string]::IsNullOrWhiteSpace($ProjectName) -or $ProjectName -cnotmatch '^[a-z][a-z0-9_-]{2,50}$') {
+    throw "Explicit -ProjectName is required for an isolated staging project."
+}
+if ($ProjectName -in @("fitflow-staging", "fitflow")) {
+    throw "Refusing retained historical/shared Compose project."
+}
 
 function Invoke-Checked {
     param(
@@ -102,10 +110,9 @@ if ($EnvFile) {
 }
 
 if ([string]::IsNullOrWhiteSpace($StateDirectory)) {
-    $StateDirectory = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "FitFlow/staging"
+    $StateDirectory = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "FitFlow/staging/$ProjectName"
 }
 $StateDirectory = [IO.Path]::GetFullPath($StateDirectory)
-[IO.Directory]::CreateDirectory($StateDirectory) | Out-Null
 $statePath = Join-Path $StateDirectory "deployment-state.json"
 
 $resolvedRevision = Invoke-CapturedChecked -Program "git" -Arguments @(
@@ -139,10 +146,21 @@ $configurationValues = [ordered]@{
     SECRET_KEY = (Get-RequiredEnvironmentValue -Name "SECRET_KEY")
     BACKEND_CORS_ORIGINS = (Get-RequiredEnvironmentValue -Name "BACKEND_CORS_ORIGINS")
     LOG_LEVEL = (Get-EnvironmentValueOrDefault -Name "LOG_LEVEL" -DefaultValue "INFO")
-    STAGING_BACKEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_BACKEND_PORT" -DefaultValue "18000")
-    STAGING_FRONTEND_PORT = (Get-EnvironmentValueOrDefault -Name "STAGING_FRONTEND_PORT" -DefaultValue "18080")
+    STAGING_BACKEND_PORT = (Get-RequiredEnvironmentValue -Name "STAGING_BACKEND_PORT")
+    STAGING_FRONTEND_PORT = (Get-RequiredEnvironmentValue -Name "STAGING_FRONTEND_PORT")
+    FITFLOW_RELEASE_IMAGE_NAMESPACE = "fitflow-$ProjectName"
     VITE_API_BASE_URL = (Get-EnvironmentValueOrDefault -Name "VITE_API_BASE_URL" -DefaultValue "/api/v1")
     FITFLOW_TIMEZONE = (Get-EnvironmentValueOrDefault -Name "FITFLOW_TIMEZONE" -DefaultValue "America/Argentina/Buenos_Aires")
+}
+foreach ($portName in @("STAGING_BACKEND_PORT", "STAGING_FRONTEND_PORT")) {
+    $portValue = 0
+    if (-not [int]::TryParse([string]$configurationValues[$portName], [ref]$portValue) -or
+        $portValue -lt 1024 -or $portValue -gt 65535 -or $portValue -in @(18000, 18080)) {
+        throw "$portName must be a non-privileged port other than legacy 18000/18080."
+    }
+}
+if ($configurationValues.STAGING_BACKEND_PORT -eq $configurationValues.STAGING_FRONTEND_PORT) {
+    throw "Backend and frontend host ports must differ."
 }
 # A Vite build-time override must never contradict the backend's Product timezone.
 $requestedFrontendTimezone = [Environment]::GetEnvironmentVariable("VITE_FITFLOW_TIMEZONE", "Process")
@@ -169,6 +187,12 @@ if (Test-Path -LiteralPath $statePath -PathType Leaf) {
     $previousState = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
 }
 
+if ($null -ne $previousState -and [string]$previousState.project -cne $ProjectName) {
+    throw "Deployment state belongs to another project."
+}
+if ($Action -eq "deploy" -and $null -ne $previousState) {
+    throw "Deploy refuses previous state; use an explicitly reviewed redeploy."
+}
 if ($Action -eq "redeploy") {
     if ($null -eq $previousState -or $previousState.current_revision -ne $resolvedRevision) {
         throw "Redeploy requires deployment-state.json to identify the same current revision."
@@ -188,9 +212,38 @@ $composeArguments = @("compose")
 if ($EnvFile) {
     $composeArguments += @("--env-file", $EnvFile)
 }
-$composeArguments += @("--project-name", "fitflow-staging", "--file", (Join-Path $repositoryRoot "docker-compose.staging.yml"))
+$composeArguments += @("--project-name", $ProjectName, "--file", (Join-Path $repositoryRoot "docker-compose.staging.yml"))
 
 Invoke-Checked -Program "docker" -Arguments ($composeArguments + @("config", "--quiet"))
+# Read-only identity inventory before Docker build/up or any Alembic migration.
+$existingContainers = Invoke-CapturedChecked -Program "docker" -Arguments @(
+    "ps", "--all", "--quiet", "--filter", "label=com.docker.compose.project=$ProjectName"
+)
+$allVolumes = Invoke-CapturedChecked -Program "docker" -Arguments @("volume", "ls", "--quiet")
+$volumeNames = @($allVolumes -split '\r?\n')
+$expectedVolumes = @("${ProjectName}_postgres_data", "${ProjectName}_redis_data")
+$foundVolumes = @($expectedVolumes | Where-Object { $volumeNames -contains $_ })
+if ($Action -in @("preflight", "deploy")) {
+    if ($null -ne $previousState -or $existingContainers -or $foundVolumes.Count -gt 0) {
+        throw "Isolated first release refuses existing project state, containers or volumes."
+    }
+}
+if ($Action -in @("redeploy", "rollback")) {
+    if (-not $existingContainers -or $foundVolumes.Count -ne 2) {
+        throw "Existing release requires current project containers and both named volumes."
+    }
+}
+if ($Action -eq "preflight") {
+    [ordered]@{
+        result = "CONFIG_PREFLIGHT_ONLY"
+        project = $ProjectName
+        revision = $resolvedRevision
+        configuration_sha256 = $configurationHash
+        data_effect = "NONE"
+        staging_runtime_qualified = $false
+    } | ConvertTo-Json
+    return
+}
 
 $databaseRevisionBefore = $null
 if ($Action -eq "rollback") {
@@ -243,8 +296,9 @@ $state = [ordered]@{
     database_revision = $databaseRevisionAfter
     database_revision_before = $databaseRevisionBefore
     migrations_downgraded = $false
-    project = "fitflow-staging"
+    project = $ProjectName
     verified_at = [DateTimeOffset]::UtcNow.ToString("o")
 }
+[IO.Directory]::CreateDirectory($StateDirectory) | Out-Null
 $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
 $state | ConvertTo-Json

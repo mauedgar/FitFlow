@@ -29,7 +29,7 @@ services:
       retries: 12
 
   backend:
-    image: fitflow-backend:${FITFLOW_REVISION:-unversioned}
+    image: ${FITFLOW_RELEASE_IMAGE_NAMESPACE:-fitflow}-backend:${FITFLOW_REVISION:-unversioned}
     build:
       context: .
       dockerfile: Dockerfile
@@ -46,7 +46,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       FITFLOW_TIMEZONE: ${FITFLOW_TIMEZONE:-America/Argentina/Buenos_Aires}
     ports:
-      - "${STAGING_BACKEND_PORT:-18000}:8000"
+      - "127.0.0.1:${STAGING_BACKEND_PORT:-18000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,7 +64,7 @@ services:
       start_period: 10s
 
   frontend:
-    image: fitflow-frontend:${FITFLOW_REVISION:-unversioned}
+    image: ${FITFLOW_RELEASE_IMAGE_NAMESPACE:-fitflow}-frontend:${FITFLOW_REVISION:-unversioned}
     build:
       context: frontend
       dockerfile: Dockerfile
@@ -75,7 +75,7 @@ services:
       org.opencontainers.image.revision: ${FITFLOW_REVISION:-unversioned}
     restart: unless-stopped
     ports:
-      - "${STAGING_FRONTEND_PORT:-18080}:8080"
+      - "127.0.0.1:${STAGING_FRONTEND_PORT:-18080}:8080"
     depends_on:
       backend:
         condition: service_healthy

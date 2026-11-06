@@ -53,12 +53,18 @@ process environment used by that deployment, run:
 
 ```powershell
 $env:FITFLOW_SMOKE_ALLOW_FIXTURE_RESET = "1"
-pwsh ./scripts/staging/smoke.ps1
+pwsh ./scripts/staging/smoke.ps1 `
+  -ProjectName fitflow-m4-qual-001 `
+  -Revision (git rev-parse HEAD) `
+  -FrontendUrl "http://127.0.0.1:18180/" `
+  -BackendUrl "http://127.0.0.1:18100/"
 ```
 
-Optional `-FrontendUrl` and `-BackendUrl` parameters support non-default local
-ports. The script fails on any unexpected status, payload, state transition, or
-missing fixture identity. It does not print access or refresh tokens.
+The project, exact revision and both loopback URLs are required, not optional.
+Before any synthetic fixture reset, the script checks the project-specific
+release receipt, running backend/frontend container labels, and actual published
+ports. Missing or mismatched identity fails closed. The script fails on any
+unexpected status, payload, state transition, or missing fixture identity. It does not print access or refresh tokens.
 
 Run the command twice to establish repeatability. A second pass must reset the
 previous attended booking and reproduce the same full vertical from an empty
