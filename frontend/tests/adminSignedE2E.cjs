@@ -111,12 +111,13 @@ async function run() {
     await page.getByRole('link', { name: 'Clases', exact: true }).click();
     await page.getByRole('heading', { name: 'Clases', exact: true }).waitFor();
     await page.getByText('Clase Sintética E2E', { exact: true }).filter({ visible: true }).first().waitFor();
+    await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await page.setViewportSize({ width: 1280, height: 800 });
     const widthDesktop = await page.evaluate(() => [document.documentElement.clientWidth, document.documentElement.scrollWidth]);
     assert.equal(widthDesktop[0], 1280);
     assert.ok(widthDesktop[1] <= 1280, 'ADMIN desktop must not overflow');
     await page.getByText(email).first().waitFor();
-    await page.getByRole('link', { name: 'Clientes', exact: true }).click();
+    await page.locator('aside').getByRole('link', { name: 'Clientes', exact: true }).click();
     await page.getByRole('heading', { name: 'Clientes' }).waitFor();
     await page.getByText('Cliente Sintético').first().waitFor();
     await page.goto(WEB + '/admin');
