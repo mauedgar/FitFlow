@@ -52,6 +52,108 @@ function Invoke-CapturedChecked {
 
 . (Join-Path $PSScriptRoot "staging-configuration.ps1")
 
+
+# F003: no resumed deployment may trust resource names alone.
+function Get-VerifiedStagingOwnership {
+    param(
+        [string]$ExpectedRevision, [string]$ExpectedProject,
+        [string[]]$ComposeArguments, [string]$BackendPort, [string]$FrontendPort
+    )
+    $allIds = Invoke-CapturedChecked -Program "docker" -Arguments @(
+        "ps", "--all", "--quiet", "--no-trunc",
+        "--filter", "label=com.docker.compose.project=$ExpectedProject"
+    )
+    $projectIds = @($allIds -split '\r?\n' | Where-Object { $_ })
+    if ($projectIds.Count -ne 4) {
+        throw "Expected exactly four qualified containers for the retained project."
+    }
+    $snapshot = [ordered]@{}
+    foreach ($service in @("postgres", "redis", "backend", "frontend")) {
+        $id = Invoke-CapturedChecked -Program "docker" -Arguments (
+            $ComposeArguments + @("ps", "--all", "--quiet", $service)
+        )
+        if ($id -notmatch '^[a-f0-9]{64}$' -or $projectIds -notcontains $id) {
+            throw "Container identity mismatch for $service."
+        }
+        $json = Invoke-CapturedChecked -Program "docker" -Arguments @(
+            "inspect", "--format", "{{json .}}", $id
+        )
+        $metadata = $json | ConvertFrom-Json
+        if ($metadata.Config.Labels.'com.docker.compose.project' -cne $ExpectedProject -or
+            $metadata.Config.Labels.'com.docker.compose.service' -cne $service -or
+            $metadata.State.Running -ne $true) {
+            throw "Container project/service labels or running state mismatch for $service."
+        }
+        if ($service -in @("backend", "frontend")) {
+            if ($metadata.Config.Labels.'org.opencontainers.image.revision' -cne $ExpectedRevision) {
+                throw "Image revision mismatch for $service."
+            }
+            $containerPort = if ($service -eq "backend") { "8000" } else { "8080" }
+            $expectedPort = if ($service -eq "backend") { $BackendPort } else { $FrontendPort }
+            $port = Invoke-CapturedChecked -Program "docker" -Arguments (
+                $ComposeArguments + @("port", $service, $containerPort)
+            )
+            if ($port -cne "127.0.0.1:$expectedPort") {
+                throw "Published loopback port mismatch for $service."
+            }
+            $snapshot["${service}_image_id"] = [string]$metadata.Image
+        } else {
+            $volumeService = if ($service -eq "postgres") { "postgres_data" } else { "redis_data" }
+            $volumeName = "${ExpectedProject}_$volumeService"
+            $mountPath = if ($service -eq "postgres") { "/var/lib/postgresql/data" } else { "/data" }
+            $mounts = @($metadata.Mounts)
+            if ($mounts.Count -ne 1 -or $mounts[0].Type -cne "volume" -or
+                $mounts[0].Name -cne $volumeName -or $mounts[0].Destination -cne $mountPath) {
+                throw "Unqualified persistent data mount for $service."
+            }
+            $v = Invoke-CapturedChecked -Program "docker" -Arguments @(
+                "volume", "inspect", "--format", "{{json .}}", $volumeName
+            )
+            $volume = $v | ConvertFrom-Json
+            if ($volume.Labels.'com.docker.compose.project' -cne $ExpectedProject -or
+                $volume.Labels.'com.docker.compose.volume' -cne $volumeService) {
+                throw "Persistent volume ownership labels mismatch for $service."
+            }
+        }
+    }
+    $networkName = "${ExpectedProject}_default"
+    $allNetworks = Invoke-CapturedChecked -Program "docker" -Arguments @(
+        "network", "ls", "--format", "{{.Name}}"
+    )
+    $projectNetworks = @($allNetworks -split '\r?\n' | Where-Object {
+        $_ -match ("^" + [regex]::Escape($ExpectedProject) + "_")
+    })
+    if ($projectNetworks.Count -ne 1 -or $projectNetworks[0] -cne $networkName) {
+        throw "Unexpected Compose project networks."
+    }
+    $n = Invoke-CapturedChecked -Program "docker" -Arguments @(
+        "network", "inspect", "--format", "{{json .}}", $networkName
+    )
+    $network = $n | ConvertFrom-Json
+    if ($network.Labels.'com.docker.compose.project' -cne $ExpectedProject -or
+        $network.Labels.'com.docker.compose.network' -cne "default") {
+        throw "Compose network ownership labels mismatch."
+    }
+    return [pscustomobject]$snapshot
+}
+
+function Assert-EmptyStagingProject {
+    param([string]$ExpectedProject)
+    $containers = Invoke-CapturedChecked -Program "docker" -Arguments @(
+        "ps", "--all", "--quiet", "--filter", "label=com.docker.compose.project=$ExpectedProject"
+    )
+    $volumes = Invoke-CapturedChecked -Program "docker" -Arguments @("volume", "ls", "--quiet")
+    $networks = Invoke-CapturedChecked -Program "docker" -Arguments @("network", "ls", "--format", "{{.Name}}")
+    $expectedVolumes = @("${ExpectedProject}_postgres_data", "${ExpectedProject}_redis_data")
+    if ($containers -or
+        @($volumes -split '\r?\n' | Where-Object { $expectedVolumes -contains $_ }).Count -gt 0 -or
+        @($networks -split '\r?\n' | Where-Object {
+            $_ -match ("^" + [regex]::Escape($ExpectedProject) + "_")
+        }).Count -gt 0) {
+        throw "Staging project resources appeared after preflight."
+    }
+}
+
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 if ($EnvFile) {
     $EnvFile = (Resolve-Path $EnvFile).Path
@@ -147,6 +249,23 @@ if ($Action -in @("redeploy", "rollback")) {
         throw "Existing release requires current project containers and both named volumes."
     }
 }
+if ($Action -in @("redeploy", "rollback")) {
+    if ($null -eq $previousState -or $previousState.schema_version -ne 2 -or
+        $previousState.current_revision -notmatch '^[0-9a-f]{40}$' -or
+        $previousState.git_tree_sha -notmatch '^[0-9a-f]{40}$' -or
+        $previousState.configuration_sha256 -cne $configurationHash -or
+        -not $previousState.backend_image_id -or -not $previousState.frontend_image_id) {
+        throw "Retained release receipt lacks v2 resource ownership or matching configuration."
+    }
+    $before = Get-VerifiedStagingOwnership -ExpectedRevision $previousState.current_revision `
+        -ExpectedProject $ProjectName -ComposeArguments $composeArguments `
+        -BackendPort $configurationValues.STAGING_BACKEND_PORT `
+        -FrontendPort $configurationValues.STAGING_FRONTEND_PORT
+    if ($before.backend_image_id -cne $previousState.backend_image_id -or
+        $before.frontend_image_id -cne $previousState.frontend_image_id) {
+        throw "Retained staging image IDs diverge from release receipt."
+    }
+}
 if ($Action -eq "preflight") {
     [ordered]@{
         result = "CONFIG_PREFLIGHT_ONLY"
@@ -181,6 +300,20 @@ $upArguments = @("up", "--detach", "--wait")
 if ($Action -eq "redeploy") {
     $upArguments += "--force-recreate"
 }
+# A second inventory narrows (but cannot eliminate) Docker's TOCTOU window.
+# An exclusive project owner is mandatory before any runtime grant.
+if ($Action -eq "deploy") {
+    Assert-EmptyStagingProject -ExpectedProject $ProjectName
+} else {
+    $stillOwned = Get-VerifiedStagingOwnership -ExpectedRevision $previousState.current_revision `
+        -ExpectedProject $ProjectName -ComposeArguments $composeArguments `
+        -BackendPort $configurationValues.STAGING_BACKEND_PORT `
+        -FrontendPort $configurationValues.STAGING_FRONTEND_PORT
+    if ($stillOwned.backend_image_id -cne $previousState.backend_image_id -or
+        $stillOwned.frontend_image_id -cne $previousState.frontend_image_id) {
+        throw "Retained staging container identity changed during build."
+    }
+}
 Invoke-Checked -Program "docker" -Arguments ($composeArguments + $upArguments)
 
 $backendPort = $configurationValues.STAGING_BACKEND_PORT
@@ -193,6 +326,16 @@ if ($live.status -ne "alive" -or $ready.status -ne "ready" -or $frontend.StatusC
     throw "Post-release verification failed."
 }
 
+$after = Get-VerifiedStagingOwnership -ExpectedRevision $resolvedRevision `
+    -ExpectedProject $ProjectName -ComposeArguments $composeArguments `
+    -BackendPort $configurationValues.STAGING_BACKEND_PORT `
+    -FrontendPort $configurationValues.STAGING_FRONTEND_PORT
+$gitTree = Invoke-CapturedChecked -Program "git" -Arguments @(
+    "-C", $repositoryRoot, "rev-parse", "HEAD^{tree}"
+)
+if ($gitTree -notmatch '^[0-9a-f]{40}$') {
+    throw "Cannot verify staging source tree."
+}
 $databaseRevisionAfter = Invoke-CapturedChecked -Program "docker" -Arguments (
     $composeArguments + @("exec", "-T", "--workdir", "/app/backend", "backend", "alembic", "current")
 )
@@ -202,9 +345,14 @@ if ($null -ne $previousState) {
     $priorRevision = $previousState.current_revision
 }
 $state = [ordered]@{
-    schema_version = 1
+    schema_version = 2
     action = $Action
     current_revision = $resolvedRevision
+    git_tree_sha = $gitTree
+    backend_image_id = $after.backend_image_id
+    frontend_image_id = $after.frontend_image_id
+    release_command = $Action
+    cleanup_performed = $false
     previous_revision = $priorRevision
     configuration_sha256 = $configurationHash
     database_revision = $databaseRevisionAfter

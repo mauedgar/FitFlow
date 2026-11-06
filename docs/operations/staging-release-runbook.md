@@ -182,3 +182,19 @@ The first-deployment refusal includes preexisting project-namespaced Docker
 networks, not only containers and volumes. This protects against unintentionally
 joining an unrelated or stale Compose network. The preflight does not remove or
 recreate any network; an existing collision is `BLOCKED_PRECONDITION`.
+
+## Retained-resource ownership receipt (schema v2)
+
+`redeploy` and `rollback` reject historical or incomplete state. Before any
+build or migration, the operator requires an exact matching configuration digest,
+full previous revision/tree metadata and recorded backend/frontend image IDs.
+It then verifies four running project-labelled services, the exact backend and
+frontend revision labels and published loopback ports, PostgreSQL/Redis named
+mounts and Compose-owned volume/network labels. Inventory and image IDs are
+checked again immediately before `up`; new post-release identities and source
+tree SHA are stored in the v2 receipt with `cleanup_performed=false`.
+Schema v1 receipts are intentionally not upgraded automatically.
+A configuration change on retained state is blocked pending separate review.
+
+These checks do not make Docker inventories atomic: a qualified exclusive host
+and project owner are required before authorizing any real execution.
