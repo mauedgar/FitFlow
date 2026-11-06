@@ -92,3 +92,8 @@ both PostgreSQL and Redis container project/service labels and exact named
 volume mounts before executing any fixture reset. These checks are necessary
 but do not replace qualifying a new isolated database or the external A002
 backup/preservation gate.
+
+When deployment supplies `-EnvFile`, pass the same untracked `-EnvFile` to
+`smoke.ps1` or provide equivalent process environment inputs. Smoke disables
+implicit default `.env` loading and requires all Compose interpolation inputs.
+The script never prints credentials or embeds them in a receipt.

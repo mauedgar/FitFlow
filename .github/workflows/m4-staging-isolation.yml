@@ -77,6 +77,7 @@ jobs:
           $containersBefore = (docker ps -a --format '{{.ID}}' | Sort-Object) -join ";"
           $volumesBefore = (docker volume ls --format '{{.Name}}' | Sort-Object) -join ";"
           $imagesBefore = (docker image ls --format '{{.ID}}' | Sort-Object) -join ";"
+          $networksBefore = (docker network ls --format '{{.Name}}' | Sort-Object) -join ";"
           $output = & pwsh -NoLogo -NoProfile -NonInteractive -File ./scripts/staging/release.ps1 -Action preflight -ProjectName $project -Revision $sha
           if ($LASTEXITCODE -ne 0) {
             throw "Read-only preflight unexpectedly failed."
@@ -91,7 +92,8 @@ jobs:
           }
           if (((docker ps -a --format '{{.ID}}' | Sort-Object) -join ";") -cne $containersBefore -or
               ((docker volume ls --format '{{.Name}}' | Sort-Object) -join ";") -cne $volumesBefore -or
-              ((docker image ls --format '{{.ID}}' | Sort-Object) -join ";") -cne $imagesBefore) {
+              ((docker image ls --format '{{.ID}}' | Sort-Object) -join ";") -cne $imagesBefore -or
+              ((docker network ls --format '{{.Name}}' | Sort-Object) -join ";") -cne $networksBefore) {
             throw "Preflight unexpectedly modified Docker state."
           }
           if (Test-Path (Join-Path (Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "FitFlow/staging/$project") "deployment-state.json")) {

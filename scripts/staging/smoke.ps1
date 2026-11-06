@@ -2,6 +2,7 @@
 param(
     [string]$ProjectName,
     [string]$StateDirectory,
+    [string]$EnvFile,
     [string]$Revision,
     [string]$FrontendUrl,
     [string]$BackendUrl
@@ -42,11 +43,16 @@ if ($LASTEXITCODE -ne 0 -or $ignoredBuildInputs) {
 $composeFile = Join-Path $repositoryRoot "docker-compose.staging.yml"
 [Environment]::SetEnvironmentVariable("FITFLOW_COMPOSE_PROJECT", $ProjectName, "Process")
 [Environment]::SetEnvironmentVariable("FITFLOW_RELEASE_IMAGE_NAMESPACE", "fitflow-$ProjectName", "Process")
-$composeArguments = @(
-    "compose",
-    "--project-name", $ProjectName,
-    "--file", $composeFile
-)
+[Environment]::SetEnvironmentVariable("FITFLOW_REVISION", $Revision, "Process")
+[Environment]::SetEnvironmentVariable("COMPOSE_DISABLE_ENV_FILE", "1", "Process")
+$composeArguments = @("compose")
+if ($EnvFile) {
+    if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+        throw "Explicit smoke -EnvFile does not exist."
+    }
+    $composeArguments += @("--env-file", (Resolve-Path -LiteralPath $EnvFile).Path)
+}
+$composeArguments += @("--project-name", $ProjectName, "--file", $composeFile)
 
 # No fixture writes before verifying the precise released project, services and ports.
 if ([string]::IsNullOrWhiteSpace($StateDirectory)) {

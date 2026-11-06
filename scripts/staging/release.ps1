@@ -224,13 +224,16 @@ $allVolumes = Invoke-CapturedChecked -Program "docker" -Arguments @("volume", "l
 $volumeNames = @($allVolumes -split '\r?\n')
 $expectedVolumes = @("${ProjectName}_postgres_data", "${ProjectName}_redis_data")
 $foundVolumes = @($expectedVolumes | Where-Object { $volumeNames -contains $_ })
+$allNetworks = Invoke-CapturedChecked -Program "docker" -Arguments @("network", "ls", "--format", "{{.Name}}")
+$networkNames = @($allNetworks -split '\r?\n')
+$projectNetworks = @($networkNames | Where-Object { $_ -match ("^" + [regex]::Escape($ProjectName) + "_") })
 if ($Action -in @("preflight", "deploy")) {
-    if ($null -ne $previousState -or $existingContainers -or $foundVolumes.Count -gt 0) {
-        throw "Isolated first release refuses existing project state, containers or volumes."
+    if ($null -ne $previousState -or $existingContainers -or $foundVolumes.Count -gt 0 -or $projectNetworks.Count -gt 0) {
+        throw "Isolated first release refuses existing project state, containers, volumes or networks."
     }
 }
 if ($Action -in @("redeploy", "rollback")) {
-    if (-not $existingContainers -or $foundVolumes.Count -ne 2) {
+    if (-not $existingContainers -or $foundVolumes.Count -ne 2 -or $projectNetworks.Count -lt 1) {
         throw "Existing release requires current project containers and both named volumes."
     }
 }

@@ -177,3 +177,8 @@ Direct `docker compose up` without an explicit project identity is not a
 supported release path: Compose requires `FITFLOW_COMPOSE_PROJECT` and
 `FITFLOW_RELEASE_IMAGE_NAMESPACE` instead of defaulting to historical names.
 Use `release.ps1`, which supplies both values and checks project ownership.
+
+The first-deployment refusal includes preexisting project-namespaced Docker
+networks, not only containers and volumes. This protects against unintentionally
+joining an unrelated or stale Compose network. The preflight does not remove or
+recreate any network; an existing collision is `BLOCKED_PRECONDITION`.
