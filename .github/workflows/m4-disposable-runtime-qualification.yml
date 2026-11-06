@@ -1,0 +1,203 @@
+name: M4 disposable runtime qualification (gated)
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [ready_for_review]
+    paths:
+      - ".github/workflows/m4-disposable-runtime-qualification.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fitflow-m4-runtime-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  disposable-staging:
+    # An opened draft does not dispatch. A single deliberate ready-for-review
+    # transition is required after review of this exact workflow candidate.
+    if: >-
+      github.repository == 'mauedgar/FitFlow' &&
+      github.event.pull_request.head.repo.full_name == 'mauedgar/FitFlow' &&
+      github.event.pull_request.head.ref == 'test/m4-disposable-runtime-qualification-20261106-001' &&
+      github.event.pull_request.base.sha == 'd0a6b99c7cba0a0def2f921b29620dde834bbd8b' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      M4_SOURCE_SHA: d0a6b99c7cba0a0def2f921b29620dde834bbd8b
+      M4_SOURCE_TREE: 1fcbc48bac1d4afcf2dff7ddc4c31a835456ce53
+      M4_ROLLBACK_SHA: ee17e85db8fdbba6f244b7dbf89a39336a01fc7a
+      M4_ROLLBACK_TREE: 38d3b4a5845a1f08fbf9e795decf95cc73d30cef
+      M4_PROJECT: fitflow-m4-ci-${{ github.run_id }}
+      RUNNER_KIND: ${{ runner.environment }}
+      POSTGRES_DB: fitflow_m4_synthetic
+      POSTGRES_USER: fitflow_m4_synthetic
+      POSTGRES_PASSWORD: "synthetic-pg-only-${{ github.run_id }}"
+      SECRET_KEY: "synthetic-signing-only-${{ github.run_id }}-not-for-real-accounts"
+      BACKEND_CORS_ORIGINS: '["http://127.0.0.1:18180"]'
+      STAGING_BACKEND_PORT: "18100"
+      STAGING_FRONTEND_PORT: "18180"
+      VITE_API_BASE_URL: /api/v1
+      FITFLOW_TIMEZONE: America/Argentina/Buenos_Aires
+      LOG_LEVEL: INFO
+      COMPOSE_DISABLE_ENV_FILE: "1"
+      FITFLOW_SMOKE_ALLOW_FIXTURE_RESET: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+
+    steps:
+      - name: Checkout frozen accepted Product commit (not PR code)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: d0a6b99c7cba0a0def2f921b29620dde834bbd8b
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Qualify R002-R006 with exclusive synthetic Docker and evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/m4-evidence"
+          state="$RUNNER_TEMP/m4-state"
+          mkdir -p "$evidence"
+          printf 'PRECONDITIONS_PENDING\n' > "$evidence/status.txt"
+          test "$RUNNER_KIND" = github-hosted
+          test -z "${DOCKER_HOST:-}"
+          test -z "${DOCKER_CONTEXT:-}"
+          test "$(docker context show)" = default
+          test "$(git rev-parse HEAD)" = "$M4_SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$M4_SOURCE_TREE"
+          test "$(git rev-parse "$M4_ROLLBACK_SHA^{tree}")" = "$M4_ROLLBACK_TREE"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          test "$M4_PROJECT" != fitflow-staging
+          test "$M4_PROJECT" != fitflow
+          test -z "$(docker ps -a -q --filter "label=com.docker.compose.project=$M4_PROJECT")"
+          test -z "$(docker volume ls --format '{{.Name}}' | grep -E "^${M4_PROJECT}_" || true)"
+          test -z "$(docker network ls --format '{{.Name}}' | grep -E "^${M4_PROJECT}_" || true)"
+          # Only known, accepted revision differences: admin UI and isolated
+          # admin E2E seed. Runtime, database schema and staging scripts are identical.
+          git diff --quiet "$M4_ROLLBACK_SHA" "$M4_SOURCE_SHA" -- \
+            backend/app backend/alembic backend/start.sh Dockerfile \
+            docker-compose.staging.yml scripts/staging pyproject.toml uv.lock \
+            backend/requirements.txt
+          python3 - <<'PY'
+          import os, socket, shutil
+          assert shutil.which("docker") and shutil.which("pwsh") and shutil.which("git")
+          assert int(os.environ["STAGING_BACKEND_PORT"]) != int(os.environ["STAGING_FRONTEND_PORT"])
+          for port in (int(os.environ["STAGING_BACKEND_PORT"]), int(os.environ["STAGING_FRONTEND_PORT"])):
+              assert port not in (18000, 18080)
+              with socket.socket() as sock:
+                  sock.bind(("127.0.0.1", port))
+          PY
+          printf 'PRECONDITIONS_PASS\n' > "$evidence/status.txt"
+          printf 'owner=github-hosted-one-job; project=%s; commit=%s; tree=%s\n' \
+            "$M4_PROJECT" "$M4_SOURCE_SHA" "$M4_SOURCE_TREE"
+          df -h "$RUNNER_TEMP"
+          # The one provider-hosted runner is the sole owner of this fresh
+          # project. No operation addresses historical desktop resources.
+          pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/release.ps1 \
+            -Action preflight -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
+            -StateDirectory "$state" > "$evidence/preflight.json"
+          jq -e --arg p "$M4_PROJECT" --arg s "$M4_SOURCE_SHA" \
+            '.result=="CONFIG_PREFLIGHT_ONLY" and .data_effect=="NONE" and
+             .staging_runtime_qualified==false and .project==$p and .revision==$s' \
+            "$evidence/preflight.json" >/dev/null
+          test ! -e "$state/deployment-state.json"
+          docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml config --quiet
+          printf 'R002_PREFLIGHT_PASS\n' >> "$evidence/status.txt"
+
+          echo "M4_R005_DEPLOY_START"
+          pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/release.ps1 \
+            -Action deploy -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
+            -StateDirectory "$state"
+          cp "$state/deployment-state.json" "$evidence/deploy-state.json"
+          jq -e --arg p "$M4_PROJECT" --arg s "$M4_SOURCE_SHA" --arg t "$M4_SOURCE_TREE" \
+            '.schema_version==2 and .project==$p and .current_revision==$s and
+             .git_tree_sha==$t and .migrations_downgraded==false and
+             (.configuration_sha256|length)==64 and
+             (.backend_image_id|length)>0 and (.frontend_image_id|length)>0' \
+            "$evidence/deploy-state.json" >/dev/null
+          curl --silent --show-error --fail "http://127.0.0.1:18100/health/live" | jq -e '.status=="alive"'
+          curl --silent --show-error --fail "http://127.0.0.1:18100/health/ready" | jq -e '.status=="ready"'
+          curl --silent --show-error --fail "http://127.0.0.1:18180/" > /dev/null
+          current="$(docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml \
+            exec -T --workdir /app/backend backend alembic current | awk 'NR==1 {print $1}')"
+          head="$(docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml \
+            exec -T --workdir /app/backend backend alembic heads | awk 'NR==1 {print $1}')"
+          test -n "$current" && test "$current" = "$head"
+          printf 'R003_RUNTIME_ALEMBIC_PASS\n' >> "$evidence/status.txt"
+
+          # A controlled Redis outage must be visible as readiness failure.
+          echo "M4_R004_DISPOSABLE_REDIS_FAILURE_START"
+          docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml stop redis
+          observed="none"
+          for i in $(seq 1 15); do
+            observed="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              --max-time 4 http://127.0.0.1:18100/health/ready || true)"
+            if [ "$observed" = 503 ]; then break; fi
+            sleep 1
+          done
+          test "$observed" = 503
+          docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml start redis
+          docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml up --detach --wait
+          curl --silent --show-error --fail "http://127.0.0.1:18100/health/ready" | jq -e '.status=="ready"'
+          printf 'R004_READINESS_DEGRADE_RECOVER_PASS\n' >> "$evidence/status.txt"
+          docker compose --project-name "$M4_PROJECT" --file docker-compose.staging.yml \
+            logs --no-color --tail 250 backend | sha256sum > "$evidence/backend-logs.sha256"
+          echo "M4_R006_SMOKE_1_START"
+          pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/smoke.ps1 \
+            -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
+            -StateDirectory "$state" \
+            -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/
+          printf 'R006_SMOKE_1_PASS\n' >> "$evidence/status.txt"
+
+          echo "M4_R005_REDEPLOY_START"
+          pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/release.ps1 \
+            -Action redeploy -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
+            -StateDirectory "$state"
+          cp "$state/deployment-state.json" "$evidence/redeploy-state.json"
+          jq -e --arg s "$M4_SOURCE_SHA" \
+            '.action=="redeploy" and .current_revision==$s and
+             .migrations_downgraded==false' "$evidence/redeploy-state.json" >/dev/null
+          printf 'R005_REDEPLOY_PASS\n' >> "$evidence/status.txt"
+          echo "M4_R006_SMOKE_2_START"
+          pwsh -NoLogo -NoProfile -NonInteractive -File scripts/staging/smoke.ps1 \
+            -ProjectName "$M4_PROJECT" -Revision "$M4_SOURCE_SHA" \
+            -StateDirectory "$state" \
+            -FrontendUrl http://127.0.0.1:18180/ -BackendUrl http://127.0.0.1:18100/
+          printf 'R006_SMOKE_2_PASS\n' >> "$evidence/status.txt"
+
+          # Second accepted, migration-compatible PR90 source. Separate clean
+          # worktree; rollback expressly does not downgrade the database.
+          echo "M4_R005_COMPATIBLE_APPLICATION_ROLLBACK_START"
+          target="$RUNNER_TEMP/m4-accepted-rollback-source"
+          git worktree add --detach "$target" "$M4_ROLLBACK_SHA"
+          test "$(git -C "$target" rev-parse HEAD^{tree})" = "$M4_ROLLBACK_TREE"
+          test -z "$(git -C "$target" status --porcelain --untracked-files=all)"
+          pwsh -NoLogo -NoProfile -NonInteractive -File "$target/scripts/staging/release.ps1" \
+            -Action rollback -ProjectName "$M4_PROJECT" -Revision "$M4_ROLLBACK_SHA" \
+            -StateDirectory "$state" -DatabaseForwardCompatible
+          cp "$state/deployment-state.json" "$evidence/rollback-state.json"
+          jq -e --arg old "$M4_ROLLBACK_SHA" --arg new "$M4_SOURCE_SHA" \
+            '.action=="rollback" and .current_revision==$old and
+             .previous_revision==$new and .migrations_downgraded==false and
+             (.database_revision_before|length)>0' "$evidence/rollback-state.json" >/dev/null
+          printf 'R005_COMPATIBLE_ROLLBACK_PASS\n' >> "$evidence/status.txt"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          printf 'R002_R006_SYNTHETIC_RUNTIME_PASS\n' >> "$evidence/status.txt"
+          # Deliberately no Docker volume deletion: the standard GitHub-hosted
+          # VM is discarded by the provider after the job. Not evidence of
+          # cleanup on a retained host, legacy DB safety, or beta readiness.
+          printf 'DISPOSAL_PROVIDER_EPHEMERAL_NOT_HOST_VERIFIED\n' >> "$evidence/status.txt"
+          sha256sum "$evidence"/*state.json > "$evidence/state-receipts.sha256"
+
+      - name: Preserve revision-bound synthetic receipts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: fitflow-m4-disposable-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/m4-evidence/
+          if-no-files-found: warn
+          retention-days: 14
