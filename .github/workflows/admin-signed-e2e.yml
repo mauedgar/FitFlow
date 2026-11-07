@@ -7,7 +7,12 @@ on:
     paths:
       - "frontend/src/**"
       - "frontend/tests/adminSignedE2E.cjs"
+      - "frontend/tests/clientSignupE2E.cjs"
       - "backend/scripts/admin_e2e_seed.py"
+      - "backend/app/routers/users.py"
+      - "backend/app/schemas/user.py"
+      - "backend/app/services/public_client_registration.py"
+      - "backend/tests/api/test_public_client_registration_http.py"
       - ".github/workflows/admin-signed-e2e.yml"
 
 permissions:
@@ -123,4 +128,5 @@ jobs:
           curl --silent --show-error --fail http://127.0.0.1:8000/health/ready >/dev/null
           curl --silent --show-error --fail http://127.0.0.1:5173/login >/dev/null
           (cd frontend && node tests/adminSignedE2E.cjs)
+          (cd frontend && node tests/clientSignupE2E.cjs)
           test "$(git status --porcelain --untracked-files=all)" = ""

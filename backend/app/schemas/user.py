@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime  # noqa: TC003
 from uuid import UUID  # noqa: TC003
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.enums import UserRole
 
@@ -55,6 +55,20 @@ class PublicUserRegistration(UserBase):
     full_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class PublicClientRegistration(UserBase):
+    """Public signup preserves given and compound family names explicitly."""
+
+    password: str
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    @field_validator("first_name", "last_name", mode="before")
+    @classmethod
+    def normalize_personal_name(cls, value: object) -> object:
+        return " ".join(value.split()) if isinstance(value, str) else value
 
 
 # --------------------------------------------------------------------------- #
