@@ -28,8 +28,20 @@ const RegisterPage = () => {
 
       return;
     }
+    const normalizedName = name.trim().replace(/\\s+/g, ' ');
+    if (normalizedName.split(' ').length < 2) {
+      toaster.create({
+        title: "Nombre incompleto",
+        description: "Ingresá nombre y apellido para crear el perfil del cliente.",
+        type: "error",
+        duration: 5000,
+        closable: true,
+      });
+      setIsLoading(false);
+      return;
+    }
     try {
-      await registerUser(name, email, password);
+      await registerUser(normalizedName, email, password);
 
       toaster.create({
         title: "Cuenta creada.",

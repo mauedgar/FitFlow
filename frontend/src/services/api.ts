@@ -55,7 +55,13 @@ export const registerUser = async (fullName: string, email: string, password: st
     if (axios.isAxiosError(error) && error.response) {
       // El backend devuelve un error 400 si el email ya existe.
       // Extraemos el mensaje de 'detail'.
-      throw new Error(error.response.data.detail || 'Error al registrar la cuenta.');
+      const detail = error.response.data?.detail;
+      const message = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? 'Revisá el nombre completo, el correo y la contraseña ingresados.'
+          : 'Error al registrar la cuenta.';
+      throw new Error(message);
     }
     throw new Error('Ocurrió un error de red inesperado.');
   }
