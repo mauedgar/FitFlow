@@ -28,12 +28,12 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
         env:
           POSTGRES_DB: fitflow_test
           POSTGRES_USER: fitflow_test_user
@@ -48,7 +48,7 @@ jobs:
           --health-retries 15
 
       redis:
-        image: redis:7-alpine
+        image: redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
         ports:
           - 6379:6379
         options: >-
@@ -70,7 +70,7 @@ jobs:
 
     steps:
       - name: Checkout exact FitFlow subject
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.subject_sha }}
           fetch-depth: 0
@@ -80,6 +80,7 @@ jobs:
         shell: bash
         env:
           SUBJECT_SHA: ${{ inputs.subject_sha }}
+          EXPECTED_TREE: ${{ inputs.expected_tree }}
         run: |
           set -euo pipefail
           observed="$(git rev-parse HEAD)"
@@ -87,9 +88,15 @@ jobs:
             echo "SUBJECT_MISMATCH expected=$SUBJECT_SHA observed=$observed" >&2
             exit 1
           fi
+          observed_tree="$(git rev-parse HEAD^{tree})"
+          if [ -n "$EXPECTED_TREE" ] && [ "$observed_tree" != "$EXPECTED_TREE" ]; then
+            echo "TREE_MISMATCH expected=$EXPECTED_TREE observed=$observed_tree" >&2
+            exit 1
+          fi
+          echo "FITFLOW_MANUAL_GIT_IDENTITY_PASS SHA=$observed TREE=$observed_tree"
 
       - name: Set up Python 3.15.2
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
           python-version: "3.15.2"
           cache: pip
@@ -131,7 +138,7 @@ jobs:
 
       - name: Checkout portable validation contract v0
         if: always()
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: mauedgar/tecnotron-ai
           ref: f28c812cff4d9c6dd27d71a084fbccfffbadd735
@@ -140,7 +147,7 @@ jobs:
 
       - name: Set up Node 22 for contract validation
         if: always()
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22"
           cache: ${{ hashFiles('.tecnotron-contract-v0/package-lock.json') != '' && 'npm' || '' }}
@@ -171,7 +178,7 @@ jobs:
 
       - name: Upload deterministic validation receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: fitflow-deterministic-validation-${{ inputs.subject_sha }}
           path: ${{ runner.temp }}/fitflow-deterministic-validation
