@@ -28,7 +28,7 @@ const RegisterPage = () => {
 
       return;
     }
-    const normalizedName = name.trim().replace(/\\s+/g, ' ');
+    const normalizedName = name.trim().replace(/\s+/g, ' ');
     if (normalizedName.split(' ').length < 2) {
       toaster.create({
         title: "Nombre incompleto",
