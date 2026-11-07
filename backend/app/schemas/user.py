@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime  # noqa: TC003
 from uuid import UUID  # noqa: TC003
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.enums import UserRole
 
@@ -55,6 +55,24 @@ class PublicUserRegistration(UserBase):
     full_name: str | None = None
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
+class PublicClientRegistration(PublicUserRegistration):
+    """Complete client signup requires a name for its real Person/Client row.
+
+    The legacy /users/register contract remains account-only for callers that
+    do not supply an identity. Both schemas reject caller-supplied roles.
+    """
+
+    full_name: str = Field(min_length=3, max_length=200)
+
+    @field_validator("full_name")
+    @classmethod
+    def require_full_name(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if len(normalized.split(" ")) < 2:
+            raise ValueError("Se requiere nombre y apellido.")
+        return normalized
 
 
 # --------------------------------------------------------------------------- #
