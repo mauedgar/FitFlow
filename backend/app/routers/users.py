@@ -23,6 +23,7 @@ from app.core.deps import get_current_user, require_admin_or_self_guard
 from app.core.enums import UserRole
 from app.db.models.user import User
 from app.db.session import get_async_session
+from app.services.public_client_registration import create_public_client_account
 from app.services.user_service import (
     to_user_public,
     to_user_with_profile,
@@ -31,6 +32,7 @@ from app.services.user_service import (
 from app.schemas.user import (
     UserCreate,
     PublicUserRegistration,
+    PublicClientRegistration,
     UserPublic,
     UserWithProfile,
     UserWithStats,
@@ -106,6 +108,41 @@ async def register_user(
     except IntegrityError as exc:
         # A concurrent registration can pass the precheck; UNIQUE remains SOT.
         await db.rollback()
+        if _is_email_unique_violation(exc):
+            raise HTTPException(400, "El email ya está registrado.") from exc
+        raise
+    return to_user_public(user)
+
+
+# --------------------------------------------------------------------------- #
+# Registro público completo de cliente (legacy /register remains account-only)
+# --------------------------------------------------------------------------- #
+@router.post(
+    "/register-client",
+    response_model=UserPublic,
+    status_code=status.HTTP_201_CREATED,
+)
+async def register_public_client(
+    *,
+    user_in: PublicClientRegistration,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> UserPublic:
+    """Create a client account and its Person/Client profile as one transaction."""
+    existing = await user_crud.get_by_email(
+        db=db, email=user_in.email, include_deleted=True
+    )
+    if existing:
+        raise HTTPException(400, "El email ya está registrado.")
+
+    try:
+        user = await create_public_client_account(
+            db=db,
+            email=user_in.email,
+            password=user_in.password,
+            full_name=user_in.full_name,
+        )
+    except IntegrityError as exc:
+        # The database UNIQUE index also protects concurrent registrations.
         if _is_email_unique_violation(exc):
             raise HTTPException(400, "El email ya está registrado.") from exc
         raise
