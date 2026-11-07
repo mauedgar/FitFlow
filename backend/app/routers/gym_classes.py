@@ -16,7 +16,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import require_admin
+from app.core.deps import get_current_user
+from app.core.enums import UserRole
 from app.crud.crud_class_schedule import class_schedule
 from app.crud.crud_gym_class import gym_class
 from app.db.models.user import User
@@ -40,6 +41,18 @@ from app.services.gym_class_service import (
 router = APIRouter(prefix="/gym-classes", tags=["gym-classes"])
 
 
+async def _require_catalog_admin(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Keep role denials as HTTP 403, without changing global guard contracts."""
+    if current_user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere el rol administrador.",
+        )
+    return current_user
+
+
 # --------------------------------------------------------------------------- #
 # Crear GymClass
 # --------------------------------------------------------------------------- #
@@ -48,6 +61,7 @@ async def create_gym_class(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     class_in: GymClassCreate,
+    _: Annotated[User, Depends(_require_catalog_admin)],
 ) -> GymClassWithRelations:
     """Crea una nueva clase en el catálogo.
 
@@ -59,7 +73,11 @@ async def create_gym_class(
         • Panel administrativo para gestionar el catálogo.
     """
     gym_classs = await gym_class.create(db=db, obj_in=class_in)
-    return GymClassWithRelations.model_validate(gym_classs)
+    # The ORM relation is lazy='raise'; load it explicitly before serialization.
+    hydrated = await gym_class.get(db, obj_id=gym_classs.id, include_schedules=True)
+    if hydrated is None:
+        raise HTTPException(500, "No se pudo recuperar la clase creada.")
+    return GymClassWithRelations.model_validate(hydrated)
 
 
 @router.get("/public", response_model=list[GymClassPublic])
@@ -137,7 +155,7 @@ async def read_gym_class(
     *,
     class_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    _: Annotated[User, Depends(require_admin)],
+    _: Annotated[User, Depends(_require_catalog_admin)],
 ) -> GymClassWithRelations:
     """Obtiene una clase del catálogo por ID.
 
@@ -165,6 +183,7 @@ async def update_gym_class(
     class_id: UUID,
     class_in: GymClassUpdate,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(_require_catalog_admin)],
 ) -> GymClassWithRelations:
     """Actualiza una clase del catálogo.
 
@@ -182,7 +201,10 @@ async def update_gym_class(
         raise HTTPException(404, "Clase no encontrada")
 
     updated = await gym_class.update(db=db, db_obj=gym_classs, obj_in=class_in)
-    return GymClassWithRelations.model_validate(updated)
+    hydrated = await gym_class.get(db, obj_id=updated.id, include_schedules=True)
+    if hydrated is None:
+        raise HTTPException(500, "No se pudo recuperar la clase actualizada.")
+    return GymClassWithRelations.model_validate(hydrated)
 
 
 # --------------------------------------------------------------------------- #
@@ -193,6 +215,7 @@ async def delete_gym_class(
     *,
     class_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(_require_catalog_admin)],
 ) -> dict[str, str]:
     """Elimina una clase del catálogo (soft delete).
 

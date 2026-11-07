@@ -19,7 +19,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import require_admin_or_self_guard
+from app.core.deps import get_current_user, require_admin_or_self_guard
+from app.core.enums import UserRole
 from app.db.models.user import User
 from app.db.session import get_async_session
 from app.services.user_service import (
@@ -29,6 +30,7 @@ from app.services.user_service import (
 )
 from app.schemas.user import (
     UserCreate,
+    PublicUserRegistration,
     UserPublic,
     UserWithProfile,
     UserWithStats,
@@ -37,6 +39,18 @@ from app.schemas.user import (
 from app.crud.crud_user import user as user_crud
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+async def _require_users_admin(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Translate signed-identity role denial at the HTTP boundary."""
+    if current_user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere el rol administrador.",
+        )
+    return current_user
 
 
 def _is_email_unique_violation(exc: IntegrityError) -> bool:
@@ -64,7 +78,7 @@ def _is_email_unique_violation(exc: IntegrityError) -> bool:
 @router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
 async def register_user(
     *,
-    user_in: UserCreate,
+    user_in: PublicUserRegistration,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> UserPublic:
     """Registra un nuevo usuario en el sistema.
@@ -81,7 +95,14 @@ async def register_user(
         raise HTTPException(400, "El email ya está registrado.")
 
     try:
-        user = await user_crud.create(db=db, obj_in=user_in)
+        user = await user_crud.create(
+            db=db,
+            obj_in=UserCreate(
+                email=user_in.email,
+                password=user_in.password,
+                role=UserRole.client,
+            ),
+        )
     except IntegrityError as exc:
         # A concurrent registration can pass the precheck; UNIQUE remains SOT.
         await db.rollback()
@@ -98,8 +119,9 @@ async def register_user(
 async def list_public_users(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(_require_users_admin)],
 ) -> list[UserPublic]:
-    """Lista usuarios en versión pública."""
+    """List identities only for authenticated administrators (email is PII)."""
     users = await user_crud.get_multi(db=db)
     return [to_user_public(u) for u in users]
 
@@ -112,8 +134,9 @@ async def read_public_user(
     *,
     user_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
+    _: Annotated[User, Depends(_require_users_admin)],
 ) -> UserPublic:
-    """Obtiene un usuario en versión pública."""
+    """List a user's identity only for authenticated administrators."""
     user = await user_crud.get(db=db, obj_id=user_id)
     if not user:
         raise HTTPException(404, "Usuario no encontrado.")

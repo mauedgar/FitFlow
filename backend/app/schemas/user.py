@@ -43,6 +43,20 @@ class UserCreate(UserBase):
     role: UserRole | None = UserRole.client
 
 
+class PublicUserRegistration(UserBase):
+    """Only the fields accepted from an unauthenticated self-registration.
+
+    Privileged roles belong to trusted internal provisioning, never the
+    public request. Preserve the currently accepted legacy full_name field
+    without treating it as a persisted Client/Person profile.
+    """
+
+    password: str
+    full_name: str | None = None
+
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+
 # --------------------------------------------------------------------------- #
 # 3. Actualización
 # --------------------------------------------------------------------------- #
