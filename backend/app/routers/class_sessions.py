@@ -194,6 +194,28 @@ async def read_client_weekly_agenda(
 
 
 # --------------------------------------------------------------------------- #
+# Sesiones públicas por día
+# --------------------------------------------------------------------------- #
+@router.get("/day", response_model=list[ClassSessionInResponse])
+async def read_sessions_by_day(
+    *,
+    date_query: date,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> list[ClassSessionInResponse]:
+    """Devuelve las sesiones públicas correspondientes a un día específico."""
+    start_dt = datetime.combine(date_query, datetime.min.time(), tzinfo=LOCAL_TZ)
+    end_dt = datetime.combine(date_query, datetime.max.time(), tzinfo=LOCAL_TZ)
+
+    sessions = await class_session.get_multi_filtered(
+        db=db,
+        date_from=start_dt,
+        date_to=end_dt,
+        include_relations=True,
+    )
+    return [to_class_session_response(update_session_availability(s)) for s in sessions]
+
+
+# --------------------------------------------------------------------------- #
 # Obtener sesión por ID (operativo)
 # --------------------------------------------------------------------------- #
 @router.get("/{session_id}", response_model=ClassSessionInResponse)
@@ -327,23 +349,3 @@ async def read_sessions_by_teacher_public(
     return [to_class_session_response(update_session_availability(s)) for s in sessions]
 
 
-# --------------------------------------------------------------------------- #
-# Sesiones públicas por día
-# --------------------------------------------------------------------------- #
-@router.get("/day", response_model=list[ClassSessionInResponse])
-async def read_sessions_by_day(
-    *,
-    date_query: date,
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> list[ClassSessionInResponse]:
-    """Devuelve las sesiones públicas correspondientes a un día específico."""
-    start_dt = datetime.combine(date_query, datetime.min.time(), tzinfo=LOCAL_TZ)
-    end_dt = datetime.combine(date_query, datetime.max.time(), tzinfo=LOCAL_TZ)
-
-    sessions = await class_session.get_multi_filtered(
-        db=db,
-        date_from=start_dt,
-        date_to=end_dt,
-        include_relations=True,
-    )
-    return [to_class_session_response(update_session_availability(s)) for s in sessions]
