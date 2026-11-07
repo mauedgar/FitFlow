@@ -40,3 +40,19 @@ New independent **FULL PRODUCT** review must use a separately materialized froze
 - Legacy PostgreSQL sync Alembic URL uses a different driver than app asyncpg; do not remove psycopg2-binary merely because psycopg3 is present. Qualify the sync driver in fresh migrations.
 - Original PR #101 browser failure `42386982010` remains historical `FAILURE / ROOT_CAUSE_UNKNOWN`; do not erase or explain it using unrelated CI.
 - Do not close #43/#44 or PR #105 until exact Product integration and separate disposition. Do not merge this candidate without explicit immutable approval and ruleset/IR evidence.
+
+## Initial exact CI attempt and bounded repair — R002
+
+The initial composed candidate `93a90210ea000edf533a87aa86c3bc78398f9034`, tree `95d1ee6dceec0a22f875bd6edbc2a725697b0e9d`, launched one native attempt per existing PR workflow:
+
+- [Issue43 bcrypt 42407934812](https://github.com/mauedgar/FitFlow/actions/runs/42407934812) completed FAILURE, backend **53 passed / 1 failed** on Python3.15.2; quality/frontend/compatibility PASS. The failing test introspected `app.routes` using a mutable `settings.API_V1_STR` prefix, which is not a reliable representation of installed HTTP routes after settings fixtures. Prior PR83 test source already exercised a stronger 405 HTTP contract.
+- [FitFlow baseline 42407925273](https://github.com/mauedgar/FitFlow/actions/runs/42407925273) completed FAILURE: **386 passed / 3 failed**; failed assertions were that same users-router test, production class-session route precedence introspection with mutable `PREFIX`, and SQLAlchemy ORM `Mapped[T]` detection via raw `__annotations__` under Python 3.15 deferred annotations. Frontend job SUCCESS.
+- [Schema 42407925644](https://github.com/mauedgar/FitFlow/actions/runs/42407925644) SUCCESS and [signed ADMIN browser 42407925331](https://github.com/mauedgar/FitFlow/actions/runs/42407925331) SUCCESS on initial SHA. These successes remain bound to the initial SHA and do not qualify a successor.
+
+**R002 repair intent (tests only; no Product runtime changes):**
+
+1. Replace the users-router negative route introspection with HTTP `PUT`/`PATCH` to registered paths `/users/register`, `/users/me` and `/users/public`, requiring HTTP 405, while explicitly checking route source declarations. This tests *real route exposure* and rejects an accidental 404 due to missing mounts. Preserve all current PR105 registration 72-byte/NUL test vectors, including `register-client`.
+2. In the `/class-sessions/day` precedence test, compare immutable registered path suffixes rather than a mutable settings prefix; retain real HTTP negative control and actual `/day` request tests.
+3. Use `inspect.get_annotations` instead of direct `__dict__['__annotations__']` for ORM `Mapped[T]` introspection compatible with Python3.15 deferred annotation semantics. No Booking model or domain schema changes.
+
+The repair is a **new candidate identity**, not an attempt to relabel or rerun the failed initial workflows. It requires its own CI and later full IR; no Product acceptance, merge, retained data or file ownership expansion.

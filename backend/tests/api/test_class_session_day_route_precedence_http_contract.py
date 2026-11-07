@@ -42,18 +42,21 @@ async def isolated_api_client() -> AsyncIterator[httpx.AsyncClient]:
         yield client
 
 
-def _route_index(application: FastAPI, path: str) -> int:
-    return next(
+def _route_index(application: FastAPI, suffix: str) -> int:
+    """Compare the already mounted path suffix, independent of mutable settings."""
+    indices = [
         index for index, route in enumerate(application.router.routes)
-        if getattr(route, "path", None) == path
+        if str(getattr(route, "path", "")).endswith(suffix)
         and "GET" in (getattr(route, "methods", None) or set())
-    )
+    ]
+    assert indices, f"missing production GET route ending {suffix}"
+    return indices[0]
 
 
 async def test_production_registration_places_day_before_uuid_handler() -> None:
     """The actual app route table must obey the same static-before-dynamic order."""
-    assert _route_index(production_app, f"{PREFIX}/day") < _route_index(
-        production_app, f"{PREFIX}/{{session_id}}"
+    assert _route_index(production_app, "/class-sessions/day") < _route_index(
+        production_app, "/class-sessions/{session_id}"
     )
 
 

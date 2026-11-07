@@ -9,7 +9,6 @@ import httpx
 import pytest
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.main import app
 from app.routers import users as user_router
 from app.schemas.user import UserCreate
 
@@ -76,15 +75,29 @@ async def test_register_valid_exact_72_byte_password_reaches_create_without_muta
     assert calls == ["lookup", "create"]
 
 
-async def test_user_password_update_http_route_is_not_exposed() -> None:
+async def test_user_password_update_http_route_is_not_exposed(api_client: httpx.AsyncClient) -> None:
     """UserUpdate is internal CRUD/schema only; do not invent an HTTP 422 update route."""
-    user_routes = [
-        route
-        for route in app.routes
-        if getattr(route, "path", "").startswith(f"{settings.API_V1_STR}/users")
-    ]
-    assert user_routes, "users router must actually be mounted"
+    # The source router must not expose write methods; verify the actual
+    # FastAPI app mounts its registration route as well. Match the suffix
+    # rather than the mutable test settings.API_V1_STR.
+    declared = user_router.router.routes
+    assert any(
+        getattr(route, "path", "") == "/users/register"
+        and "POST" in (getattr(route, "methods", set()) or set())
+        for route in declared
+    ), "users registration route must be declared"
     assert all(
-        not ({"PUT", "PATCH"} & set(getattr(route, "methods", set())))
-        for route in user_routes
-    )
+        not ({"PUT", "PATCH"} & set(getattr(route, "methods", set()) or set()))
+        for route in declared
+    ), "users router declares a disallowed write method"
+    # HTTP 405 proves that a route is really mounted but disallows the
+    # attempted write method. A missing route would return HTTP 404.
+    for path in ("/users/register", "/users/me", "/users/public"):
+        for method in ("PUT", "PATCH"):
+            response = await api_client.request(
+                method, f"{settings.API_V1_STR}{path}", json={}
+            )
+            assert response.status_code == 405, (
+                f"{method} {path}: expected HTTP 405 on mounted user route, "
+                f"received {response.status_code}: {response.text}"
+            )
