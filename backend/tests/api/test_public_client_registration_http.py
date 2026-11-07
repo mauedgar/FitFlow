@@ -209,7 +209,7 @@ async def test_normalized_name_uses_post_normalization_length(
     api_client: httpx.AsyncClient,
 ) -> None:
     email = f"onboarding-normalized-{uuid.uuid4().hex}@example.com"
-    raw_name = (" " * 220) + "Ana Cliente" + (" " * 20)
+    raw_name = (" " * 220) + "Ana" + (" " * 20)
     try:
         response = await api_client.post(
             f"{API}/users/register-client",
