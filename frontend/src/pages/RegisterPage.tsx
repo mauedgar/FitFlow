@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Box, Button, Flex, Heading, Input, VStack, Text, Link, Field } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { registerUser } from '../services/api';
+import { PASSWORD_POLICY_MESSAGE } from '../utils/registrationErrors';
 
 const RegisterPage = () => {
   const [firstName, setFirstName] = useState('');
@@ -129,6 +130,7 @@ const RegisterPage = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <Text fontSize="sm" color="gray.600">{PASSWORD_POLICY_MESSAGE}</Text>
             </Field.Root>
 
             <Field.Root required>
