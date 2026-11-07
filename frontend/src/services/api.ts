@@ -48,7 +48,7 @@ export const registerUser = async (fullName: string, email: string, password: st
 
   try {
     // A diferencia del login, el registro sí espera un JSON normal.
-    const response = await apiClient.post('/users/register', payload);
+    const response = await apiClient.post('/users/register-client', payload);
     return response.data; // Devuelve los datos del usuario creado (sin la contraseña)
   } catch (error) {
     // Manejo de errores robusto, igual que en el login
