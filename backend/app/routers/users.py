@@ -139,7 +139,8 @@ async def register_public_client(
             db=db,
             email=user_in.email,
             password=user_in.password,
-            full_name=user_in.full_name,
+            first_name=user_in.first_name,
+            last_name=user_in.last_name,
         )
     except IntegrityError as exc:
         # The database UNIQUE index also protects concurrent registrations.

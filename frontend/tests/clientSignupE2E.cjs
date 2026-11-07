@@ -6,12 +6,15 @@ const { chromium } = require('playwright');
 const WEB = 'http://127.0.0.1:5173';
 const API = 'http://127.0.0.1:8000/api/v1';
 const password = 'FitFlow-Disposable-Signup-Only-42';
-const fullName = 'Ana María Prueba';
+const firstName = 'Ana María';
+const lastName = 'de la Cruz';
+const fullName = firstName + ' ' + lastName;
 
-async function fillRegistration(page, name, email) {
+async function fillRegistration(page, given, family, email) {
   await page.goto(WEB + '/register');
   await page.getByRole('heading', { name: 'Crear Cuenta' }).waitFor();
-  await page.getByLabel('Nombre y apellido').fill(name);
+  await page.getByLabel('Nombre(s)').fill(given);
+  await page.getByLabel('Apellido(s)').fill(family);
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Contraseña', { exact: true }).fill(password);
   await page.getByLabel('Confirmar Contraseña').fill(password);
@@ -38,7 +41,7 @@ async function run() {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
 
-    await fillRegistration(page, fullName, email);
+    await fillRegistration(page, firstName, lastName, email);
     const created = registrationResponse(page);
     await page.getByRole('button', { name: 'Registrarse' }).click();
     assert.equal((await created).status(), 201, 'Real client registration must create account + profile');
@@ -81,14 +84,14 @@ async function run() {
     assert.ok(profile.id);
 
     const duplicate = await context.newPage();
-    await fillRegistration(duplicate, fullName, email);
+    await fillRegistration(duplicate, firstName, lastName, email);
     const duplicateRequest = registrationResponse(duplicate);
     await duplicate.getByRole('button', { name: 'Registrarse' }).click();
     assert.equal((await duplicateRequest).status(), 400, 'Duplicate email must be rejected');
     assert.equal(new URL(duplicate.url()).pathname, '/register');
 
     const invalid = await context.newPage();
-    await fillRegistration(invalid, 'Ana ' + 'X'.repeat(201), 'fitflow-invalid-' + randomUUID() + '@example.com');
+    await fillRegistration(invalid, 'Ana', 'X'.repeat(201), 'fitflow-invalid-' + randomUUID() + '@example.com');
     const rejectedRequest = registrationResponse(invalid);
     await invalid.getByRole('button', { name: 'Registrarse' }).click();
     assert.equal((await rejectedRequest).status(), 422, 'Invalid full name must be rejected');

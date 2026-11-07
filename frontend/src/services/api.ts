@@ -38,10 +38,11 @@ export const loginUser = async (email: string, password: string) => {
 };
 
 // Aquí añadiremos más funciones en el futuro (ej. registerUser)
-export const registerUser = async (fullName: string, email: string, password: string) => {
-  // El backend espera un campo 'full_name', así que mapeamos 'fullName' a él.
+export const registerUser = async (firstName: string, lastName: string, email: string, password: string) => {
+  // Conservamos íntegramente los apellidos compuestos.
   const payload = {
-    full_name: fullName,
+    first_name: firstName,
+    last_name: lastName,
     email: email,
     password: password,
   };
@@ -59,7 +60,7 @@ export const registerUser = async (fullName: string, email: string, password: st
       const message = typeof detail === 'string'
         ? detail
         : Array.isArray(detail)
-          ? 'Revisá el nombre completo, el correo y la contraseña ingresados.'
+          ? 'Revisá el nombre, apellido, correo y contraseña ingresados.'
           : 'Error al registrar la cuenta.';
       throw new Error(message);
     }

@@ -57,24 +57,18 @@ class PublicUserRegistration(UserBase):
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
-class PublicClientRegistration(PublicUserRegistration):
-    """Complete client signup requires a name for its real Person/Client row.
+class PublicClientRegistration(UserBase):
+    """Public signup preserves given and compound family names explicitly."""
 
-    The legacy /users/register contract remains account-only for callers that
-    do not supply an identity. Both schemas reject caller-supplied roles.
-    """
+    password: str
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
-    full_name: str = Field(min_length=3, max_length=200)
-
-    @field_validator("full_name", mode="before")
+    @field_validator("first_name", "last_name", mode="before")
     @classmethod
-    def require_full_name(cls, value: object) -> object:
-        if not isinstance(value, str):
-            return value
-        normalized = " ".join(value.split())
-        if len(normalized.split(" ")) < 2:
-            raise ValueError("Se requiere nombre y apellido.")
-        return normalized
+    def normalize_personal_name(cls, value: object) -> object:
+        return " ".join(value.split()) if isinstance(value, str) else value
 
 
 # --------------------------------------------------------------------------- #

@@ -19,14 +19,13 @@ async def create_public_client_account(
     db: AsyncSession,
     email: str,
     password: str,
-    full_name: str,
+    first_name: str,
+    last_name: str,
 ) -> User:
-    """Persist one CLIENT account and personal profile atomically.
+    """Persist CLIENT account with separate names in one transaction.
 
-    The schema already validates and normalizes a two-part name. Split at the
-    last whitespace to preserve compound given names without fake surnames.
+    Never guess surname boundaries from a single full_name string.
     """
-    first_name, last_name = full_name.rsplit(" ", 1)
     user = User(
         email=email,
         hashed_password=get_password_hash(password),

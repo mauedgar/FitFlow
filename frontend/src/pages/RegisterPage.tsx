@@ -5,7 +5,8 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { registerUser } from '../services/api';
 
 const RegisterPage = () => {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,11 +29,12 @@ const RegisterPage = () => {
 
       return;
     }
-    const normalizedName = name.trim().replace(/\s+/g, ' ');
-    if (normalizedName.split(' ').length < 2) {
+    const normalizedFirst = firstName.trim().replace(/\s+/g, ' ');
+    const normalizedLast = lastName.trim().replace(/\s+/g, ' ');
+    if (!normalizedFirst || !normalizedLast) {
       toaster.create({
         title: "Nombre incompleto",
-        description: "Ingresá nombre y apellido para crear el perfil del cliente.",
+        description: "Ingresá tu nombre y tus apellidos para crear el perfil.",
         type: "error",
         duration: 5000,
         closable: true,
@@ -41,7 +43,7 @@ const RegisterPage = () => {
       return;
     }
     try {
-      await registerUser(normalizedName, email, password);
+      await registerUser(normalizedFirst, normalizedLast, email, password);
 
       toaster.create({
         title: "Cuenta creada.",
@@ -86,13 +88,24 @@ const RegisterPage = () => {
             </Heading>
 
             <Field.Root required>
-              <Field.Label>Nombre y apellido</Field.Label>
+              <Field.Label>Nombre(s)</Field.Label>
               <Input
                 type="text"
                 required
-                placeholder="Ingresá nombre y apellido"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="Ingresá tu nombre"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
+            </Field.Root>
+
+            <Field.Root required>
+              <Field.Label>Apellido(s)</Field.Label>
+              <Input
+                type="text"
+                required
+                placeholder="Ingresá tus apellidos"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
               />
             </Field.Root>
 

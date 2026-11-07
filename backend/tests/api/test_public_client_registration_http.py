@@ -7,6 +7,7 @@ Legacy /users/register is intentionally unchanged and account-only.
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from collections.abc import AsyncIterator
 
@@ -31,9 +32,42 @@ pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 API = settings.API_V1_STR
 
 
+def _safe_disposable_test_target(
+    database_url: str,
+    environment: str | None,
+    testing: str | None,
+) -> bool:
+    """Refuse a remote or retained DB even when called fitflow_test."""
+    target = make_url(database_url)
+    return (
+        environment == "test"
+        and (testing or "").lower() == "true"
+        and target.database == "fitflow_test"
+        and (target.host or "").lower() in {"127.0.0.1", "localhost", "::1"}
+        and target.port in {None, 5432, 55432}
+    )
+
+
 @pytest.fixture(autouse=True)
 def require_disposable_test_database() -> None:
-    assert make_url(settings.DATABASE_URL).database == "fitflow_test"
+    assert _safe_disposable_test_target(
+        settings.DATABASE_URL, os.environ.get("ENV"), os.environ.get("TESTING")
+    ), "BLOCKED_PRECONDITION: local disposable PostgreSQL test profile required"
+
+
+@pytest.mark.parametrize(
+    ("database_url", "environment", "testing"),
+    [
+        ("postgresql://synthetic@remote.example.org/fitflow_test", "test", "true"),
+        ("postgresql://synthetic@127.0.0.1/fitflow_prod", "test", "true"),
+        ("postgresql://synthetic@127.0.0.1/fitflow_test", "production", "true"),
+        ("postgresql://synthetic@127.0.0.1/fitflow_test", "test", "false"),
+    ],
+)
+async def test_disposable_preflight_denies_unsafe_profiles(
+    database_url: str, environment: str, testing: str,
+) -> None:
+    assert not _safe_disposable_test_target(database_url, environment, testing)
 
 
 @pytest.fixture(autouse=True)
@@ -64,7 +98,8 @@ async def test_client_signup_persists_real_person_and_client_and_me(
             json={
                 "email": email,
                 "password": "Only-Synthetic-Password-42",
-                "full_name": "María Elena Pérez",
+                "first_name": "María Elena",
+                "last_name": "de la Cruz",
             },
         )
         assert response.status_code == status.HTTP_201_CREATED, response.text
@@ -82,7 +117,7 @@ async def test_client_signup_persists_real_person_and_client_and_me(
             )
             assert profile is not None
             assert profile.first_name == "María Elena"
-            assert profile.last_name == "Pérez"
+            assert profile.last_name == "de la Cruz"
 
         jwt = create_access_token(
             {"sub": body["id"], "role": UserRole.client.value}
@@ -92,23 +127,30 @@ async def test_client_signup_persists_real_person_and_client_and_me(
             headers={"Authorization": f"Bearer {jwt}"},
         )
         assert client_me.status_code == status.HTTP_200_OK, client_me.text
-        assert client_me.json()["full_name"] == "María Elena Pérez"
+        assert client_me.json()["full_name"] == "María Elena de la Cruz"
         assert client_me.json()["email"] == email
     finally:
         await _cleanup_synthetic_account(email)
 
 
 @pytest.mark.parametrize(
-    "name", [None, "", "   ", "OnlyName", " X ", "  Ana   "]
+    ("given", "family"),
+    [
+        (None, "Apellido"), ("", "Apellido"), ("   ", "Apellido"),
+        ("SoloNombre", None), ("Ana", ""), ("Ana", "   "),
+    ],
 )
 async def test_client_signup_rejects_missing_or_incomplete_name_without_effect(
     api_client: httpx.AsyncClient,
-    name: str | None,
+    given: str | None,
+    family: str | None,
 ) -> None:
     email = f"onboarding-invalid-{uuid.uuid4().hex}@example.com"
     payload = {"email": email, "password": "Only-Synthetic-Password-42"}
-    if name is not None:
-        payload["full_name"] = name
+    if given is not None:
+        payload["first_name"] = given
+    if family is not None:
+        payload["last_name"] = family
     response = await api_client.post(f"{API}/users/register-client", json=payload)
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
     async with AsyncSessionLocal() as db:
@@ -126,7 +168,8 @@ async def test_client_signup_rejects_caller_role_even_client(
         json={
             "email": email,
             "password": "Only-Synthetic-Password-42",
-            "full_name": "Safe Client",
+            "first_name": "Safe",
+            "last_name": "Client",
             "role": role,
         },
     )
@@ -142,7 +185,8 @@ async def test_client_signup_duplicate_email_has_no_extra_profile(
     payload = {
         "email": email,
         "password": "Only-Synthetic-Password-42",
-        "full_name": "Safe Client",
+        "first_name": "Safe",
+            "last_name": "Client",
     }
     try:
         first = await api_client.post(f"{API}/users/register-client", json=payload)
@@ -172,7 +216,8 @@ async def test_normalized_name_uses_post_normalization_length(
             json={
                 "email": email,
                 "password": "Only-Synthetic-Password-42",
-                "full_name": raw_name,
+                "first_name": raw_name,
+                "last_name": "Cliente",
             },
         )
         assert response.status_code == status.HTTP_201_CREATED, response.text
@@ -196,7 +241,8 @@ async def test_normalized_name_over_limit_is_rejected_without_effect(
         json={
             "email": email,
             "password": "Only-Synthetic-Password-42",
-            "full_name": "Ana " + ("X" * 201),
+            "first_name": "Ana",
+            "last_name": "X" * 201,
         },
     )
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
@@ -213,7 +259,8 @@ async def test_two_simultaneous_http_signups_share_one_unique_account(
     payload = {
         "email": email,
         "password": "Only-Synthetic-Password-42",
-        "full_name": "Concurrent Client",
+        "first_name": "Concurrent",
+        "last_name": "Client",
     }
     original_lookup = users_router.user_crud.get_by_email
     barrier = asyncio.Barrier(2)
@@ -272,7 +319,8 @@ async def test_db_failure_rolls_back_account_when_person_insert_fails(
         json={
             "email": email,
             "password": "Only-Synthetic-Password-42",
-            "full_name": "Atomic Failure",
+            "first_name": "Atomic",
+            "last_name": "Failure",
         },
     )
     assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -6,7 +6,7 @@
 - Issue: #97; un candidato no es aceptación ni autorización para desplegar, integrar o migrar datos históricos.
 
 ## Contrato de transición
-La interfaz de nuevo cliente usa `POST /api/v1/users/register-client`. Su entrada contiene `email`, `password` y `full_name` obligatorio (al menos nombre y apellido, longitud 3–200, espacios normalizados). `extra=forbid` rechaza `role` incluso si se envía `client`. La contraseña se procesa con el mismo hashing existente que el registro anterior; la asignación del rol `client` ocurre exclusivamente del lado servidor.
+La interfaz de nuevo cliente usa `POST /api/v1/users/register-client`. Su entrada contiene `email`, `password`, `first_name` y `last_name` obligatorios (1–100 caracteres cada campo, espacios normalizados). No se infiere el apellido a partir del nombre completo. `extra=forbid` rechaza `role` incluso si se envía `client`. La contraseña se procesa con el mismo hashing existente que el registro anterior; la asignación del rol `client` ocurre exclusivamente del lado servidor.
 
 En una transacción SQL se crean `User`, `Person` y `Client` por joined inheritance; un error en cualquiera de las escrituras revierte todas. Se devuelve `UserPublic` sin contraseñas. La validación de email único sigue cubierta por preconsulta y restricción SQL; no se promete persistencia si ocurre una carrera.
 
@@ -17,7 +17,7 @@ En una transacción SQL se crean `User`, `Person` y `Client` por joined inherita
 - No hay cambios a bcrypt/Passlib, JWT, Redis, DB schema, Alembic, membresías, estados de facturación, permisos de workflow ni secretos.
 - Tests propuestos con Postgres `fitflow_test` descartable: respuesta de registro y perfil real, `/clients/me`, rechazo 422 de nombre incompleto e inyección de role, duplicados 400, y fallo inyectado de NOT NULL que revierte User junto con Person/Client; limpieza sintética explícita.
 - Se requiere CI exacta backend y frontend y revisión independiente sobre SHA/tree final con 0 findings/0 advisories del candidato. El resultado de CI no autoriza beta.
-- La división de `full_name` en `first_name`/`last_name` usa la última palabra como apellido; nombres compuestos complejos pueden requerir modelado explícito futuro. No inferir nombre legal validado.
+- Los apellidos compuestos se conservan íntegros en `last_name`; no se infiere ni valida la identidad legal. El endpoint legado `/users/register` conserva su `full_name` opcional sin persistirlo.
 
 ## Integración con otras ramas
 PRs #51, #48, #68 y #83 contienen ediciones de rutas/esquemas/registro y dependen de baselines anteriores. No se modifican esos candidatos aquí. Su futura composición debe conservar `PublicClientRegistration`, la frontera de rol de PR95 y el registro transaccional, sin trasladar CI/IR entre SHA.
@@ -27,3 +27,9 @@ PRs #51, #48, #68 y #83 contienen ediciones de rutas/esquemas/registro y depende
 - A01: `full_name` whitespace normalization occurs with Pydantic `field_validator(mode="before")` so Field length bounds apply to the normalized name. Tests cover raw length over 200 becoming a valid normalized name and an over-limit normalized name rejected 422.
 - A02: two simultaneous real HTTP requests are synchronized after separate database prechecks, then race against the unique email index; expect exactly 201/400, one User and one Client, with explicit synthetic cleanup. The transaction now flushes and refreshes before the sole commit.
 - A03: the existing disposable signed ADMIN browser workflow additionally runs a separate browser script on local Vite/backend/PG15/Redis7 for actual registration UI, login, signed `/clients/me`, duplicate 400 and validation 422. This extends only test infrastructure, not production secrets/services. Keep any failure as evidence, not an automatic retry.
+
+
+## IR002 A04–A06 (candidato posterior)
+- A04: E2E ahora incluye en `paths` el nuevo script de navegador y los archivos backend del autorregistro, sin ampliar permisos GitHub.
+- A05: la fixture de pruebas HTTP bloquea si falta `ENV=test`, `TESTING=true`, PostgreSQL `fitflow_test` y host loopback con puerto permitido. Cuatro pruebas negativas cubren configuraciones host/DB/entorno incorrectas.
+- A06: el nuevo endpoint requiere `first_name` y `last_name` por separado; el formulario expone nombre(s) y apellido(s) para conservar apellidos compuestos sin heurísticas. Se conserva intacto el contrato legado de `/users/register`.
