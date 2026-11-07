@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.enums import ActivityType, UserRole
 from app.core.security import create_access_token
 from app.db.models import GymClass, User
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, engine
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 API = settings.API_V1_STR
@@ -43,6 +43,13 @@ def require_disposable_database() -> None:
     assert make_url(settings.DATABASE_URL).database == "fitflow_test", (
         "Security HTTP contract may use only fitflow_test"
     )
+
+
+@pytest.fixture(autouse=True)
+async def dispose_async_pool_between_tests() -> AsyncIterator[None]:
+    """Never reuse an asyncpg connection bound to another pytest event loop."""
+    yield
+    await engine.dispose()
 
 
 @pytest.fixture
