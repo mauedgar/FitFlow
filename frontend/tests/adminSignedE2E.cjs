@@ -337,6 +337,37 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
   }
 }
 
+// Diagnostic-only snapshot: no tokens, emails, query strings, DOM dumps or passwords.
+async function safeKeyboardNavSnapshot(page) {
+  try {
+    return await page.evaluate(() => {
+      const active = document.activeElement;
+      const rawPath = window.location.pathname;
+      const allowedPaths = ['/admin', '/admin/teachers', '/login', '/home'];
+      const heading = Array.from(document.querySelectorAll('main h1'))
+        .find((element) => element.textContent?.trim() === 'Profesores');
+      const visible = (element) => Boolean(element && element.getClientRects().length > 0 &&
+        getComputedStyle(element).visibility !== 'hidden');
+      const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+      const trigger = document.querySelector('button[aria-label="Menú"]');
+      return {
+        path: allowedPaths.includes(rawPath) ? rawPath : 'other_path',
+        focusedTag: active?.tagName ?? null,
+        focusedTeachersLink: active?.tagName === 'A' &&
+          active.getAttribute('href') === '/admin/teachers',
+        menuExpanded: trigger?.getAttribute('aria-expanded') ?? null,
+        dialogCount: dialogs.length,
+        visibleDialogCount: dialogs.filter(visible).length,
+        teachersHeadingMounted: Boolean(heading),
+        teachersHeadingVisible: visible(heading) &&
+          !heading.closest('[aria-hidden="true"], [inert]'),
+      };
+    });
+  } catch {
+    return { observation: 'snapshot_unavailable' };
+  }
+}
+
 async function run() {
   if (process.env.GITHUB_ACTIONS !== 'true' || process.env.FITFLOW_E2E_SYNTHETIC_ONLY !== '1' ||
       !email?.endsWith('@example.com') || !clientEmail?.endsWith('@example.com')) {
@@ -415,8 +446,26 @@ async function run() {
       'Escape must restore keyboard focus to mobile menu trigger');
     await mobileMenu.click();
     await page.getByRole('link', { name: 'Profesores', exact: true }).focus();
+    const beforeEnter = await safeKeyboardNavSnapshot(page);
     await page.keyboard.press('Enter');
-    await page.getByRole('heading', { name: 'Profesores' }).waitFor();
+    let navigationStage = 'route';
+    try {
+      // Keep the real keyboard interaction; separate route, Drawer and
+      // heading qualification so an inaccessible heading cannot mask cause.
+      await page.waitForURL((url) => url.pathname === '/admin/teachers', { timeout: 30000 });
+      navigationStage = 'drawer';
+      await page.getByRole('dialog').waitFor({ state: 'hidden', timeout: 30000 });
+      navigationStage = 'heading';
+      await page.getByRole('heading', { name: 'Profesores' }).waitFor();
+    } catch (error) {
+      const afterEnter = await safeKeyboardNavSnapshot(page);
+      console.error('ADMIN_KEYBOARD_NAV_DIAGNOSTIC', JSON.stringify({
+        failedStage: navigationStage,
+        beforeEnter,
+        afterEnter,
+      }));
+      throw error;
+    }
     await page.getByText('Profesora Sintética', { exact: true }).filter({ visible: true }).first().waitFor();
     // Controlled synthetic outage: prove error/retry without changing Product data.
     const teacherApi = '**/api/v1/teachers/public';
