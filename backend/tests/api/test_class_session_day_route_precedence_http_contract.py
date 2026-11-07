@@ -43,13 +43,14 @@ async def isolated_api_client() -> AsyncIterator[httpx.AsyncClient]:
 
 
 def _route_index(application: FastAPI, suffix: str) -> int:
-    """Compare the already mounted path suffix, independent of mutable settings."""
+    """Use public OpenAPI paths; newer FastAPI preserves nested included routers."""
+    paths = application.openapi()["paths"]
     indices = [
-        index for index, route in enumerate(application.router.routes)
-        if str(getattr(route, "path", "")).endswith(suffix)
-        and "GET" in (getattr(route, "methods", None) or set())
+        index
+        for index, (path, operations) in enumerate(paths.items())
+        if path.endswith(suffix) and "get" in operations
     ]
-    assert indices, f"missing production GET route ending {suffix}"
+    assert len(indices) == 1, f"expected one production GET route ending {suffix}"
     return indices[0]
 
 
