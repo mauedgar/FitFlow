@@ -28,3 +28,9 @@ Sin modificar los PR DRAFT #48, #51, #83; #46 ya estaba CLOSED/UNMERGED. #44 es 
 ## Evidencia pendiente
 
 Commit/tree de la rama nueva debe publicarse por recibo GitHub. Calificar Actions originales en ese SHA, registrar correctamente jobs `NOT_RUN`/FAIL y hacer independent WEB_INLINE IR con cobertura de cambios exactos. Los resultados antiguos 41482355644 y PR51 IR002 no validan esta composición ni cierran la Issue. Aceptación Product e integración **no automáticas**.
+
+## Reconciliación del primer candidato y reparación puramente mecánica
+
+La CI nativa original de `876cd4951a6a7148c88a308f54327c691de2bd42`, tree `966f178a8b218a98031727ef0d5bc086bf5a5198`, [run 42386446832](https://github.com/mauedgar/FitFlow/actions/runs/42386446832) terminó FAILURE, intento 1: 5/6 jobs SUCCESS (backend test/lock, compatibilidad Python3.11/3.12/3.13 con old/new sintéticos, frontend) y quality FAILURE por nueve diagnósticos Ruff I001/UP017/RUF100. Pyright especializado tuvo 0 errors/0 warnings. No declarar 0F/0A ni usar ese FAIL como PASS.
+
+Reparación estrictamente mecánica y acotada para un commit sucesor: orden de imports en seguridad, esquema y prueba; eliminación de directivas `noqa` innecesarias; `timezone.utc` → `datetime.UTC` (objeto de zona UTC equivalente para CPython >=3.11), conservando exactamente la firma/flujo JWT, lógica bcrypt, transacciones, permisos y JSON de alta. CI exacta y reviewer del nuevo SHA siguen sin calificar. No tocar dato real ni ramas DRAFT concurrentes.

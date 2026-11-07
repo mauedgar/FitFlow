@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import pytest
-from app.schemas.user import PublicClientRegistration, PublicUserRegistration, UserCreate, UserUpdate
+from app.schemas.user import (
+    PublicClientRegistration,
+    PublicUserRegistration,
+    UserCreate,
+    UserUpdate,
+)
 from pydantic import ValidationError
 
 

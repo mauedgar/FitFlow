@@ -13,12 +13,11 @@ Incluye:
 # ruff: noqa: UP037
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TC003
-from uuid import UUID  # noqa: TC003
-
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from datetime import datetime
+from uuid import UUID
 
 from app.core.enums import UserRole
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 # --------------------------------------------------------------------------- #
 # 1. Base
@@ -194,8 +193,8 @@ class UserWithStats(UserPublic):
 # Resolver forward refs
 # --------------------------------------------------------------------------- #
 
-from app.schemas.client import ClientPublic  # noqa: E402
-from app.schemas.teacher import TeacherPublic  # noqa: E402
+from app.schemas.client import ClientPublic
+from app.schemas.teacher import TeacherPublic
 
 UserWithProfile.model_rebuild(
     _types_namespace={"ClientPublic": ClientPublic, "TeacherPublic": TeacherPublic}
