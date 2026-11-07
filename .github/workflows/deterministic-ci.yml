@@ -70,7 +70,7 @@ jobs:
 
     steps:
       - name: Checkout exact FitFlow subject
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.subject_sha }}
           fetch-depth: 0
@@ -131,7 +131,7 @@ jobs:
 
       - name: Checkout portable validation contract v0
         if: always()
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: mauedgar/tecnotron-ai
           ref: f28c812cff4d9c6dd27d71a084fbccfffbadd735
