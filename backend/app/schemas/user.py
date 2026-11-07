@@ -36,11 +36,25 @@ class UserBase(BaseModel):
 # 2. Creación
 # --------------------------------------------------------------------------- #
 
+def _validate_bcrypt_password(value: str) -> str:
+    """Reject unsafe new hashes; legacy password verification remains unchanged."""
+    if "\x00" in value:
+        raise ValueError("La contraseña contiene un byte NUL no admitido")
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("La contraseña excede los 72 bytes admitidos por bcrypt")
+    return value
+
+
 class UserCreate(UserBase):
     """Esquema para crear un usuario."""
 
     password: str
     role: UserRole | None = UserRole.client
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return _validate_bcrypt_password(value)
 
 
 class PublicUserRegistration(UserBase):
@@ -56,6 +70,11 @@ class PublicUserRegistration(UserBase):
 
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return _validate_bcrypt_password(value)
+
 
 class PublicClientRegistration(UserBase):
     """Public signup preserves given and compound family names explicitly."""
@@ -64,6 +83,11 @@ class PublicClientRegistration(UserBase):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     model_config = ConfigDict(from_attributes=True, extra="forbid")
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        return _validate_bcrypt_password(value)
 
     @field_validator("first_name", "last_name", mode="before")
     @classmethod
@@ -84,6 +108,11 @@ class UserUpdate(BaseModel):
     role: UserRole | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str | None) -> str | None:
+        return _validate_bcrypt_password(value) if value is not None else None
 
 
 # --------------------------------------------------------------------------- #
