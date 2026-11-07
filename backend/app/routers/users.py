@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import require_admin, require_admin_or_self_guard
+from app.core.deps import get_current_user, require_admin_or_self_guard
 from app.core.enums import UserRole
 from app.db.models.user import User
 from app.db.session import get_async_session
@@ -39,6 +39,18 @@ from app.schemas.user import (
 from app.crud.crud_user import user as user_crud
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+async def _require_users_admin(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Translate signed-identity role denial at the HTTP boundary."""
+    if current_user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requiere el rol administrador.",
+        )
+    return current_user
 
 
 def _is_email_unique_violation(exc: IntegrityError) -> bool:
@@ -107,7 +119,7 @@ async def register_user(
 async def list_public_users(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    _: Annotated[User, Depends(require_admin)],
+    _: Annotated[User, Depends(_require_users_admin)],
 ) -> list[UserPublic]:
     """List identities only for authenticated administrators (email is PII)."""
     users = await user_crud.get_multi(db=db)
@@ -122,7 +134,7 @@ async def read_public_user(
     *,
     user_id: UUID,
     db: Annotated[AsyncSession, Depends(get_async_session)],
-    _: Annotated[User, Depends(require_admin)],
+    _: Annotated[User, Depends(_require_users_admin)],
 ) -> UserPublic:
     """List a user's identity only for authenticated administrators."""
     user = await user_crud.get(db=db, obj_id=user_id)
