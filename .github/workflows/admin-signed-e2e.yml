@@ -123,4 +123,5 @@ jobs:
           curl --silent --show-error --fail http://127.0.0.1:8000/health/ready >/dev/null
           curl --silent --show-error --fail http://127.0.0.1:5173/login >/dev/null
           (cd frontend && node tests/adminSignedE2E.cjs)
+          (cd frontend && node tests/clientSignupE2E.cjs)
           test "$(git status --porcelain --untracked-files=all)" = ""

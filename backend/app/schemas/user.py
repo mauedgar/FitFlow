@@ -66,9 +66,11 @@ class PublicClientRegistration(PublicUserRegistration):
 
     full_name: str = Field(min_length=3, max_length=200)
 
-    @field_validator("full_name")
+    @field_validator("full_name", mode="before")
     @classmethod
-    def require_full_name(cls, value: str) -> str:
+    def require_full_name(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
         normalized = " ".join(value.split())
         if len(normalized.split(" ")) < 2:
             raise ValueError("Se requiere nombre y apellido.")

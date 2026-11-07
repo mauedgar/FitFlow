@@ -35,9 +35,11 @@ async def create_public_client_account(
     client = Client(first_name=first_name, last_name=last_name, user=user)
     db.add(client)
     try:
+        # All reads and generated defaults must succeed before the sole commit.
+        await db.flush()
+        await db.refresh(user)
         await db.commit()
     except Exception:
         await db.rollback()
         raise
-    await db.refresh(user)
     return user

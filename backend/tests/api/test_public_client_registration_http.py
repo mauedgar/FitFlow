@@ -6,6 +6,7 @@ Legacy /users/register is intentionally unchanged and account-only.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 
@@ -14,6 +15,7 @@ import pytest
 from fastapi import status
 from sqlalchemy import delete, select
 from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.enums import UserRole
@@ -22,6 +24,7 @@ from app.db.models.client import Client
 from app.db.models.person import Person
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
+from app.routers import users as users_router
 from app.services import public_client_registration as signup_service
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
@@ -154,6 +157,100 @@ async def test_client_signup_duplicate_email_has_no_extra_profile(
                 select(Client).where(Client.user_id == users[0].id)
             )).all()
             assert len(profiles) == 1
+    finally:
+        await _cleanup_synthetic_account(email)
+
+
+async def test_normalized_name_uses_post_normalization_length(
+    api_client: httpx.AsyncClient,
+) -> None:
+    email = f"onboarding-normalized-{uuid.uuid4().hex}@example.com"
+    raw_name = (" " * 220) + "Ana Cliente" + (" " * 20)
+    try:
+        response = await api_client.post(
+            f"{API}/users/register-client",
+            json={
+                "email": email,
+                "password": "Only-Synthetic-Password-42",
+                "full_name": raw_name,
+            },
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.text
+        async with AsyncSessionLocal() as db:
+            profile = await db.scalar(
+                select(Client).join(Client.user).where(User.email == email)
+            )
+            assert profile is not None
+            assert profile.first_name == "Ana"
+            assert profile.last_name == "Cliente"
+    finally:
+        await _cleanup_synthetic_account(email)
+
+
+async def test_normalized_name_over_limit_is_rejected_without_effect(
+    api_client: httpx.AsyncClient,
+) -> None:
+    email = f"onboarding-long-{uuid.uuid4().hex}@example.com"
+    response = await api_client.post(
+        f"{API}/users/register-client",
+        json={
+            "email": email,
+            "password": "Only-Synthetic-Password-42",
+            "full_name": "Ana " + ("X" * 201),
+        },
+    )
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
+    async with AsyncSessionLocal() as db:
+        assert await db.scalar(select(User).where(User.email == email)) is None
+
+
+async def test_two_simultaneous_http_signups_share_one_unique_account(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both callers pass the same precheck before racing on PostgreSQL UNIQUE."""
+    email = f"onboarding-race-{uuid.uuid4().hex}@example.com"
+    payload = {
+        "email": email,
+        "password": "Only-Synthetic-Password-42",
+        "full_name": "Concurrent Client",
+    }
+    original_lookup = users_router.user_crud.get_by_email
+    barrier = asyncio.Barrier(2)
+
+    async def simultaneous_precheck(
+        *,
+        db: AsyncSession,
+        email: str,
+        include_deleted: bool = False,
+        include_relations: bool = False,
+    ) -> User | None:
+        found = await original_lookup(
+            db=db, email=email,
+            include_deleted=include_deleted,
+            include_relations=include_relations,
+        )
+        assert found is None
+        await asyncio.wait_for(barrier.wait(), timeout=15)
+        return None
+
+    monkeypatch.setattr(users_router.user_crud, "get_by_email", simultaneous_precheck)
+    try:
+        responses = await asyncio.wait_for(
+            asyncio.gather(
+                api_client.post(f"{API}/users/register-client", json=payload),
+                api_client.post(f"{API}/users/register-client", json=payload),
+            ),
+            timeout=30,
+        )
+        assert sorted(response.status_code for response in responses) == [201, 400]
+        async with AsyncSessionLocal() as db:
+            users = (await db.scalars(select(User).where(User.email == email))).all()
+            assert len(users) == 1
+            clients = (await db.scalars(
+                select(Client).where(Client.user_id == users[0].id)
+            )).all()
+            assert len(clients) == 1
     finally:
         await _cleanup_synthetic_account(email)
 
