@@ -337,6 +337,97 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
   }
 }
 
+// Diagnostic-only snapshot: no tokens, emails, query strings, DOM dumps or passwords.
+async function safeKeyboardNavSnapshot(page) {
+  try {
+    return await page.evaluate(() => {
+      const active = document.activeElement;
+      const rawPath = window.location.pathname;
+      const allowedPaths = ['/admin', '/admin/teachers', '/login', '/home'];
+      const heading = Array.from(document.querySelectorAll('main h1'))
+        .find((element) => element.textContent?.trim() === 'Profesores');
+      const visible = (element) => Boolean(element && element.getClientRects().length > 0 &&
+        getComputedStyle(element).visibility !== 'hidden');
+      const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+      const trigger = document.querySelector('button[aria-label="Menú"]');
+      return {
+        path: allowedPaths.includes(rawPath) ? rawPath : 'other_path',
+        focusedTag: active?.tagName ?? null,
+        focusedTeachersLink: active?.tagName === 'A' &&
+          active.getAttribute('href') === '/admin/teachers',
+        menuExpanded: trigger?.getAttribute('aria-expanded') ?? null,
+        dialogCount: dialogs.length,
+        visibleDialogCount: dialogs.filter(visible).length,
+        teachersHeadingMounted: Boolean(heading),
+        teachersHeadingVisible: visible(heading) &&
+          !heading.closest('[aria-hidden="true"], [inert]'),
+      };
+    });
+  } catch {
+    return { observation: 'snapshot_unavailable' };
+  }
+}
+
+
+/**
+ * Observe navigation only after keyboard Enter has been delivered. A
+ * synthetic-only local fixture exercises this catch path without real data.
+ */
+async function qualifyTeachersKeyboardRoute(page, { timeout = 30000, report = console.error } = {}) {
+  let failedStage = 'route';
+  try {
+    await page.waitForURL((url) => url.pathname === '/admin/teachers', { timeout });
+    failedStage = 'drawer';
+    await page.getByRole('dialog').waitFor({ state: 'hidden', timeout });
+    failedStage = 'heading';
+    await page.getByRole('heading', { name: 'Profesores' }).waitFor({ timeout });
+  } catch (error) {
+    const afterEnter = await safeKeyboardNavSnapshot(page);
+    report('ADMIN_KEYBOARD_NAV_DIAGNOSTIC', JSON.stringify({ failedStage, afterEnter }));
+    throw error;
+  }
+}
+
+async function qualifySyntheticFailureDiagnostic(browser) {
+  // Browser-local markup only: no backend calls, remote routes or credentials.
+  const fixture = await browser.newContext();
+  try {
+    const page = await fixture.newPage();
+    await page.setContent('<button aria-label="Menú" aria-expanded="true">Menú</button>' +
+      '<div role="dialog"><a href="/admin/teachers">Profesores</a></div>' +
+      '<main><h1>Fixture</h1></main>');
+    const reports = [];
+    let rejected = false;
+    try {
+      await qualifyTeachersKeyboardRoute(page, {
+        timeout: 80,
+        report: (marker, payload) => reports.push({ marker, payload }),
+      });
+    } catch (error) {
+      rejected = error?.name === 'TimeoutError';
+    }
+    assert.equal(rejected, true, 'Synthetic wrong-route failure must propagate');
+    assert.equal(reports.length, 1, 'Synthetic failure must emit exactly one report');
+    assert.equal(reports[0].marker, 'ADMIN_KEYBOARD_NAV_DIAGNOSTIC');
+    const payload = JSON.parse(reports[0].payload);
+    assert.deepEqual(Object.keys(payload).sort(), ['afterEnter', 'failedStage'].sort());
+    assert.equal(payload.failedStage, 'route');
+    assert.equal(payload.afterEnter.path, 'other_path');
+    assert.equal(payload.afterEnter.menuExpanded, 'true');
+    assert.equal(payload.afterEnter.teachersHeadingMounted, false);
+    assert.equal(payload.afterEnter.focusedTeachersLink, false);
+    assert.deepEqual(Object.keys(payload.afterEnter).sort(), [
+      'path', 'focusedTag', 'focusedTeachersLink', 'menuExpanded', 'dialogCount',
+      'visibleDialogCount', 'teachersHeadingMounted', 'teachersHeadingVisible',
+    ].sort());
+    assert.doesNotMatch(reports[0].payload,
+      /authorization|access_token|refresh_token|password|localstorage|@example\.com/i);
+    console.log('ADMIN_KEYBOARD_NEGATIVE_DIAGNOSTIC_PASS');
+  } finally {
+    await fixture.close();
+  }
+}
+
 async function run() {
   if (process.env.GITHUB_ACTIONS !== 'true' || process.env.FITFLOW_E2E_SYNTHETIC_ONLY !== '1' ||
       !email?.endsWith('@example.com') || !clientEmail?.endsWith('@example.com')) {
@@ -416,7 +507,7 @@ async function run() {
     await mobileMenu.click();
     await page.getByRole('link', { name: 'Profesores', exact: true }).focus();
     await page.keyboard.press('Enter');
-    await page.getByRole('heading', { name: 'Profesores' }).waitFor();
+    await qualifyTeachersKeyboardRoute(page);
     await page.getByText('Profesora Sintética', { exact: true }).filter({ visible: true }).first().waitFor();
     // Controlled synthetic outage: prove error/retry without changing Product data.
     const teacherApi = '**/api/v1/teachers/public';
@@ -483,6 +574,7 @@ async function run() {
     await context.close();
     await verifyRapidReLoginAndStale401(browser);
     await verifyDelayedIdentityAcrossSameTokenReLogin(browser);
+    await qualifySyntheticFailureDiagnostic(browser);
     console.log('ADMIN_SIGNED_E2E_PASS: JWT login, backend identity, real data, privacy, 390/1280, role, expired, anonymous, logout, stale session races');
   } finally {
     await browser.close();
