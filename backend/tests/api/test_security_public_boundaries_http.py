@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import timedelta
 from dataclasses import dataclass
 
 import httpx
@@ -64,6 +65,12 @@ async def actors() -> AsyncIterator[SecurityActors]:
         )
         for role in (UserRole.admin, UserRole.client, UserRole.teacher, UserRole.front_desk)
     ]
+    inactive = User(
+        email=f"p0-{marker}-inactive@example.com",
+        hashed_password="synthetic-no-login",
+        role=UserRole.client,
+        active=False,
+    )
     gym_class = GymClass(
         name=class_name,
         description="Disposable security route fixture",
@@ -72,13 +79,19 @@ async def actors() -> AsyncIterator[SecurityActors]:
         default_capacity=8,
     )
     async with AsyncSessionLocal() as db:
-        db.add_all([*users, gym_class])
+        db.add_all([*users, inactive, gym_class])
         await db.commit()
     identities = {user.role.value: user.id for user in users}
     tokens = {
         name: create_access_token({"sub": str(user_id), "role": name})
         for name, user_id in identities.items()
     }
+    tokens["inactive"] = create_access_token(
+        {"sub": str(inactive.id), "role": "client"}
+    )
+    tokens["forged_admin"] = create_access_token(
+        {"sub": str(identities["client"]), "role": "admin"}
+    )
     try:
         yield SecurityActors(
             marker=marker,
@@ -183,8 +196,12 @@ async def test_user_identity_endpoints_allow_admin(
     response = await api_client.get(path, headers=actors.headers("admin"))
     assert response.status_code == status.HTTP_200_OK, response.text
     payload = response.json()
-    users = payload if path_kind == "list" else [payload]
-    assert any(str(user["id"]) == str(actors.admin_user_id) for user in users)
+    if path_kind == "list":
+        # The directory may be paginated and contain >100 pre-existing fixtures.
+        assert isinstance(payload, list)
+        assert all({"id", "email", "role", "active"} <= item.keys() for item in payload)
+    else:
+        assert payload["id"] == str(actors.admin_user_id)
 
 
 @pytest.mark.parametrize("method", ["POST", "PUT", "DELETE"])
@@ -272,3 +289,64 @@ async def test_public_class_catalog_stays_accessible_without_credentials(
     response = await api_client.get(f"{API}/gym-classes/public")
     assert response.status_code == status.HTTP_200_OK, response.text
     assert any(item["id"] == str(actors.class_id) for item in response.json())
+
+
+async def test_identity_directory_rejects_invalid_and_expired_jwt(
+    api_client: httpx.AsyncClient,
+    actors: SecurityActors,
+) -> None:
+    invalid = await api_client.get(
+        f"{API}/users/public",
+        headers={"Authorization": "Bearer not-a-valid-jwt"},
+    )
+    assert invalid.status_code == status.HTTP_401_UNAUTHORIZED
+    expired = create_access_token(
+        {"sub": str(actors.admin_user_id), "role": "admin"},
+        expires_delta=timedelta(seconds=-1),
+    )
+    expired_response = await api_client.get(
+        f"{API}/users/public",
+        headers={"Authorization": f"Bearer {expired}"},
+    )
+    assert expired_response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+async def test_admin_claim_in_jwt_cannot_override_persisted_client_role(
+    api_client: httpx.AsyncClient,
+    actors: SecurityActors,
+) -> None:
+    response = await api_client.get(
+        f"{API}/users/public",
+        headers=actors.headers("forged_admin"),
+    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert "p0-" not in response.text
+
+
+async def test_inactive_user_is_denied_even_with_signed_token(
+    api_client: httpx.AsyncClient,
+    actors: SecurityActors,
+) -> None:
+    response = await api_client.get(
+        f"{API}/users/public",
+        headers=actors.headers("inactive"),
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "p0-" not in response.text
+
+
+async def test_auth_me_preserves_valid_admin_identity_and_rejects_invalid_token(
+    api_client: httpx.AsyncClient,
+    actors: SecurityActors,
+) -> None:
+    valid = await api_client.get(
+        f"{API}/auth/me",
+        headers=actors.headers("admin"),
+    )
+    assert valid.status_code == status.HTTP_200_OK, valid.text
+    assert valid.json()["id"] == str(actors.admin_user_id)
+    invalid = await api_client.get(
+        f"{API}/auth/me",
+        headers={"Authorization": "Bearer not-a-valid-jwt"},
+    )
+    assert invalid.status_code == status.HTTP_401_UNAUTHORIZED
