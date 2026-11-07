@@ -74,11 +74,11 @@ const RegisterPage = () => {
             </Heading>
 
             <Field.Root required>
-              <Field.Label>Nombre</Field.Label>
+              <Field.Label>Nombre y apellido</Field.Label>
               <Input
                 type="text"
                 required
-                placeholder="Ingresa tu nombre"
+                placeholder="Ingresá nombre y apellido"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
