@@ -43,9 +43,11 @@ async function run() {
     await page.getByRole('button', { name: 'Registrarse' }).click();
     assert.equal((await created).status(), 201, 'Real client registration must create account + profile');
     await page.waitForURL('**/login', { timeout: 20000 });
+    // URL mutation precedes React's form replacement; wait for the login DOM.
+    await page.getByRole('heading', { name: 'Iniciar Sesión' }).waitFor({ timeout: 20000 });
 
-    await page.getByLabel('Email').fill(email);
-    await page.getByLabel('Contraseña').fill(password);
+    await page.getByLabel('Email', { exact: true }).fill(email);
+    await page.getByLabel('Contraseña', { exact: true }).fill(password);
     const tokenResponse = page.waitForResponse((response) => {
       const request = response.request();
       return response.url() === API + '/auth/token' && request.method() === 'POST';
