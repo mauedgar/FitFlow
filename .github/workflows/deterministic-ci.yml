@@ -207,3 +207,96 @@ jobs:
           print(f"VALIDATION_CONCLUSION={conclusion}")
           raise SystemExit(0 if conclusion == "PASS" else 1)
           PY
+
+
+  # Opt-in platform characterization for Issue #44; not a required develop check.
+  # The subject SHA/tree are checked before dependency installation or image builds.
+  qualify-windows-python3152:
+    name: Qualify native Windows Python 3.15.2
+    runs-on: windows-2025
+    timeout-minutes: 25
+    env:
+      PYTHONPATH: backend
+      ENV: test
+      TESTING: "true"
+      DEBUG: "false"
+      SECRET_KEY: fitflow-platform-disposable-only
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.subject_sha }}
+          persist-credentials: false
+      - name: Guard Windows source identity
+        shell: pwsh
+        env:
+          SUBJECT_SHA: ${{ inputs.subject_sha }}
+          EXPECTED_TREE: ${{ inputs.expected_tree }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $observed = (git rev-parse HEAD).Trim()
+          $tree = (git rev-parse 'HEAD^{tree}').Trim()
+          if ($LASTEXITCODE -ne 0 -or $observed -cne $env:SUBJECT_SHA) { throw 'WINDOWS_SUBJECT_MISMATCH' }
+          if ($env:EXPECTED_TREE -and $tree -cne $env:EXPECTED_TREE) { throw 'WINDOWS_TREE_MISMATCH' }
+          Write-Output "FITFLOW_WINDOWS_IDENTITY_PASS SHA=$observed TREE=$tree"
+      - name: Set up native Python 3.15.2
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.15.2"
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
+      - name: Native Windows lock/install/import and synthetic password contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python --version
+          uv lock --check --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_LOCK_FAIL' }
+          uv pip install --system --no-cache -r backend/requirements_test.txt
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_DEPENDENCIES_FAIL' }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_PIP_CHECK_FAIL' }
+          python -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, psycopg2, pydantic_core, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_WINDOWS_IMPORT_PASS")'
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_IMPORT_FAIL' }
+          python -m pytest -q backend/tests/unit/test_security_bcrypt_legacy_compat.py backend/tests/unit/test_user_password_byte_validation.py
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_SYNTHETIC_TEST_FAIL' }
+          Write-Output 'FITFLOW_WINDOWS_PY3152_PASS'
+
+  qualify-docker-python3152:
+    name: Qualify disposable Docker Python 3.15.2 images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ inputs.subject_sha }}
+          persist-credentials: false
+      - name: Guard Docker source identity
+        shell: bash
+        env:
+          SUBJECT_SHA: ${{ inputs.subject_sha }}
+          EXPECTED_TREE: ${{ inputs.expected_tree }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          observed_tree="$(git rev-parse HEAD^{tree})"
+          if [ -n "$EXPECTED_TREE" ]; then
+            test "$observed_tree" = "$EXPECTED_TREE"
+          fi
+          echo "FITFLOW_DOCKER_IDENTITY_PASS SHA=$SUBJECT_SHA TREE=$observed_tree"
+      - name: Build pinned disposable runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOCKER_BUILDKIT=1 docker build --progress=plain -f Dockerfile -t fitflow-c009-runtime:qualification .
+          docker run --rm --entrypoint python fitflow-c009-runtime:qualification -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, psycopg2, pydantic_core, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_DOCKER_RUNTIME_IMPORT_PASS")'
+      - name: Build pinned disposable backend test image
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOCKER_BUILDKIT=1 docker build --progress=plain -f backend/Dockerfile.test -t fitflow-c009-test:qualification .
+          docker run --rm --entrypoint python fitflow-c009-test:qualification -c 'import sys, bcrypt, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_DOCKER_TEST_IMAGE_PASS")'
+          echo FITFLOW_DOCKER_PY3152_PASS
