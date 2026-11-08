@@ -16,6 +16,8 @@ from app.services.errors import AuthError
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from app.db.models.user import User
+
 
 async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> UserPublic:  # noqa: UP037
     """Decodifica JWT y devuelve el usuario público.
@@ -61,3 +63,18 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
         raise AuthError(msg_4)
 
     return UserPublic.model_validate(user)
+
+async def get_active_user_for_refresh(subject: str, db: AsyncSession) -> User | None:
+    """Resolve the current persisted account from a registered refresh subject.
+
+    Legacy access-subject email fallback does not apply to refresh tokens. A
+    malformed, missing, soft-deleted or disabled account cannot mint access.
+    """
+    try:
+        user_id = UUID(subject)
+    except (ValueError, TypeError):
+        return None
+    user = await user_crud.get(db, obj_id=user_id)
+    if user is None or not user.active:
+        return None
+    return user

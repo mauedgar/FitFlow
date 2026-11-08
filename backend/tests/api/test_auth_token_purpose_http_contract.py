@@ -9,7 +9,7 @@ import httpx
 import pytest
 from fastapi import status
 from jose import jwt
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from sqlalchemy.engine import make_url
 
 from app.core import security
@@ -142,6 +142,7 @@ async def test_typed_and_legacy_refresh_use_real_disposable_redis(
             assert minted.status_code == status.HTTP_200_OK, minted.text
             new_access = security.decode_token(minted.json()["access_token"])
             assert new_access is not None and new_access["token_use"] == "access"
+            assert new_access["role"] == UserRole.client.value
             denied = await api_client.get(
                 f"{settings.API_V1_STR}/auth/me",
                 headers={"Authorization": f"Bearer {refresh}"},
@@ -177,3 +178,59 @@ def test_token_use_cannot_be_overridden_or_confused() -> None:
         "sub": "signed", "role": "client", "token_use": "unknown",
     })
     assert not security.is_refresh_token_payload({"sub": "signed", "role": "client"})
+
+
+async def test_refresh_loads_current_role_from_database_not_signed_client_claim(
+    api_client: httpx.AsyncClient, user_id: uuid.UUID,
+) -> None:
+    refresh = security.create_refresh_token({"sub": str(user_id), "role": "admin"})
+    store_refresh_token(str(user_id), refresh)
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                update(User).where(User.id == user_id).values(role=UserRole.teacher)
+            )
+            await db.commit()
+        response = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        access = security.decode_token(response.json()["access_token"])
+        assert access is not None
+        assert access["sub"] == str(user_id)
+        assert access["role"] == UserRole.teacher.value
+        assert access["token_use"] == "access"
+    finally:
+        delete_refresh_token(refresh)
+
+
+async def test_refresh_rejects_inactive_user_with_valid_registered_redis_credential(
+    api_client: httpx.AsyncClient, user_id: uuid.UUID,
+) -> None:
+    refresh = security.create_refresh_token({"sub": str(user_id)})
+    store_refresh_token(str(user_id), refresh)
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(User).where(User.id == user_id).values(active=False))
+            await db.commit()
+        response = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
+        assert "access_token" not in response.text
+    finally:
+        delete_refresh_token(refresh)
+
+
+async def test_refresh_rejects_unrecognized_and_non_uuid_subjects(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
+    for subject in ("not-a-uuid", str(uuid.uuid4())):
+        refresh = security.create_refresh_token({"sub": subject})
+        response = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
+        assert "access_token" not in response.text

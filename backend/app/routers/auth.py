@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from app.core.blacklist import blacklist_token, is_token_blacklisted
 from app.core.deps import get_current_user
+from app.services.auth_service import get_active_user_for_refresh
 from app.core.token_store import (
     delete_refresh_token,
     is_refresh_token_valid,
@@ -77,6 +78,7 @@ async def login_for_tokens(
 async def refresh_access_token(
     *,
     token_request: RefreshTokenRequest,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> Token:
     """Renueva el Access Token usando un Refresh Token válido."""
     refresh_token = token_request.refresh_token
@@ -101,8 +103,26 @@ async def refresh_access_token(
         logger.warning("Refresh token not registered in store")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token no registrado.")
 
-    access_token = security.create_access_token(data={"sub": payload["sub"]})
-    logger.info("Access token refreshed for user_id=%s", payload.get("sub"))
+    # Redis registration alone does not attest that this account still exists,
+    # remains active or retains its old role. Load current persisted authority.
+    try:
+        user = await get_active_user_for_refresh(payload["sub"], db)
+    except Exception as exc:
+        logger.exception("User lookup failed during token refresh")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno",
+        ) from exc
+    if user is None or not user.active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado.",
+        )
+
+    access_token = security.create_access_token(
+        data={"sub": str(user.id), "role": user.role.value}
+    )
+    logger.info("Access token refreshed for user_id=%s", user.id)
     return Token(access_token=access_token)
 
 
