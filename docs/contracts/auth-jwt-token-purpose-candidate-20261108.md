@@ -26,3 +26,7 @@ The refresh endpoint must resolve the signed subject as a UUID, load the active,
 ## Candidate Redis retention
 
 New refresh-token registrations and new blacklist records use a positive Redis expiry bounded by the cryptographically verified JWT `exp`, rounded up to avoid premature removal. Malformed/expired JWTs cannot generate an unbounded key. This change does **not** migrate or delete any pre-existing retained Redis keys without a separately authorized cleanup procedure; prior records may remain until operational reconciliation. HTTP integration on disposable Redis7 asserts positive TTL for both registration and revocation, and tests assert rejection of malformed expiry. No production Redis access is authorized.
+
+## Frontend JWT claim interpretation — review-required
+
+The React session context now performs an **untrusted local UX check** on JWT expiry, access purpose, subject and supported role before hydrating session state, including legacy untyped access. This is not a cryptographic signature validation and cannot authorize any API action: the backend's signed JWT, active-account and database-role guards remain authoritative. Redis/refresh JWT must never be presented as a local access identity. Signed teacher roles match the backend `teacher` value; historical frontend `trainer` display references are retained until separately reviewed. The decoded `sub` is a UUID and not proof of the user's email; the existing UI profile model still needs separate server-side identity projection if email is shown.

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { jwtDecode } from "jwt-decode";
 import apiClient from "../services/api";
 import classService from "../services/classService";
 import { AuthContext } from "./AuthContext";
-import type { User, TokenPayload, UserRole, Booking, Client } from "../types";
+import type { User, UserRole, Booking, Client } from "../types";
+import { inspectLocalAccessClaims } from "../utils/accessTokenClaims";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -29,7 +29,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
     try {
-      const decoded: TokenPayload = jwtDecode(accessToken);
+      const decoded = inspectLocalAccessClaims(accessToken);
       setCurrentUser({ email: decoded.sub!, role: decoded.role! });
       setUserRole(decoded.role || null);
       apiClient.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const isAuthenticated = !!token && !!currentUser;
   const isClient = userRole === "client";
-  const isTrainer = userRole === "trainer";
+  const isTrainer = userRole === "teacher" || userRole === "trainer";
   const isAdmin = userRole === "admin";
 
   // TanStack Query obtiene los bookings SOLO si está autenticado y es cliente

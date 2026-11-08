@@ -3,7 +3,8 @@
 // --- Enums ---
 export enum UserRole {
   ADMIN = "admin",
-  TRAINER = "trainer",
+  TRAINER = "trainer", // Legacy client display alias; backend role is teacher.
+  TEACHER = "teacher",
   CLIENT = "client",
   FRONT_DESK = "front_desk",
 }
@@ -44,9 +45,10 @@ export interface User {
 
 // --- Token Payloads ---
 export interface TokenPayload {
-  sub: string;      // Email del usuario (subject)
-  role: UserRole; // Rol del usuario
-  exp: number;      // Expiración del token (timestamp)
+  sub: string;      // ID UUID firmado del usuario; no es su email.
+  role: UserRole;    // Rol derivado del usuario persistido en backend.
+  exp: number;      // Timestamp UNIX firmado de expiración.
+  token_use?: "access" | "refresh"; // Ausente únicamente en JWT legacy.
 }
 
 export interface TokenResponse { // Para la respuesta del endpoint /login/token
