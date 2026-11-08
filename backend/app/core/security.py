@@ -75,7 +75,7 @@ def create_access_token(
     expire = datetime.now(tz=UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode = {**data, "exp": expire}
+    to_encode = {**data, "token_use": "access", "exp": expire}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -94,7 +94,8 @@ def create_refresh_token(data: dict) -> str:
     expire = datetime.now(tz=UTC) + timedelta(
         minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
     )
-    to_encode = {**data, "exp": expire}
+    # Enforce a refresh-only purpose and exclude roles even for supplied data.
+    to_encode = {**{k: v for k, v in data.items() if k != "role"}, "token_use": "refresh", "exp": expire}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -115,3 +116,26 @@ def decode_token(token: str) -> dict | None:
         return None
     except JWTError:
         return None
+
+
+def is_access_token_payload(payload: dict | None) -> bool:
+    """A signed refresh token must never be accepted as a bearer credential.
+
+    Historical untyped access tokens had a signed role; refresh tokens did not.
+    """
+    if not isinstance(payload, dict):
+        return False
+    token_use = payload.get("token_use")
+    if token_use is not None:
+        return token_use == "access"
+    return isinstance(payload.get("role"), str) and bool(payload["role"])
+
+
+def is_refresh_token_payload(payload: dict | None) -> bool:
+    """Allow typed refresh and bounded untyped legacy refresh, never access."""
+    if not isinstance(payload, dict):
+        return False
+    if not isinstance(payload.get("sub"), str) or not payload["sub"] or "role" in payload:
+        return False
+    purpose = payload.get("token_use")
+    return purpose == "refresh" or "token_use" not in payload
