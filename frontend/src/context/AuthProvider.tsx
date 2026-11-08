@@ -18,7 +18,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem("access_token"));
   const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
-  const sessionGeneration = getAuthSessionGeneration();
+  // A same-JWT re-login still starts a new independent identity generation.
+  const [sessionGeneration, setSessionGeneration] = useState(getAuthSessionGeneration);
 
   // Decode only to fail closed early on obviously invalid/expired/refresh JWTs.
   // Do not interpret token.sub as an email or token.role as a trusted permission.
@@ -70,12 +71,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = (accessToken: string) => {
     localStorage.setItem("access_token", accessToken);
     setToken(accessToken);
+    setSessionGeneration(getAuthSessionGeneration());
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
   };
 
   const logout = () => {
     localStorage.removeItem("access_token");
     setToken(null);
+    setSessionGeneration(getAuthSessionGeneration());
     delete apiClient.defaults.headers.common["Authorization"];
     queryClient.clear();
   };
@@ -107,6 +110,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoadingAuth,
   };
 
-  if (isLoadingAuth) return null;
+  // Public routes, including /login, must remain usable while /auth/me is
+  // pending; ProtectedRoute and RootAuthGuard honor isLoadingAuth themselves.
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
