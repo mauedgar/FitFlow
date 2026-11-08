@@ -5,6 +5,7 @@ utilizados en el flujo de autenticación OAuth2.
 """
 
 from app.core.redis_client import get_redis_client
+from app.core.security import token_seconds_until_expiry
 
 # Prefijo para las claves de tokens de refresco en Redis.
 REFRESH_PREFIX = "refresh_token:"
@@ -18,7 +19,8 @@ def store_refresh_token(user_id: str, token: str) -> None:
         token: Token de refresco emitido por el sistema.
 
     """
-    get_redis_client().set(f"{REFRESH_PREFIX}{token}", user_id)
+    ttl = token_seconds_until_expiry(token)
+    get_redis_client().set(f"{REFRESH_PREFIX}{token}", user_id, ex=ttl)
 
 
 def is_refresh_token_valid(token: str) -> bool:

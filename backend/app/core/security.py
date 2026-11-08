@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from math import ceil
 
 import bcrypt
 from app.core.config import settings
@@ -139,3 +140,21 @@ def is_refresh_token_payload(payload: dict | None) -> bool:
         return False
     purpose = payload.get("token_use")
     return purpose == "refresh" or "token_use" not in payload
+
+
+def token_seconds_until_expiry(token: str) -> int:
+    """Return signed JWT remaining TTL for Redis retention; fail closed.
+
+    A signed JWT without a valid future expiration must never create an
+    unbounded Redis key. Round upwards so the Redis key survives until expiry.
+    """
+    payload = decode_token(token)
+    if payload is None:
+        raise ValueError("Token inválido o expirado")
+    exp = payload.get("exp")
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        raise ValueError("JWT sin expiración válida")
+    remaining = ceil(exp - datetime.now(tz=UTC).timestamp())
+    if remaining < 1:
+        raise ValueError("JWT expirado")
+    return remaining

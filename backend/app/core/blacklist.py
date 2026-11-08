@@ -6,6 +6,7 @@ logout, revocación de tokens comprometidos y control de seguridad.
 """
 
 from app.core.redis_client import get_redis_client
+from app.core.security import token_seconds_until_expiry
 
 # Prefijo utilizado para almacenar tokens invalidados en Redis.
 BLACKLIST_PREFIX = "blacklist_token:"
@@ -21,7 +22,8 @@ def blacklist_token(token: str) -> None:
         token: Token JWT que debe ser invalidado.
 
     """
-    get_redis_client().set(f"{BLACKLIST_PREFIX}{token}", "1")
+    ttl = token_seconds_until_expiry(token)
+    get_redis_client().set(f"{BLACKLIST_PREFIX}{token}", "1", ex=ttl)
 
 
 def is_token_blacklisted(token: str) -> bool:

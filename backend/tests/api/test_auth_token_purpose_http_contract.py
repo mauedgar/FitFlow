@@ -136,6 +136,7 @@ async def test_typed_and_legacy_refresh_use_real_disposable_redis(
     ):
         store_refresh_token(str(user_id), refresh)
         try:
+            assert get_redis_client().ttl(f"refresh_token:{refresh}") > 0
             minted = await api_client.post(
                 f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
             )
@@ -154,6 +155,7 @@ async def test_typed_and_legacy_refresh_use_real_disposable_redis(
                 json={"refresh_token": refresh},
             )
             assert logged_out.status_code == status.HTTP_204_NO_CONTENT, logged_out.text
+            assert get_redis_client().ttl(f"blacklist_token:{refresh}") > 0
             reused = await api_client.post(
                 f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
             )
