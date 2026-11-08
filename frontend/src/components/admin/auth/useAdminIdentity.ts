@@ -6,7 +6,7 @@ import { getAdminAuthenticatedIdentity } from '../../../services/adminReadServic
 export const useAdminIdentity = (locallyValid = true) => {
   const { currentUser, sessionGeneration } = useAuth();
   return useQuery({
-    queryKey: ['adminIdentity', currentUser?.email, sessionGeneration],
+    queryKey: ['adminIdentity', currentUser?.id, sessionGeneration],
     queryFn: ({ signal }) => getAdminAuthenticatedIdentity(signal),
     enabled: locallyValid && currentUser?.role === 'admin',
     staleTime: 30_000,

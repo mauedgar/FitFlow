@@ -1,74 +1,80 @@
-import React, { useState, useEffect, useCallback, type ReactNode } from "react";
+import React, { useState, useEffect, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import apiClient from "../services/api";
 import classService from "../services/classService";
 import { AuthContext } from "./AuthContext";
 import type { User, UserRole, Booking, Client } from "../types";
 import { inspectLocalAccessClaims } from "../utils/accessTokenClaims";
+import { projectServerAuthUser } from "../utils/authMeProfile";
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Componente Provider que maneja la lógica de autenticación y provee el contexto
+/** Frontend identity is projected from the verified /auth/me response, not
+ * from untrusted local JWT claims. FastAPI owns signature and authorization. */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem("access_token"));
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
 
-  // Decodifica el accessToken y setea el usuario y rol
-  const decodeToken = useCallback((accessToken: string | null) => {
-    if (!accessToken) {
-      setCurrentUser(null);
-      setUserRole(null);
-      setIsLoadingAuth(false);
+  // Decode only to fail closed early on obviously invalid/expired/refresh JWTs.
+  // Do not interpret token.sub as an email or token.role as a trusted permission.
+  const identity = useQuery<User>({
+    queryKey: ["currentUserProfile", token],
+    enabled: !!token,
+    retry: false,
+    staleTime: 30_000,
+    queryFn: async ({ signal }) => {
+      if (!token) throw new Error("Missing access token");
+      const claims = inspectLocalAccessClaims(token);
+      const { data } = await apiClient.get<unknown>("/auth/me", {
+        signal,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return projectServerAuthUser(claims, data);
+    },
+  });
+
+  useEffect(() => {
+    if (!token) {
       delete apiClient.defaults.headers.common["Authorization"];
       return;
     }
     try {
-      const decoded = inspectLocalAccessClaims(accessToken);
-      setCurrentUser({ email: decoded.sub!, role: decoded.role! });
-      setUserRole(decoded.role || null);
-      apiClient.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
-    } catch (error) {
-      // Manejo de error si el token está corrupto o expiró
-      console.error("Failed to decode token:", error);
+      inspectLocalAccessClaims(token);
+      apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    } catch {
       localStorage.removeItem("access_token");
       setToken(null);
-      setCurrentUser(null);
-      setUserRole(null);
       delete apiClient.defaults.headers.common["Authorization"];
-    } finally {
-      setIsLoadingAuth(false);
     }
-  }, []);
+  }, [token]);
 
-  // Al montar, intenta rehidratar el token y usuario desde localStorage
+  // A 401, missing/disabled identity or an unavailable profile never fabricates
+  // a local authenticated user. A later login may establish a fresh session.
   useEffect(() => {
-    const storedToken = localStorage.getItem("access_token");
-    setToken(storedToken);
-    decodeToken(storedToken);
-    if (!storedToken) setIsLoadingAuth(false); // Si no hay token, termina la carga inicial
-  }, [decodeToken]);
+    if (token && identity.isError) {
+      localStorage.removeItem("access_token");
+      setToken(null);
+      delete apiClient.defaults.headers.common["Authorization"];
+    }
+  }, [identity.isError, token]);
 
-  // Login: guarda el token y decodifica
+  const currentUser = token ? identity.data ?? null : null;
+  const userRole: UserRole | null = currentUser?.role ?? null;
+  const isLoadingAuth = !!token && identity.isPending;
+
   const login = (accessToken: string) => {
     localStorage.setItem("access_token", accessToken);
     setToken(accessToken);
-    decodeToken(accessToken);
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
     queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
   };
 
-  // Logout: limpia todo el estado y la cache de queries
   const logout = () => {
     localStorage.removeItem("access_token");
     setToken(null);
-    setCurrentUser(null);
-    setUserRole(null);
     delete apiClient.defaults.headers.common["Authorization"];
     queryClient.clear();
   };
@@ -78,12 +84,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isTrainer = userRole === "teacher" || userRole === "trainer";
   const isAdmin = userRole === "admin";
 
-  // TanStack Query obtiene los bookings SOLO si está autenticado y es cliente
   const { data: userBookings, isLoading: isLoadingBookings } = useQuery<Booking[]>({
     queryKey: ["myBookings"],
-    queryFn: () => {
-    return classService.getMyBookings();
-    },    
+    queryFn: () => classService.getMyBookings(),
     enabled: isAuthenticated && isClient,
   });
 
@@ -103,10 +106,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoadingAuth,
   };
 
-  if (isLoadingAuth) {
-    // Puedes poner aquí tu spinner o Skeleton si lo prefieres
-    return null;
-  }
-
+  if (isLoadingAuth) return null;
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

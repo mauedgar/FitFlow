@@ -26,7 +26,7 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
   const active = currentUser?.role === 'admin' && expiresAt !== null && expiresAt > Date.now();
   const identity = useAdminIdentity(active);
   const confirmedAdmin = identity.isSuccess && identity.data?.active === true &&
-    identity.data?.role === 'admin' && identity.data?.id === currentUser?.email;
+    identity.data?.role === 'admin' && identity.data?.id === currentUser?.id;
 
   useEffect(() => {
     if (!token || !currentUser) return;
