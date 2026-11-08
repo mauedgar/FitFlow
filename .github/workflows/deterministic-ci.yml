@@ -221,6 +221,8 @@ jobs:
       TESTING: "true"
       DEBUG: "false"
       SECRET_KEY: fitflow-platform-disposable-only
+      # Required Settings field; synthetic tests do not connect to this endpoint.
+      DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
