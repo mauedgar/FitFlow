@@ -44,8 +44,8 @@ def test_unsigned_or_expired_or_missing_exp_cannot_write_unbounded_key(
     )
     no_exp = jwt.encode({"sub": "synthetic"}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     for token in ("not-a-jwt", expired, no_exp):
-        with pytest.raises(ValueError):
+        with pytest.raises((TypeError, ValueError)):
             token_store.store_refresh_token("synthetic", token)
-        with pytest.raises(ValueError):
+        with pytest.raises((TypeError, ValueError)):
             blacklist.blacklist_token(token)
     assert fake.sets == []

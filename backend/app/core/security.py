@@ -153,7 +153,7 @@ def token_seconds_until_expiry(token: str) -> int:
         raise ValueError("Token inválido o expirado")
     exp = payload.get("exp")
     if isinstance(exp, bool) or not isinstance(exp, (int, float)):
-        raise ValueError("JWT sin expiración válida")
+        raise TypeError("JWT sin expiración válida")
     remaining = ceil(exp - datetime.now(tz=UTC).timestamp())
     if remaining < 1:
         raise ValueError("JWT expirado")
