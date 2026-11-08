@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.enums import UserRole
 from app.core.redis_client import get_redis_client
 from app.core.token_store import delete_refresh_token, store_refresh_token
+from app.core.token_keys import opaque_jwt_key
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
 from app.routers import auth as auth_router
@@ -136,7 +137,8 @@ async def test_typed_and_legacy_refresh_use_real_disposable_redis(
     ):
         store_refresh_token(str(user_id), refresh)
         try:
-            assert get_redis_client().ttl(f"refresh_token:{refresh}") > 0
+            assert get_redis_client().ttl(opaque_jwt_key("refresh_token:", refresh)) > 0
+            assert get_redis_client().exists(f"refresh_token:{refresh}") == 0
             minted = await api_client.post(
                 f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
             )
@@ -155,14 +157,15 @@ async def test_typed_and_legacy_refresh_use_real_disposable_redis(
                 json={"refresh_token": refresh},
             )
             assert logged_out.status_code == status.HTTP_204_NO_CONTENT, logged_out.text
-            assert get_redis_client().ttl(f"blacklist_token:{refresh}") > 0
+            assert get_redis_client().ttl(opaque_jwt_key("blacklist_token:", refresh)) > 0
+            assert get_redis_client().exists(f"blacklist_token:{refresh}") == 0
             reused = await api_client.post(
                 f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
             )
             assert reused.status_code == status.HTTP_401_UNAUTHORIZED, reused.text
         finally:
             delete_refresh_token(refresh)
-            get_redis_client().delete(f"blacklist_token:{refresh}")
+            get_redis_client().delete(opaque_jwt_key("blacklist_token:", refresh))
 
 
 def test_token_use_cannot_be_overridden_or_confused() -> None:

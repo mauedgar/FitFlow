@@ -4,9 +4,9 @@ import { getAdminAuthenticatedIdentity } from '../../../services/adminReadServic
 
 /** Single verified backend identity query shared by guard and header. */
 export const useAdminIdentity = (locallyValid = true) => {
-  const { currentUser, sessionGeneration } = useAuth();
+  const { currentUser, token, sessionGeneration } = useAuth();
   return useQuery({
-    queryKey: ['adminIdentity', currentUser?.id, sessionGeneration],
+    queryKey: ['currentUserProfile', token, sessionGeneration],
     queryFn: ({ signal }) => getAdminAuthenticatedIdentity(signal),
     enabled: locallyValid && currentUser?.role === 'admin',
     staleTime: 30_000,

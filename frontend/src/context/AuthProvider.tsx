@@ -6,6 +6,7 @@ import { AuthContext } from "./AuthContext";
 import type { User, UserRole, Booking, Client } from "../types";
 import { inspectLocalAccessClaims } from "../utils/accessTokenClaims";
 import { projectServerAuthUser } from "../utils/authMeProfile";
+import { getAuthSessionGeneration } from "../utils/authSessionGeneration";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -17,11 +18,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(localStorage.getItem("access_token"));
   const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
+  const sessionGeneration = getAuthSessionGeneration();
 
   // Decode only to fail closed early on obviously invalid/expired/refresh JWTs.
   // Do not interpret token.sub as an email or token.role as a trusted permission.
   const identity = useQuery<User>({
-    queryKey: ["currentUserProfile", token],
+    queryKey: ["currentUserProfile", token, sessionGeneration],
     enabled: !!token,
     retry: false,
     staleTime: 30_000,
@@ -69,7 +71,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.setItem("access_token", accessToken);
     setToken(accessToken);
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
-    queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
   };
 
   const logout = () => {
