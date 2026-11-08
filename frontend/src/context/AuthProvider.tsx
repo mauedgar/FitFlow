@@ -5,7 +5,7 @@ import classService from "../services/classService";
 import { AuthContext } from "./AuthContext";
 import type { User, UserRole, Booking, Client } from "../types";
 import { inspectLocalAccessClaims } from "../utils/accessTokenClaims";
-import { projectServerAuthUser } from "../utils/authMeProfile";
+import { verifiedAuthIdentityQuery } from "../utils/verifiedAuthIdentityQuery";
 import { getAuthSessionGeneration } from "../utils/authSessionGeneration";
 
 interface AuthProviderProps {
@@ -24,19 +24,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Decode only to fail closed early on obviously invalid/expired/refresh JWTs.
   // Do not interpret token.sub as an email or token.role as a trusted permission.
   const identity = useQuery<User>({
-    queryKey: ["currentUserProfile", token, sessionGeneration],
+    ...verifiedAuthIdentityQuery(token, sessionGeneration),
     enabled: !!token,
-    retry: false,
-    staleTime: 30_000,
-    queryFn: async ({ signal }) => {
-      if (!token) throw new Error("Missing access token");
-      const claims = inspectLocalAccessClaims(token);
-      const { data } = await apiClient.get<unknown>("/auth/me", {
-        signal,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return projectServerAuthUser(claims, data);
-    },
   });
 
   useEffect(() => {

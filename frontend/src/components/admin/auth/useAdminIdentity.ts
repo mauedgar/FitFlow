@@ -1,15 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../../context/useAuth';
-import { getAdminAuthenticatedIdentity } from '../../../services/adminReadService';
+import { verifiedAuthIdentityQuery } from '../../../utils/verifiedAuthIdentityQuery';
 
 /** Single verified backend identity query shared by guard and header. */
 export const useAdminIdentity = (locallyValid = true) => {
   const { currentUser, token, sessionGeneration } = useAuth();
   return useQuery({
-    queryKey: ['currentUserProfile', token, sessionGeneration],
-    queryFn: ({ signal }) => getAdminAuthenticatedIdentity(signal),
+    ...verifiedAuthIdentityQuery(token, sessionGeneration),
     enabled: locallyValid && currentUser?.role === 'admin',
-    staleTime: 30_000,
-    retry: false,
   });
 };
