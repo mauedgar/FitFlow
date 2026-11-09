@@ -48,7 +48,7 @@ function harness() {
     if (name === 'react') return { ...react, default: react };
     if (name === 'react/jsx-runtime') return { jsx: () => null, jsxs: () => null };
     if (name === '../components/ui/toaster-store') return { toaster: { create: message => toasts.push(message) } };
-    if (name === '@chakra-ui/react') return {};
+    if (name === '@chakra-ui/react') return { Field: { Root: () => null, Label: () => null } };
     if (name === 'react-router-dom') return {
       useNavigate: () => (to, options) => routes.push({ to, options }),
     };
