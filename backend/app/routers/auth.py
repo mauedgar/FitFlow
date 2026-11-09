@@ -141,12 +141,12 @@ async def refresh_access_token(
 async def logout(
     *,
     token_request: RefreshTokenRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
     request: Request,
 ) -> None:
-    """Logout real: invalida refresh token en Redis + blacklist.
+    """Revoca únicamente la sesión poseída mediante un refresh firmado/registrado.
 
-    Requiere autenticación para evitar invalidaciones arbitrarias.
+    Un access expirado no puede bloquear su propia revocación. Un access VÁLIDO
+    de una sesión diferente nunca autoriza revocar otra sesión.
     """
     refresh_token = token_request.refresh_token
     payload = security.decode_token(refresh_token)
@@ -154,31 +154,49 @@ async def logout(
         logger.warning("Logout attempted with invalid refresh token")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Refresh token inválido.")
 
-    if str(current_user.id) != str(payload["sub"]):
-        logger.warning("User %s attempted to logout token of user %s", current_user.id, payload.get("sub"))
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para invalidar este token.")
+    # A signed refresh credential is the authority to REVOKE that credential;
+    # presence and active registration in Redis are mandatory before any write.
+    try:
+        if is_token_blacklisted(refresh_token) or not is_refresh_token_valid(refresh_token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token no registrado o revocado.",
+            )
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
     bearer = request.headers.get("authorization", "")
     access_token = bearer[7:] if bearer.lower().startswith("bearer ") else None
     access_payload = security.decode_token(access_token) if access_token else None
-    if access_token and (not security.is_access_token_payload(access_payload) or not session_ids_match(access_payload, payload)):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="La sesión no coincide con el token de refresco.")
+
+    # If the bearer is still valid, it must belong to the exact same user and
+    # session. If it is expired, the independently authenticated refresh alone
+    # permits its own revocation (never an arbitrary target session).
+    if access_payload is not None and (
+        not security.is_access_token_payload(access_payload)
+        or access_payload.get("sub") != payload["sub"]
+        or not session_ids_match(access_payload, payload)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La sesión no coincide con el token de refresco.",
+        )
 
     try:
-        if access_token and payload.get("sid") is not None:
-            # Write session revocation first: partial downstream failure must
-            # never leave already-minted access JWTs usable.
+        if payload.get("sid") is not None:
+            # Always revoke the signed family before invalidating refresh;
+            # missing/expired access must not leave already minted JWTs valid.
             revoke_session(payload["sid"], refresh_token)
         delete_refresh_token(refresh_token)
         blacklist_token(refresh_token)
-        if access_token and payload.get("sid") is None:
-            # Signed pre-sid JWTs cannot share a revocation family: blacklist
-            # the exact legacy access presented (remaining ones expire).
+        if payload.get("sid") is None and access_token and access_payload is not None:
+            # Legacy token families have no shared sid; invalidate the
+            # individual, verified bearer if presented, without bulk changes.
             blacklist_token(access_token)
     except ExternalServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
-        logger.exception("Error invalidating refresh token for user=%s", current_user.id)
+        logger.exception("Error invalidating refresh token for subject=%s", payload["sub"])
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
     # 204 No Content implícito

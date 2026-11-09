@@ -3,15 +3,10 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
-from dataclasses import dataclass
-
 import httpx
 import pytest
 from app.core import security
 from app.core.config import settings
-from app.core.deps import get_current_user
-from app.main import app
 from app.routers import auth as auth_router
 from fastapi import status
 
@@ -22,23 +17,13 @@ pytestmark = [
 ]
 
 
-@dataclass(frozen=True)
-class CurrentUserStub:
-    id: uuid.UUID
-
-
 @pytest.fixture
-async def authenticated_owner() -> AsyncIterator[uuid.UUID]:
-    owner_id = uuid.uuid4()
-
-    async def override_current_user() -> CurrentUserStub:
-        return CurrentUserStub(id=owner_id)
-
-    app.dependency_overrides[get_current_user] = override_current_user
-    try:
-        yield owner_id
-    finally:
-        app.dependency_overrides.pop(get_current_user, None)
+def authenticated_owner(monkeypatch: pytest.MonkeyPatch) -> uuid.UUID:
+    # Existing negative transition tests are bounded, synthetic Redis stubs.
+    # They test transition ordering, not actual redis registration.
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+    return uuid.uuid4()
 
 def _refresh_token(user_id: uuid.UUID) -> str:
     return security.create_refresh_token(data={"sub": str(user_id)})
@@ -47,22 +32,25 @@ def _refresh_token(user_id: uuid.UUID) -> str:
 async def _post_logout(
     api_client: httpx.AsyncClient,
     refresh_token: str,
+    *,
+    access_token: str | None = None,
 ) -> httpx.Response:
+    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
     return await api_client.post(
         f"{settings.API_V1_STR}/auth/logout",
         json={"refresh_token": refresh_token},
+        headers=headers,
     )
 
 
-async def test_logout_requires_authenticated_current_user(
+async def test_logout_rejects_unregistered_signed_refresh_without_access(
     api_client: httpx.AsyncClient,
 ) -> None:
     refresh_token = _refresh_token(uuid.uuid4())
     response = await _post_logout(api_client, refresh_token)
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert response.json() == {"detail": "Not authenticated"}
-    assert response.headers.get("www-authenticate") == "Bearer"
+    assert response.json() == {"detail": "Refresh token no registrado o revocado."}
 
 async def test_logout_owner_deletes_refresh_then_blacklists(
     api_client: httpx.AsyncClient,
@@ -120,6 +108,9 @@ async def test_logout_cross_user_refresh_token_returns_403_without_state_change(
     authenticated_owner: uuid.UUID,
 ) -> None:
     refresh_token = _refresh_token(uuid.uuid4())
+    signed_access = security.create_access_token(
+        {"sub": str(authenticated_owner), "role": "client"},
+    )
     events: list[str] = []
     monkeypatch.setattr(
         auth_router,
@@ -131,10 +122,12 @@ async def test_logout_cross_user_refresh_token_returns_403_without_state_change(
         "blacklist_token",
         lambda _token: events.append("blacklist"),
     )
-    response = await _post_logout(api_client, refresh_token)
+    response = await _post_logout(
+        api_client, refresh_token, access_token=signed_access,
+    )
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
-    assert response.json() == {"detail": "No autorizado para invalidar este token."}
+    assert response.json() == {"detail": "La sesión no coincide con el token de refresco."}
     assert events == []
 
 async def test_logout_delete_external_service_error_maps_503_before_blacklist(

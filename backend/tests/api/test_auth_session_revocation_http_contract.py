@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 from collections.abc import AsyncIterator
 
 import httpx
@@ -193,3 +194,95 @@ async def test_legacy_logout_blacklists_presented_access_credential(
         delete_refresh_token(legacy_refresh)
         get_redis_client().delete(opaque_jwt_key("blacklist_token:", legacy_refresh))
         get_redis_client().delete(opaque_jwt_key("blacklist_token:", legacy_access))
+
+
+
+async def test_expired_access_can_still_revoke_registered_signed_session(
+    api_client: httpx.AsyncClient, admin_user: tuple[uuid.UUID, str, str],
+) -> None:
+    subject = admin_user[0]
+    sid = str(uuid.uuid4())
+    expired_access = security.create_access_token(
+        {"sub": str(subject), "role": "admin", "sid": sid},
+        expires_delta=timedelta(seconds=-5),
+    )
+    still_valid_access, refresh = pair(subject, sid)
+    store_refresh_token(str(subject), refresh)
+    try:
+        expired_check = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {expired_access}"},
+        )
+        assert expired_check.status_code == status.HTTP_401_UNAUTHORIZED
+        before = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {still_valid_access}"},
+        )
+        assert before.status_code == status.HTTP_200_OK, before.text
+        logout = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout",
+            headers={"Authorization": f"Bearer {expired_access}"},
+            json={"refresh_token": refresh},
+        )
+        assert logout.status_code == status.HTTP_204_NO_CONTENT, logout.text
+        denied = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {still_valid_access}"},
+        )
+        assert denied.status_code == status.HTTP_401_UNAUTHORIZED, denied.text
+        reused = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh",
+            json={"refresh_token": refresh},
+        )
+        assert reused.status_code == status.HTTP_401_UNAUTHORIZED
+    finally:
+        clean_session(sid, refresh)
+
+
+async def test_refresh_only_logout_requires_registration_and_revokes_session(
+    api_client: httpx.AsyncClient, admin_user: tuple[uuid.UUID, str, str],
+) -> None:
+    subject = admin_user[0]
+    sid = str(uuid.uuid4())
+    access, refresh = pair(subject, sid)
+    unregistered = await api_client.post(
+        f"{settings.API_V1_STR}/auth/logout",
+        json={"refresh_token": refresh},
+    )
+    assert unregistered.status_code == status.HTTP_401_UNAUTHORIZED
+    assert get_redis_client().exists(
+        session_revocation._revocation_key(sid.replace("-", ""))
+    ) == 0
+    store_refresh_token(str(subject), refresh)
+    try:
+        logout = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout",
+            json={"refresh_token": refresh},
+        )
+        assert logout.status_code == status.HTTP_204_NO_CONTENT, logout.text
+        after = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {access}"},
+        )
+        assert after.status_code == status.HTTP_401_UNAUTHORIZED, after.text
+    finally:
+        clean_session(sid, refresh)
+
+
+async def test_refresh_only_logout_redis_outage_returns_503_without_false_success(
+    api_client: httpx.AsyncClient,
+    admin_user: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, refresh = pair(admin_user[0], str(uuid.uuid4()))
+
+    def unavailable(_token: str) -> bool:
+        raise ExternalServiceError("Redis no está disponible.")
+
+    from app.routers import auth as auth_router
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", unavailable)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/logout",
+        json={"refresh_token": refresh},
+    )
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
