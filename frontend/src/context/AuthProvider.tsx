@@ -16,7 +16,18 @@ interface AuthProviderProps {
 /** Frontend identity is projected from the verified /auth/me response, not
  * from untrusted local JWT claims. FastAPI owns signature and authorization. */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(localStorage.getItem("access_token"));
+  const [token, setToken] = useState<string | null>(() => {
+    // Incomplete or persistent access-only sessions require a new login.
+    localStorage.removeItem("access_token");
+    const access = sessionStorage.getItem("access_token");
+    const refresh = sessionStorage.getItem("refresh_token");
+    if (!access || !refresh) {
+      sessionStorage.removeItem("access_token");
+      sessionStorage.removeItem("refresh_token");
+      return null;
+    }
+    return access;
+  });
   const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
   // A same-JWT re-login still starts a new independent identity generation.
@@ -38,7 +49,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       inspectLocalAccessClaims(token);
       apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     } catch {
-      localStorage.removeItem("access_token");
+      sessionStorage.removeItem("access_token");
+      sessionStorage.removeItem("refresh_token");
       setToken(null);
       delete apiClient.defaults.headers.common["Authorization"];
     }
@@ -48,7 +60,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // a local authenticated user. A later login may establish a fresh session.
   useEffect(() => {
     if (token && identity.isError) {
-      localStorage.removeItem("access_token");
+      sessionStorage.removeItem("access_token");
+      sessionStorage.removeItem("refresh_token");
       setToken(null);
       delete apiClient.defaults.headers.common["Authorization"];
     }
@@ -59,10 +72,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const isLoadingAuth = !!token && identity.isPending;
 
   const login = (accessToken: string, refreshToken: string) => {
-    // Refresh credential is tab-scoped, not written to persistent localStorage.
+    // Both credentials remain tab-scoped: no persistent access bearer.
     if (!refreshToken) throw new Error("Falta el token para revocar la sesión");
     sessionStorage.setItem("refresh_token", refreshToken);
-    localStorage.setItem("access_token", accessToken);
+    sessionStorage.setItem("access_token", accessToken);
     setToken(accessToken);
     setSessionGeneration(getAuthSessionGeneration());
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
@@ -73,7 +86,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const accessToken = token;
     const refreshToken = sessionStorage.getItem("refresh_token");
     sessionStorage.removeItem("refresh_token");
-    localStorage.removeItem("access_token");
+    sessionStorage.removeItem("access_token");
     setToken(null);
     setSessionGeneration(getAuthSessionGeneration());
     delete apiClient.defaults.headers.common["Authorization"];

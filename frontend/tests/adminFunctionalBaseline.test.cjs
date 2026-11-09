@@ -71,7 +71,7 @@ test('ADMIN guard rejects expired tokens and retires same-token stale intercepto
   assert.match(gate, /\[token, currentUser, sessionGeneration\]/);
   assert.match(gate, /logoutRef\.current/);
   assert.match(gate, /shouldInvalidateCurrentAdminSession/);
-  assert.match(gate, /localStorage\.getItem\('access_token'\)/);
+  assert.match(gate, /sessionStorage\.getItem\('access_token'\)/);
   assert.match(gate, /<Navigate to="\/login" replace \/>/);
   assert.match(routes, /<AdminSessionGate><AdminLayout \/><\/AdminSessionGate>/);
 });

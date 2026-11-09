@@ -67,12 +67,12 @@ async function run() {
         pathname: new URL(page.url()).pathname,
         headings: await page.getByRole('heading').allTextContents(),
         alerts: await page.getByRole('alert').allTextContents(),
-        hasStoredToken: await page.evaluate(() => Boolean(localStorage.getItem('access_token'))),
+        hasStoredToken: await page.evaluate(() => Boolean(sessionStorage.getItem('access_token'))),
       };
       console.error('CLIENT_SIGNUP_NAVIGATION_DIAGNOSTIC', JSON.stringify(browserState));
       throw error;
     }
-    const signed = await page.evaluate(() => localStorage.getItem('access_token'));
+    const signed = await page.evaluate(() => sessionStorage.getItem('access_token'));
     assert.ok(signed, 'Login must retain a real signed JWT');
     const me = await fetch(API + '/clients/me', {
       headers: { Authorization: 'Bearer ' + signed },

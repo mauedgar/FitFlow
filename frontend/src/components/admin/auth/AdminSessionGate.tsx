@@ -64,7 +64,7 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
           const sent = error.config?.headers?.get?.('Authorization');
           if (shouldInvalidateCurrentAdminSession(
             sessionActive, expectedGeneration, getAuthSessionGeneration(),
-            sent, token, localStorage.getItem('access_token')
+            sent, token, sessionStorage.getItem('access_token')
           )) {
             logoutRef.current();
           }

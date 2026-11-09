@@ -58,7 +58,7 @@ async function loginUsingSignedToken(page, token) {
     await page.getByLabel('Contraseña').fill(password);
     await page.getByRole('button', { name: 'Ingresar' }).click();
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), token);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), token);
   } finally {
     await page.unroute(routePattern);
   }
@@ -75,7 +75,7 @@ async function verifyRapidReLoginAndStale401(browser) {
     });
     await login(page, email);
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    const signedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+    const signedToken = await page.evaluate(() => sessionStorage.getItem('access_token'));
     assert.ok(signedToken, 'Live browser session must retain signed token');
     const firstState = await runtimeSessionState(page);
     assert.equal(firstState.activeInterceptors, 1, 'Exactly one Axios response interceptor on initial mount');
@@ -96,7 +96,9 @@ async function verifyRapidReLoginAndStale401(browser) {
     // retained signed token again without installing duplicate interceptors.
     await page.reload();
     await page.getByRole('heading', { name: 'Clientes', exact: true }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), signedToken);
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null,
+      'Session must not persist its access token across tabs');
     assert.ok(authMeRequests > requestsBeforeNavigation &&
       authMeRequests <= requestsBeforeNavigation + 2, 'Rehydration rechecks one verified identity');
     const rehydratedState = await runtimeSessionState(page);
@@ -172,7 +174,7 @@ async function verifyRapidReLoginAndStale401(browser) {
     await page.getByLabel('Contraseña').fill(password);
     await page.getByRole('button', { name: 'Ingresar' }).click();
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    const renewedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+    const renewedToken = await page.evaluate(() => sessionStorage.getItem('access_token'));
     assert.ok(renewedToken && renewedToken !== signedToken,
       'New login must issue a new signed session instead of replaying a revoked JWT');
     const newGeneration = (await runtimeSessionState(page)).generation;
@@ -188,7 +190,7 @@ async function verifyRapidReLoginAndStale401(browser) {
       'old Axios promise rejected with actual HTTP 401');
     assert.equal(oldResult.kind, 'rejected', 'Old response must reject in the original Axios consumer');
     assert.equal(oldResult.status, 401, 'Old Axios consumer must observe HTTP 401, not cancellation');
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), renewedToken,
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), renewedToken,
       'Old 401 must not log out a newer independently signed session');
     assert.equal((await runtimeSessionState(page)).generation, newGeneration,
       'Late old-generation 401 must not change session generation');
@@ -286,7 +288,7 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
 
     await login(page, email);
     await within(firstProfileSeen, 'first pending TanStack /auth/me request');
-    const firstSignedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+    const firstSignedToken = await page.evaluate(() => sessionStorage.getItem('access_token'));
     assert.ok(firstSignedToken, 'Signed JWT must exist during the first pending identity check');
 
     // Hold an additional *noncancellable* Axios /auth/me request from the OLD
@@ -343,7 +345,7 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
     assert.equal(probeResult.status, 401, 'Old /auth/me Axios consumer must receive 401, not cancellation');
 
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), firstSignedToken);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), firstSignedToken);
     assert.equal((await runtimeSessionState(page)).generation, newState.generation,
       'Old delivered identity 401 must not invalidate the newer same-token login');
     console.log('ADMIN_DELAYED_IDENTITY_RACE_PASS: original query network outcome=' + networkOutcome.kind
@@ -555,7 +557,7 @@ async function run() {
     await page.getByRole('button', { name: 'Menú de perfil' }).click();
     await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
     await page.waitForURL('**/login');
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), null);
     await page.goto(WEB + '/admin');
     await page.waitForURL('**/login');
 
@@ -568,7 +570,8 @@ async function run() {
     const expiredContext = await browser.newContext();
     const expiredPage = await expiredContext.newPage();
     await expiredPage.addInitScript((token) => {
-      localStorage.setItem('access_token', token);
+      sessionStorage.setItem('access_token', token);
+      sessionStorage.setItem('refresh_token', 'expired-synthetic-fixture-only');
     }, expired);
     await expiredPage.goto(WEB + '/admin');
     await expiredPage.waitForURL('**/login');
