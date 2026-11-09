@@ -155,7 +155,7 @@ test('session-generation mismatch rejects same-token stale 401 callbacks', () =>
 test('auth entrypoints advance their epoch before notifying React context', () => {
   const hook = read('src/context/useAuth.tsx');
   assert.match(hook, /advanceAuthSessionGeneration\(\);\s*context\.login/);
-  assert.match(hook, /advanceAuthSessionGeneration\(\);\s*context\.logout/);
+  assert.match(hook, /advanceAuthSessionGeneration\(\);\s*return context\.logout/);
   assert.match(gate, /expectedGeneration !== getAuthSessionGeneration\(\)/);
   assert.match(gate, /sessionActive, expectedGeneration, getAuthSessionGeneration\(\)/);
   const ts = require('typescript');

@@ -146,9 +146,19 @@ async function verifyRapidReLoginAndStale401(browser) {
             code: error?.code ?? null }));
     });
     await within(seen, 'captured pre-logout Axios request');
+    const revokedResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/v1/auth/logout');
     await page.getByRole('button', { name: 'Menú de perfil' }).click();
     await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
     await page.waitForURL('**/login');
+    const remoteLogout = await within(revokedResponse, 'server-side session logout');
+    assert.equal(remoteLogout.status(), 204,
+      'A03 requires server-confirmed logout; local-only clearing is insufficient');
+    const previousAccess = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + signedToken },
+    });
+    assert.equal(previousAccess.status, 401,
+      'Logout must revoke the backend-signed access JWT before normal expiry');
     await page.waitForFunction(async () => {
       const api = (await import('/src/services/api.ts')).default;
       return api.interceptors.response.handlers.filter(Boolean).length === 0;
@@ -156,10 +166,18 @@ async function verifyRapidReLoginAndStale401(browser) {
     const loggedOutGeneration = (await runtimeSessionState(page)).generation;
     assert.ok(loggedOutGeneration > rehydratedState.generation,
       'Logout must advance the epoch within the rehydrated browser module');
-    await loginUsingSignedToken(page, signedToken);
+    // Keep the same browser document to preserve the in-flight old Axios
+    // response interceptor; only login credentials are sent to the real API.
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Contraseña').fill(password);
+    await page.getByRole('button', { name: 'Ingresar' }).click();
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const renewedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+    assert.ok(renewedToken && renewedToken !== signedToken,
+      'New login must issue a new signed session instead of replaying a revoked JWT');
     const newGeneration = (await runtimeSessionState(page)).generation;
     assert.ok(newGeneration > loggedOutGeneration,
-      'Same-token re-login must have a distinct generation');
+      'Fresh post-logout login must have a distinct generation');
     assert.equal((await runtimeSessionState(page)).activeInterceptors, 1,
       'New ADMIN session must install exactly one interceptor');
     releaseResolve();
@@ -170,8 +188,8 @@ async function verifyRapidReLoginAndStale401(browser) {
       'old Axios promise rejected with actual HTTP 401');
     assert.equal(oldResult.kind, 'rejected', 'Old response must reject in the original Axios consumer');
     assert.equal(oldResult.status, 401, 'Old Axios consumer must observe HTTP 401, not cancellation');
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken,
-      'Old 401 must not log out a newer same-token generation');
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), renewedToken,
+      'Old 401 must not log out a newer independently signed session');
     assert.equal((await runtimeSessionState(page)).generation, newGeneration,
       'Late old-generation 401 must not change session generation');
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();

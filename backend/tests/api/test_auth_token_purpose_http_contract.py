@@ -130,11 +130,15 @@ async def test_logout_denies_access_in_refresh_body(
 async def test_typed_and_legacy_refresh_use_real_disposable_redis(
     api_client: httpx.AsyncClient, user_id: uuid.UUID,
 ) -> None:
-    access = security.create_access_token({"sub": str(user_id), "role": "client"})
     for refresh in (
         security.create_refresh_token({"sub": str(user_id)}),
         legacy(user_id, role=None),
     ):
+        # Each explicit legacy logout now revokes that exact access credential.
+        # A second independent login must not reuse the same old bearer.
+        access = security.create_access_token({
+            "sub": str(user_id), "role": "client", "jti": uuid.uuid4().hex,
+        })
         store_refresh_token(str(user_id), refresh)
         try:
             assert get_redis_client().ttl(opaque_jwt_key("refresh_token:", refresh)) > 0
@@ -157,6 +161,7 @@ async def test_typed_and_legacy_refresh_use_real_disposable_redis(
                 json={"refresh_token": refresh},
             )
             assert logged_out.status_code == status.HTTP_204_NO_CONTENT, logged_out.text
+            assert get_redis_client().ttl(opaque_jwt_key("blacklist_token:", access)) > 0
             assert get_redis_client().ttl(opaque_jwt_key("blacklist_token:", refresh)) > 0
             assert get_redis_client().exists(f"blacklist_token:{refresh}") == 0
             reused = await api_client.post(
@@ -166,6 +171,7 @@ async def test_typed_and_legacy_refresh_use_real_disposable_redis(
         finally:
             delete_refresh_token(refresh)
             get_redis_client().delete(opaque_jwt_key("blacklist_token:", refresh))
+            get_redis_client().delete(opaque_jwt_key("blacklist_token:", access))
 
 
 def test_token_use_cannot_be_overridden_or_confused() -> None:
