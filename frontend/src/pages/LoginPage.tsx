@@ -78,7 +78,7 @@ const LoginPage = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (awaitingVerifiedIdentity) return;
+    // A new login supersedes any identity verification still pending.
     // ⭐ 3. Disparamos la mutación con las credenciales
     loginMutation.mutate({ username: email, password });
   };
@@ -100,7 +100,7 @@ const LoginPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@email.com"
                   autoComplete='email'
-                  disabled={loginMutation.isPending || awaitingVerifiedIdentity}
+                  disabled={loginMutation.isPending}
                 />
               </Field.Root>
 
@@ -113,7 +113,7 @@ const LoginPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="********"
                   autoComplete="current-password"
-                  disabled={loginMutation.isPending || awaitingVerifiedIdentity}
+                  disabled={loginMutation.isPending}
                 />
               </Field.Root>
 
@@ -121,8 +121,8 @@ const LoginPage = () => {
                 type="submit"
                 colorPalette="teal"
                 w="100%"
-                loading={loginMutation.isPending || awaitingVerifiedIdentity}
-                disabled={loginMutation.isPending || awaitingVerifiedIdentity}
+                loading={loginMutation.isPending}
+                disabled={loginMutation.isPending}
               >
                 Ingresar
               </Button>

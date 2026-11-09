@@ -129,3 +129,21 @@ test('login source contains no local-JWT role-based navigation', () => {
   assert.match(source, /isAuthenticated && currentUser/);
   assert.match(source, /!awaitingVerifiedIdentity \|\| isLoadingAuth/);
 });
+
+test('rapid re-login remains possible while earlier identity request is pending', () => {
+  // Signed ADMIN E2E intentionally begins a second login while the earlier
+  // /auth/me request is suspended, to prove stale response isolation.
+  assert.equal(source.includes('if (awaitingVerifiedIdentity) return;'), false);
+  assert.equal(source.includes('disabled={loginMutation.isPending || awaitingVerifiedIdentity}'), false);
+  assert.equal(source.includes('loading={loginMutation.isPending || awaitingVerifiedIdentity}'), false);
+  assert.equal(source.split('disabled={loginMutation.isPending}').length - 1, 3);
+  assert.equal(source.split('loading={loginMutation.isPending}').length - 1, 1);
+  const h = harness();
+  h.render();
+  h.onSuccess({ access_token: 'old', refresh_token: 'refresh-1' });
+  h.render();
+  assert.equal(h.auth.isLoadingAuth, true);
+  h.onSuccess({ access_token: 'new', refresh_token: 'refresh-2' });
+  assert.equal(h.auth.token, 'new', 'new login supersedes pending token');
+  assert.equal(h.routes.length, 0, 'unverified token does not decide route');
+});
