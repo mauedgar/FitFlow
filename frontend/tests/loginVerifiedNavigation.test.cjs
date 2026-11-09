@@ -32,8 +32,8 @@ function harness() {
     isLoadingAuth: false,
     login(access, refresh) {
       assert.ok(access && refresh);
-      this.token = access;
-      this.isLoadingAuth = true;
+      auth.token = access;
+      auth.isLoadingAuth = true;
     },
   };
   const react = {
