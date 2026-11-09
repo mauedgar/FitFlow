@@ -5,7 +5,8 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query'; // ⭐ Importamos useMutation
 import { useAuth } from '../context/useAuth'; // ⭐ Importamos el contexto de Auth
 import classService from '../services/classService'; // ⭐ Usaremos classService para el login
-import { UserRole, type TokenResponse } from '../types';
+import { type TokenResponse } from '../types';
+import { verifiedRoleDestination } from '../utils/verifiedRoleDestination';
 import { AxiosError } from 'axios'; // ⭐ Para un manejo de errores más específico
 
 const LoginPage = () => {
@@ -28,7 +29,7 @@ const LoginPage = () => {
         duration: 3000,
         closable: true,
       });
-      navigate(currentUser.role === UserRole.ADMIN ? '/admin' : '/home', { replace: true });
+      navigate(verifiedRoleDestination(currentUser.role), { replace: true });
       return;
     }
     // If /auth/me failed, AuthProvider clears the pending token; fail closed.

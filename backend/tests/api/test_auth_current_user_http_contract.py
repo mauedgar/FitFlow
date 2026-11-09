@@ -9,10 +9,11 @@ from datetime import timedelta
 import httpx
 import pytest
 from fastapi import status
+from redis.exceptions import RedisError
 from sqlalchemy import delete
 from sqlalchemy.engine import make_url
 
-from app.core import security
+from app.core import blacklist, security, token_store
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.db.models.user import User
@@ -339,3 +340,79 @@ async def test_refresh_rejects_query_only_refresh_token_transport(
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert query_token not in response.text
+
+async def test_inactive_account_cannot_receive_tokens_or_write_redis(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both valid and invalid passwords for disabled identities fail the same way."""
+    user_id = uuid.uuid4()
+    email = f"inactive-auth-{user_id.hex}@example.com"
+    correct_password = "SyntheticDisabledAccount!42"
+    async with AsyncSessionLocal() as db:
+        db.add(User(
+            id=user_id, email=email,
+            hashed_password=security.get_password_hash(correct_password),
+            role=UserRole.client, active=False,
+        ))
+        await db.commit()
+
+    def unexpected_registration(_user_id: str, _token: str) -> None:
+        pytest.fail("Inactive account attempted to register a refresh token")
+
+    monkeypatch.setattr(auth_router, "store_refresh_token", unexpected_registration)
+    try:
+        for attempt in (correct_password, "WrongSyntheticPassword!42"):
+            response = await api_client.post(
+                f"{settings.API_V1_STR}/auth/token",
+                data={"username": email, "password": attempt},
+            )
+            assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
+            assert response.json() == {"detail": "Correo o contraseña incorrectos"}
+            assert "access_token" not in response.text
+            assert "refresh_token" not in response.text
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(User).where(User.id == user_id))
+            await db.commit()
+
+
+async def test_login_redis_io_failure_after_client_established_returns_503(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    persisted_auth_user: tuple[uuid.UUID, str, str],
+) -> None:
+    """The client is available, but its subsequent SET raises RedisError."""
+    _user_id, email, password = persisted_auth_user
+
+    class BrokenAfterPingRedis:
+        def set(self, *_args: object, **_kwargs: object) -> None:
+            raise RedisError("synthetic post-ping SET error")
+
+    monkeypatch.setattr(token_store, "get_redis_client", lambda: BrokenAfterPingRedis())
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": email, "password": password},
+    )
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE, response.text
+    assert response.json() == {"detail": "Redis no está disponible."}
+
+
+async def test_refresh_redis_io_failure_after_client_established_returns_503(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Blacklist read failures after connection setup must remain fail-closed."""
+    token = security.create_refresh_token({"sub": str(uuid.uuid4())})
+
+    class BrokenAfterPingRedis:
+        def exists(self, *_args: object) -> int:
+            raise RedisError("synthetic post-ping EXISTS error")
+
+    monkeypatch.setattr(blacklist, "get_redis_client", lambda: BrokenAfterPingRedis())
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": token},
+    )
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE, response.text
+    assert response.json() == {"detail": "Redis no está disponible."}

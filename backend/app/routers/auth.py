@@ -53,7 +53,7 @@ async def login_for_tokens(
         logger.exception("DB error on get_by_email during login")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
-    if not user or not security.verify_password(form_data.password, user.hashed_password):  # pyright: ignore[reportArgumentType]
+    if not user or not security.verify_password(form_data.password, user.hashed_password) or not user.active:  # pyright: ignore[reportArgumentType]
         logger.warning("Failed login attempt for email=%s", form_data.username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

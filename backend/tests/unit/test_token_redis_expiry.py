@@ -2,11 +2,13 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from redis.exceptions import RedisError
 from jose import jwt
 
 from app.core import blacklist, security, token_store
 from app.core.config import settings
 from app.core.token_keys import legacy_jwt_key, opaque_jwt_key
+from app.services.errors import ExternalServiceError
 
 
 class FakeRedis:
@@ -80,3 +82,36 @@ def test_legacy_keys_remain_readable_and_deletable_without_new_raw_writes(
     token_store.delete_refresh_token(token)
     assert not token_store.is_refresh_token_valid(token)
     assert raw_blacklist in fake.keys  # No legacy cleanup is performed here.
+
+@pytest.mark.parametrize(
+    "operation",
+    ("blacklist_write", "blacklist_lookup", "refresh_write", "refresh_lookup", "refresh_delete"),
+)
+def test_redis_post_ping_io_errors_become_external_service_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    """Every token Redis operation normalizes an I/O failure after the client is obtained."""
+    class BrokenAfterPingRedis:
+        def set(self, *_args: object, **_kwargs: object) -> None:
+            raise RedisError("synthetic post-ping SET failure")
+
+        def exists(self, *_args: object) -> int:
+            raise RedisError("synthetic post-ping EXISTS failure")
+
+        def delete(self, *_args: object) -> int:
+            raise RedisError("synthetic post-ping DELETE failure")
+
+    broken = BrokenAfterPingRedis()
+    monkeypatch.setattr(token_store, "get_redis_client", lambda: broken)
+    monkeypatch.setattr(blacklist, "get_redis_client", lambda: broken)
+    token = security.create_refresh_token({"sub": "synthetic-post-ping"})
+    operations = {
+        "blacklist_write": lambda: blacklist.blacklist_token(token),
+        "blacklist_lookup": lambda: blacklist.is_token_blacklisted(token),
+        "refresh_write": lambda: token_store.store_refresh_token("synthetic-post-ping", token),
+        "refresh_lookup": lambda: token_store.is_refresh_token_valid(token),
+        "refresh_delete": lambda: token_store.delete_refresh_token(token),
+    }
+    with pytest.raises(ExternalServiceError, match="Redis no está disponible"):
+        operations[operation]()
