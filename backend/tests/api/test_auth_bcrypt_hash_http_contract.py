@@ -21,6 +21,7 @@ class SyntheticUser:
     id: UUID
     hashed_password: str
     role: UserRole = UserRole.client
+    active: bool = True
 
 
 @pytest.mark.parametrize(

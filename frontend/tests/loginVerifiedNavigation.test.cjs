@@ -61,6 +61,7 @@ function harness() {
     if (name === '../context/useAuth') return { useAuth: () => auth };
     if (name === '../services/classService') return { __esModule: true, default: {} };
     if (name === '../types') return { UserRole: { ADMIN: 'admin' } };
+    if (name === '../utils/verifiedRoleDestination') return { verifiedRoleDestination: role => role === 'admin' ? '/admin' : '/home' };
     if (name === 'axios') return {};
     throw new Error('Unexpected dependency ' + name);
   };
