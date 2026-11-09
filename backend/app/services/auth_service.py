@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from app.core.security import decode_token, is_access_token_payload
+from app.core.session_revocation import is_access_credential_revoked
 from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
@@ -36,6 +37,9 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
     if payload is None or not is_access_token_payload(payload):
         msg_0 = "Token inválido o expirado."
         raise AuthError(msg_0)
+
+    if is_access_credential_revoked(token, payload):
+        raise AuthError("Sesión revocada.")
 
     try:
         token_data = TokenPayload(**payload)

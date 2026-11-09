@@ -12,14 +12,16 @@ from __future__ import annotations
 
 import logging
 from typing import Annotated
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import security
 from app.core.blacklist import blacklist_token, is_token_blacklisted
 from app.core.deps import get_current_user
+from app.core.session_revocation import is_session_revoked, revoke_session, session_ids_match
 from app.services.auth_service import get_active_user_for_refresh
 from app.core.token_store import (
     delete_refresh_token,
@@ -59,8 +61,9 @@ async def login_for_tokens(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = security.create_access_token(data={"sub": str(user.id), "role": user.role.value})
-    refresh_token = security.create_refresh_token(data={"sub": str(user.id)})
+    session_id = str(uuid4())
+    access_token = security.create_access_token(data={"sub": str(user.id), "role": user.role.value, "sid": session_id})
+    refresh_token = security.create_refresh_token(data={"sub": str(user.id), "sid": session_id})
 
     try:
         store_refresh_token(str(user.id), refresh_token)
@@ -95,6 +98,14 @@ async def refresh_access_token(
         logger.warning("Invalid or expired refresh token provided")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido o expirado.")
 
+    if "sid" in payload:
+        try:
+            revoked_session = is_session_revoked(payload["sid"])
+        except ExternalServiceError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        if revoked_session:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión revocada.")
+
     try:
         registered = is_refresh_token_valid(refresh_token)
     except ExternalServiceError as exc:
@@ -120,7 +131,7 @@ async def refresh_access_token(
         )
 
     access_token = security.create_access_token(
-        data={"sub": str(user.id), "role": user.role.value}
+        data={**{"sub": str(user.id), "role": user.role.value}, **({"sid": payload["sid"]} if "sid" in payload else {})}
     )
     logger.info("Access token refreshed for user_id=%s", user.id)
     return Token(access_token=access_token)
@@ -131,6 +142,7 @@ async def logout(
     *,
     token_request: RefreshTokenRequest,
     current_user: Annotated[User, Depends(get_current_user)],
+    request: Request,
 ) -> None:
     """Logout real: invalida refresh token en Redis + blacklist.
 
@@ -146,9 +158,23 @@ async def logout(
         logger.warning("User %s attempted to logout token of user %s", current_user.id, payload.get("sub"))
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para invalidar este token.")
 
+    bearer = request.headers.get("authorization", "")
+    access_token = bearer[7:] if bearer.lower().startswith("bearer ") else None
+    access_payload = security.decode_token(access_token) if access_token else None
+    if access_token and (not security.is_access_token_payload(access_payload) or not session_ids_match(access_payload, payload)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="La sesión no coincide con el token de refresco.")
+
     try:
+        if access_token and payload.get("sid") is not None:
+            # Write session revocation first: partial downstream failure must
+            # never leave already-minted access JWTs usable.
+            revoke_session(payload["sid"], refresh_token)
         delete_refresh_token(refresh_token)
         blacklist_token(refresh_token)
+        if access_token and payload.get("sid") is None:
+            # Signed pre-sid JWTs cannot share a revocation family: blacklist
+            # the exact legacy access presented (remaining ones expire).
+            blacklist_token(access_token)
     except ExternalServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:

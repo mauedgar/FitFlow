@@ -7,6 +7,7 @@ import type { User, UserRole, Booking, Client } from "../types";
 import { inspectLocalAccessClaims } from "../utils/accessTokenClaims";
 import { verifiedAuthIdentityQuery } from "../utils/verifiedAuthIdentityQuery";
 import { getAuthSessionGeneration } from "../utils/authSessionGeneration";
+import { revokeServerSession } from "../utils/revokeServerSession";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -57,19 +58,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const userRole: UserRole | null = currentUser?.role ?? null;
   const isLoadingAuth = !!token && identity.isPending;
 
-  const login = (accessToken: string) => {
+  const login = (accessToken: string, refreshToken: string) => {
+    // Refresh credential is tab-scoped, not written to persistent localStorage.
+    if (!refreshToken) throw new Error("Falta el token para revocar la sesión");
+    sessionStorage.setItem("refresh_token", refreshToken);
     localStorage.setItem("access_token", accessToken);
     setToken(accessToken);
     setSessionGeneration(getAuthSessionGeneration());
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
   };
 
-  const logout = () => {
+  const logout = async (): Promise<void> => {
+    // Snapshot credentials before synchronously dropping UI authentication.
+    const accessToken = token;
+    const refreshToken = sessionStorage.getItem("refresh_token");
+    sessionStorage.removeItem("refresh_token");
     localStorage.removeItem("access_token");
     setToken(null);
     setSessionGeneration(getAuthSessionGeneration());
     delete apiClient.defaults.headers.common["Authorization"];
     queryClient.clear();
+    // Failure must be reported, never mistaken for confirmed server revocation.
+    await revokeServerSession(accessToken, refreshToken);
   };
 
   const isAuthenticated = !!token && !!currentUser;

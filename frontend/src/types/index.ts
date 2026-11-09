@@ -53,6 +53,7 @@ export interface TokenPayload {
 
 export interface TokenResponse { // Para la respuesta del endpoint /login/token
   access_token: string;
+  refresh_token: string;
   token_type: string;
 }
 

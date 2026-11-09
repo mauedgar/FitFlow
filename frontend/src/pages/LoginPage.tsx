@@ -27,7 +27,7 @@ const LoginPage = () => {
     onSuccess: (data) => {
       // Llamamos a la función login del AuthContext, pasando solo el token
       // El AuthContext ya se encarga de decodificar y establecer el rol
-      login(data.access_token);
+      login(data.access_token, data.refresh_token);
       toaster.create({
         title: "Inicio de sesión exitoso",
         type: "success",

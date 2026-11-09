@@ -11,8 +11,8 @@ export interface AuthContextType {
   isClient: boolean;
   isTrainer: boolean;
   isAdmin: boolean;
-  login: (accessToken: string) => void;
-  logout: () => void;
+  login: (accessToken: string, refreshToken: string) => void;
+  logout: () => Promise<void>;
   userBookings: Booking[] | undefined;
   isLoadingBookings: boolean;
   isLoadingAuth: boolean;
