@@ -1,22 +1,48 @@
 import { toaster } from '../components/ui/toaster-store';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Button, Heading, Input, VStack, Text, Link, Container, Field } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query'; // ⭐ Importamos useMutation
 import { useAuth } from '../context/useAuth'; // ⭐ Importamos el contexto de Auth
 import classService from '../services/classService'; // ⭐ Usaremos classService para el login
-import { UserRole, type TokenResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
+import { UserRole, type TokenResponse } from '../types';
 import { AxiosError } from 'axios'; // ⭐ Para un manejo de errores más específico
-import { type TokenPayload } from '../types';
-import {jwtDecode} from 'jwt-decode'
-
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const { login } = useAuth(); // ⭐ Obtenemos la función login, y el estado del usuario/rol
+  const { login, token, currentUser, isAuthenticated, isLoadingAuth } = useAuth();
   const navigate = useNavigate();
+  const [awaitingVerifiedIdentity, setAwaitingVerifiedIdentity] = useState(false);
+
+  // The provider fetches the signed/validated /auth/me profile. Never redirect
+  // from a locally decoded JWT role before backend identity is confirmed.
+  useEffect(() => {
+    if (!awaitingVerifiedIdentity || isLoadingAuth) return;
+    if (isAuthenticated && currentUser) {
+      setAwaitingVerifiedIdentity(false);
+      toaster.create({
+        title: "Inicio de sesión exitoso",
+        type: "success",
+        duration: 3000,
+        closable: true,
+      });
+      navigate(currentUser.role === UserRole.ADMIN ? '/admin' : '/home', { replace: true });
+      return;
+    }
+    // If /auth/me failed, AuthProvider clears the pending token; fail closed.
+    if (!token) {
+      setAwaitingVerifiedIdentity(false);
+      toaster.create({
+        title: "No se pudo verificar la sesión",
+        description: "Iniciá sesión nuevamente.",
+        type: "error",
+        duration: 5000,
+        closable: true,
+      });
+    }
+  }, [awaitingVerifiedIdentity, isLoadingAuth, isAuthenticated, currentUser, token, navigate]);
 
   // ⭐ 1. Definimos la mutación de login
   const loginMutation = useMutation<TokenResponse, AxiosError, { username: string; password: string }>({
@@ -25,29 +51,9 @@ const LoginPage = () => {
 
     // Callback que se ejecuta si la mutación es exitosa
     onSuccess: (data) => {
-      // Llamamos a la función login del AuthContext, pasando solo el token
-      // El AuthContext ya se encarga de decodificar y establecer el rol
+      // Identity verification occurs in AuthProvider before any navigation.
       login(data.access_token, data.refresh_token);
-      toaster.create({
-        title: "Inicio de sesión exitoso",
-        type: "success",
-        duration: 3000,
-        closable: true,
-      });
-
-      // ⭐ 2. Redirección basada en el rol, que ahora se obtiene del AuthContext
-      // Esperamos que currentUser y userRole ya estén actualizados después de 'login(data.access_token)'
-      // Si necesitas una redirección inmediata basada en el token, podrías decodificar aquí
-      // pero el patrón ideal es que AuthContext lo maneje y tú reaccione a ello.
-      // Para una redirección más segura, esperemos al siguiente ciclo de render o a que AuthContext actualice.
-      // Por simplicidad, usaremos el userRole actualizado por el AuthContext
-      // Decodificas YA el role antes de depender del contexto
-      const payload = jwtDecode<TokenPayload>(data.access_token)
-      if (payload.role === UserRole.ADMIN) {
-        navigate('/admin');
-      } else {
-        navigate('/home'); // O '/home' según tu estructura
-      }
+      setAwaitingVerifiedIdentity(true);
     },
 
     // Callback que se ejecuta si la mutación falla
@@ -72,6 +78,7 @@ const LoginPage = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (awaitingVerifiedIdentity) return;
     // ⭐ 3. Disparamos la mutación con las credenciales
     loginMutation.mutate({ username: email, password });
   };
@@ -93,7 +100,7 @@ const LoginPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@email.com"
                   autoComplete='email'
-                  disabled={loginMutation.isPending}
+                  disabled={loginMutation.isPending || awaitingVerifiedIdentity}
                 />
               </Field.Root>
 
@@ -106,7 +113,7 @@ const LoginPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="********"
                   autoComplete="current-password"
-                  disabled={loginMutation.isPending}
+                  disabled={loginMutation.isPending || awaitingVerifiedIdentity}
                 />
               </Field.Root>
 
@@ -114,8 +121,8 @@ const LoginPage = () => {
                 type="submit"
                 colorPalette="teal"
                 w="100%"
-                loading={loginMutation.isPending}
-                disabled={loginMutation.isPending}
+                loading={loginMutation.isPending || awaitingVerifiedIdentity}
+                disabled={loginMutation.isPending || awaitingVerifiedIdentity}
               >
                 Ingresar
               </Button>
