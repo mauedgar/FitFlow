@@ -286,3 +286,64 @@ async def test_refresh_only_logout_redis_outage_returns_503_without_false_succes
         json={"refresh_token": refresh},
     )
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+
+async def test_logout_marker_outlives_refresh_expiry_on_both_bearer_pipelines(
+    api_client: httpx.AsyncClient,
+    admin_user: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test a just-refreshed access after the *old* refresh marker would expire."""
+    subject = admin_user[0]
+    sid = str(uuid.uuid4())
+    _access, refresh = pair(subject, sid)
+    store_refresh_token(str(subject), refresh)
+
+    class ExpiringSidRedis:
+        def __init__(self) -> None:
+            self.now = 0
+            self.deadlines: dict[str, int] = {}
+
+        def set(self, key: str, _value: str, *, ex: int) -> None:
+            self.deadlines[key] = self.now + ex
+
+        def exists(self, key: str) -> int:
+            return int(self.now < self.deadlines.get(key, 0))
+
+    fake = ExpiringSidRedis()
+    monkeypatch.setattr(session_revocation, "get_redis_client", lambda: fake)
+    try:
+        newly_minted = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh",
+            json={"refresh_token": refresh},
+        )
+        assert newly_minted.status_code == status.HTTP_200_OK, newly_minted.text
+        access = newly_minted.json()["access_token"]
+        assert security.decode_token(access)["sid"] == sid
+
+        # Simulate a refresh credential at the final second of its lifetime.
+        # The real signed token remains valid while API requests complete.
+        monkeypatch.setattr(
+            session_revocation, "token_seconds_until_expiry", lambda _token: 1,
+        )
+        logout = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout",
+            json={"refresh_token": refresh},
+        )
+        assert logout.status_code == status.HTTP_204_NO_CONTENT, logout.text
+        marker = session_revocation._revocation_key(uuid.UUID(sid).hex)
+        assert fake.deadlines[marker] > settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+
+        # Advancing Redis logical time exposes premature marker expiry without
+        # a slow/flaky real-time sleep or altering JWT signature expiration.
+        fake.now = 2
+        assert fake.exists(marker) == 1
+        assert security.decode_token(access) is not None
+        for endpoint in ("/auth/me", "/users/public"):
+            denied = await api_client.get(
+                f"{settings.API_V1_STR}{endpoint}",
+                headers={"Authorization": f"Bearer {access}"},
+            )
+            assert denied.status_code == status.HTTP_401_UNAUTHORIZED, denied.text
+    finally:
+        clean_session(sid, refresh)

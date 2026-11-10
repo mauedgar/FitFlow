@@ -12,11 +12,16 @@ from uuid import UUID
 from redis.exceptions import RedisError
 
 from app.core.blacklist import is_token_blacklisted
+from app.core.config import settings
 from app.core.redis_client import get_redis_client
 from app.core.security import token_seconds_until_expiry
 from app.services.errors import ExternalServiceError
 
 _REVOKED_SESSION_PREFIX = "revoked_session:"
+# Extra Redis tombstone retention after the last possible refresh. A fresh
+# access credential may outlive its parent refresh by this entire interval.
+# The 60-second cushion protects expiration rounding and modest clock drift.
+_REVOCATION_CLOCK_SKEW_SECONDS = 60
 
 
 def _valid_sid(sid: object) -> str | None:
@@ -45,11 +50,17 @@ def is_session_revoked(sid: str) -> bool:
 
 
 def revoke_session(sid: str, refresh_token: str) -> None:
-    """Invalidate every access JWT with this signed sid, through refresh expiry."""
+    """Keep session revoked through the latest access minted by its refresh."""
     valid = _valid_sid(sid)
     if valid is None:
         raise ValueError("Identificador de sesión inválido")
-    ttl = token_seconds_until_expiry(refresh_token)
+    # A refresh issued at the final valid instant may mint a full-duration
+    # access token. Expiring the marker with the refresh would re-enable it.
+    ttl = (
+        token_seconds_until_expiry(refresh_token)
+        + settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        + _REVOCATION_CLOCK_SKEW_SECONDS
+    )
     try:
         get_redis_client().set(_revocation_key(valid), "1", ex=ttl)
     except RedisError as exc:
