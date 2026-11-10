@@ -6,8 +6,9 @@ import { AuthContext } from "./AuthContext";
 import type { User, UserRole, Booking, Client } from "../types";
 import { inspectLocalAccessClaims } from "../utils/accessTokenClaims";
 import { verifiedAuthIdentityQuery } from "../utils/verifiedAuthIdentityQuery";
-import { getAuthSessionGeneration } from "../utils/authSessionGeneration";
+import { advanceAuthSessionGeneration, getAuthSessionGeneration } from "../utils/authSessionGeneration";
 import { revokeServerSession } from "../utils/revokeServerSession";
+import { isRecoverableIdentityFailure } from "../utils/identityFailurePolicy";
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -56,20 +57,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [token]);
 
-  // A 401, missing/disabled identity or an unavailable profile never fabricates
-  // a local authenticated user. A later login may establish a fresh session.
+  // A transient outage cannot establish permissions or prove server revocation.
+  // Keep both tab-scoped credentials for an explicit recovery or remote logout.
+  const identityRecoveryPending = !!token && identity.isError &&
+    isRecoverableIdentityFailure(identity.error);
   useEffect(() => {
-    if (token && identity.isError) {
+    if (token && identity.isError && !isRecoverableIdentityFailure(identity.error)) {
       sessionStorage.removeItem("access_token");
       sessionStorage.removeItem("refresh_token");
       setToken(null);
       delete apiClient.defaults.headers.common["Authorization"];
     }
-  }, [identity.isError, token]);
+  }, [identity.isError, identity.error, token]);
 
-  const currentUser = token ? identity.data ?? null : null;
+  // Previously cached identity data must not authorize a failed refetch.
+  const currentUser = token && identity.isSuccess ? identity.data ?? null : null;
   const userRole: UserRole | null = currentUser?.role ?? null;
-  const isLoadingAuth = !!token && identity.isPending;
+  const isLoadingAuth = !!token &&
+    (identity.isPending || (identityRecoveryPending && identity.isFetching));
+  const retryIdentity = async (): Promise<void> => {
+    if (token) await identity.refetch();
+  };
 
   const login = (accessToken: string, refreshToken: string) => {
     // Both credentials remain tab-scoped: no persistent access bearer.
@@ -77,7 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     sessionStorage.setItem("refresh_token", refreshToken);
     sessionStorage.setItem("access_token", accessToken);
     setToken(accessToken);
-    setSessionGeneration(getAuthSessionGeneration());
+    setSessionGeneration(advanceAuthSessionGeneration());
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
   };
 
@@ -88,7 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     sessionStorage.removeItem("refresh_token");
     sessionStorage.removeItem("access_token");
     setToken(null);
-    setSessionGeneration(getAuthSessionGeneration());
+    setSessionGeneration(advanceAuthSessionGeneration());
     delete apiClient.defaults.headers.common["Authorization"];
     queryClient.clear();
     // Failure must be reported, never mistaken for confirmed server revocation.
@@ -120,6 +128,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     userBookings,
     isLoadingBookings,
     isLoadingAuth,
+    identityRecoveryPending,
+    retryIdentity,
   };
 
   // Public routes, including /login, must remain usable while /auth/me is

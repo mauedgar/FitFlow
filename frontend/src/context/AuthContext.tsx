@@ -16,6 +16,8 @@ export interface AuthContextType {
   userBookings: Booking[] | undefined;
   isLoadingBookings: boolean;
   isLoadingAuth: boolean;
+  identityRecoveryPending: boolean;
+  retryIdentity: () => Promise<void>;
 }
 
 // Solo define y exporta el contexto (sin provider ni lógica de estado aquí)
