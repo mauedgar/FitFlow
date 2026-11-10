@@ -25,8 +25,26 @@ const LoginPage = () => {
     identityRecoveryPending, retryIdentity } = useAuth();
   const navigate = useNavigate();
   const [awaitingVerifiedIdentity, setAwaitingVerifiedIdentity] = useState(false);
+  const [retrySession, setRetrySession] = useState<{
+    token: string; generation: number; inFlight: boolean;
+  } | null>(null);
   const latestLoginAttempt = useRef(0);
-  useEffect(() => () => { latestLoginAttempt.current += 1; }, []);
+  const latestIdentityRetry = useRef(0);
+  const mounted = useRef(false);
+  const currentToken = useRef(token);
+  currentToken.current = token;
+  const retryForSameSession = !!token && retrySession?.token === token &&
+    retrySession.generation === getAuthSessionGeneration();
+  const retryInFlight = retryForSameSession && retrySession.inFlight;
+  const pendingSession = identityRecoveryPending || retryForSameSession;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      latestLoginAttempt.current += 1;
+      latestIdentityRetry.current += 1;
+    };
+  }, []);
 
   // The provider fetches the signed/validated /auth/me profile. Never redirect
   // from a locally decoded JWT role before backend identity is confirmed.
@@ -101,7 +119,7 @@ const LoginPage = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     // Never overwrite a recoverable session before it can be revoked.
-    if (identityRecoveryPending) return;
+    if (pendingSession) return;
     // A new login supersedes any identity verification still pending.
     // ⭐ 3. Disparamos la mutación con las credenciales
     loginMutation.mutate({
@@ -112,11 +130,43 @@ const LoginPage = () => {
   };
 
   const handleRetryIdentity = () => {
-    // Do not consume the pending navigation against the *previous* 503 state.
-    // Only evaluate identity after the explicit refetch has settled.
-    void retryIdentity().then(() => setAwaitingVerifiedIdentity(true));
+    if (!token || !pendingSession || retryInFlight) return;
+    const retryId = ++latestIdentityRetry.current;
+    const generation = getAuthSessionGeneration();
+    const retryToken = token;
+    setRetrySession({ token: retryToken, generation, inFlight: true });
+    const stillCurrent = () => mounted.current && retryId === latestIdentityRetry.current &&
+      generation === getAuthSessionGeneration() && retryToken === currentToken.current;
+    void (async () => {
+      try {
+        await retryIdentity();
+        // TanStack refetch can resolve with an error result; the effect below
+        // still requires a verified /auth/me identity before navigation.
+        if (stillCurrent()) {
+          setRetrySession(null);
+          setAwaitingVerifiedIdentity(true);
+        }
+      } catch {
+        // Unexpected rejection is not proof of revocation. Keep the existing
+        // recoverable credentials and never expose the rejection details.
+        if (stillCurrent()) {
+          // A rejection may not update TanStack's error state; keep the
+          // revocation controls available until retry or explicit logout.
+          setRetrySession({ token: retryToken, generation, inFlight: false });
+          toaster.create({
+            title: "No se pudo verificar la sesión",
+            description: "Podés reintentar o cerrar la sesión pendiente.",
+            type: "warning",
+            duration: 5000,
+            closable: true,
+          });
+        }
+      }
+    })();
   };
   const handleClosePendingSession = () => {
+    latestIdentityRetry.current += 1;
+    setRetrySession(null);
     void logout().catch(() => toaster.create({
       title: "Sesión local cerrada",
       description: "No se pudo confirmar su revocación remota.",
@@ -128,10 +178,10 @@ const LoginPage = () => {
     <Container maxW="40rem" py={10}>
       <VStack gap={8}>
         <Heading>Iniciar Sesión</Heading>
-        {identityRecoveryPending && (
+        {pendingSession && (
           <Box role="alert" width="100%">
             <Text>La identidad no pudo verificarse. El acceso permanece suspendido.</Text>
-            <Button onClick={handleRetryIdentity} disabled={isLoadingAuth}>
+            <Button onClick={handleRetryIdentity} disabled={isLoadingAuth || retryInFlight}>
               Reintentar verificación
             </Button>
             <Button colorPalette="red" variant="outline" onClick={handleClosePendingSession}>
@@ -152,7 +202,7 @@ const LoginPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@email.com"
                   autoComplete='email'
-                  disabled={loginMutation.isPending || identityRecoveryPending}
+                  disabled={loginMutation.isPending || pendingSession}
                 />
               </Field.Root>
 
@@ -165,7 +215,7 @@ const LoginPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="********"
                   autoComplete="current-password"
-                  disabled={loginMutation.isPending || identityRecoveryPending}
+                  disabled={loginMutation.isPending || pendingSession}
                 />
               </Field.Root>
 
@@ -174,7 +224,7 @@ const LoginPage = () => {
                 colorPalette="teal"
                 w="100%"
                 loading={loginMutation.isPending}
-                disabled={loginMutation.isPending || identityRecoveryPending}
+                disabled={loginMutation.isPending || pendingSession}
               >
                 Ingresar
               </Button>

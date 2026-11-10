@@ -25,6 +25,9 @@ function harness() {
   let mutation;
   let formSubmit;
   let retryClick;
+  let closeClick;
+  const ui = {};
+  const effectSlots = [];
   const requests = [];
   const routes = [];
   const toasts = [];
@@ -50,7 +53,7 @@ function harness() {
       if (!(slot in states)) states[slot] = typeof initial === 'function' ? initial() : initial;
       return [states[slot], value => { states[slot] = value; }];
     },
-    useEffect(effect) { effects.push(effect); },
+    useEffect(effect, deps) { effects.push({ slot: cursor++, effect, deps }); },
     useRef(initial) {
       const slot = cursor++;
       if (!(slot in states)) states[slot] = { current: initial };
@@ -63,6 +66,10 @@ function harness() {
       const jsx = (type, props) => {
         if (type === 'form') formSubmit = props.onSubmit;
         if (props?.children === 'Reintentar verificación') retryClick = props.onClick;
+        if (props?.children === 'Cerrar sesión pendiente') closeClick = props.onClick;
+        if (props?.children === 'Ingresar') ui.loginDisabled = props.disabled;
+        if (props?.children === 'Reintentar verificación') ui.retryDisabled = props.disabled;
+        if (props?.role === 'alert') ui.pendingAlert = true;
         return null;
       };
       return { jsx, jsxs: jsx };
@@ -93,13 +100,23 @@ function harness() {
   const render = () => {
     cursor = 0;
     effects = [];
+    ui.pendingAlert = false;
     mod.exports.default();
-    for (const effect of effects) effect();
+    for (const { slot, effect, deps } of effects) {
+      const previous = effectSlots[slot];
+      if (previous && deps && previous.deps && deps.length === previous.deps.length &&
+          deps.every((value, index) => Object.is(value, previous.deps[index]))) continue;
+      previous?.cleanup?.();
+      effectSlots[slot] = { deps, cleanup: effect() };
+    }
   };
   return {
-    render, auth, toasts, routes, requests,
+    render, auth, toasts, routes, requests, ui,
+    unmount: () => { for (const slot of effectSlots) slot?.cleanup?.(); },
+    awaitingIdentity: () => states[2],
     submit: () => { assert.ok(formSubmit); formSubmit({ preventDefault() {} }); },
     retry: () => { assert.ok(retryClick); retryClick(); },
+    close: () => { assert.ok(closeClick); closeClick(); },
     onSuccess: (data, vars = requests.at(-1)) => mutation.onSuccess(data, vars),
   };
 }
@@ -160,7 +177,7 @@ test('rapid re-login remains possible while earlier identity request is pending'
   assert.equal(source.includes('if (awaitingVerifiedIdentity) return;'), false);
   assert.equal(source.includes('disabled={loginMutation.isPending || awaitingVerifiedIdentity}'), false);
   assert.equal(source.includes('loading={loginMutation.isPending || awaitingVerifiedIdentity}'), false);
-  assert.equal(source.split('disabled={loginMutation.isPending || identityRecoveryPending}').length - 1, 3);
+  assert.equal(source.split('disabled={loginMutation.isPending || pendingSession}').length - 1, 3);
   assert.equal(source.split('loading={loginMutation.isPending}').length - 1, 1);
   const h = harness();
   h.render();
@@ -221,8 +238,147 @@ test('retry waits for the new identity response before navigating', async () => 
   h.auth.currentUser = { id: 'verified', role: 'client', active: true };
   h.auth.isAuthenticated = true;
   resolveRetry();
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
   h.render();
   assert.equal(h.routes.length, 1);
   assert.equal(h.routes[0].to, '/home');
+});
+
+const deferred = () => {
+  let resolve;
+  let reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+};
+const settleRetry = () => new Promise(resolve => setImmediate(resolve));
+
+function pendingRetry(withLogout = false) {
+  const h = harness();
+  h.auth.token = 'same-access';
+  h.auth.identityRecoveryPending = true;
+  if (withLogout) h.auth.logout = async () => {
+    h.auth.generation += 1;
+    h.auth.token = null;
+    h.auth.identityRecoveryPending = false;
+  };
+  const request = deferred();
+  h.auth.retryIdentity = () => request.promise;
+  h.render();
+  h.retry();
+  return { h, request };
+}
+
+test('settled retry after logout cannot set awaiting state or navigate as a new user', async () => {
+  const { h, request } = pendingRetry();
+  h.auth.generation += 1;
+  h.auth.token = null;
+  h.auth.identityRecoveryPending = false;
+  h.render();
+  request.resolve();
+  await settleRetry();
+  assert.equal(h.awaitingIdentity(), false);
+  h.auth.token = 'different-access';
+  h.auth.generation += 1;
+  h.auth.isAuthenticated = true;
+  h.auth.currentUser = { role: 'admin' };
+  h.render();
+  assert.equal(h.routes.length, 0);
+});
+
+test('a pending retry keeps logout visible and prevents credential replacement', async () => {
+  const { h, request } = pendingRetry(true);
+  h.render();
+  assert.equal(h.ui.pendingAlert, true);
+  assert.equal(h.ui.loginDisabled, true);
+  assert.equal(h.ui.retryDisabled, true);
+  h.submit();
+  assert.equal(h.requests.length, 0);
+  h.close();
+  h.render();
+  assert.equal(h.ui.pendingAlert, false);
+  assert.equal(h.ui.loginDisabled, false);
+  request.resolve();
+  await settleRetry();
+  assert.equal(h.awaitingIdentity(), false);
+});
+
+test('same token from a new auth generation cannot inherit an older retry', async () => {
+  const { h, request } = pendingRetry();
+  h.auth.generation += 1;
+  h.auth.identityRecoveryPending = false;
+  h.auth.isAuthenticated = true;
+  h.auth.currentUser = { role: 'admin' };
+  h.render();
+  request.resolve();
+  await settleRetry();
+  h.render();
+  assert.equal(h.awaitingIdentity(), false);
+  assert.equal(h.routes.length, 0);
+});
+
+test('a retry that settles after unmount cannot update state or emit a toast', async () => {
+  const { h, request } = pendingRetry();
+  h.unmount();
+  request.resolve();
+  await settleRetry();
+  assert.equal(h.awaitingIdentity(), false);
+  assert.equal(h.toasts.length, 0);
+  assert.equal(h.routes.length, 0);
+});
+
+test('a rejection after logout or unmount stays silent and cannot resurrect identity', async () => {
+  for (const unmount of [false, true]) {
+    const { h, request } = pendingRetry();
+    if (unmount) h.unmount();
+    else {
+      h.auth.generation += 1;
+      h.auth.token = null;
+      h.auth.identityRecoveryPending = false;
+      h.render();
+    }
+    request.reject(new Error('obsolete-transport-detail'));
+    await settleRetry();
+    assert.equal(h.awaitingIdentity(), false);
+    assert.equal(h.toasts.length, 0);
+    assert.equal(h.routes.length, 0);
+  }
+});
+
+test('unexpected retry rejection is handled without leaking details or changing credentials', async () => {
+  const { h, request } = pendingRetry();
+  request.reject(new Error('sensitive-internal-detail'));
+  await settleRetry();
+  h.render();
+  assert.equal(h.auth.token, 'same-access');
+  assert.equal(h.auth.identityRecoveryPending, true);
+  assert.equal(h.awaitingIdentity(), false);
+  assert.equal(h.routes.length, 0);
+  assert.equal(h.toasts.length, 1);
+  assert.doesNotMatch(JSON.stringify(h.toasts), /sensitive-internal-detail/);
+  h.auth.identityRecoveryPending = false; // unexpected throw without TanStack error state
+  h.render();
+  assert.equal(h.ui.pendingAlert, true);
+  assert.equal(h.ui.loginDisabled, true);
+  assert.equal(h.ui.retryDisabled, false);
+});
+
+test('only the latest of interleaved retries may resume verified navigation', async () => {
+  const h = harness();
+  const first = deferred();
+  const second = deferred();
+  h.auth.token = 'same-access';
+  h.auth.identityRecoveryPending = true;
+  let calls = 0;
+  h.auth.retryIdentity = () => ++calls === 1 ? first.promise : second.promise;
+  h.render();
+  h.retry();
+  h.retry();
+  first.resolve();
+  await settleRetry();
+  assert.equal(h.awaitingIdentity(), false, 'obsolete retry cannot start navigation');
+  second.resolve();
+  await settleRetry();
+  assert.equal(h.awaitingIdentity(), true);
+  h.render();
+  assert.equal(h.routes.length, 0, '503 result still cannot navigate');
 });

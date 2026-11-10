@@ -133,6 +133,19 @@ test('pending identity outage still permits explicit server logout of retained s
   assert.equal(h.storage.has('refresh_token'), false);
 });
 
+test('unexpected refetch rejection does not revoke a recoverable session', async () => {
+  const error = failed(503);
+  error.refetch = async () => { throw new Error('transport-internal-detail'); };
+  const h = harness(error);
+  const state = h.render();
+  await assert.rejects(state.retryIdentity(), /transport-internal-detail/);
+  const after = h.render();
+  assert.equal(after.identityRecoveryPending, true);
+  assert.equal(after.isAuthenticated, false);
+  assert.equal(h.storage.get('access_token'), 'signed-access');
+  assert.equal(h.storage.get('refresh_token'), 'signed-refresh');
+});
+
 test('401 /auth/me invalidates credentials and cannot authorize cached profile', () => {
   const h = harness(failed(401));
   let state = h.render();
