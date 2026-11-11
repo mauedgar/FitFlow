@@ -448,6 +448,128 @@ async function qualifySyntheticFailureDiagnostic(browser) {
   }
 }
 
+/** Mount the actual LoginPage and recover using a backend-signed session.
+ * Intercepted errors are SYNTHETIC; the successful retry must reach real FastAPI.
+ */
+async function verifyMountedIdentityRecovery(browser, failure) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const pattern = '**/api/v1/auth/me**';
+  let failedChecks = 0;
+  const injectFailure = async (route) => {
+    failedChecks += 1;
+    if (failure === 'network') {
+      await route.abort('failed');
+    } else {
+      await route.fulfill({
+        status: failure,
+        contentType: 'application/json',
+        body: '{"detail":"synthetic retry qualification outage"}',
+      });
+    }
+  };
+  try {
+    await page.route(pattern, injectFailure);
+    await login(page, email);
+    await page.getByRole('alert').getByText('La identidad no pudo verificarse. El acceso permanece suspendido.').waitFor();
+    assert.equal(new URL(page.url()).pathname, '/login');
+    assert.ok(failedChecks > 0, 'First signed profile validation must encounter the injected outage');
+    const tokens = await page.evaluate(() => ({
+      access: sessionStorage.getItem('access_token'),
+      refresh: sessionStorage.getItem('refresh_token'),
+    }));
+    assert.ok(tokens.access && tokens.refresh,
+      'Recoverable identity failure must preserve both revocable, tab-scoped credentials');
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), true,
+      'Pending identity cannot be overwritten with a second login');
+    assert.equal(await page.getByRole('heading', { name: 'Panel de administración' }).count(), 0,
+      'Failed profile verification must not render privileged UI');
+
+    await page.unroute(pattern, injectFailure);
+    const verifiedResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/v1/auth/me' && response.status() === 200);
+    await page.getByRole('button', { name: 'Reintentar verificación' }).click();
+    await within(verifiedResponse, 'real signed /auth/me retry after simulated ' + failure);
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), tokens.access,
+      'Successful retry must reuse the existing signed session, not silently rotate credentials');
+    console.log('MOUNTED_IDENTITY_RETRY_PASS: synthetic=' + failure + ' real_backend_verified=true');
+  } finally {
+    await context.close();
+  }
+}
+
+/** Actual mounted React lifecycle: reject any late identity retry after
+ * logout or LoginPage unmount. The held request may be aborted by TanStack;
+ * never misreport cancellation as successful HTTP delivery.
+ */
+async function verifyMountedLateRetry(browser, disposition) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const pattern = '**/api/v1/auth/me**';
+  let releaseHeld;
+  const release = new Promise((resolve) => { releaseHeld = resolve; });
+  let retrySeen;
+  const seen = new Promise((resolve) => { retrySeen = resolve; });
+  let retrySettled;
+  const settled = new Promise((resolve) => { retrySettled = resolve; });
+  const firstFailure = (route) => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: '{"detail":"synthetic first identity outage"}',
+  });
+  try {
+    await page.route(pattern, firstFailure);
+    await login(page, email);
+    await page.getByRole('alert').getByText('La identidad no pudo verificarse. El acceso permanece suspendido.').waitFor();
+    const originalToken = await page.evaluate(() => sessionStorage.getItem('access_token'));
+    assert.ok(originalToken, 'Real backend issued a signed access token');
+    await page.unroute(pattern, firstFailure);
+    await page.route(pattern, async (route) => {
+      retrySeen();
+      await release;
+      try {
+        await route.continue();
+      } catch {
+        // The old request can be canceled after logout or unmount.
+      } finally {
+        retrySettled();
+      }
+    });
+    await page.getByRole('button', { name: 'Reintentar verificación' }).click();
+    await within(seen, 'held mounted React identity retry');
+    assert.equal(await page.getByRole('button', { name: 'Reintentar verificación' }).isDisabled(), true,
+      'An in-flight retry must disable repeated activation');
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), true,
+      'In-flight retry must not permit credential replacement');
+
+    if (disposition === 'logout') {
+      const remoteLogout = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === '/api/v1/auth/logout');
+      await page.getByRole('button', { name: 'Cerrar sesión pendiente' }).click();
+      assert.equal((await within(remoteLogout, 'real remote logout while retry is pending')).status(), 204);
+      await page.waitForFunction(() => sessionStorage.getItem('access_token') === null);
+      const revoked = await fetch(API + '/auth/me', {
+        headers: { Authorization: 'Bearer ' + originalToken },
+      });
+      assert.equal(revoked.status, 401, 'Real backend must revoke the signed session on pending logout');
+    } else {
+      assert.equal(disposition, 'unmount');
+      await page.getByRole('link', { name: /regístrate aquí/i }).click();
+      await page.waitForURL('**/register');
+    }
+    releaseHeld();
+    await within(settled, 'old held identity retry after ' + disposition);
+    assert.equal(new URL(page.url()).pathname, disposition === 'logout' ? '/login' : '/register');
+    assert.equal(await page.getByRole('heading', { name: 'Panel de administración' }).count(), 0,
+      'Old retry must not navigate to privileged content after ' + disposition);
+    console.log('MOUNTED_STALE_RETRY_PASS: action=' + disposition + ' old_request_may_abort=true');
+  } finally {
+    releaseHeld();
+    await context.close();
+  }
+}
+
 async function run() {
   if (process.env.GITHUB_ACTIONS !== 'true' || process.env.FITFLOW_E2E_SYNTHETIC_ONLY !== '1' ||
       !email?.endsWith('@example.com') || !clientEmail?.endsWith('@example.com')) {
@@ -596,6 +718,12 @@ async function run() {
     await verifyRapidReLoginAndStale401(browser);
     await verifyDelayedIdentityAcrossSameTokenReLogin(browser);
     await qualifySyntheticFailureDiagnostic(browser);
+    for (const failure of [503, 429, 'network']) {
+      await verifyMountedIdentityRecovery(browser, failure);
+    }
+    for (const disposition of ['logout', 'unmount']) {
+      await verifyMountedLateRetry(browser, disposition);
+    }
     console.log('ADMIN_SIGNED_E2E_PASS: JWT login, backend identity, real data, privacy, 390/1280, role, expired, anonymous, logout, stale session races');
   } finally {
     await browser.close();
