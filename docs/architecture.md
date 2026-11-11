@@ -2,8 +2,8 @@
 document_id: FF-ARCH-001
 status: canonical
 machine_context: true
-version: 5.1
-updated: 2026-08-21
+version: 5.2
+updated: 2026-11-11
 ---
 
 # Arquitectura de FitFlow
@@ -18,7 +18,7 @@ runtime en FitFlow sin ADR y aprobacion del desarrollador.
 
 | Área | Tecnologías vigentes |
 | --- | --- |
-| Backend | Python 3.11+, FastAPI async, SQLAlchemy 2.x Async, Alembic, Pydantic v2, PostgreSQL, JWT, Redis |
+| Backend | Python 3.15.2, FastAPI async, SQLAlchemy 2.x Async, Alembic, Pydantic v2, PostgreSQL, JWT, Redis |
 | Frontend | React, TypeScript, Vite, Chakra UI, TanStack Query, Axios |
 | Entorno | Docker, Docker Compose, PostgreSQL, Adminer; Redis cuando corresponda |
 

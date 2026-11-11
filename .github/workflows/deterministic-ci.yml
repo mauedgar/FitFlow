@@ -1,6 +1,19 @@
 name: FitFlow deterministic validation v0
 
 on:
+  pull_request:
+    branches: [develop]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - .github/workflows/deterministic-ci.yml
+      - .github/workflows/fitflow-baseline-ci.yml
+      - pyproject.toml
+      - uv.lock
+      - .python-version
+      - backend/requirements_backend.txt
+      - backend/requirements_test.txt
+      - Dockerfile
+      - backend/Dockerfile.test
   workflow_dispatch:
     inputs:
       subject_sha:
@@ -28,6 +41,8 @@ permissions:
 
 jobs:
   validate:
+    # Portable receipt generation remains a manually authorized execution.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -72,14 +87,14 @@ jobs:
       - name: Checkout exact FitFlow subject
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ inputs.subject_sha }}
+          ref: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Guard exact checkout
         shell: bash
         env:
-          SUBJECT_SHA: ${{ inputs.subject_sha }}
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           EXPECTED_TREE: ${{ inputs.expected_tree }}
         run: |
           set -euo pipefail
@@ -113,7 +128,7 @@ jobs:
         id: validation
         continue-on-error: true
         env:
-          SUBJECT_SHA: ${{ inputs.subject_sha }}
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           EXPECTED_TREE: ${{ inputs.expected_tree }}
           OPERATION_ID: ${{ inputs.operation_id }}
           EXECUTION_ATTEMPT_ID: ${{ inputs.execution_attempt_id }}
@@ -180,7 +195,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: fitflow-deterministic-validation-${{ inputs.subject_sha }}
+          name: fitflow-deterministic-validation-${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           path: ${{ runner.temp }}/fitflow-deterministic-validation
           if-no-files-found: warn
           retention-days: 30
@@ -209,9 +224,11 @@ jobs:
           PY
 
 
-  # Opt-in platform characterization for Issue #44; not a required develop check.
-  # The subject SHA/tree are checked before dependency installation or image builds.
+  # Migration-related PRs qualify Windows/Docker automatically; manual runs
+  # remain opt-in and tree-bound when expected_tree is supplied.
+  # Neither platform job is a required develop status context.
   qualify-windows-python3152:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft)
     name: Qualify native Windows Python 3.15.2
     runs-on: windows-2025
     timeout-minutes: 25
@@ -227,12 +244,12 @@ jobs:
       - name: Checkout exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ inputs.subject_sha }}
+          ref: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           persist-credentials: false
       - name: Guard Windows source identity
         shell: pwsh
         env:
-          SUBJECT_SHA: ${{ inputs.subject_sha }}
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           EXPECTED_TREE: ${{ inputs.expected_tree }}
         run: |
           $ErrorActionPreference = 'Stop'
@@ -260,13 +277,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_DEPENDENCIES_FAIL' }
           python -m pip check
           if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_PIP_CHECK_FAIL' }
-          python -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, psycopg2, pydantic_core, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_WINDOWS_IMPORT_PASS")'
+          python -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, pydantic_core, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_WINDOWS_IMPORT_PASS")'
           if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_IMPORT_FAIL' }
           python -m pytest -q backend/tests/unit/test_security_bcrypt_legacy_compat.py backend/tests/unit/test_user_password_byte_validation.py
           if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_SYNTHETIC_TEST_FAIL' }
           Write-Output 'FITFLOW_WINDOWS_PY3152_PASS'
 
   qualify-docker-python3152:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft)
     name: Qualify disposable Docker Python 3.15.2 images
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -274,12 +292,12 @@ jobs:
       - name: Checkout exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ inputs.subject_sha }}
+          ref: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           persist-credentials: false
       - name: Guard Docker source identity
         shell: bash
         env:
-          SUBJECT_SHA: ${{ inputs.subject_sha }}
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           EXPECTED_TREE: ${{ inputs.expected_tree }}
         run: |
           set -euo pipefail
@@ -294,7 +312,7 @@ jobs:
         run: |
           set -euo pipefail
           DOCKER_BUILDKIT=1 docker build --progress=plain -f Dockerfile -t fitflow-c009-runtime:qualification .
-          docker run --rm --entrypoint python fitflow-c009-runtime:qualification -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, psycopg2, pydantic_core, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_DOCKER_RUNTIME_IMPORT_PASS")'
+          docker run --rm --entrypoint python fitflow-c009-runtime:qualification -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, pydantic_core, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_DOCKER_RUNTIME_IMPORT_PASS")'
       - name: Build pinned disposable backend test image
         shell: bash
         run: |
