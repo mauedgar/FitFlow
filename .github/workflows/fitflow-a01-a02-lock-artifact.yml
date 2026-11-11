@@ -1,0 +1,137 @@
+name: FitFlow A01 A02 frozen dependency artifact
+
+on:
+  push:
+    branches:
+      - candidate/issue43-44-python3152-auth-20261107-001
+    paths:
+      - .github/workflows/fitflow-a01-a02-lock-artifact.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export-candidate:
+    if: github.event.before == 'c200bf59cbe5183d60690f2e3d4a39081d74aae6'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      ENV: test
+      TESTING: 'true'
+      DATABASE_URL: postgresql+psycopg://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test
+      SECRET_KEY: fitflow-a01-a02-disposable-only
+    services:
+      postgres:
+        image: postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
+        env:
+          POSTGRES_DB: fitflow_test
+          POSTGRES_USER: fitflow_test_user
+          POSTGRES_PASSWORD: fitflow_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd 'pg_isready -U fitflow_test_user -d fitflow_test'
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - name: Checkout frozen source without stored credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Confirm one-shot identity and clean source
+        shell: bash
+        env:
+          EXPECTED_PARENT: c200bf59cbe5183d60690f2e3d4a39081d74aae6
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = 'refs/heads/candidate/issue43-44-python3152-auth-20261107-001'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test -z "$(git status --porcelain --untracked-files=all)"
+          echo "FF_UV_ARTIFACT_SOURCE_SHA=$GITHUB_SHA"
+          echo "FF_UV_ARTIFACT_SOURCE_TREE=$(git rev-parse HEAD^{tree})"
+      - name: Set up Python 3.15.2
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.15.2'
+      - name: Use the existing pinned uv 0.13.6
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: '0.13.6'
+      - name: Apply only approved A01 A02 manifest changes to disposable checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('pyproject.toml')
+          src = path.read_text(encoding='utf-8')
+          old_m = '    "markupsafe==3.0.2",\n'
+          old_p = '    "psycopg2-binary>=2.9.10,<3",\n'
+          assert src.count(old_m) == src.count(old_p) == 1, 'BLOCKED_MANIFEST_PRECONDITION'
+          out = src.replace(old_m, '    "markupsafe==3.0.4",\n').replace(old_p, '')
+          path.write_text(out, encoding='utf-8', newline='\n')
+          PY
+          uv lock --upgrade-package markupsafe --no-progress
+          uv lock --check --no-progress
+          uv export --locked --no-dev --format requirements.txt --output-file backend/requirements_backend.txt
+          uv export --locked --group dev --format requirements.txt --output-file backend/requirements_test.txt
+      - name: Verify resolved dependency closure and distribution targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import tomllib
+          lock = tomllib.loads(Path('uv.lock').read_text(encoding='utf-8'))
+          names = {p['name'] for p in lock['package']}
+          package = next(p for p in lock['package'] if p['name'] == 'markupsafe')
+          assert package['version'] == '3.0.4', 'BLOCKED_MARKUPSAFE_VERSION'
+          assert any('cp315' in w['url'] for w in package.get('wheels', [])), 'BLOCKED_CP315_WHEEL_MISSING'
+          assert 'psycopg2-binary' not in names, 'BLOCKED_OLD_DRIVER_REMAINED'
+          assert 'psycopg-binary' in names and 'asyncpg' in names, 'BLOCKED_REQUIRED_DRIVER_MISSING'
+          expected = {'pyproject.toml', 'uv.lock', 'backend/requirements_backend.txt', 'backend/requirements_test.txt'}
+          changed = set(subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines())
+          assert changed == expected, f'BLOCKED_WRITESET: {changed!r}'
+          print('FF_UV_A01_A02_LOCK_STRUCTURE_PASS')
+          PY
+          uv pip install --system --no-cache-dir -r backend/requirements_test.txt
+          python -m pip check
+          (cd backend && alembic upgrade head)
+          python - <<'PY'
+          import psycopg
+          import asyncpg
+          from importlib.util import find_spec
+          assert find_spec('psycopg2') is None, 'BLOCKED_OLD_DRIVER_INSTALLED'
+          print('FF_UV_A01_A02_PY3152_PG15_MIGRATION_PASS')
+          PY
+      - name: Freeze exact generated bytes with checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fitflow-a01-a02-lock"
+          printf 'source_sha=%s\nsource_tree=%s\nsource_parent=%s\n' \
+            "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})" "$(git rev-parse HEAD^)" \
+            > "$RUNNER_TEMP/fitflow-a01-a02-lock/subject.txt"
+          sha256sum pyproject.toml uv.lock backend/requirements_backend.txt backend/requirements_test.txt \
+            > "$RUNNER_TEMP/fitflow-a01-a02-lock/files.sha256"
+          cat "$RUNNER_TEMP/fitflow-a01-a02-lock/subject.txt"
+          cat "$RUNNER_TEMP/fitflow-a01-a02-lock/files.sha256"
+      - name: Publish read-only generated dependency artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: fitflow-a01-a02-lock-${{ github.run_id }}
+          path: |
+            pyproject.toml
+            uv.lock
+            backend/requirements_backend.txt
+            backend/requirements_test.txt
+            ${{ runner.temp }}/fitflow-a01-a02-lock/subject.txt
+            ${{ runner.temp }}/fitflow-a01-a02-lock/files.sha256
+          retention-days: 14
+          if-no-files-found: error
