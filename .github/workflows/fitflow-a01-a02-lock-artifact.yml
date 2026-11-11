@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   export-candidate:
-    if: github.event.before == 'c200bf59cbe5183d60690f2e3d4a39081d74aae6'
+    if: github.event.before == '4e59d9a3c079013650442faf6b74904b63c5c3e0'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -31,7 +31,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd 'pg_isready -U fitflow_test_user -d fitflow_test'
+          --health-cmd "pg_isready -U fitflow_test_user -d fitflow_test"
           --health-interval 2s
           --health-timeout 5s
           --health-retries 15
@@ -45,7 +45,7 @@ jobs:
       - name: Confirm one-shot identity and clean source
         shell: bash
         env:
-          EXPECTED_PARENT: c200bf59cbe5183d60690f2e3d4a39081d74aae6
+          EXPECTED_PARENT: 4e59d9a3c079013650442faf6b74904b63c5c3e0
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = 'refs/heads/candidate/issue43-44-python3152-auth-20261107-001'
