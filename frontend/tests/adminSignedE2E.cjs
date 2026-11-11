@@ -44,14 +44,15 @@ async function runtimeSessionState(page) {
   });
 }
 
-async function loginUsingSignedToken(page, token) {
+async function loginUsingSignedToken(page, token, refreshToken) {
+  assert.ok(refreshToken, 'Same-token relogin must use the original registered signed refresh credential');
   // Replays the same *real backend-signed* token to exercise identical-token
   // re-login. Other API requests continue against the real disposable backend.
   const routePattern = '**/api/v1/auth/token';
   await page.route(routePattern, (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify({ access_token: token, token_type: 'bearer', refresh_token: 'synthetic-e2e-only' }),
+    body: JSON.stringify({ access_token: token, token_type: 'bearer', refresh_token: refreshToken }),
   }));
   try {
     await page.getByLabel('Email').fill(email);
@@ -290,6 +291,8 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
     await within(firstProfileSeen, 'first pending TanStack /auth/me request');
     const firstSignedToken = await page.evaluate(() => sessionStorage.getItem('access_token'));
     assert.ok(firstSignedToken, 'Signed JWT must exist during the first pending identity check');
+    const firstSignedRefresh = await page.evaluate(() => sessionStorage.getItem('refresh_token'));
+    assert.ok(firstSignedRefresh, 'Original signed refresh credential must be available for same-token relogin');
 
     // Hold an additional *noncancellable* Axios /auth/me request from the OLD
     // session to verify a real 401 is consumed by its original interceptor.
@@ -309,7 +312,16 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
       dispatchEvent(new PopStateEvent('popstate'));
     });
     await page.getByRole('heading', { name: 'Iniciar Sesión' }).waitFor();
-    await loginUsingSignedToken(page, firstSignedToken);
+    await loginUsingSignedToken(page, firstSignedToken, firstSignedRefresh);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('refresh_token')), firstSignedRefresh,
+      'Identical-token relogin must retain the real registered refresh credential');
+    const liveRefresh = await fetch(API + '/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: firstSignedRefresh }),
+    });
+    assert.equal(liveRefresh.status, 200,
+      'Same-token browser fixture must use a refresh credential registered in the real backend');
     const newState = await runtimeSessionState(page);
     assert.ok(newState.generation >= 2, 'New same-token login must advance auth generation');
     assert.equal(newState.activeInterceptors, 1, 'Only current identity guard interceptor survives');
@@ -558,8 +570,18 @@ async function verifyMountedLateRetry(browser, disposition) {
       await page.getByRole('link', { name: /regístrate aquí/i }).click();
       await page.waitForURL('**/register');
     }
+    const generationAfterDisposition = (await runtimeSessionState(page)).generation;
     releaseHeld();
     await within(settled, 'old held identity retry after ' + disposition);
+    // Give the mounted React consumer two real rendering frames to process any
+    // late continuation. This is bounded, event-driven, not a sleep-only oracle.
+    await page.evaluate(() => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }));
+    assert.equal((await runtimeSessionState(page)).generation, generationAfterDisposition,
+      'Late retry must not resurrect or advance auth generation after ' + disposition);
+    assert.equal(await page.getByText('Inicio de sesión exitoso', { exact: true }).count(), 0,
+      'Late retry must not show login success after ' + disposition);
     assert.equal(new URL(page.url()).pathname, disposition === 'logout' ? '/login' : '/register');
     assert.equal(await page.getByRole('heading', { name: 'Panel de administración' }).count(), 0,
       'Old retry must not navigate to privileged content after ' + disposition);
