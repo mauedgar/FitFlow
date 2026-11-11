@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 20
     env:
       # Synthetic CI-only values, never from real/staging accounts.
+      # Migration checks use psycopg3 synchronously; application DB access remains asyncpg.
       DATABASE_URL: postgresql+psycopg://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_db
       SECRET_KEY: fitflow-ci-only-signing-key
       ENV: test
