@@ -569,7 +569,17 @@ async function verifyMountedLateRetry(browser, disposition) {
       assert.equal(disposition, 'unmount');
       await page.getByRole('link', { name: /regístrate aquí/i }).click();
       await page.waitForURL('**/register');
+      // A router URL change is not proof that LoginPage's effect cleanup ran.
+      // Require the replacement React page to mount before releasing its held query.
+      await page.getByRole('heading', { name: 'Crear Cuenta', exact: true }).waitFor();
+      await page.getByRole('heading', { name: 'Iniciar Sesión', exact: true })
+        .waitFor({ state: 'detached' });
+      await page.evaluate(() => new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      }));
     }
+    assert.equal(await page.getByText('Inicio de sesión exitoso', { exact: true }).count(), 0,
+      'Success toast must be absent before releasing the old retry');
     const generationAfterDisposition = (await runtimeSessionState(page)).generation;
     releaseHeld();
     await within(settled, 'old held identity retry after ' + disposition);
