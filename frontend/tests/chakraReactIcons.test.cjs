@@ -4,32 +4,50 @@ const path = require('node:path');
 const test = require('node:test');
 const ts = require('typescript');
 
-for (const [component, expectedIcons] of [
-  ['components/classes/ClassCard.tsx', ['FaClock', 'FaCalendarAlt']],
-  ['components/classes/ClassDetailView.tsx', ['FaTachometerAlt', 'FaClock']],
-  ['pages/HomePage.tsx', ['FiCalendar']],
-]) {
-  test(`${component} composes react-icons without asChild refs`, () => {
+// Regression contract: Chakra Icon must receive React icons through "as".
+// The particular icon glyph is presentation, not a Product invariant.
+const componentPaths = [
+  'components/dashboard/BookingCard.tsx',
+  'components/admin/layout/AdminSidebar.tsx',
+  'components/admin/layout/AdminNavBar.tsx',
+  'components/classes/ClassCard.tsx',
+  'components/classes/ClassDetailView.tsx',
+  'pages/HomePage.tsx',
+];
+
+for (const component of componentPaths) {
+  test(`${component} composes Chakra v3 Icon without incompatible asChild refs`, () => {
     const filename = path.join(__dirname, '..', 'src', component);
-    const source = ts.createSourceFile(filename, fs.readFileSync(filename, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    const icons = [];
+    const source = ts.createSourceFile(
+      filename, fs.readFileSync(filename, 'utf8'),
+      ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX,
+    );
+    let iconCount = 0;
 
     function visit(node) {
-      if ((ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node))) {
+      if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
         const opening = ts.isJsxElement(node) ? node.openingElement : node;
         if (opening.tagName.getText(source) === 'Icon') {
-          assert.ok(!opening.attributes.properties.some(prop => ts.isJsxAttribute(prop) && prop.name.text === 'asChild'),
-            'react-icons must not receive refs from Chakra asChild');
-          const as = opening.attributes.properties.find(prop => ts.isJsxAttribute(prop) && prop.name.text === 'as');
-          assert.ok(as && ts.isJsxExpression(as.initializer) && as.initializer.expression,
-            'Icon must use the Chakra v3 as={ReactIcon} form');
-          icons.push(as.initializer.expression.getText(source));
+          iconCount += 1;
+          const props = opening.attributes.properties;
+          assert.ok(!props.some(prop =>
+            ts.isJsxAttribute(prop) && prop.name.text === 'asChild'),
+          'Chakra Icon asChild must not inject refs into react-icons');
+          const asProp = props.find(prop =>
+            ts.isJsxAttribute(prop) && prop.name.text === 'as');
+          assert.ok(
+            asProp && ts.isJsxExpression(asProp.initializer)
+              && asProp.initializer.expression
+              && (ts.isIdentifier(asProp.initializer.expression)
+                || ts.isPropertyAccessExpression(asProp.initializer.expression)),
+            'Chakra v3 Icon must receive an icon expression through as={ReactIcon}',
+          );
         }
       }
       ts.forEachChild(node, visit);
     }
 
     visit(source);
-    assert.deepEqual(icons, expectedIcons);
+    assert.ok(iconCount > 0, `No Icon components found in ${component}`);
   });
 }
