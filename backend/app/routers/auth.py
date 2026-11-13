@@ -19,12 +19,11 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import security
-from app.core.blacklist import blacklist_token, is_token_blacklisted
+from app.core.blacklist import is_token_blacklisted
 from app.core.deps import get_current_user
-from app.core.session_revocation import is_session_revoked, revoke_session, session_ids_match
+from app.core.session_revocation import commit_logout, is_session_revoked, session_ids_match
 from app.services.auth_service import get_active_user_for_refresh
 from app.core.token_store import (
-    delete_refresh_token,
     is_refresh_token_valid,
     store_refresh_token,
 )
@@ -154,17 +153,6 @@ async def logout(
         logger.warning("Logout attempted with invalid refresh token")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Refresh token inválido.")
 
-    # A signed refresh credential is the authority to REVOKE that credential;
-    # presence and active registration in Redis are mandatory before any write.
-    try:
-        if is_token_blacklisted(refresh_token) or not is_refresh_token_valid(refresh_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Refresh token no registrado o revocado.",
-            )
-    except ExternalServiceError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-
     bearer = request.headers.get("authorization", "")
     access_token = bearer[7:] if bearer.lower().startswith("bearer ") else None
     access_payload = security.decode_token(access_token) if access_token else None
@@ -183,21 +171,22 @@ async def logout(
         )
 
     try:
-        if payload.get("sid") is not None:
-            # Always revoke the signed family before invalidating refresh;
-            # missing/expired access must not leave already minted JWTs valid.
-            revoke_session(payload["sid"], refresh_token)
-        delete_refresh_token(refresh_token)
-        blacklist_token(refresh_token)
-        if payload.get("sid") is None and access_token and access_payload is not None:
-            # Legacy token families have no shared sid; invalidate the
-            # individual, verified bearer if presented, without bulk changes.
-            blacklist_token(access_token)
+        confirmed = commit_logout(
+            refresh_token,
+            sid=payload.get("sid"),
+            access_token=access_token if access_payload is not None else None,
+            subject=payload["sub"],
+        )
     except ExternalServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Error invalidating refresh token for subject=%s", payload["sub"])
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
+    if not confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token no registrado o revocado.",
+        )
 
     # 204 No Content implícito
 

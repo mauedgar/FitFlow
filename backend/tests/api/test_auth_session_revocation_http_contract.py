@@ -67,6 +67,7 @@ def clean_session(sid: str, refresh: str) -> None:
     delete_refresh_token(refresh)
     client.delete(session_revocation._revocation_key(uuid.UUID(sid).hex))
     client.delete(opaque_jwt_key("blacklist_token:", refresh))
+    client.delete(opaque_jwt_key("logout_confirmed:", refresh))
 
 
 async def test_login_refresh_and_logout_revoke_entire_signed_session(
@@ -193,6 +194,7 @@ async def test_legacy_logout_blacklists_presented_access_credential(
     finally:
         delete_refresh_token(legacy_refresh)
         get_redis_client().delete(opaque_jwt_key("blacklist_token:", legacy_refresh))
+        get_redis_client().delete(opaque_jwt_key("logout_confirmed:", legacy_refresh))
         get_redis_client().delete(opaque_jwt_key("blacklist_token:", legacy_access))
 
 
@@ -276,11 +278,11 @@ async def test_refresh_only_logout_redis_outage_returns_503_without_false_succes
 ) -> None:
     _, refresh = pair(admin_user[0], str(uuid.uuid4()))
 
-    def unavailable(_token: str) -> bool:
+    def unavailable(*_args: object, **_kwargs: object) -> bool:
         raise ExternalServiceError("Redis no está disponible.")
 
     from app.routers import auth as auth_router
-    monkeypatch.setattr(auth_router, "is_refresh_token_valid", unavailable)
+    monkeypatch.setattr(auth_router, "commit_logout", unavailable)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/logout",
         json={"refresh_token": refresh},
@@ -309,6 +311,13 @@ async def test_logout_marker_outlives_refresh_expiry_on_both_bearer_pipelines(
 
         def exists(self, key: str) -> int:
             return int(self.now < self.deadlines.get(key, 0))
+
+        def eval(self, _script: str, numkeys: int, *args: object) -> int:
+            assert numkeys == 7
+            keys = args[:numkeys]
+            arguments = args[numkeys:]
+            self.set(str(keys[4]), "1", ex=int(arguments[2]))
+            return 1
 
     fake = ExpiringSidRedis()
     monkeypatch.setattr(session_revocation, "get_redis_client", lambda: fake)
@@ -347,3 +356,94 @@ async def test_logout_marker_outlives_refresh_expiry_on_both_bearer_pipelines(
             assert denied.status_code == status.HTTP_401_UNAUTHORIZED, denied.text
     finally:
         clean_session(sid, refresh)
+
+
+async def test_repeated_sid_logout_ack_is_idempotent_and_access_remains_revoked(
+    api_client: httpx.AsyncClient, admin_user: tuple[uuid.UUID, str, str],
+) -> None:
+    subject = admin_user[0]
+    sid = str(uuid.uuid4())
+    access, refresh = pair(subject, sid)
+    store_refresh_token(str(subject), refresh)
+    try:
+        headers = {"Authorization": f"Bearer {access}"}
+        first = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout",
+            json={"refresh_token": refresh}, headers=headers,
+        )
+        second = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout",
+            json={"refresh_token": refresh}, headers=headers,
+        )
+        assert first.status_code == second.status_code == 204
+        assert get_redis_client().exists(opaque_jwt_key("logout_confirmed:", refresh)) == 1
+        denied = await api_client.get(f"{settings.API_V1_STR}/auth/me", headers=headers)
+        assert denied.status_code == 401
+        rejected_refresh = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
+        )
+        assert rejected_refresh.status_code == 401
+    finally:
+        clean_session(sid, refresh)
+
+
+async def test_legacy_logout_ack_is_idempotent_and_blacklists_presented_access(
+    api_client: httpx.AsyncClient, admin_user: tuple[uuid.UUID, str, str],
+) -> None:
+    subject = admin_user[0]
+    access = security.create_access_token({"sub": str(subject), "role": "admin"})
+    refresh = security.create_refresh_token({"sub": str(subject)})
+    store_refresh_token(str(subject), refresh)
+    headers = {"Authorization": f"Bearer {access}"}
+    try:
+        first = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh}, headers=headers,
+        )
+        second = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh}, headers=headers,
+        )
+        assert first.status_code == second.status_code == 204
+        assert get_redis_client().exists(opaque_jwt_key("logout_confirmed:", refresh)) == 1
+        assert get_redis_client().exists(opaque_jwt_key("blacklist_token:", access)) == 1
+        denied = await api_client.get(f"{settings.API_V1_STR}/auth/me", headers=headers)
+        assert denied.status_code == 401
+    finally:
+        delete_refresh_token(refresh)
+        client = get_redis_client()
+        client.delete(opaque_jwt_key("logout_confirmed:", refresh))
+        client.delete(opaque_jwt_key("blacklist_token:", refresh))
+        client.delete(opaque_jwt_key("blacklist_token:", access))
+
+
+async def test_redis_unavailable_before_atomic_commit_does_not_revoke_or_ack(
+    api_client: httpx.AsyncClient,
+    admin_user: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    subject = admin_user[0]
+    sid = str(uuid.uuid4())
+    access, refresh = pair(subject, sid)
+    store_refresh_token(str(subject), refresh)
+    try:
+        def unavailable() -> None:
+            raise ExternalServiceError("Redis no está disponible.")
+
+        with monkeypatch.context() as temporary:
+            temporary.setattr(session_revocation, "get_redis_client", unavailable)
+            failed = await api_client.post(
+                f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh},
+            )
+        assert failed.status_code == 503
+        assert get_redis_client().exists(opaque_jwt_key("logout_confirmed:", refresh)) == 0
+        still_active = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {access}"},
+        )
+        assert still_active.status_code == 200
+        restored = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh},
+        )
+        assert restored.status_code == 204
+    finally:
+        clean_session(sid, refresh)
+

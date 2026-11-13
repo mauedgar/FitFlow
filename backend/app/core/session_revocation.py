@@ -85,3 +85,80 @@ def session_ids_match(access_payload: dict, refresh_payload: dict) -> bool:
     if _valid_sid(access_sid) is None or _valid_sid(refresh_sid) is None:
         return False
     return _valid_sid(access_sid) == _valid_sid(refresh_sid)
+
+# One server-side Redis operation prevents a concurrent refresh/logout from
+# observing intermediate writes. Script success is the only 204 acknowledgement.
+# Redis scripting is isolated, but a Redis runtime error after a write is not
+# automatically rolled back; such failures stay UNCONFIRMED to the caller.
+_LOGOUT_SCRIPT = """
+if redis.call('EXISTS', KEYS[7]) == 1 then
+  return 2
+end
+if redis.call('EXISTS', KEYS[3]) == 1 or redis.call('EXISTS', KEYS[4]) == 1 then
+  return 0
+end
+local subject = redis.call('GET', KEYS[1])
+if subject ~= ARGV[5] then
+  subject = redis.call('GET', KEYS[2])
+end
+if subject ~= ARGV[5] then
+  return 0
+end
+if ARGV[2] == 'sid' then
+  redis.call('SET', KEYS[5], '1', 'EX', ARGV[3])
+elseif ARGV[4] == '1' then
+  redis.call('SET', KEYS[6], '1', 'EX', ARGV[6])
+end
+redis.call('SET', KEYS[3], '1', 'EX', ARGV[1])
+redis.call('DEL', KEYS[1], KEYS[2])
+redis.call('SET', KEYS[7], '1', 'EX', ARGV[1])
+return 1
+"""
+
+
+def commit_logout(
+    refresh_token: str, *, sid: str | None, access_token: str | None, subject: str,
+) -> bool:
+    """Atomically invalidate a registered signed refresh and its session.
+
+    Returns False for a never-registered/invalid refresh; an exact previous
+    acknowledgement is safe to repeat. No raw JWT is stored in new Redis keys.
+    """
+    from redis.exceptions import RedisError
+
+    from app.core.token_keys import legacy_jwt_key, opaque_jwt_key
+
+    if sid is not None:
+        canonical_sid = _valid_sid(sid)
+        if canonical_sid is None:
+            return False
+    else:
+        canonical_sid = None
+    refresh_ttl = token_seconds_until_expiry(refresh_token)
+    # A renewed access can live beyond its parent refresh's final second.
+    sid_ttl = (
+        refresh_ttl + settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        + _REVOCATION_CLOCK_SKEW_SECONDS
+    )
+    access_ttl = token_seconds_until_expiry(access_token) if access_token else 1
+    keys = [
+        opaque_jwt_key("refresh_token:", refresh_token),
+        legacy_jwt_key("refresh_token:", refresh_token),
+        opaque_jwt_key("blacklist_token:", refresh_token),
+        legacy_jwt_key("blacklist_token:", refresh_token),
+        _revocation_key(canonical_sid) if canonical_sid else opaque_jwt_key("unused_sid:", refresh_token),
+        opaque_jwt_key("blacklist_token:", access_token) if access_token else opaque_jwt_key("unused_access:", refresh_token),
+        opaque_jwt_key("logout_confirmed:", refresh_token),
+    ]
+    try:
+        result = get_redis_client().eval(
+            _LOGOUT_SCRIPT, len(keys), *keys, refresh_ttl,
+            "sid" if canonical_sid else "legacy", sid_ttl,
+            "1" if canonical_sid is None and access_token else "0",
+            subject, access_ttl,
+        )
+    except RedisError as exc:
+        raise ExternalServiceError("Redis no está disponible.") from exc
+    if result not in (0, 1, 2):
+        raise ExternalServiceError("Resultado de revocación Redis no confirmado.")
+    return result in (1, 2)
