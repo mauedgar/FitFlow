@@ -20,11 +20,18 @@ export async function revokeServerSession(
   if (!accessToken || !refreshToken) {
     throw new Error("Remote logout unavailable for an incomplete/legacy session");
   }
-  const request = () => apiClient.post(
-    "/auth/logout",
-    { refresh_token: refreshToken },
-    { headers: { Authorization: "Bearer " + accessToken } },
-  );
+  const request = async (): Promise<void> => {
+    const response = await apiClient.post(
+      "/auth/logout",
+      { refresh_token: refreshToken },
+      { headers: { Authorization: "Bearer " + accessToken } },
+    );
+    // Axios resolves any HTTP 2xx. Revocation is confirmed ONLY by 204.
+    // A 200/202 is not a remote logout receipt and must fail closed.
+    if (response.status !== 204) {
+      throw new Error("Remote logout UNCONFIRMED: expected HTTP 204");
+    }
+  };
   try {
     await request();
   } catch (error) {

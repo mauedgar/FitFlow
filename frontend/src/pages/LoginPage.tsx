@@ -128,6 +128,9 @@ const LoginPage = () => {
       attemptId: ++latestLoginAttempt.current,
       generation: getAuthSessionGeneration(),
     });
+    // The mutation owns its submitted payload; stop retaining the plaintext
+    // password in a mounted React input while the request is pending.
+    setPassword('');
   };
 
   const handleRetryIdentity = () => {
@@ -168,6 +171,7 @@ const LoginPage = () => {
   const handleClosePendingSession = () => {
     latestIdentityRetry.current += 1;
     setRetrySession(null);
+    setPassword('');
     void logout().catch(() => toaster.create({
       title: "Sesión local cerrada",
       description: "No se pudo confirmar su revocación remota.",

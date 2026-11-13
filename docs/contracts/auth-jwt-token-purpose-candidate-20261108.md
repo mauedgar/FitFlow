@@ -116,3 +116,27 @@ si la solicitud nunca llega al backend, una credencial remota puede sobrevivir
 hasta su expiración firmada. El estado continúa UNCONFIRMED; aceptar esa
 limitación Product requiere una decisión específica del Developer.
 
+## Control 012 — confirmación HTTP estricta y avisos de solicitudes concurrentes
+
+El cliente requiere explícitamente HTTP **204** para considerar confirmado
+un logout remoto. Aunque Axios resuelva otras respuestas 2xx (200/202),
+esas respuestas NO constituyen ACK de revocación y se informa UNCONFIRMED.
+
+Cuando comienzan varios logouts, la pestaña mantiene una lista de identificadores
+**no secretos** de cada solicitud pendiente en sessionStorage, además del aviso
+global no secreto. Un ACK 204 elimina únicamente el identificador de la
+solicitud a la que corresponde. Un ACK tardío de la sesión A no puede
+borrar la incertidumbre de la sesión B, ni una sesión nueva confirmada
+borrar la incertidumbre histórica previa. Los identificadores no contienen
+JWT, hash de JWT, email, rol ni datos de usuario y no otorgan autoridad.
+
+La acción de ocultar la advertencia solo afecta el estado de presentación
+durante esa renderización; NO elimina el registro local de intentos
+pendientes ni los convierte en confirmados. Tras recargar reaparece
+cualquier advertencia todavía pendiente. El formulario de login elimina
+su contraseña del estado React inmediatamente después de emitir la
+mutación, sin persistirla en almacenamiento.
+
+Estas medidas hacen auditable la incertidumbre local, pero no pueden
+revocar una sesión remota si ninguna petición alcanza el servidor.
+

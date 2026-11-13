@@ -132,6 +132,44 @@ async function run() {
     await page.unroute('**/api/v1/auth/logout');
     console.log('CLIENT_LOGOUT_UNCONFIRMED_RELOAD_WARNING_PASS');
 
+    // Independent browser context avoids inheriting the previous unconfirmed
+    // warning. An HTTP 202 must NEVER be mistaken for logout's required 204.
+    const unexpectedContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const unexpected = await unexpectedContext.newPage();
+      await unexpected.goto(WEB + '/login');
+      await unexpected.getByLabel('Email', { exact: true }).fill(email);
+      await unexpected.getByLabel('Contraseña', { exact: true }).fill(password);
+      await unexpected.getByRole('button', { name: 'Ingresar' }).click();
+      await unexpected.waitForURL('**/home', { timeout: 20000 });
+      let unexpectedAckAttempts = 0;
+      await unexpected.route('**/api/v1/auth/logout', route => {
+        unexpectedAckAttempts += 1;
+        return route.fulfill({
+          status: 202,
+          contentType: 'application/json',
+          body: JSON.stringify({ detail: 'SYNTHETIC_NOT_YET_REVOKED' }),
+        });
+      });
+      const unexpectedAck = unexpected.waitForResponse(response =>
+        response.url() === API + '/auth/logout' && response.status() === 202,
+      );
+      await unexpected.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+      await unexpectedAck;
+      await unexpected.waitForURL('**/login', { timeout: 10000 });
+      await unexpected.getByText(unconfirmedText, { exact: false }).waitFor();
+      assert.equal(unexpectedAckAttempts, 1, 'HTTP 202 must not be retried or accepted as an ACK');
+      assert.equal(
+        await unexpected.evaluate(() => sessionStorage.getItem('fitflow_logout_remote_unconfirmed')),
+        '1', 'Non-204 response cannot erase remote uncertainty'
+      );
+      assert.equal(await unexpected.evaluate(() => sessionStorage.getItem('access_token')), null);
+      assert.equal(await unexpected.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+      console.log('CLIENT_LOGOUT_NON204_REJECTED_PASS');
+    } finally {
+      await unexpectedContext.close();
+    }
+
     const duplicate = await context.newPage();
     await fillRegistration(duplicate, firstName, lastName, email);
     const duplicateRequest = registrationResponse(duplicate);

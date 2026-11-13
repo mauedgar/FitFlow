@@ -15,10 +15,11 @@ const code = ts.transpileModule(fs.readFileSync(source, "utf8"), {
 }).outputText;
 const calls = [];
 let failures = [];
+let statuses = [];
 const api = { post: async (...args) => {
   calls.push(args);
   if (failures.length) throw failures.shift();
-  return { status: 204 };
+  return { status: statuses.length ? statuses.shift() : 204 };
 } };
 const mod = { exports: {} };
 vm.runInNewContext(code, {
@@ -103,5 +104,27 @@ test("mobile drawer invokes logout without delayed callback after close", () => 
   const nav = fs.readFileSync(path.resolve(__dirname, "../src/components/layout/Navbar.tsx"), "utf8");
   assert.doesNotMatch(nav, /setTimeout\s*\(\s*logoutUser/);
   assert.match(nav, /onClose\(\);\s*\/\/ Primero cierra la UI\s*logoutUser\(\)/);
+});
+
+test("HTTP 200 and 202 are NOT remote revocation ACKs, and never retry", async () => {
+  for (const status of [200, 202]) {
+    failures = [];
+    statuses = [status];
+    const n = calls.length;
+    await assert.rejects(
+      revokeServerSession("synthetic-access", "synthetic-refresh"),
+      /UNCONFIRMED: expected HTTP 204/,
+    );
+    assert.equal(calls.length, n + 1);
+  }
+  statuses = [];
+});
+
+test("only exact 204 resolves remote logout", async () => {
+  failures = [];
+  statuses = [204];
+  const n = calls.length;
+  await revokeServerSession("synthetic-access", "synthetic-refresh");
+  assert.equal(calls.length, n + 1);
 });
 

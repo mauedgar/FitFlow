@@ -73,6 +73,7 @@ function harness(initialIdentity, options = {}) {
       if (name === '../utils/revokeServerSession') return {
         revokeServerSession: async (...args) => {
           revoked.push(args);
+          if (options.revocation) return options.revocation(...args);
           if (options.revocationError) throw options.revocationError;
         },
       };
@@ -196,19 +197,31 @@ test('unconfirmed remote logout leaves a non-secret warning across reload', asyn
   const warning = reload.render();
   assert.equal(warning.remoteLogoutUnconfirmed, true);
   warning.dismissRemoteLogoutWarning();
-  assert.equal(reload.storage.has('fitflow_logout_remote_unconfirmed'), false);
+  assert.equal(reload.storage.get('fitflow_logout_remote_unconfirmed'), '1',
+    'Dismissing visible warning cannot erase durable remote uncertainty');
   assert.equal(reload.render().remoteLogoutUnconfirmed, false);
 });
 
-test('confirmed remote revocation clears warning and all prior JWTs', async () => {
-  const h = harness(verified, { pendingRemoteLogout: true });
+test('confirmed 204 on a single new attempt clears its warning and JWTs', async () => {
+  const h = harness(verified);
   const before = h.render();
-  assert.equal(before.remoteLogoutUnconfirmed, true);
   await before.logout();
   assert.equal(h.storage.has('access_token'), false);
   assert.equal(h.storage.has('refresh_token'), false);
   assert.equal(h.storage.has('fitflow_logout_remote_unconfirmed'), false);
+  assert.equal(h.storage.has('fitflow_logout_pending_attempts'), false);
   assert.equal(h.render().remoteLogoutUnconfirmed, false);
+});
+
+test('older unconfirmed session survives a later confirmed logout', async () => {
+  const h = harness(verified, { pendingRemoteLogout: true });
+  const before = h.render();
+  assert.equal(before.remoteLogoutUnconfirmed, true);
+  await before.logout();
+  assert.equal(h.storage.get('fitflow_logout_remote_unconfirmed'), '1');
+  const pending = JSON.parse(h.storage.get('fitflow_logout_pending_attempts'));
+  assert.deepEqual(Array.from(pending), ['legacy-unconfirmed']);
+  assert.equal(h.render().remoteLogoutUnconfirmed, true);
 });
 
 test('login page shows durable unconfirmed warning without false remote ACK', () => {
@@ -216,5 +229,49 @@ test('login page shows durable unconfirmed warning without false remote ACK', ()
   assert.match(login, /remoteLogoutUnconfirmed &&/);
   assert.match(login, /no se confirmó su revocación en el servidor/);
   assert.match(login, /Ocultar aviso \(no revoca la sesión\)/);
+});
+
+test('stale confirmed logout A cannot clear concurrently failed logout B', async () => {
+  const pending = [];
+  const h = harness(verified, {
+    revocation: (..._args) => new Promise((resolve, reject) => pending.push({ resolve, reject })),
+  });
+  const a = h.render().logout();
+  h.render().login('signed-access-b', 'signed-refresh-b');
+  const b = h.render().logout();
+  assert.equal(pending.length, 2);
+  assert.equal(JSON.parse(h.storage.get('fitflow_logout_pending_attempts')).length, 2);
+  pending[0].resolve();
+  await a;
+  assert.equal(h.storage.get('fitflow_logout_remote_unconfirmed'), '1');
+  assert.equal(JSON.parse(h.storage.get('fitflow_logout_pending_attempts')).length, 1);
+  pending[1].reject(new Error('synthetic remote failure B'));
+  await assert.rejects(b, /synthetic remote failure B/);
+  assert.equal(h.storage.get('fitflow_logout_remote_unconfirmed'), '1');
+  assert.equal(h.render().remoteLogoutUnconfirmed, true);
+});
+
+test('two concurrent confirmed 204 results clear warning only after both ACKs', async () => {
+  const pending = [];
+  const h = harness(verified, {
+    revocation: () => new Promise((resolve, reject) => pending.push({ resolve, reject })),
+  });
+  const a = h.render().logout();
+  h.render().login('signed-access-b', 'signed-refresh-b');
+  const b = h.render().logout();
+  assert.equal(pending.length, 2);
+  pending[1].resolve();
+  await b;
+  assert.equal(h.storage.get('fitflow_logout_remote_unconfirmed'), '1');
+  pending[0].resolve();
+  await a;
+  assert.equal(h.storage.has('fitflow_logout_remote_unconfirmed'), false);
+  assert.equal(h.storage.has('fitflow_logout_pending_attempts'), false);
+});
+
+test('submitting login discards password from React state after mutation dispatch', () => {
+  const login = fs.readFileSync(path.resolve(__dirname, '../src/pages/LoginPage.tsx'), 'utf8');
+  assert.match(login, /loginMutation\.mutate\(\{/);
+  assert.match(login, /setPassword\(''\);/);
 });
 

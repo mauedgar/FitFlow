@@ -14,6 +14,29 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Non-secret attempt identifiers preserve which remote logouts remain unknown.
+// Never write JWTs, refresh hashes, email or user IDs to this ledger.
+const PENDING_LOGOUTS_KEY = "fitflow_logout_pending_attempts";
+const REMOTE_UNCONFIRMED_KEY = "fitflow_logout_remote_unconfirmed";
+
+function pendingLogoutAttempts(): string[] {
+  const raw = sessionStorage.getItem(PENDING_LOGOUTS_KEY);
+  if (raw !== null) {
+    try {
+      const ids: unknown = JSON.parse(raw);
+      if (Array.isArray(ids) && ids.length > 0 &&
+          ids.every((value: unknown) => typeof value === "string")) {
+        return ids as string[];
+      }
+    } catch {
+      // Corrupted non-secret metadata cannot prove a remote ACK.
+    }
+    return ["unrecognized-pending"];
+  }
+  return sessionStorage.getItem(REMOTE_UNCONFIRMED_KEY) === "1"
+    ? ["legacy-unconfirmed"] : [];
+}
+
 /** Frontend identity is projected from the verified /auth/me response, not
  * from untrusted local JWT claims. FastAPI owns signature and authorization. */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
@@ -32,7 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentClient] = useState<Client | null>(null);
   // A non-secret warning survives tab reload; never persist a JWT after logout.
   const [remoteLogoutUnconfirmed, setRemoteLogoutUnconfirmed] = useState(
-    () => sessionStorage.getItem("fitflow_logout_remote_unconfirmed") === "1",
+    () => sessionStorage.getItem(REMOTE_UNCONFIRMED_KEY) === "1",
   );
   const queryClient = useQueryClient();
   // A same-JWT re-login still starts a new independent identity generation.
@@ -100,22 +123,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     sessionStorage.removeItem("refresh_token");
     sessionStorage.removeItem("access_token");
     setToken(null);
-    setSessionGeneration(advanceAuthSessionGeneration());
+    const logoutGeneration = advanceAuthSessionGeneration();
+    setSessionGeneration(logoutGeneration);
     delete apiClient.defaults.headers.common["Authorization"];
     queryClient.clear();
-    // Write only a non-secret warning before the network request. A reload
-    // must never silently turn an unconfirmed logout into a confirmed one.
-    sessionStorage.setItem("fitflow_logout_remote_unconfirmed", "1");
+    // The generation prevents stale UI identity reuse; each remote logout
+    // also needs its own non-secret attempt ID to avoid false cross-session ACK.
+    const attemptId = [
+      "logout", String(logoutGeneration), String(Date.now()),
+      Math.random().toString(36).slice(2),
+    ].join("-");
+    const outstanding = pendingLogoutAttempts();
+    sessionStorage.setItem(PENDING_LOGOUTS_KEY, JSON.stringify([...outstanding, attemptId]));
+    sessionStorage.setItem(REMOTE_UNCONFIRMED_KEY, "1");
     setRemoteLogoutUnconfirmed(true);
-    // A server 204 is the only confirmation that clears the flag.
+    // Only a verified remote HTTP 204 resolves *this* logout attempt.
     await revokeServerSession(accessToken, refreshToken);
-    sessionStorage.removeItem("fitflow_logout_remote_unconfirmed");
-    setRemoteLogoutUnconfirmed(false);
+    const remaining = pendingLogoutAttempts().filter((entry) => entry !== attemptId);
+    if (remaining.length === 0) {
+      sessionStorage.removeItem(PENDING_LOGOUTS_KEY);
+      sessionStorage.removeItem(REMOTE_UNCONFIRMED_KEY);
+      setRemoteLogoutUnconfirmed(false);
+    } else {
+      sessionStorage.setItem(PENDING_LOGOUTS_KEY, JSON.stringify(remaining));
+      sessionStorage.setItem(REMOTE_UNCONFIRMED_KEY, "1");
+      setRemoteLogoutUnconfirmed(true);
+    }
   };
 
   const dismissRemoteLogoutWarning = () => {
-    // Dismisses a local notice only; never claims server-side revocation.
-    sessionStorage.removeItem("fitflow_logout_remote_unconfirmed");
+    // Dismisses the visible notice for this rendering only. The durable
+    // non-secret pending ledger and warning flag survive a reload until ACK.
     setRemoteLogoutUnconfirmed(false);
   };
 
