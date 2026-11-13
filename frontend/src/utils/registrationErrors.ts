@@ -19,7 +19,28 @@ export function registrationErrorMessage(status: number, detail: unknown): strin
     return 'Revisá el nombre, apellido, correo y contraseña ingresados.';
   }
 
-  return typeof detail === 'string' && detail.trim()
-    ? detail
+  // Only a documented public duplicate-email conflict is safe to show.
+  // Unknown 400 and every 5xx error must not leak arbitrary backend detail.
+  if (status === 400 && detail === 'El email ya está registrado.') {
+    return 'El email ya está registrado.';
+  }
+  return 'Error al registrar la cuenta.';
+}
+
+// The page must not display arbitrary Error.message values from transport,
+// unexpected thrown code or future server errors.
+export function publicRegistrationErrorMessage(error: unknown): string {
+  const message = error !== null && typeof error === 'object' && 'message' in error
+    ? (error as { message?: unknown }).message
+    : null;
+  const safeMessages = [
+    PASSWORD_POLICY_MESSAGE,
+    'Revisá el nombre, apellido, correo y contraseña ingresados.',
+    'El email ya está registrado.',
+    'Error al registrar la cuenta.',
+    'Ocurrió un error de red inesperado.',
+  ];
+  return typeof message === 'string' && safeMessages.includes(message)
+    ? message
     : 'Error al registrar la cuenta.';
 }

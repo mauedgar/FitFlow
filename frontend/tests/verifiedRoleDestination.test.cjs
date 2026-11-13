@@ -58,3 +58,10 @@ test('teacher entry has a teacher-only guard and does not grant admin/front desk
   assert.match(router, /allowedRoles=\{\[UserRole\.ADMIN, UserRole\.FRONT_DESK\]\}/);
   assert.match(page, /Esta vista no habilita esas operaciones/);
 });
+
+test('trainer state cannot be derived from a noncanonical legacy role alias', () => {
+  const provider = fs.readFileSync(path.resolve(__dirname, '../src/context/AuthProvider.tsx'), 'utf8');
+  assert.match(provider, /const isTrainer = userRole === "teacher";/);
+  assert.doesNotMatch(provider, /userRole === "teacher" \|\| userRole === "trainer"/);
+});
+

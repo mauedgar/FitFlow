@@ -105,7 +105,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const isAuthenticated = !!token && !!currentUser;
   const isClient = userRole === "client";
-  const isTrainer = userRole === "teacher" || userRole === "trainer";
+  const isTrainer = userRole === "teacher"; // Backend role only; trainer is a UI legacy alias.
   const isAdmin = userRole === "admin";
 
   const { data: userBookings, isLoading: isLoadingBookings } = useQuery<Booking[]>({
