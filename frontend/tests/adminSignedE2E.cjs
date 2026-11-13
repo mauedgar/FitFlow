@@ -738,6 +738,22 @@ async function run() {
     await guestPage.waitForURL('**/login');
     await guest.close();
 
+    // Actual signed teacher login and rendered role-gated page. The server's
+    // persisted teacher role is authoritative; no route privilege from UI alias.
+    const teacherContext = await browser.newContext();
+    const teacherPage = await teacherContext.newPage();
+    await login(teacherPage, 'teacher-fitflow@example.com');
+    await teacherPage.waitForURL('**/teacher', { timeout: 20000 });
+    await teacherPage.getByRole('heading', { name: 'Portal docente' }).waitFor();
+    await teacherPage.goto(WEB + '/admin');
+    await teacherPage.waitForURL((url) => !url.pathname.startsWith('/admin'));
+    assert.equal(
+      await teacherPage.getByRole('heading', { name: 'Panel de administración' }).count(),
+      0, 'A signed teacher may never render the admin dashboard'
+    );
+    await teacherContext.close();
+    console.log('TEACHER_SIGNED_ROLE_ROUTE_E2E_PASS');
+
     const wrongRole = await browser.newContext();
     const wrongPage = await wrongRole.newPage();
     await login(wrongPage, clientEmail);

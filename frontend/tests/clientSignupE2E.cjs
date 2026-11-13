@@ -83,6 +83,55 @@ async function run() {
     assert.equal(profile.full_name, fullName);
     assert.ok(profile.id);
 
+    // Bounded real-page failure: an isolated browser intercepts logout twice,
+    // so the signed JWT remains live on the disposable backend. Never treat
+    // local deauthorization or a frontend warning as server revocation.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    let observedLogoutAttempts = 0;
+    let resolveTwoFailures;
+    let rejectTimer;
+    const twoFailures = new Promise((resolve, reject) => {
+      resolveTwoFailures = resolve;
+      rejectTimer = setTimeout(
+        () => reject(new Error('Did not observe two bounded 503 logout attempts')),
+        15000
+      );
+    });
+    await page.route('**/api/v1/auth/logout', async route => {
+      observedLogoutAttempts += 1;
+      await route.fulfill({
+        status: 503, contentType: 'application/json',
+        body: JSON.stringify({ detail: 'SYNTHETIC_LOGOUT_UNAVAILABLE' }),
+      });
+      if (observedLogoutAttempts === 2) {
+        clearTimeout(rejectTimer);
+        resolveTwoFailures();
+      }
+    });
+    await page.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+    await twoFailures;
+    await page.waitForURL('**/login', { timeout: 10000 });
+    const unconfirmedText = 'Cerraste la sesión local, pero no se confirmó su revocación en el servidor.';
+    await page.getByText(unconfirmedText, { exact: false }).waitFor({ timeout: 10000 });
+    assert.equal(observedLogoutAttempts, 2, 'Client sends exactly one bounded retry');
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), null);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+    assert.equal(
+      await page.evaluate(() => sessionStorage.getItem('fitflow_logout_remote_unconfirmed')),
+      '1', 'Only the non-secret status must survive after logout'
+    );
+    const backendStillAuthorized = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + signed },
+    });
+    assert.equal(backendStillAuthorized.status, 200,
+      'Synthetic offline logout cannot imply actual remote revocation');
+    await page.reload();
+    await page.getByText(unconfirmedText, { exact: false }).waitFor({ timeout: 10000 });
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), null);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+    await page.unroute('**/api/v1/auth/logout');
+    console.log('CLIENT_LOGOUT_UNCONFIRMED_RELOAD_WARNING_PASS');
+
     const duplicate = await context.newPage();
     await fillRegistration(duplicate, firstName, lastName, email);
     const duplicateRequest = registrationResponse(duplicate);
