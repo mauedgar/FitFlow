@@ -157,3 +157,25 @@ test('401 /auth/me invalidates credentials and cannot authorize cached profile',
   assert.equal(state.token, null);
   assert.equal(state.currentUser, null);
 });
+
+test('verified backend teacher role is trainer, but legacy trainer alias is not', () => {
+  const teacherProfile = { ...verified, data: { ...verified.data, role: 'teacher' } };
+  const teacherState = harness(teacherProfile).render();
+  assert.equal(teacherState.isAuthenticated, true);
+  assert.equal(teacherState.isTrainer, true);
+  assert.equal(teacherState.userRole, 'teacher');
+
+  const legacyProfile = { ...verified, data: { ...verified.data, role: 'trainer' } };
+  const legacyState = harness(legacyProfile).render();
+  assert.equal(legacyState.isTrainer, false);
+  assert.equal(legacyState.userRole, 'trainer');
+  assert.equal(legacyState.isAdmin, false);
+  assert.equal(legacyState.isClient, false);
+
+  const unknownProfile = { ...verified, data: { ...verified.data, role: 'unknown' } };
+  const unknownState = harness(unknownProfile).render();
+  assert.equal(unknownState.isTrainer, false);
+  assert.equal(unknownState.isAdmin, false);
+  assert.equal(unknownState.isClient, false);
+});
+

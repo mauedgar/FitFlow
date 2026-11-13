@@ -97,7 +97,32 @@ async function run() {
     assert.equal((await rejectedRequest).status(), 422, 'Invalid full name must be rejected');
     await invalid.getByText('Error en el registro').waitFor({ timeout: 10000 });
     assert.equal(new URL(invalid.url()).pathname, '/register');
-    console.log('CLIENT_SIGNUP_BROWSER_E2E_PASS: register, signed login, client profile, 400 duplicate, 422 validation');
+    // Real mounted registration page + Axios, with a synthetic disposable 503.
+    // The server text must never be presented by the toaster/UI.
+    const unavailable = await context.newPage();
+    await fillRegistration(
+      unavailable, firstName, lastName,
+      'fitflow-upstream-' + randomUUID() + '@example.com'
+    );
+    const internalDetail = 'SYNTHETIC_PRIVATE_UPSTREAM_DIAGNOSTIC_DO_NOT_SHOW';
+    await unavailable.route('**/api/v1/users/register-client', route => route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: internalDetail }),
+    }));
+    const serverError = registrationResponse(unavailable);
+    await unavailable.getByRole('button', { name: 'Registrarse' }).click();
+    assert.equal((await serverError).status(), 503,
+      'Transient synthetic registration failure must reach the real Axios page');
+    await unavailable.getByText('Error en el registro').waitFor({ timeout: 10000 });
+    await unavailable.getByText('Error al registrar la cuenta.').waitFor({ timeout: 10000 });
+    assert.equal(new URL(unavailable.url()).pathname, '/register');
+    assert.equal(await unavailable.getByText(internalDetail).count(), 0,
+      'A server diagnostic must not leak into registration UI');
+    await unavailable.close();
+    console.log('CLIENT_SIGNUP_BROWSER_503_PUBLIC_ERROR_PASS');
+
+    console.log('CLIENT_SIGNUP_BROWSER_E2E_PASS: register, signed login, client profile, 400 duplicate, 422 validation, synthetic 503 public error');
     await context.close();
   } finally {
     await browser.close();
