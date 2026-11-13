@@ -14,10 +14,10 @@ const code = ts.transpileModule(fs.readFileSync(source, "utf8"), {
   },
 }).outputText;
 const calls = [];
-let rejected = false;
+let failures = [];
 const api = { post: async (...args) => {
   calls.push(args);
-  if (rejected) throw new Error("server down");
+  if (failures.length) throw failures.shift();
   return { status: 204 };
 } };
 const mod = { exports: {} };
@@ -31,23 +31,62 @@ vm.runInNewContext(code, {
 }, { filename: source });
 const { revokeServerSession } = mod.exports;
 
-test("real logout sends refresh only in JSON body and bearer only in header", async () => {
+test("logout sends refresh in body and access bearer only in header", async () => {
+  failures = [];
+  const n = calls.length;
   await revokeServerSession("synthetic-access", "synthetic-refresh");
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0][0], "/auth/logout");
-  assert.equal(calls[0][1].refresh_token, "synthetic-refresh");
-  assert.equal(calls[0][2].headers.Authorization, "Bearer synthetic-access");
-  assert.doesNotMatch(JSON.stringify(calls[0][0]), /synthetic/);
+  assert.equal(calls.length, n + 1);
+  assert.equal(calls[n][0], "/auth/logout");
+  assert.equal(calls[n][1].refresh_token, "synthetic-refresh");
+  assert.equal(calls[n][2].headers.Authorization, "Bearer synthetic-access");
+  assert.doesNotMatch(JSON.stringify(calls[n][0]), /synthetic/);
 });
-test("missing legacy refresh never reports success and makes no request", async () => {
+
+test("missing legacy refresh never reports success and never makes request", async () => {
+  failures = [];
+  const n = calls.length;
   await assert.rejects(revokeServerSession("synthetic-access", null));
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, n);
 });
-test("server outage propagates, never fabricates confirmed revocation", async () => {
-  rejected = true;
+
+test("synthetic transient 503 gets one idempotent retry and confirms", async () => {
+  failures = [{ response: { status: 503 } }];
+  const n = calls.length;
+  await revokeServerSession("synthetic-access", "synthetic-refresh");
+  assert.equal(calls.length, n + 2);
+  assert.equal(calls[n + 1][1].refresh_token, "synthetic-refresh");
+  assert.equal(calls[n + 1][2].headers.Authorization, "Bearer synthetic-access");
+});
+
+test("synthetic network acknowledgement loss gets one retry", async () => {
+  failures = [{ request: { synthetic: true } }];
+  const n = calls.length;
+  await revokeServerSession("synthetic-access", "synthetic-refresh");
+  assert.equal(calls.length, n + 2);
+});
+
+test("two synthetic transient failures remain UNCONFIRMED", async () => {
+  failures = [{ response: { status: 503 } }, { request: { synthetic: true } }];
+  const n = calls.length;
   await assert.rejects(revokeServerSession("synthetic-access", "synthetic-refresh"));
+  assert.equal(calls.length, n + 2);
 });
-test("SPA stores refresh in sessionStorage and both UI logout entrypoints report failures", () => {
+
+test("HTTP 401 must never retry or report success", async () => {
+  failures = [{ response: { status: 401 } }];
+  const n = calls.length;
+  await assert.rejects(revokeServerSession("synthetic-access", "synthetic-refresh"));
+  assert.equal(calls.length, n + 1);
+});
+
+test("unexpected programming error without HTTP transport never retries", async () => {
+  failures = [new TypeError("synthetic unexpected failure")];
+  const n = calls.length;
+  await assert.rejects(revokeServerSession("synthetic-access", "synthetic-refresh"));
+  assert.equal(calls.length, n + 1);
+});
+
+test("SPA keeps refresh tab-scoped and both logout UI entrypoints report failures", () => {
   const provider = fs.readFileSync(path.resolve(__dirname, "../src/context/AuthProvider.tsx"), "utf8");
   const loginPage = fs.readFileSync(path.resolve(__dirname, "../src/pages/LoginPage.tsx"), "utf8");
   for (const file of ["../src/components/layout/Navbar.tsx", "../src/components/admin/layout/AdminNavBar.tsx"]) {

@@ -45,7 +45,7 @@ The shared React identity cache key must be paired with one shared **validated q
 
 ## A03 — signed per-login session revocation (proposed in successor)
 
-Each new login emits an access+refresh JWT pair containing one cryptographically signed UUID4 `sid`. Refresh preserves that `sid`; both authorization pipelines check Redis for the hashed session revocation marker and individual token blacklist, failing closed with HTTP 503 when Redis is unavailable. Logout requires valid bearer and matching refresh `sub` and `sid`, writes a session revocation marker with positive TTL no shorter than refresh expiry **before** deleting/blacklisting refresh, and invalidates all already issued access JWTs of that session. A mismatched session cannot revoke another credential. Historical JWTs without `sid` retain their original expiry for bounded compatibility; logout explicitly blacklists the presented historical access JWT, but previously minted uncorrelated historical access JWTs cannot be revoked as a family and may require fresh login. No retained Redis keys are scanned, deleted in bulk or migrated. The SPA holds refresh in tab-scoped sessionStorage and clears local state even if remote logout fails, reporting revocation as unconfirmed rather than claiming success. This is a candidate security contract subject to synthetic PG15/Redis7 and browser E2E plus independent full review; no Product acceptance or deployment is implied.
+Each new login emits an access+refresh JWT pair containing one cryptographically signed UUID4 `sid`. Refresh preserves that `sid`; both authorization pipelines check Redis for the hashed session revocation marker and individual token blacklist, failing closed with HTTP 503 when Redis is unavailable. Logout requires valid bearer and matching refresh `sub` and `sid`, uses one Redis Lua operation to check registered refresh ownership, revoke the session, delete refresh registration, blacklist the token and write an opaque idempotent acknowledgement, and invalidates all already issued access JWTs of that session. A mismatched session cannot revoke another credential. Historical JWTs without `sid` retain their original expiry for bounded compatibility; logout explicitly blacklists the presented historical access JWT, but previously minted uncorrelated historical access JWTs cannot be revoked as a family and may require fresh login. No retained Redis keys are scanned, deleted in bulk or migrated. The SPA holds refresh in tab-scoped sessionStorage and clears local state even if remote logout fails, reporting revocation as unconfirmed rather than claiming success. This is a candidate security contract subject to synthetic PG15/Redis7 and browser E2E plus independent full review; no Product acceptance or deployment is implied.
 
 ## IR006 — tab-scoped credential consistency
 
@@ -54,4 +54,31 @@ Both access and refresh tokens now live in the same tab-scoped `sessionStorage`,
 
 ## A03 — revocación con access JWT expirado (candidato, pendiente de IR)
 
-El endpoint `POST /auth/logout` autentica la revocación a partir del refresh JWT firmado, de propósito correcto, no invalidado y **registrado en Redis**. Un access token vencido o ausente ya no impide revocar el `sid` firmado de ese refresh; un bearer todavía válido que pertenezca a otra cuenta/sesión continúa rechazado con HTTP 403. El servidor escribe primero la revocación temporal de la familia, después elimina/blacklistea el refresh. Las peticiones no registradas devuelven 401, los refresh malformados 400 y un Redis no disponible 503. Los tokens legados sin `sid` solo permiten revocar el refresh y, si se presenta un access firmado aún válido de la misma cuenta, ese bearer individual; no existe migración masiva ni revocación global de históricos. El ADMIN frontend captura las excepciones de logout automático y muestra advertencia de revocación no confirmada, sin reactivar sesión local. Pruebas HTTP reales con DB/Redis descartables verifican la transición.
+El endpoint `POST /auth/logout` autentica la revocación a partir del refresh JWT firmado, de propósito correcto, no invalidado y **registrado en Redis**. Un access token vencido o ausente ya no impide revocar el `sid` firmado de ese refresh; un bearer todavía válido que pertenezca a otra cuenta/sesión continúa rechazado con HTTP 403. El servidor aplica una operación Redis Lua única: verifica el refresh registrado y su sujeto, revoca la familia o el bearer legacy y registra un ACK opaco para reintentos idénticos. Las peticiones no registradas devuelven 401, los refresh malformados 400 y un Redis no disponible 503. Los tokens legados sin `sid` solo permiten revocar el refresh y, si se presenta un access firmado aún válido de la misma cuenta, ese bearer individual; no existe migración masiva ni revocación global de históricos. El ADMIN frontend captura las excepciones de logout automático y muestra advertencia de revocación no confirmada, sin reactivar sesión local. Pruebas HTTP reales con DB/Redis descartables verifican la transición.
+
+## Control 012 — Redis logout confirmation and bounded SPA retry (candidate)
+
+Only a signed refresh JWT with matching issuer purpose, a valid original expiry
+and the current registered subject may authorize logout. A still-valid access
+bearer, if provided, must match the refresh subject and signed session. One
+Redis Lua operation handles the registration check and writes, including
+legacy raw-key compatibility, an expiry-bounded session tombstone and opaque
+SHA256-keyed logout confirmation. A repeated signed refresh may yield 204 only
+when its exact previous confirmation is found. Never registered: 401.
+Redis outage, script failure or unknown acknowledgement: 503 / UNCONFIRMED.
+Redis script execution is isolated from concurrent commands, but does not
+magically roll back earlier writes if a runtime error occurs inside the script.
+
+The SPA still removes both tab-scoped credentials immediately on logout
+and never restores authenticated UI state from a remote failure. For network
+acknowledgement loss or transient HTTP 429/502/503/504, the same operation
+attempts exactly one additional POST with the in-flight, in-memory credentials.
+If the second attempt fails, the error propagates to the existing UI warning.
+No bearer is copied into localStorage or retained for later page reload; a
+failed remote logout can remain unconfirmed until signed token expiration.
+This residual risk is explicit, not automatically accepted by CI or Control.
+
+The auth-service user resolver now requires the FastAPI-injected managed
+database session. It no longer advances an unmanaged async session generator.
+This document describes a candidate only, not a Product acceptance or merge.
+

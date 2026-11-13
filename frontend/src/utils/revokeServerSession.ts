@@ -1,7 +1,18 @@
 import apiClient from "../services/api";
 
-/** Only a successful server response confirms revocation. The caller clears
- * local state first and reports failure as remote revocation UNCONFIRMED. */
+// One bounded retry is safe only because Redis records the exact signed
+// refresh revocation as an idempotent acknowledgement. No bearer is persisted.
+function isTransientRevocationFailure(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const candidate = error as { response?: { status?: number }; request?: unknown };
+  if (candidate.response) {
+    return [429, 502, 503, 504].includes(candidate.response.status ?? 0);
+  }
+  return candidate.request != null;
+}
+
+/** Only a confirmed HTTP response completes remote logout.
+ * Failed retries remain UNCONFIRMED; local deauthorization is unchanged. */
 export async function revokeServerSession(
   accessToken: string | null,
   refreshToken: string | null,
@@ -9,9 +20,15 @@ export async function revokeServerSession(
   if (!accessToken || !refreshToken) {
     throw new Error("Remote logout unavailable for an incomplete/legacy session");
   }
-  await apiClient.post(
+  const request = () => apiClient.post(
     "/auth/logout",
     { refresh_token: refreshToken },
-    { headers: { Authorization: `Bearer ${accessToken}` } },
+    { headers: { Authorization: "Bearer " + accessToken } },
   );
+  try {
+    await request();
+  } catch (error) {
+    if (!isTransientRevocationFailure(error)) throw error;
+    await request();
+  }
 }
