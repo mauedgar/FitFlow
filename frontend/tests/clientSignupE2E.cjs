@@ -170,6 +170,107 @@ async function run() {
       await unexpectedContext.close();
     }
 
+    // Real mounted React and Axios concurrency in the SAME browser tab.
+    // A's delayed 204 must not clear B's unresolved double-503 warning.
+    const raceContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const racePage = await raceContext.newPage();
+      await racePage.goto(WEB + '/login');
+      await racePage.getByLabel('Email', { exact: true }).fill(email);
+      await racePage.getByLabel('Contraseña', { exact: true }).fill(password);
+      await racePage.getByRole('button', { name: 'Ingresar' }).click();
+      await racePage.waitForURL('**/home', { timeout: 20000 });
+      let calls = 0;
+      let releaseA;
+      let observedA;
+      let observedB;
+      const waitA = new Promise(resolve => { observedA = resolve; });
+      const waitB = new Promise(resolve => { observedB = resolve; });
+      const heldA = new Promise(resolve => { releaseA = resolve; });
+      await racePage.route('**/api/v1/auth/logout', async route => {
+        calls += 1;
+        if (calls === 1) {
+          observedA();
+          await heldA;
+          return route.fulfill({ status: 204, body: '' });
+        }
+        await route.fulfill({
+          status: 503, contentType: 'application/json',
+          body: JSON.stringify({ detail: 'SYNTHETIC_B_UNAVAILABLE' }),
+        });
+        if (calls === 3) observedB();
+      });
+      await racePage.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+      await waitA;
+      await racePage.waitForURL('**/login', { timeout: 10000 });
+      // The first request is intentionally still pending; authenticate B.
+      await racePage.getByLabel('Email', { exact: true }).fill(email);
+      await racePage.getByLabel('Contraseña', { exact: true }).fill(password);
+      await racePage.getByRole('button', { name: 'Ingresar' }).click();
+      await racePage.waitForURL('**/home', { timeout: 20000 });
+      await racePage.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+      await waitB;
+      await racePage.waitForURL('**/login', { timeout: 10000 });
+      await racePage.getByText(unconfirmedText, { exact: false }).waitFor();
+      const beforeA = await racePage.evaluate(
+        () => JSON.parse(sessionStorage.getItem('fitflow_logout_pending_attempts')),
+      );
+      assert.equal(beforeA.length, 2);
+      releaseA();
+      await racePage.waitForFunction(() => {
+        const entries = JSON.parse(sessionStorage.getItem('fitflow_logout_pending_attempts') || '[]');
+        return entries.length === 1;
+      }, null, { timeout: 10000 });
+      assert.equal(
+        await racePage.evaluate(() => sessionStorage.getItem('fitflow_logout_remote_unconfirmed')),
+        '1', 'A late 204 must never clear B uncertain remote revocation',
+      );
+      await racePage.reload();
+      await racePage.getByText(unconfirmedText, { exact: false }).waitFor();
+      assert.equal(await racePage.evaluate(() => sessionStorage.getItem('access_token')), null);
+      assert.equal(await racePage.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+      console.log('CLIENT_LOGOUT_MOUNTED_CONCURRENT_ACK_RACE_PASS');
+    } finally {
+      await raceContext.close();
+    }
+
+    // Quota failure must not prevent a best-effort remote request and must
+    // remain visibly UNCONFIRMED in memory; cross-reload durability is
+    // physically unavailable if storage itself rejects writes.
+    const storageContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const storagePage = await storageContext.newPage();
+      await storagePage.goto(WEB + '/login');
+      await storagePage.getByLabel('Email', { exact: true }).fill(email);
+      await storagePage.getByLabel('Contraseña', { exact: true }).fill(password);
+      await storagePage.getByRole('button', { name: 'Ingresar' }).click();
+      await storagePage.waitForURL('**/home', { timeout: 20000 });
+      await storagePage.evaluate(() => {
+        const realSet = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+          if (key === 'fitflow_logout_pending_attempts') {
+            throw new DOMException('synthetic quota limit', 'QuotaExceededError');
+          }
+          return realSet.call(this, key, value);
+        };
+      });
+      let quotaRequests = 0;
+      await storagePage.route('**/api/v1/auth/logout', route => {
+        quotaRequests += 1;
+        return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+      });
+      await storagePage.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+      await storagePage.waitForURL('**/login', { timeout: 10000 });
+      await storagePage.getByText(unconfirmedText, { exact: false }).waitFor({ timeout: 10000 });
+      await storagePage.waitForFunction(() => true); // Browser event loop checkpoint.
+      assert.ok(quotaRequests >= 1, 'Storage quota error cannot silently skip remote request');
+      assert.equal(await storagePage.evaluate(() => sessionStorage.getItem('access_token')), null);
+      assert.equal(await storagePage.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+      console.log('CLIENT_LOGOUT_MOUNTED_STORAGE_QUOTA_WARNING_PASS');
+    } finally {
+      await storageContext.close();
+    }
+
     const duplicate = await context.newPage();
     await fillRegistration(duplicate, firstName, lastName, email);
     const duplicateRequest = registrationResponse(duplicate);

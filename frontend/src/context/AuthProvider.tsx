@@ -18,23 +18,65 @@ interface AuthProviderProps {
 // Never write JWTs, refresh hashes, email or user IDs to this ledger.
 const PENDING_LOGOUTS_KEY = "fitflow_logout_pending_attempts";
 const REMOTE_UNCONFIRMED_KEY = "fitflow_logout_remote_unconfirmed";
+const UNKNOWN_LOGOUT = "unrecognized-pending";
+const MAX_RECORDED_LOGOUTS = 24;
+// Volatile fallback is deliberately sticky: a storage exception is not an ACK.
+// No credential, subject, email or account identifier is ever stored here.
+const inFlightLogoutIds = new Set<string>();
+let storageUncertainty = false;
+
+function boundLogoutIds(ids: string[]): string[] {
+  const unique = [...new Set(ids.filter(id => typeof id === "string" && id.length > 0))];
+  if (unique.length <= MAX_RECORDED_LOGOUTS) return unique;
+  // Compaction must not turn any discarded unresolved logout into success.
+  return [UNKNOWN_LOGOUT, ...unique.filter(id => id !== UNKNOWN_LOGOUT).slice(-(MAX_RECORDED_LOGOUTS - 1))];
+}
 
 function pendingLogoutAttempts(): string[] {
-  const raw = sessionStorage.getItem(PENDING_LOGOUTS_KEY);
-  if (raw !== null) {
-    try {
-      const ids: unknown = JSON.parse(raw);
-      if (Array.isArray(ids) && ids.length > 0 &&
-          ids.every((value: unknown) => typeof value === "string")) {
-        return ids as string[];
+  const pending: string[] = [];
+  try {
+    const raw = sessionStorage.getItem(PENDING_LOGOUTS_KEY);
+    if (raw !== null) {
+      try {
+        const ids: unknown = JSON.parse(raw);
+        if (Array.isArray(ids) && ids.length > 0 &&
+            ids.length <= MAX_RECORDED_LOGOUTS &&
+            ids.every((id: unknown) => typeof id === "string" && id.length > 0)) {
+          pending.push(...ids as string[]);
+        } else {
+          pending.push(UNKNOWN_LOGOUT);
+        }
+      } catch {
+        pending.push(UNKNOWN_LOGOUT);
       }
-    } catch {
-      // Corrupted non-secret metadata cannot prove a remote ACK.
     }
-    return ["unrecognized-pending"];
+    const flag = sessionStorage.getItem(REMOTE_UNCONFIRMED_KEY);
+    if (flag === "1" && raw === null) pending.push("legacy-unconfirmed");
+    // A corrupt flag cannot cancel a non-empty ledger; preserve uncertainty.
+    if (flag !== null && flag !== "1") pending.push(UNKNOWN_LOGOUT);
+  } catch {
+    storageUncertainty = true;
   }
-  return sessionStorage.getItem(REMOTE_UNCONFIRMED_KEY) === "1"
-    ? ["legacy-unconfirmed"] : [];
+  pending.push(...inFlightLogoutIds);
+  if (storageUncertainty) pending.push(UNKNOWN_LOGOUT);
+  return boundLogoutIds(pending);
+}
+
+function persistLogoutAttempts(ids: string[]): boolean {
+  const bounded = boundLogoutIds(ids);
+  try {
+    if (bounded.length > 0) {
+      sessionStorage.setItem(PENDING_LOGOUTS_KEY, JSON.stringify(bounded));
+      sessionStorage.setItem(REMOTE_UNCONFIRMED_KEY, "1");
+    } else {
+      sessionStorage.removeItem(PENDING_LOGOUTS_KEY);
+      sessionStorage.removeItem(REMOTE_UNCONFIRMED_KEY);
+    }
+  } catch {
+    // The tab cannot honestly attest a durable warning or revocation.
+    storageUncertainty = true;
+  }
+  return bounded.length > 0 || storageUncertainty;
 }
 
 /** Frontend identity is projected from the verified /auth/me response, not
@@ -42,20 +84,26 @@ function pendingLogoutAttempts(): string[] {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(() => {
     // Incomplete or persistent access-only sessions require a new login.
-    localStorage.removeItem("access_token");
-    const access = sessionStorage.getItem("access_token");
-    const refresh = sessionStorage.getItem("refresh_token");
-    if (!access || !refresh) {
-      sessionStorage.removeItem("access_token");
-      sessionStorage.removeItem("refresh_token");
+    try {
+      localStorage.removeItem("access_token");
+      const access = sessionStorage.getItem("access_token");
+      const refresh = sessionStorage.getItem("refresh_token");
+      if (!access || !refresh) {
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("refresh_token");
+        return null;
+      }
+      return access;
+    } catch {
+      // A browser storage failure must not authorize a stale identity.
+      storageUncertainty = true;
       return null;
     }
-    return access;
   });
   const [currentClient] = useState<Client | null>(null);
   // A non-secret warning survives tab reload; never persist a JWT after logout.
   const [remoteLogoutUnconfirmed, setRemoteLogoutUnconfirmed] = useState(
-    () => sessionStorage.getItem(REMOTE_UNCONFIRMED_KEY) === "1",
+    () => pendingLogoutAttempts().length > 0,
   );
   const queryClient = useQueryClient();
   // A same-JWT re-login still starts a new independent identity generation.
@@ -119,9 +167,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async (): Promise<void> => {
     // Snapshot credentials before synchronously dropping UI authentication.
     const accessToken = token;
-    const refreshToken = sessionStorage.getItem("refresh_token");
-    sessionStorage.removeItem("refresh_token");
-    sessionStorage.removeItem("access_token");
+    let refreshToken: string | null = null;
+    try {
+      refreshToken = sessionStorage.getItem("refresh_token");
+      sessionStorage.removeItem("refresh_token");
+      sessionStorage.removeItem("access_token");
+    } catch {
+      // Local in-memory auth must still close; remote credentials are unknown.
+      storageUncertainty = true;
+    }
     setToken(null);
     const logoutGeneration = advanceAuthSessionGeneration();
     setSessionGeneration(logoutGeneration);
@@ -133,21 +187,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       "logout", String(logoutGeneration), String(Date.now()),
       Math.random().toString(36).slice(2),
     ].join("-");
-    const outstanding = pendingLogoutAttempts();
-    sessionStorage.setItem(PENDING_LOGOUTS_KEY, JSON.stringify([...outstanding, attemptId]));
-    sessionStorage.setItem(REMOTE_UNCONFIRMED_KEY, "1");
-    setRemoteLogoutUnconfirmed(true);
-    // Only a verified remote HTTP 204 resolves *this* logout attempt.
-    await revokeServerSession(accessToken, refreshToken);
-    const remaining = pendingLogoutAttempts().filter((entry) => entry !== attemptId);
-    if (remaining.length === 0) {
-      sessionStorage.removeItem(PENDING_LOGOUTS_KEY);
-      sessionStorage.removeItem(REMOTE_UNCONFIRMED_KEY);
-      setRemoteLogoutUnconfirmed(false);
-    } else {
-      sessionStorage.setItem(PENDING_LOGOUTS_KEY, JSON.stringify(remaining));
-      sessionStorage.setItem(REMOTE_UNCONFIRMED_KEY, "1");
+    inFlightLogoutIds.add(attemptId);
+    setRemoteLogoutUnconfirmed(
+      persistLogoutAttempts(pendingLogoutAttempts()),
+    );
+    try {
+      // Only a verified remote HTTP 204 resolves *this* logout attempt.
+      await revokeServerSession(accessToken, refreshToken);
+      inFlightLogoutIds.delete(attemptId);
+      const remaining = pendingLogoutAttempts().filter((entry) => entry !== attemptId);
+      setRemoteLogoutUnconfirmed(persistLogoutAttempts(remaining));
+    } catch (error) {
+      inFlightLogoutIds.delete(attemptId);
+      // Keep the attempt in the durable ledger, or an unknown sticky marker
+      // when browser storage is unavailable. Never fabricate a remote ACK.
       setRemoteLogoutUnconfirmed(true);
+      throw error;
     }
   };
 

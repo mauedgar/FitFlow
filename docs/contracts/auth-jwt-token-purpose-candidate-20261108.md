@@ -140,3 +140,39 @@ mutación, sin persistirla en almacenamiento.
 Estas medidas hacen auditable la incertidumbre local, pero no pueden
 revocar una sesión remota si ninguna petición alcanza el servidor.
 
+## Control 012 — rechazo Developer de limitaciones del logout (gate NO_ACCEPTED)
+
+El Developer NO acepta como resultado final las limitaciones de logout
+remoto UNCONFIRMED, invalidación legacy por cuenta sin familia delimitada
+ni errores Lua que pueden escribir tombstones antes de devolver 503.
+Los tests del candidato observan correctamente esos casos, pero esas
+observaciones NO constituyen una aceptación de las limitaciones.
+
+La solución final deberá presentar un protocolo de revocación
+autoritativo del servidor y probar, con dos sesiones aisladas y fallos
+descartables, que: (1) todo ACK HTTP 204 es verificablemente idempotente,
+(2) las rutas protegidas y refresh rechazan sesiones revocadas incluso
+después de reiniciar los componentes permitidos por el contrato de
+durabilidad, (3) el modo legacy no afecta credenciales fuera de la familia
+autorizada, (4) cualquier fallo parcial se refleja como pendiente sin
+hacer promesas falsas, y (5) existe recuperación comprobable de
+solicitudes pendientes tras cortes y reanudación del cliente.
+
+Restricción física de diseño: cuando el cliente no puede transmitir
+la intención al servidor, ningún protocolo puede garantizar que el
+servidor ya revocó el token. Por eso **no** se permite declarar
+logout completo en ese estado. Si el Product exige revocación inmediata
+incluso con conectividad totalmente ausente, ese requisito no es
+satisfacible mediante una PWA/JWT remota y requiere reformular el
+contrato de operación; no se puede enmascarar con UX o TTL.
+
+Como avance acotado no aceptado, el frontend limita a 24 IDs no
+secretos los intentos pendientes y conserva un marcador de
+incertidumbre no eliminable por ACK ajenos cuando se compactan IDs.
+Errores de Storage se tratan con un aviso restrictivo solo en memoria;
+si el navegador impide persistir datos, la persistencia tras cerrar
+la pestaña NO queda garantizada ni se declara como tal. Las pruebas
+descartables deben diferenciar esa incertidumbre de una revocación
+confirmada por backend. Ninguna de estas reparaciones autoriza merge,
+aceptación 0/0, despliegue o cierre de Issue #108.
+

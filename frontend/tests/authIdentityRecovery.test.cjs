@@ -14,10 +14,18 @@ const js = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
 function harness(initialIdentity, options = {}) {
   const storage = new Map([['access_token', 'signed-access'], ['refresh_token', 'signed-refresh']]);
   if (options.pendingRemoteLogout) storage.set('fitflow_logout_remote_unconfirmed', '1');
+  if (options.initialPendingLedger !== undefined) {
+    storage.set('fitflow_logout_pending_attempts', options.initialPendingLedger);
+  }
+  const maybeThrow = (op, key) => {
+    if (options.storageFailures?.[op]?.includes(key)) {
+      throw new Error('synthetic storage ' + op + ' denied');
+    }
+  };
   const sessionStorage = {
-    getItem: key => storage.has(key) ? storage.get(key) : null,
-    setItem: (key, value) => storage.set(key, value),
-    removeItem: key => storage.delete(key),
+    getItem: key => { maybeThrow('read', key); return storage.has(key) ? storage.get(key) : null; },
+    setItem: (key, value) => { maybeThrow('write', key); return storage.set(key, value); },
+    removeItem: key => { maybeThrow('remove', key); return storage.delete(key); },
   };
   const localStorage = { removeItem() {} };
   const authContextProvider = {};
@@ -273,5 +281,57 @@ test('submitting login discards password from React state after mutation dispatc
   const login = fs.readFileSync(path.resolve(__dirname, '../src/pages/LoginPage.tsx'), 'utf8');
   assert.match(login, /loginMutation\.mutate\(\{/);
   assert.match(login, /setPassword\(''\);/);
+});
+
+test('unconfirmed ledger alone restores warning when legacy flag is missing', () => {
+  const h = harness(verified, { initialPendingLedger: '["prior-lost-ACK"]' });
+  assert.equal(h.render().remoteLogoutUnconfirmed, true);
+  assert.equal(h.storage.has('fitflow_logout_remote_unconfirmed'), false);
+});
+
+test('corrupt pending JSON remains unconfirmed and cannot be converted to ACK', async () => {
+  const h = harness(verified, { initialPendingLedger: '{bad-json' });
+  assert.equal(h.render().remoteLogoutUnconfirmed, true);
+  await h.render().logout();
+  assert.equal(h.storage.get('fitflow_logout_remote_unconfirmed'), '1');
+  assert.deepEqual(Array.from(JSON.parse(h.storage.get('fitflow_logout_pending_attempts'))),
+    ['unrecognized-pending']);
+});
+
+test('quota failure on pending storage preserves in-memory warning and still attempts revocation', async () => {
+  const h = harness(verified, {
+    storageFailures: { write: ['fitflow_logout_pending_attempts'] },
+    revocationError: new Error('synthetic offline revocation'),
+  });
+  await assert.rejects(h.render().logout(), /synthetic offline revocation/);
+  assert.equal(h.revoked.length, 1, 'Storage fault must not prevent bounded remote attempt');
+  assert.equal(h.render().remoteLogoutUnconfirmed, true);
+  assert.equal(h.storage.has('access_token'), false);
+  assert.equal(h.storage.has('refresh_token'), false);
+});
+
+test('read-denied pending metadata cannot falsely confirm later logout', async () => {
+  const h = harness(verified, {
+    storageFailures: { read: ['fitflow_logout_pending_attempts'] },
+  });
+  assert.equal(h.render().remoteLogoutUnconfirmed, true);
+  await h.render().logout();
+  assert.equal(h.render().remoteLogoutUnconfirmed, true);
+  assert.equal(h.revoked.length, 1);
+});
+
+test('many failed attempts compact to capped non-secret ledger with sticky uncertainty', async () => {
+  const h = harness(verified, { revocationError: new Error('synthetic offline') });
+  for (let i = 0; i < 52; i += 1) {
+    if (i > 0) h.render().login('access-' + i, 'refresh-' + i);
+    await assert.rejects(h.render().logout(), /synthetic offline/);
+    const ledger = JSON.parse(h.storage.get('fitflow_logout_pending_attempts'));
+    assert.ok(ledger.length <= 24, 'Bounded ledger must not grow with failures');
+    assert.equal(h.storage.get('fitflow_logout_remote_unconfirmed'), '1');
+  }
+  const ledger = JSON.parse(h.storage.get('fitflow_logout_pending_attempts'));
+  assert.ok(ledger.includes('unrecognized-pending'),
+    'Overflow must preserve a permanent unknown marker, never silently acknowledge lost IDs');
+  assert.equal(ledger.length, 24);
 });
 
