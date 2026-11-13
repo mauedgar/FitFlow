@@ -679,8 +679,14 @@ async function run() {
     assert.equal(await mobileMenu.evaluate((element) => element === document.activeElement), true,
       'Escape must restore keyboard focus to mobile menu trigger');
     await mobileMenu.click();
-    await page.getByRole('link', { name: 'Profesores', exact: true }).focus();
-    await page.keyboard.press('Enter');
+    // Wait for the actual portal/dialog to settle before sending keyboard
+    // events: the Chakra focus trap can otherwise re-focus the trigger after
+    // a standalone .focus(), causing Enter to toggle the drawer instead.
+    const drawer = page.getByRole('dialog');
+    await drawer.waitFor({ state: 'visible' });
+    const teachersMenuLink = drawer.getByRole('link', { name: 'Profesores', exact: true });
+    await teachersMenuLink.waitFor({ state: 'visible' });
+    await teachersMenuLink.press('Enter');
     await qualifyTeachersKeyboardRoute(page);
     await page.getByText('Profesora Sintética', { exact: true }).filter({ visible: true }).first().waitFor();
     // Controlled synthetic outage: prove error/retry without changing Product data.
