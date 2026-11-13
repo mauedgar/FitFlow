@@ -4,10 +4,8 @@ FROM python:3.15.2-slim-bookworm@sha256:4e03260adeeebafccd084f3584e6b84823aba565
 
 COPY --from=uv /uv /uvx /usr/local/bin/
 
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y libatomic1 ca-certificates nodejs npm \
-    && npm install -g ajv-cli ajv-formats \
-    && rm -rf /var/lib/apt/lists/*
+# The backend test image needs only the digest-pinned Python/uv runtime.
+# No active consumer invokes global Node/npm/AJV in this disposable image.
 
 WORKDIR /app
 
