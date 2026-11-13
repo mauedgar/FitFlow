@@ -8,6 +8,9 @@ on:
 
 jobs:
   run-skills:
+    # Historical LLM reviewer disabled: develop uses fitflow-baseline-ci.yml.
+    # Do not execute unpinned/potentially paid OpenAI calls automatically.
+    if: false
     runs-on: ubuntu-latest
     steps:
       - name: Descargar Código

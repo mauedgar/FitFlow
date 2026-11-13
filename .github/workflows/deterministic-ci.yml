@@ -318,5 +318,5 @@ jobs:
         run: |
           set -euo pipefail
           DOCKER_BUILDKIT=1 docker build --progress=plain -f backend/Dockerfile.test -t fitflow-c009-test:qualification .
-          docker run --rm --entrypoint python fitflow-c009-test:qualification -c 'import sys, bcrypt, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_DOCKER_TEST_IMAGE_PASS")'
+          docker run --rm --entrypoint python fitflow-c009-test:qualification -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, pydantic_core, fastapi, sqlalchemy, redis, cryptography; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_DOCKER_TEST_IMAGE_PASS")'
           echo FITFLOW_DOCKER_PY3152_PASS

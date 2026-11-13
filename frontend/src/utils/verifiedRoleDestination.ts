@@ -11,8 +11,8 @@ export function verifiedRoleDestination(role: UserRole): string {
     case UserRole.TEACHER:
       return '/teacher';
     case UserRole.CLIENT:
-    case UserRole.TRAINER: // Historical alias: leave existing /home behavior unchanged.
       return '/home';
+    // Historical trainer is not an authoritative server role.
     default:
       return '/landing';
   }

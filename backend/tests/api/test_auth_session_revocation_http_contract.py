@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 
 import httpx
 import pytest
+from redis.exceptions import RedisError
 from fastapi import status
 from sqlalchemy import delete
 from sqlalchemy.engine import make_url
@@ -446,4 +447,131 @@ async def test_redis_unavailable_before_atomic_commit_does_not_revoke_or_ack(
         assert restored.status_code == 204
     finally:
         clean_session(sid, refresh)
+
+async def test_redis_commit_ack_lost_after_actual_write_recovers_on_signed_retry(
+    api_client: httpx.AsyncClient,
+    admin_user: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real disposable Redis commit with a lost client ACK is 503 then 204."""
+    subject = admin_user[0]
+    sid = str(uuid.uuid4())
+    access, refresh = pair(subject, sid)
+    store_refresh_token(str(subject), refresh)
+    redis_client = get_redis_client()
+
+    class AckLost:
+        def eval(self, *args: object) -> int:
+            assert redis_client.eval(*args) == 1
+            raise RedisError("synthetic acknowledgement lost")
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(session_revocation, "get_redis_client", lambda: AckLost())
+            failed = await api_client.post(
+                f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh},
+            )
+        assert failed.status_code == 503
+        assert redis_client.exists(opaque_jwt_key("logout_confirmed:", refresh)) == 1
+        retry = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh},
+        )
+        assert retry.status_code == 204
+        denied = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {access}"},
+        )
+        assert denied.status_code == 401
+    finally:
+        clean_session(sid, refresh)
+
+
+async def test_real_disposable_redis_post_first_write_fault_remains_unconfirmed(
+    api_client: httpx.AsyncClient,
+    admin_user: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fault-injected Lua is a synthetic variant, not the shipped script."""
+    subject = admin_user[0]
+    sid = str(uuid.uuid4())
+    access, refresh = pair(subject, sid)
+    store_refresh_token(str(subject), refresh)
+    redis_client = get_redis_client()
+    original_script = session_revocation._LOGOUT_SCRIPT
+    first = "  redis.call('SET', KEYS[5], '1', 'EX', ARGV[3])"
+    assert original_script.count(first) == 1
+    broken_script = original_script.replace(
+        first, first + "\n  return redis.error_reply('synthetic after sid write')",
+    )
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(session_revocation, "_LOGOUT_SCRIPT", broken_script)
+            failed = await api_client.post(
+                f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh},
+            )
+        assert failed.status_code == 503
+        marker = session_revocation._revocation_key(uuid.UUID(sid).hex)
+        assert redis_client.exists(marker) == 1
+        assert redis_client.exists(opaque_jwt_key("logout_confirmed:", refresh)) == 0
+        denied = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {access}"},
+        )
+        assert denied.status_code == 401
+        retry = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh},
+        )
+        assert retry.status_code == 204
+    finally:
+        clean_session(sid, refresh)
+
+
+async def test_sidless_multi_access_legacy_residual_is_explicitly_bounded(
+    api_client: httpx.AsyncClient,
+    admin_user: tuple[uuid.UUID, str, str],
+) -> None:
+    """No SID means no family revocation for independently minted access JWTs."""
+    subject = admin_user[0]
+    access_a = security.create_access_token({
+        "sub": str(subject), "role": "admin", "jti": uuid.uuid4().hex,
+    })
+    access_b = security.create_access_token({
+        "sub": str(subject), "role": "admin", "jti": uuid.uuid4().hex,
+    })
+    refresh = security.create_refresh_token({"sub": str(subject)})
+    assert access_a != access_b
+    store_refresh_token(str(subject), refresh)
+    client = get_redis_client()
+    try:
+        for bearer in (access_a, access_b):
+            before = await api_client.get(
+                f"{settings.API_V1_STR}/auth/me",
+                headers={"Authorization": f"Bearer {bearer}"},
+            )
+            assert before.status_code == 200
+        logout = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout",
+            headers={"Authorization": f"Bearer {access_a}"},
+            json={"refresh_token": refresh},
+        )
+        assert logout.status_code == 204
+        denied = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {access_a}"},
+        )
+        assert denied.status_code == 401
+        residual = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {access_b}"},
+        )
+        assert residual.status_code == 200
+        reuse = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
+        )
+        assert reuse.status_code == 401
+    finally:
+        delete_refresh_token(refresh)
+        for bearer in (access_a, access_b, refresh):
+            client.delete(opaque_jwt_key("blacklist_token:", bearer))
+        client.delete(opaque_jwt_key("logout_confirmed:", refresh))
 

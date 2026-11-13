@@ -18,12 +18,14 @@ runtime en FitFlow sin ADR y aprobacion del desarrollador.
 
 | Área | Tecnologías vigentes |
 | --- | --- |
-| Backend | Python 3.15.2, FastAPI async, SQLAlchemy 2.x Async, Alembic, Pydantic v2, PostgreSQL, JWT, Redis |
+| Backend | Python fijado en la rama competente; PR #107 propone CPython 3.15.2, FastAPI async, SQLAlchemy 2.x Async, Alembic, Pydantic v2, PostgreSQL, JWT, Redis |
 | Frontend | React, TypeScript, Vite, Chakra UI, TanStack Query, Axios |
 | Entorno | Docker, Docker Compose, PostgreSQL, Adminer; Redis cuando corresponda |
 
 Adminer es tooling de desarrollo. Redis no reemplaza a PostgreSQL como fuente
-persistente.
+persistente. CPython 3.15.2 en PR #107 es un candidato validado, NO una
+adopción canónica mientras el PR no esté aceptado e integrado en develop.
+La adopción está condicionada al ADR 0020 (estado proposed).
 
 ## Arquitectura vigente
 

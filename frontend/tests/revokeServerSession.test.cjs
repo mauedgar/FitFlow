@@ -98,3 +98,10 @@ test("SPA keeps refresh tab-scoped and both logout UI entrypoints report failure
   assert.match(provider, /sessionStorage\.removeItem\("refresh_token"/);
   assert.match(loginPage, /login\(data\.access_token, data\.refresh_token\)/);
 });
+
+test("mobile drawer invokes logout without delayed callback after close", () => {
+  const nav = fs.readFileSync(path.resolve(__dirname, "../src/components/layout/Navbar.tsx"), "utf8");
+  assert.doesNotMatch(nav, /setTimeout\s*\(\s*logoutUser/);
+  assert.match(nav, /onClose\(\);\s*\/\/ Primero cierra la UI\s*logoutUser\(\)/);
+});
+

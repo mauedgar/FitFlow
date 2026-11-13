@@ -51,7 +51,7 @@ export const AppRouter: React.FC = () => {
           <Route path="classes/:classId" element={<ClassDetailPage />} />
           <Route path="join-us" element={<JoinUsPage />} />
           <Route path="nutrition" element={<NutritionPage />} />
-          <Route element={<ProtectedRoute allowedRoles={[UserRole.CLIENT, UserRole.TRAINER]} />}>
+          <Route element={<ProtectedRoute allowedRoles={[UserRole.CLIENT]} />}>
             <Route path="home" element={<HomePage />} />
             {/* Si tuvieras más rutas para clientes, irían aquí */}
             {/* <Route path="my-profile" element={<ProfilePage />} /> */}

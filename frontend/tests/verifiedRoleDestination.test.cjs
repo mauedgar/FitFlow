@@ -32,7 +32,7 @@ test('backend-verified role routes to its own permitted landing', () => {
   assert.equal(destination(UserRole.FRONT_DESK), '/front-desk');
   assert.equal(destination(UserRole.TEACHER), '/teacher');
   assert.equal(destination(UserRole.CLIENT), '/home');
-  assert.equal(destination(UserRole.TRAINER), '/home');
+  assert.equal(destination(UserRole.TRAINER), '/landing');
 });
 
 test('unknown authenticated role cannot trigger redirect loop or gain privileges', () => {
@@ -52,6 +52,8 @@ test('teacher entry has a teacher-only guard and does not grant admin/front desk
   const router = fs.readFileSync(routerPath, 'utf8');
   const page = fs.readFileSync(pagePath, 'utf8');
   assert.match(router, /allowedRoles=\{\[UserRole\.TEACHER\]\}/);
+  assert.match(router, /allowedRoles=\{\[UserRole\.CLIENT\]\}/);
+  assert.doesNotMatch(router, /allowedRoles=\{\[UserRole\.CLIENT, UserRole\.TRAINER\]\}/);
   assert.match(router, /path="teacher" element=\{<TeacherLandingPage \/>\}/);
   assert.match(router, /allowedRoles=\{\[UserRole\.ADMIN, UserRole\.FRONT_DESK\]\}/);
   assert.match(page, /Esta vista no habilita esas operaciones/);

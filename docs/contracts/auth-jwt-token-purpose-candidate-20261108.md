@@ -45,7 +45,7 @@ The shared React identity cache key must be paired with one shared **validated q
 
 ## A03 — signed per-login session revocation (proposed in successor)
 
-Each new login emits an access+refresh JWT pair containing one cryptographically signed UUID4 `sid`. Refresh preserves that `sid`; both authorization pipelines check Redis for the hashed session revocation marker and individual token blacklist, failing closed with HTTP 503 when Redis is unavailable. Logout requires valid bearer and matching refresh `sub` and `sid`, uses one Redis Lua operation to check registered refresh ownership, revoke the session, delete refresh registration, blacklist the token and write an opaque idempotent acknowledgement, and invalidates all already issued access JWTs of that session. A mismatched session cannot revoke another credential. Historical JWTs without `sid` retain their original expiry for bounded compatibility; logout explicitly blacklists the presented historical access JWT, but previously minted uncorrelated historical access JWTs cannot be revoked as a family and may require fresh login. No retained Redis keys are scanned, deleted in bulk or migrated. The SPA holds refresh in tab-scoped sessionStorage and clears local state even if remote logout fails, reporting revocation as unconfirmed rather than claiming success. This is a candidate security contract subject to synthetic PG15/Redis7 and browser E2E plus independent full review; no Product acceptance or deployment is implied.
+Each new login emits an access+refresh JWT pair containing one cryptographically signed UUID4 `sid`. Refresh preserves that `sid`; both authorization pipelines check Redis for the hashed session revocation marker and individual token blacklist, failing closed with HTTP 503 when Redis is unavailable. Logout requires a signed registered refresh; a still-valid bearer, if supplied, must match the refresh sub and sid, uses one Redis Lua operation to check registered refresh ownership, revoke the session, delete refresh registration, blacklist the token and write an opaque idempotent acknowledgement, and invalidates all already issued access JWTs of that session. A mismatched session cannot revoke another credential. Historical JWTs without `sid` retain their original expiry for bounded compatibility; logout explicitly blacklists the presented historical access JWT, but previously minted uncorrelated historical access JWTs cannot be revoked as a family and may require fresh login. No retained Redis keys are scanned, deleted in bulk or migrated. The SPA holds refresh in tab-scoped sessionStorage and clears local state even if remote logout fails, reporting revocation as unconfirmed rather than claiming success. This is a candidate security contract subject to synthetic PG15/Redis7 and browser E2E plus independent full review; no Product acceptance or deployment is implied.
 
 ## IR006 — tab-scoped credential consistency
 
@@ -81,4 +81,21 @@ This residual risk is explicit, not automatically accepted by CI or Control.
 The auth-service user resolver now requires the FastAPI-injected managed
 database session. It no longer advances an unmanaged async session generator.
 This document describes a candidate only, not a Product acceptance or merge.
+
+## Control 012 — residuales y calificación negativa (candidato)
+
+La revocación Redis sobre recursos descartables distingue: ejecución real
+confirmada cuyo ACK de transporte se pierde y se recupera mediante un
+reintento idempotente; script de fallo sintético inyectado tras la primera
+tombstone SID, que NO revierte escrituras previas y responde 503 sin ACK;
+y dos access legados sin SID, de los cuales solo el bearer presentado y
+el refresh pueden revocarse. Otro access legado independiente sobrevive
+hasta su expiración original, no se anuncia revocación de toda la familia.
+
+Dos fallos de red consecutivos o recarga antes del ACK dejan el logout
+remoto UNCONFIRMED; no se persisten JWT para reintentos posteriores.
+Ambos residuales requieren aceptación explícita del Developer para
+promover PR #107, y no se convierten en 0 advisories por CI positiva.
+El alias trainer es histórico de presentación; la navegación protegida
+solo puede utilizar los roles canónicos persistidos del backend.
 

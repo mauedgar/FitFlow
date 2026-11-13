@@ -125,7 +125,7 @@ export const Navbar = () => {
                       w="100%"
                       onClick={() => {
                         onClose(); // Primero cierra la UI
-                        setTimeout(logoutUser, 150); // Luego, con un retardo, ejecuta la lógica de la app
+                        logoutUser(); // Sin callback diferido: se inicia el cierre local inmediatamente
                       }}
                     >
                       Cerrar Sesión
