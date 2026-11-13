@@ -21,7 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from app.core.blacklist import is_token_blacklisted
 from app.core.deps import get_current_user
-from app.core.session_revocation import commit_logout, is_session_revoked, session_ids_match
+from app.core.session_revocation import (
+    commit_logout, is_legacy_subject_revoked, is_session_revoked, session_ids_match,
+)
 from app.services.auth_service import get_active_user_for_refresh
 from app.core.token_store import (
     is_refresh_token_valid,
@@ -97,13 +99,15 @@ async def refresh_access_token(
         logger.warning("Invalid or expired refresh token provided")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido o expirado.")
 
-    if "sid" in payload:
-        try:
-            revoked_session = is_session_revoked(payload["sid"])
-        except ExternalServiceError as exc:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-        if revoked_session:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión revocada.")
+    try:
+        revoked_session = (
+            is_session_revoked(payload["sid"]) if "sid" in payload
+            else is_legacy_subject_revoked(payload["sub"])
+        )
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    if revoked_session:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión revocada.")
 
     try:
         registered = is_refresh_token_valid(refresh_token)

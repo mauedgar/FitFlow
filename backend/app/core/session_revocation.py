@@ -1,8 +1,9 @@
 """Bounded per-login JWT session revocation with Redis fail-closed checks.
 
 No persisted User schema changes. New JWTs carry one signed UUID4 session id.
-Legacy signed tokens without sid remain valid only until their original exp;
-a legacy bearer explicitly presented to logout is blacklisted by digest.
+Legacy signed tokens without sid are admitted until their original exp unless
+a subject-wide temporary revocation marker is set by legacy logout.
+New signed sessions with sid remain independently usable.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ from app.core.security import token_seconds_until_expiry
 from app.services.errors import ExternalServiceError
 
 _REVOKED_SESSION_PREFIX = "revoked_session:"
+_LEGACY_SUBJECT_REVOKED_PREFIX = "revoked_legacy_subject:"
 # Extra Redis tombstone retention after the last possible refresh. A fresh
 # access credential may outlive its parent refresh by this entire interval.
 # The 60-second cushion protects expiration rounding and modest clock drift.
@@ -36,6 +38,21 @@ def _valid_sid(sid: object) -> str | None:
 
 def _revocation_key(sid: str) -> str:
     return _REVOKED_SESSION_PREFIX + sha256(sid.encode("utf-8")).hexdigest()
+
+
+def _legacy_subject_revocation_key(subject: str) -> str:
+    """Hashed account scope: SID-less credentials have no narrower family ID."""
+    return _LEGACY_SUBJECT_REVOKED_PREFIX + sha256(subject.encode("utf-8")).hexdigest()
+
+
+def is_legacy_subject_revoked(subject: str) -> bool:
+    """Fail closed on Redis errors; only signed SID-less credentials are affected."""
+    if not isinstance(subject, str) or not subject:
+        return True
+    try:
+        return get_redis_client().exists(_legacy_subject_revocation_key(subject)) == 1
+    except RedisError as exc:
+        raise ExternalServiceError("Redis no está disponible.") from exc
 
 
 def is_session_revoked(sid: str) -> bool:
@@ -73,7 +90,7 @@ def is_access_credential_revoked(token: str, payload: dict) -> bool:
     if is_token_blacklisted(token):
         return True
     if "sid" not in payload:
-        return False  # Historical JWT: bounded compatibility, no session id.
+        return is_legacy_subject_revoked(payload.get("sub"))
     return is_session_revoked(payload["sid"])
 
 
@@ -106,8 +123,13 @@ if subject ~= ARGV[5] then
 end
 if ARGV[2] == 'sid' then
   redis.call('SET', KEYS[5], '1', 'EX', ARGV[3])
-elseif ARGV[4] == '1' then
-  redis.call('SET', KEYS[6], '1', 'EX', ARGV[6])
+else
+  -- No historical session ID exists: fail closed for ALL SID-less JWTs of
+  -- this signed subject, while preserving distinct SID-bearing sessions.
+  redis.call('SET', KEYS[8], '1', 'EX', ARGV[7])
+  if ARGV[4] == '1' then
+    redis.call('SET', KEYS[6], '1', 'EX', ARGV[6])
+  end
 end
 redis.call('SET', KEYS[3], '1', 'EX', ARGV[1])
 redis.call('DEL', KEYS[1], KEYS[2])
@@ -141,6 +163,13 @@ def commit_logout(
         + _REVOCATION_CLOCK_SKEW_SECONDS
     )
     access_ttl = token_seconds_until_expiry(access_token) if access_token else 1
+    # The marker must outlive even OTHER preexisting legacy refresh grants,
+    # which can be valid for a full refresh lifetime from this logout.
+    legacy_ttl = (
+        settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
+        + settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        + _REVOCATION_CLOCK_SKEW_SECONDS
+    )
     keys = [
         opaque_jwt_key("refresh_token:", refresh_token),
         legacy_jwt_key("refresh_token:", refresh_token),
@@ -149,13 +178,14 @@ def commit_logout(
         _revocation_key(canonical_sid) if canonical_sid else opaque_jwt_key("unused_sid:", refresh_token),
         opaque_jwt_key("blacklist_token:", access_token) if access_token else opaque_jwt_key("unused_access:", refresh_token),
         opaque_jwt_key("logout_confirmed:", refresh_token),
+        _legacy_subject_revocation_key(subject) if canonical_sid is None else opaque_jwt_key("unused_legacy_subject:", refresh_token),
     ]
     try:
         result = get_redis_client().eval(
             _LOGOUT_SCRIPT, len(keys), *keys, refresh_ttl,
             "sid" if canonical_sid else "legacy", sid_ttl,
             "1" if canonical_sid is None and access_token else "0",
-            subject, access_ttl,
+            subject, access_ttl, legacy_ttl,
         )
     except RedisError as exc:
         raise ExternalServiceError("Redis no está disponible.") from exc

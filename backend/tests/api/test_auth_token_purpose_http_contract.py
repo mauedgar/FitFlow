@@ -12,7 +12,7 @@ from jose import jwt
 from sqlalchemy import delete, update
 from sqlalchemy.engine import make_url
 
-from app.core import security
+from app.core import security, session_revocation
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.core.redis_client import get_redis_client
@@ -133,8 +133,8 @@ async def test_typed_and_legacy_refresh_use_real_disposable_redis(
         security.create_refresh_token({"sub": str(user_id)}),
         legacy(user_id, role=None),
     ):
-        # Each explicit legacy logout now revokes that exact access credential.
-        # A second independent login must not reuse the same old bearer.
+        # SID-less logout revokes all historical credentials for this subject.
+        # Cleanup the subject-wide marker between independent fixture cases.
         access = security.create_access_token({
             "sub": str(user_id), "role": "client", "jti": uuid.uuid4().hex,
         })
@@ -171,6 +171,7 @@ async def test_typed_and_legacy_refresh_use_real_disposable_redis(
             delete_refresh_token(refresh)
             get_redis_client().delete(opaque_jwt_key("blacklist_token:", refresh))
             get_redis_client().delete(opaque_jwt_key("blacklist_token:", access))
+            get_redis_client().delete(session_revocation._legacy_subject_revocation_key(str(user_id)))
 
 
 def test_token_use_cannot_be_overridden_or_confused() -> None:

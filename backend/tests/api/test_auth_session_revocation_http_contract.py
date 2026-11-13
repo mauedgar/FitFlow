@@ -197,6 +197,7 @@ async def test_legacy_logout_blacklists_presented_access_credential(
         get_redis_client().delete(opaque_jwt_key("blacklist_token:", legacy_refresh))
         get_redis_client().delete(opaque_jwt_key("logout_confirmed:", legacy_refresh))
         get_redis_client().delete(opaque_jwt_key("blacklist_token:", legacy_access))
+        get_redis_client().delete(session_revocation._legacy_subject_revocation_key(str(subject)))
 
 
 
@@ -414,6 +415,7 @@ async def test_legacy_logout_ack_is_idempotent_and_blacklists_presented_access(
         client.delete(opaque_jwt_key("logout_confirmed:", refresh))
         client.delete(opaque_jwt_key("blacklist_token:", refresh))
         client.delete(opaque_jwt_key("blacklist_token:", access))
+        client.delete(session_revocation._legacy_subject_revocation_key(str(subject)))
 
 
 async def test_redis_unavailable_before_atomic_commit_does_not_revoke_or_ack(
@@ -526,11 +528,11 @@ async def test_real_disposable_redis_post_first_write_fault_remains_unconfirmed(
         clean_session(sid, refresh)
 
 
-async def test_sidless_multi_access_legacy_residual_is_explicitly_bounded(
+async def test_sidless_logout_revokes_all_legacy_access_and_refresh_for_subject(
     api_client: httpx.AsyncClient,
     admin_user: tuple[uuid.UUID, str, str],
 ) -> None:
-    """No SID means no family revocation for independently minted access JWTs."""
+    """A SID-less logout fails closed for every legacy credential of the account."""
     subject = admin_user[0]
     access_a = security.create_access_token({
         "sub": str(subject), "role": "admin", "jti": uuid.uuid4().hex,
@@ -540,7 +542,13 @@ async def test_sidless_multi_access_legacy_residual_is_explicitly_bounded(
     })
     refresh = security.create_refresh_token({"sub": str(subject)})
     assert access_a != access_b
+    another_refresh = security.create_refresh_token({"sub": str(subject), "jti": uuid.uuid4().hex})
+    signed_sid = str(uuid.uuid4())
+    independent_new_session = security.create_access_token({
+        "sub": str(subject), "role": "admin", "sid": signed_sid,
+    })
     store_refresh_token(str(subject), refresh)
+    store_refresh_token(str(subject), another_refresh)
     client = get_redis_client()
     try:
         for bearer in (access_a, access_b):
@@ -564,14 +572,28 @@ async def test_sidless_multi_access_legacy_residual_is_explicitly_bounded(
             f"{settings.API_V1_STR}/auth/me",
             headers={"Authorization": f"Bearer {access_b}"},
         )
-        assert residual.status_code == 200
+        assert residual.status_code == 401
+        marker = session_revocation._legacy_subject_revocation_key(str(subject))
+        assert client.ttl(marker) > settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
+        assert client.exists(opaque_jwt_key("logout_confirmed:", refresh)) == 1
+        still_valid_new_session = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {independent_new_session}"},
+        )
+        assert still_valid_new_session.status_code == 200
+        second_legacy_refresh = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": another_refresh},
+        )
+        assert second_legacy_refresh.status_code == 401
         reuse = await api_client.post(
             f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
         )
         assert reuse.status_code == 401
     finally:
         delete_refresh_token(refresh)
+        delete_refresh_token(another_refresh)
         for bearer in (access_a, access_b, refresh):
             client.delete(opaque_jwt_key("blacklist_token:", bearer))
         client.delete(opaque_jwt_key("logout_confirmed:", refresh))
+        client.delete(session_revocation._legacy_subject_revocation_key(str(subject)))
 
