@@ -116,8 +116,7 @@ async def test_logout_denies_access_in_refresh_body(
 ) -> None:
     token = security.create_access_token({"sub": str(user_id), "role": "client"})
     calls: list[str] = []
-    monkeypatch.setattr(auth_router, "delete_refresh_token", lambda _t: calls.append("delete"))
-    monkeypatch.setattr(auth_router, "blacklist_token", lambda _t: calls.append("blacklist"))
+    monkeypatch.setattr(auth_router, "commit_logout", lambda *_a, **_kw: calls.append("commit"))
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/logout",
         headers={"Authorization": f"Bearer {token}"},
