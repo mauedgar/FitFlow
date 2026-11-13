@@ -1,5 +1,6 @@
 // src/services/api.ts
 import axios from 'axios';
+import { registrationErrorMessage } from '../utils/registrationErrors';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
 // 1. Creamos una instancia de Axios con configuración base
@@ -54,15 +55,7 @@ export const registerUser = async (firstName: string, lastName: string, email: s
   } catch (error) {
     // Manejo de errores robusto, igual que en el login
     if (axios.isAxiosError(error) && error.response) {
-      // El backend devuelve un error 400 si el email ya existe.
-      // Extraemos el mensaje de 'detail'.
-      const detail = error.response.data?.detail;
-      const message = typeof detail === 'string'
-        ? detail
-        : Array.isArray(detail)
-          ? 'Revisá el nombre, apellido, correo y contraseña ingresados.'
-          : 'Error al registrar la cuenta.';
-      throw new Error(message);
+      throw new Error(registrationErrorMessage(error.response.status, error.response.data?.detail));
     }
     throw new Error('Ocurrió un error de red inesperado.');
   }

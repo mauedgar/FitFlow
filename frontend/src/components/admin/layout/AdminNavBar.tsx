@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Avatar, Box, Button, CloseButton, Drawer, Flex, HStack, Icon, Menu, Portal, Spacer, Text, VStack } from '@chakra-ui/react';
 import { NavLink as RouterNavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/useAuth';
+import { toaster } from '../../ui/toaster-store';
 import { useAdminIdentity } from '../auth/useAdminIdentity';
 import { FiHome, FiUsers, FiLogOut, FiBriefcase, FiMenu, FiCalendar } from 'react-icons/fi';
 import { LuChevronDown } from 'react-icons/lu';
@@ -22,8 +23,13 @@ const AdminNavBar: React.FC = () => {
   const menuTrigger = useRef<HTMLButtonElement>(null);
 
   const handleLogout = () => {
-    logout();
+    const revocation = logout();
     navigate('/login');
+    void revocation.catch(() => toaster.create({
+      title: 'Sesión local cerrada',
+      description: 'No se pudo confirmar la revocación remota. Evitá reutilizar este dispositivo compartido.',
+      type: 'warning',
+    }));
   };
 
   return (

@@ -19,13 +19,14 @@ from pydantic import ValidationError
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.core.security import decode_token
+from app.core.security import decode_token, is_access_token_payload
+from app.core.session_revocation import is_access_credential_revoked
 from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
 from app.schemas.user import UserPublic  # noqa: TC001
 from app.services.auth_service import get_user_from_token
-from app.services.errors import AuthError, PermissionDeniedError
+from app.services.errors import AuthError, ExternalServiceError, PermissionDeniedError
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -50,12 +51,19 @@ async def get_current_user(
 ) -> User:
     """Valida el JWT, obtiene el usuario y verifica que esté activo."""
     payload = decode_token(token)
-    if payload is None:
+    if payload is None or not is_access_token_payload(payload):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    try:
+        revoked = is_access_credential_revoked(token, payload)
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    if revoked:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión revocada")
 
     try:
         token_data = TokenPayload(**payload)
@@ -98,7 +106,10 @@ async def require_current_user(
     token: str = Depends(oauth2_scheme),
 ) -> UserPublic:
     """Devuelve el usuario autenticado usando el servicio de Auth."""
-    user = await get_user_from_token(token, db)
+    try:
+        user = await get_user_from_token(token, db)
+    except ExternalServiceError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     if user is None:
         msg = "Token inválido o ausente."
         raise AuthError(msg)

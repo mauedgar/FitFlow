@@ -11,11 +11,16 @@ export interface AuthContextType {
   isClient: boolean;
   isTrainer: boolean;
   isAdmin: boolean;
-  login: (accessToken: string) => void;
-  logout: () => void;
+  login: (accessToken: string, refreshToken: string) => void;
+  logout: () => Promise<void>;
   userBookings: Booking[] | undefined;
   isLoadingBookings: boolean;
   isLoadingAuth: boolean;
+  identityRecoveryPending: boolean;
+  retryIdentity: () => Promise<void>;
+  /** A warning, never a remote revocation receipt. */
+  remoteLogoutUnconfirmed: boolean;
+  dismissRemoteLogoutWarning: () => void;
 }
 
 // Solo define y exporta el contexto (sin provider ni lógica de estado aquí)

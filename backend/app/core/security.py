@@ -10,28 +10,53 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from math import ceil
 
-from jose import ExpiredSignatureError, JWTError, jwt
-from passlib.context import CryptContext
-
+import bcrypt
 from app.core.config import settings
+from jose import ExpiredSignatureError, JWTError, jwt
 
 # --------------------------------------------------------------------------- #
-# Contexto de hashing (bcrypt)
+# Hashing bcrypt nativo; no cambia formato almacenado ni JWT.
 # --------------------------------------------------------------------------- #
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+_BCRYPT_MAX_PASSWORD_BYTES = 72
+_BCRYPT_ROUNDS = 12  # Mismo costo por defecto que Passlib 1.7.4.
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica una contraseña en texto plano contra su hash bcrypt."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verifica hashes bcrypt heredados 2a/2b/2y sin migrar usuarios.
+
+    bcrypt 4.3 conserva la semántica de verificación heredada incluso para
+    contraseñas anteriores de más de 72 bytes. Esa limitación SOLO se mantiene
+    al verificar hashes existentes; no se permite crear hashes nuevos truncados.
+    """
+    if not isinstance(plain_password, str) or not isinstance(hashed_password, str):
+        return False
+    if "\x00" in plain_password:
+        return False  # Passlib rechazaba el byte NUL.
+    try:
+        encoded_hash = hashed_password.encode("ascii")
+        if len(encoded_hash) != 60 or encoded_hash[:4] not in (
+            b"$2a$", b"$2b$", b"$2y$"
+        ):
+            return False
+        return bcrypt.checkpw(plain_password.encode("utf-8"), encoded_hash)
+    except (UnicodeError, ValueError):
+        return False  # Hash corrupto, no excepción ni token de sesión.
 
 
 def get_password_hash(password: str) -> str:
-    """Genera un hash bcrypt seguro para almacenar en la base de datos."""
-    return pwd_context.hash(password)
+    """Crea hash 2b sin truncar bytes de contraseña ni cambiar formato de DB."""
+    password_bytes = password.encode("utf-8")
+    if b"\x00" in password_bytes:
+        raise ValueError("La contraseña contiene un byte NUL no admitido")
+    if len(password_bytes) > _BCRYPT_MAX_PASSWORD_BYTES:
+        raise ValueError("La contraseña excede los 72 bytes admitidos por bcrypt")
+    return bcrypt.hashpw(
+        password_bytes, bcrypt.gensalt(rounds=_BCRYPT_ROUNDS, prefix=b"2b")
+    ).decode("ascii")
 
 
 # --------------------------------------------------------------------------- #
@@ -48,10 +73,10 @@ def create_access_token(
     • Usa HS256 + SECRET_KEY.
     • Expira rápido (30 min por defecto).
     """
-    expire = datetime.now(tz=timezone.utc) + (
+    expire = datetime.now(tz=UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode = {**data, "exp": expire}
+    to_encode = {**data, "token_use": "access", "exp": expire}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -67,10 +92,11 @@ def create_refresh_token(data: dict) -> str:
     • No incluye roles.
     • Se usa para renovar el Access Token.
     """
-    expire = datetime.now(tz=timezone.utc) + timedelta(
+    expire = datetime.now(tz=UTC) + timedelta(
         minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
     )
-    to_encode = {**data, "exp": expire}
+    # Enforce a refresh-only purpose and exclude roles even for supplied data.
+    to_encode = {**{k: v for k, v in data.items() if k != "role"}, "token_use": "refresh", "exp": expire}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -91,3 +117,44 @@ def decode_token(token: str) -> dict | None:
         return None
     except JWTError:
         return None
+
+
+def is_access_token_payload(payload: dict | None) -> bool:
+    """A signed refresh token must never be accepted as a bearer credential.
+
+    Historical untyped access tokens had a signed role; refresh tokens did not.
+    """
+    if not isinstance(payload, dict):
+        return False
+    token_use = payload.get("token_use")
+    if token_use is not None:
+        return token_use == "access"
+    return isinstance(payload.get("role"), str) and bool(payload["role"])
+
+
+def is_refresh_token_payload(payload: dict | None) -> bool:
+    """Allow typed refresh and bounded untyped legacy refresh, never access."""
+    if not isinstance(payload, dict):
+        return False
+    if not isinstance(payload.get("sub"), str) or not payload["sub"] or "role" in payload:
+        return False
+    purpose = payload.get("token_use")
+    return purpose == "refresh" or "token_use" not in payload
+
+
+def token_seconds_until_expiry(token: str) -> int:
+    """Return signed JWT remaining TTL for Redis retention; fail closed.
+
+    A signed JWT without a valid future expiration must never create an
+    unbounded Redis key. Round upwards so the Redis key survives until expiry.
+    """
+    payload = decode_token(token)
+    if payload is None:
+        raise ValueError("Token inválido o expirado")
+    exp = payload.get("exp")
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        raise TypeError("JWT sin expiración válida")
+    remaining = ceil(exp - datetime.now(tz=UTC).timestamp())
+    if remaining < 1:
+        raise ValueError("JWT expirado")
+    return remaining

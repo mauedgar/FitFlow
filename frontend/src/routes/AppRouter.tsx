@@ -25,6 +25,7 @@ const CrudClassesPage = React.lazy(() => import('../pages/admin/CrudClassesPage'
 const RootAuthGuard = React.lazy(() => import('../components/auth/RootAuthGuard'));
 const ClassDetailPage = React.lazy(() => import('../pages/ClassDetailPage'));
 const FrontDeskPage = React.lazy(() => import('../pages/FrontDeskPage'));
+const TeacherLandingPage = React.lazy(() => import('../pages/TeacherLandingPage'));
 
 
 
@@ -50,13 +51,16 @@ export const AppRouter: React.FC = () => {
           <Route path="classes/:classId" element={<ClassDetailPage />} />
           <Route path="join-us" element={<JoinUsPage />} />
           <Route path="nutrition" element={<NutritionPage />} />
-          <Route element={<ProtectedRoute allowedRoles={[UserRole.CLIENT, UserRole.TRAINER]} />}>
+          <Route element={<ProtectedRoute allowedRoles={[UserRole.CLIENT]} />}>
             <Route path="home" element={<HomePage />} />
             {/* Si tuvieras más rutas para clientes, irían aquí */}
             {/* <Route path="my-profile" element={<ProfilePage />} /> */}
           </Route>
           <Route element={<ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.FRONT_DESK]} />}>
             <Route path="front-desk" element={<FrontDeskPage />} />
+          </Route>
+          <Route element={<ProtectedRoute allowedRoles={[UserRole.TEACHER]} />}>
+            <Route path="teacher" element={<TeacherLandingPage />} />
           </Route>
           {/* Esta ruta se renderiza si ninguna de las anteriores coincide */}
           <Route path="*" element={<NotFoundPage/>}/>

@@ -67,12 +67,12 @@ async function run() {
         pathname: new URL(page.url()).pathname,
         headings: await page.getByRole('heading').allTextContents(),
         alerts: await page.getByRole('alert').allTextContents(),
-        hasStoredToken: await page.evaluate(() => Boolean(localStorage.getItem('access_token'))),
+        hasStoredToken: await page.evaluate(() => Boolean(sessionStorage.getItem('access_token'))),
       };
       console.error('CLIENT_SIGNUP_NAVIGATION_DIAGNOSTIC', JSON.stringify(browserState));
       throw error;
     }
-    const signed = await page.evaluate(() => localStorage.getItem('access_token'));
+    const signed = await page.evaluate(() => sessionStorage.getItem('access_token'));
     assert.ok(signed, 'Login must retain a real signed JWT');
     const me = await fetch(API + '/clients/me', {
       headers: { Authorization: 'Bearer ' + signed },
@@ -82,6 +82,194 @@ async function run() {
     assert.equal(profile.email, email);
     assert.equal(profile.full_name, fullName);
     assert.ok(profile.id);
+
+    // Bounded real-page failure: an isolated browser intercepts logout twice,
+    // so the signed JWT remains live on the disposable backend. Never treat
+    // local deauthorization or a frontend warning as server revocation.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    let observedLogoutAttempts = 0;
+    let resolveTwoFailures;
+    let rejectTimer;
+    const twoFailures = new Promise((resolve, reject) => {
+      resolveTwoFailures = resolve;
+      rejectTimer = setTimeout(
+        () => reject(new Error('Did not observe two bounded 503 logout attempts')),
+        15000
+      );
+    });
+    await page.route('**/api/v1/auth/logout', async route => {
+      observedLogoutAttempts += 1;
+      await route.fulfill({
+        status: 503, contentType: 'application/json',
+        body: JSON.stringify({ detail: 'SYNTHETIC_LOGOUT_UNAVAILABLE' }),
+      });
+      if (observedLogoutAttempts === 2) {
+        clearTimeout(rejectTimer);
+        resolveTwoFailures();
+      }
+    });
+    await page.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+    await twoFailures;
+    await page.waitForURL('**/login', { timeout: 10000 });
+    const unconfirmedText = 'Cerraste la sesión local, pero no se confirmó su revocación en el servidor.';
+    await page.getByText(unconfirmedText, { exact: false }).waitFor({ timeout: 10000 });
+    assert.equal(observedLogoutAttempts, 2, 'Client sends exactly one bounded retry');
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), null);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+    assert.equal(
+      await page.evaluate(() => sessionStorage.getItem('fitflow_logout_remote_unconfirmed')),
+      '1', 'Only the non-secret status must survive after logout'
+    );
+    const backendStillAuthorized = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + signed },
+    });
+    assert.equal(backendStillAuthorized.status, 200,
+      'Synthetic offline logout cannot imply actual remote revocation');
+    await page.reload();
+    await page.getByText(unconfirmedText, { exact: false }).waitFor({ timeout: 10000 });
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), null);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+    await page.unroute('**/api/v1/auth/logout');
+    console.log('CLIENT_LOGOUT_UNCONFIRMED_RELOAD_WARNING_PASS');
+
+    // Independent browser context avoids inheriting the previous unconfirmed
+    // warning. An HTTP 202 must NEVER be mistaken for logout's required 204.
+    const unexpectedContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const unexpected = await unexpectedContext.newPage();
+      await unexpected.goto(WEB + '/login');
+      await unexpected.getByLabel('Email', { exact: true }).fill(email);
+      await unexpected.getByLabel('Contraseña', { exact: true }).fill(password);
+      await unexpected.getByRole('button', { name: 'Ingresar' }).click();
+      await unexpected.waitForURL('**/home', { timeout: 20000 });
+      let unexpectedAckAttempts = 0;
+      await unexpected.route('**/api/v1/auth/logout', route => {
+        unexpectedAckAttempts += 1;
+        return route.fulfill({
+          status: 202,
+          contentType: 'application/json',
+          body: JSON.stringify({ detail: 'SYNTHETIC_NOT_YET_REVOKED' }),
+        });
+      });
+      const unexpectedAck = unexpected.waitForResponse(response =>
+        response.url() === API + '/auth/logout' && response.status() === 202,
+      );
+      await unexpected.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+      await unexpectedAck;
+      await unexpected.waitForURL('**/login', { timeout: 10000 });
+      await unexpected.getByText(unconfirmedText, { exact: false }).waitFor();
+      assert.equal(unexpectedAckAttempts, 1, 'HTTP 202 must not be retried or accepted as an ACK');
+      assert.equal(
+        await unexpected.evaluate(() => sessionStorage.getItem('fitflow_logout_remote_unconfirmed')),
+        '1', 'Non-204 response cannot erase remote uncertainty'
+      );
+      assert.equal(await unexpected.evaluate(() => sessionStorage.getItem('access_token')), null);
+      assert.equal(await unexpected.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+      console.log('CLIENT_LOGOUT_NON204_REJECTED_PASS');
+    } finally {
+      await unexpectedContext.close();
+    }
+
+    // Real mounted React and Axios concurrency in the SAME browser tab.
+    // A's delayed 204 must not clear B's unresolved double-503 warning.
+    const raceContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const racePage = await raceContext.newPage();
+      await racePage.goto(WEB + '/login');
+      await racePage.getByLabel('Email', { exact: true }).fill(email);
+      await racePage.getByLabel('Contraseña', { exact: true }).fill(password);
+      await racePage.getByRole('button', { name: 'Ingresar' }).click();
+      await racePage.waitForURL('**/home', { timeout: 20000 });
+      let calls = 0;
+      let releaseA;
+      let observedA;
+      let observedB;
+      const waitA = new Promise(resolve => { observedA = resolve; });
+      const waitB = new Promise(resolve => { observedB = resolve; });
+      const heldA = new Promise(resolve => { releaseA = resolve; });
+      await racePage.route('**/api/v1/auth/logout', async route => {
+        calls += 1;
+        if (calls === 1) {
+          observedA();
+          await heldA;
+          return route.fulfill({ status: 204, body: '' });
+        }
+        await route.fulfill({
+          status: 503, contentType: 'application/json',
+          body: JSON.stringify({ detail: 'SYNTHETIC_B_UNAVAILABLE' }),
+        });
+        if (calls === 3) observedB();
+      });
+      await racePage.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+      await waitA;
+      await racePage.waitForURL('**/login', { timeout: 10000 });
+      // The first request is intentionally still pending; authenticate B.
+      await racePage.getByLabel('Email', { exact: true }).fill(email);
+      await racePage.getByLabel('Contraseña', { exact: true }).fill(password);
+      await racePage.getByRole('button', { name: 'Ingresar' }).click();
+      await racePage.waitForURL('**/home', { timeout: 20000 });
+      await racePage.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+      await waitB;
+      await racePage.waitForURL('**/login', { timeout: 10000 });
+      await racePage.getByText(unconfirmedText, { exact: false }).waitFor();
+      const beforeA = await racePage.evaluate(
+        () => JSON.parse(sessionStorage.getItem('fitflow_logout_pending_attempts')),
+      );
+      assert.equal(beforeA.length, 2);
+      releaseA();
+      await racePage.waitForFunction(() => {
+        const entries = JSON.parse(sessionStorage.getItem('fitflow_logout_pending_attempts') || '[]');
+        return entries.length === 1;
+      }, null, { timeout: 10000 });
+      assert.equal(
+        await racePage.evaluate(() => sessionStorage.getItem('fitflow_logout_remote_unconfirmed')),
+        '1', 'A late 204 must never clear B uncertain remote revocation',
+      );
+      await racePage.reload();
+      await racePage.getByText(unconfirmedText, { exact: false }).waitFor();
+      assert.equal(await racePage.evaluate(() => sessionStorage.getItem('access_token')), null);
+      assert.equal(await racePage.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+      console.log('CLIENT_LOGOUT_MOUNTED_CONCURRENT_ACK_RACE_PASS');
+    } finally {
+      await raceContext.close();
+    }
+
+    // Quota failure must not prevent a best-effort remote request and must
+    // remain visibly UNCONFIRMED in memory; cross-reload durability is
+    // physically unavailable if storage itself rejects writes.
+    const storageContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    try {
+      const storagePage = await storageContext.newPage();
+      await storagePage.goto(WEB + '/login');
+      await storagePage.getByLabel('Email', { exact: true }).fill(email);
+      await storagePage.getByLabel('Contraseña', { exact: true }).fill(password);
+      await storagePage.getByRole('button', { name: 'Ingresar' }).click();
+      await storagePage.waitForURL('**/home', { timeout: 20000 });
+      await storagePage.evaluate(() => {
+        const realSet = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+          if (key === 'fitflow_logout_pending_attempts') {
+            throw new DOMException('synthetic quota limit', 'QuotaExceededError');
+          }
+          return realSet.call(this, key, value);
+        };
+      });
+      let quotaRequests = 0;
+      await storagePage.route('**/api/v1/auth/logout', route => {
+        quotaRequests += 1;
+        return route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+      });
+      await storagePage.getByRole('button', { name: 'Cerrar Sesión', exact: true }).click();
+      await storagePage.waitForURL('**/login', { timeout: 10000 });
+      await storagePage.getByText(unconfirmedText, { exact: false }).waitFor({ timeout: 10000 });
+      await storagePage.waitForFunction(() => true); // Browser event loop checkpoint.
+      assert.ok(quotaRequests >= 1, 'Storage quota error cannot silently skip remote request');
+      assert.equal(await storagePage.evaluate(() => sessionStorage.getItem('access_token')), null);
+      assert.equal(await storagePage.evaluate(() => sessionStorage.getItem('refresh_token')), null);
+      console.log('CLIENT_LOGOUT_MOUNTED_STORAGE_QUOTA_WARNING_PASS');
+    } finally {
+      await storageContext.close();
+    }
 
     const duplicate = await context.newPage();
     await fillRegistration(duplicate, firstName, lastName, email);
@@ -97,7 +285,32 @@ async function run() {
     assert.equal((await rejectedRequest).status(), 422, 'Invalid full name must be rejected');
     await invalid.getByText('Error en el registro').waitFor({ timeout: 10000 });
     assert.equal(new URL(invalid.url()).pathname, '/register');
-    console.log('CLIENT_SIGNUP_BROWSER_E2E_PASS: register, signed login, client profile, 400 duplicate, 422 validation');
+    // Real mounted registration page + Axios, with a synthetic disposable 503.
+    // The server text must never be presented by the toaster/UI.
+    const unavailable = await context.newPage();
+    await fillRegistration(
+      unavailable, firstName, lastName,
+      'fitflow-upstream-' + randomUUID() + '@example.com'
+    );
+    const internalDetail = 'SYNTHETIC_PRIVATE_UPSTREAM_DIAGNOSTIC_DO_NOT_SHOW';
+    await unavailable.route('**/api/v1/users/register-client', route => route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: internalDetail }),
+    }));
+    const serverError = registrationResponse(unavailable);
+    await unavailable.getByRole('button', { name: 'Registrarse' }).click();
+    assert.equal((await serverError).status(), 503,
+      'Transient synthetic registration failure must reach the real Axios page');
+    await unavailable.getByText('Error en el registro').waitFor({ timeout: 10000 });
+    await unavailable.getByText('Error al registrar la cuenta.').waitFor({ timeout: 10000 });
+    assert.equal(new URL(unavailable.url()).pathname, '/register');
+    assert.equal(await unavailable.getByText(internalDetail).count(), 0,
+      'A server diagnostic must not leak into registration UI');
+    await unavailable.close();
+    console.log('CLIENT_SIGNUP_BROWSER_503_PUBLIC_ERROR_PASS');
+
+    console.log('CLIENT_SIGNUP_BROWSER_E2E_PASS: register, signed login, client profile, 400 duplicate, 422 validation, synthetic 503 public error');
     await context.close();
   } finally {
     await browser.close();

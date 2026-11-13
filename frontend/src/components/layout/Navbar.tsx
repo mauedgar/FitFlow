@@ -16,6 +16,7 @@ import {
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
+import { toaster } from '../ui/toaster-store';
 import { LuMenu } from 'react-icons/lu';
 
 export const Navbar = () => {
@@ -33,8 +34,13 @@ export const Navbar = () => {
     }, 150);
     };
   const logoutUser = () => {
-    logout();
+    const revocation = logout();
     navigate('/login');
+    void revocation.catch(() => toaster.create({
+      title: 'Sesión local cerrada',
+      description: 'No se pudo confirmar la revocación remota. Verificá tu conexión.',
+      type: 'warning',
+    }));
   };
 
   return (
@@ -119,7 +125,7 @@ export const Navbar = () => {
                       w="100%"
                       onClick={() => {
                         onClose(); // Primero cierra la UI
-                        setTimeout(logoutUser, 150); // Luego, con un retardo, ejecuta la lógica de la app
+                        logoutUser(); // Sin callback diferido: se inicia el cierre local inmediatamente
                       }}
                     >
                       Cerrar Sesión
