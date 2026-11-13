@@ -18,6 +18,9 @@ export interface AuthContextType {
   isLoadingAuth: boolean;
   identityRecoveryPending: boolean;
   retryIdentity: () => Promise<void>;
+  /** A warning, never a remote revocation receipt. */
+  remoteLogoutUnconfirmed: boolean;
+  dismissRemoteLogoutWarning: () => void;
 }
 
 // Solo define y exporta el contexto (sin provider ni lógica de estado aquí)

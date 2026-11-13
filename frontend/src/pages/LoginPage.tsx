@@ -22,7 +22,8 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
 
   const { login, logout, token, currentUser, isAuthenticated, isLoadingAuth,
-    identityRecoveryPending, retryIdentity } = useAuth();
+    identityRecoveryPending, retryIdentity, remoteLogoutUnconfirmed,
+    dismissRemoteLogoutWarning } = useAuth();
   const navigate = useNavigate();
   const [awaitingVerifiedIdentity, setAwaitingVerifiedIdentity] = useState(false);
   const [retrySession, setRetrySession] = useState<{
@@ -178,6 +179,17 @@ const LoginPage = () => {
     <Container maxW="40rem" py={10}>
       <VStack gap={8}>
         <Heading>Iniciar Sesión</Heading>
+        {remoteLogoutUnconfirmed && (
+          <Box role="alert" width="100%">
+            <Text>
+              Cerraste la sesión local, pero no se confirmó su revocación en el servidor.
+              La sesión anterior podría seguir activa hasta que expire.
+            </Text>
+            <Button variant="outline" onClick={dismissRemoteLogoutWarning}>
+              Ocultar aviso (no revoca la sesión)
+            </Button>
+          </Box>
+        )}
         {pendingSession && (
           <Box role="alert" width="100%">
             <Text>La identidad no pudo verificarse. El acceso permanece suspendido.</Text>

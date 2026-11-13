@@ -11,8 +11,9 @@ const js = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
 
-function harness(initialIdentity) {
+function harness(initialIdentity, options = {}) {
   const storage = new Map([['access_token', 'signed-access'], ['refresh_token', 'signed-refresh']]);
+  if (options.pendingRemoteLogout) storage.set('fitflow_logout_remote_unconfirmed', '1');
   const sessionStorage = {
     getItem: key => storage.has(key) ? storage.get(key) : null,
     setItem: (key, value) => storage.set(key, value),
@@ -70,7 +71,10 @@ function harness(initialIdentity) {
         advanceAuthSessionGeneration: () => ++generation,
       };
       if (name === '../utils/revokeServerSession') return {
-        revokeServerSession: async (...args) => { revoked.push(args); },
+        revokeServerSession: async (...args) => {
+          revoked.push(args);
+          if (options.revocationError) throw options.revocationError;
+        },
       };
       if (name === '../utils/identityFailurePolicy') return {
         isRecoverableIdentityFailure: error => error?.isAxiosError === true &&
@@ -177,5 +181,40 @@ test('verified backend teacher role is trainer, but legacy trainer alias is not'
   assert.equal(unknownState.isTrainer, false);
   assert.equal(unknownState.isAdmin, false);
   assert.equal(unknownState.isClient, false);
+});
+
+test('unconfirmed remote logout leaves a non-secret warning across reload', async () => {
+  const h = harness(verified, { revocationError: new Error('synthetic Redis outage') });
+  const before = h.render();
+  await assert.rejects(before.logout(), /synthetic Redis outage/);
+  assert.equal(h.storage.has('access_token'), false);
+  assert.equal(h.storage.has('refresh_token'), false);
+  assert.equal(h.storage.get('fitflow_logout_remote_unconfirmed'), '1');
+  assert.equal(h.render().remoteLogoutUnconfirmed, true);
+
+  const reload = harness(verified, { pendingRemoteLogout: true });
+  const warning = reload.render();
+  assert.equal(warning.remoteLogoutUnconfirmed, true);
+  warning.dismissRemoteLogoutWarning();
+  assert.equal(reload.storage.has('fitflow_logout_remote_unconfirmed'), false);
+  assert.equal(reload.render().remoteLogoutUnconfirmed, false);
+});
+
+test('confirmed remote revocation clears warning and all prior JWTs', async () => {
+  const h = harness(verified, { pendingRemoteLogout: true });
+  const before = h.render();
+  assert.equal(before.remoteLogoutUnconfirmed, true);
+  await before.logout();
+  assert.equal(h.storage.has('access_token'), false);
+  assert.equal(h.storage.has('refresh_token'), false);
+  assert.equal(h.storage.has('fitflow_logout_remote_unconfirmed'), false);
+  assert.equal(h.render().remoteLogoutUnconfirmed, false);
+});
+
+test('login page shows durable unconfirmed warning without false remote ACK', () => {
+  const login = fs.readFileSync(path.resolve(__dirname, '../src/pages/LoginPage.tsx'), 'utf8');
+  assert.match(login, /remoteLogoutUnconfirmed &&/);
+  assert.match(login, /no se confirmó su revocación en el servidor/);
+  assert.match(login, /Ocultar aviso \(no revoca la sesión\)/);
 });
 

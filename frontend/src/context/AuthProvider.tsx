@@ -30,6 +30,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return access;
   });
   const [currentClient] = useState<Client | null>(null);
+  // A non-secret warning survives tab reload; never persist a JWT after logout.
+  const [remoteLogoutUnconfirmed, setRemoteLogoutUnconfirmed] = useState(
+    () => sessionStorage.getItem("fitflow_logout_remote_unconfirmed") === "1",
+  );
   const queryClient = useQueryClient();
   // A same-JWT re-login still starts a new independent identity generation.
   const [sessionGeneration, setSessionGeneration] = useState(getAuthSessionGeneration);
@@ -99,8 +103,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setSessionGeneration(advanceAuthSessionGeneration());
     delete apiClient.defaults.headers.common["Authorization"];
     queryClient.clear();
-    // Failure must be reported, never mistaken for confirmed server revocation.
+    // Write only a non-secret warning before the network request. A reload
+    // must never silently turn an unconfirmed logout into a confirmed one.
+    sessionStorage.setItem("fitflow_logout_remote_unconfirmed", "1");
+    setRemoteLogoutUnconfirmed(true);
+    // A server 204 is the only confirmation that clears the flag.
     await revokeServerSession(accessToken, refreshToken);
+    sessionStorage.removeItem("fitflow_logout_remote_unconfirmed");
+    setRemoteLogoutUnconfirmed(false);
+  };
+
+  const dismissRemoteLogoutWarning = () => {
+    // Dismisses a local notice only; never claims server-side revocation.
+    sessionStorage.removeItem("fitflow_logout_remote_unconfirmed");
+    setRemoteLogoutUnconfirmed(false);
   };
 
   const isAuthenticated = !!token && !!currentUser;
@@ -130,6 +146,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoadingAuth,
     identityRecoveryPending,
     retryIdentity,
+    remoteLogoutUnconfirmed,
+    dismissRemoteLogoutWarning,
   };
 
   // Public routes, including /login, must remain usable while /auth/me is

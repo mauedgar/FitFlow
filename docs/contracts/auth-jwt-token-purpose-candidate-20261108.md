@@ -100,3 +100,19 @@ promover PR #107, y no se convierten en 0 advisories por CI positiva.
 El alias trainer es histórico de presentación; la navegación protegida
 solo puede utilizar los roles canónicos persistidos del backend.
 
+## Control 012 — aviso no secreto para revocación remota no confirmada
+
+Ante logout, la UI descarta acceso y refresh de sessionStorage de inmediato.
+Antes de intentar la revocación remota registra únicamente la bandera no
+secreta fitflow_logout_remote_unconfirmed=1, que no tiene credenciales ni
+autoriza operaciones. Solo una revocación HTTP 204 confirmada la elimina.
+Si ambas peticiones fallan, el aviso sigue visible tras recargar la misma
+pestaña en la pantalla de login. El usuario puede ocultarlo explícitamente,
+pero eso **no revoca** el servidor ni produce un ACK de revocación.
+Un nuevo inicio de sesión tampoco confirma la revocación de la anterior.
+
+Esta mejora no promete revocación durante una partición completa de red:
+si la solicitud nunca llega al backend, una credencial remota puede sobrevivir
+hasta su expiración firmada. El estado continúa UNCONFIRMED; aceptar esa
+limitación Product requiere una decisión específica del Developer.
+
