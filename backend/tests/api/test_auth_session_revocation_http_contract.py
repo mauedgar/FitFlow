@@ -315,9 +315,13 @@ async def test_logout_marker_outlives_refresh_expiry_on_both_bearer_pipelines(
             return int(self.now < self.deadlines.get(key, 0))
 
         def eval(self, _script: str, numkeys: int, *args: object) -> int:
-            assert numkeys == 7
+            # One additional subject-wide legacy key was added to the atomic
+            # Redis contract; SID sessions still write only their own marker.
+            assert numkeys == 8
             keys = args[:numkeys]
             arguments = args[numkeys:]
+            assert arguments[1] == "sid"
+            assert int(arguments[6]) > int(arguments[2])
             self.set(str(keys[4]), "1", ex=int(arguments[2]))
             return 1
 
