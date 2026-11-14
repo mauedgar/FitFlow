@@ -48,6 +48,11 @@ async def stage_new_session(
         != timedelta(hours=24)
     ):
         raise ValueError("logout proof expiry must equal absolute expiry plus 24 hours")
+    # R5 permits inert historical rows for retention/migration tests. The
+    # application staging path must never issue a newly expired session.
+    # A2 still owns the separate commit-before-credentials transaction gate.
+    if absolute_expires_at.astimezone(UTC) <= datetime.now(UTC):
+        raise ValueError("new session absolute expiry must be in the future")
     record = AuthSession(
         sid=sid,
         user_id=user_id,

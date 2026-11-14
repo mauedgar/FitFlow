@@ -130,3 +130,23 @@ async def test_stage_rejects_nonexact_proof_expiry_before_database_flush() -> No
         )
     assert db.flushes == 0
     assert db.added == []
+
+
+@pytest.mark.asyncio
+async def test_stage_rejects_expired_new_session_without_staging() -> None:
+    """Historical inert rows are a DB retention concern, not new credentials."""
+    now = datetime.now(UTC)
+    db = FakeAsyncDB()
+    with pytest.raises(ValueError, match="must be in the future"):
+        await stage_new_session(  # type: ignore[arg-type]
+            db,
+            sid=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            refresh_credential_digest=b"r" * 32,
+            logout_proof_digest=b"l" * 32,
+            logout_proof_key_id="synthetic",
+            absolute_expires_at=now - timedelta(seconds=1),
+            logout_proof_expires_at=now - timedelta(seconds=1) + timedelta(hours=24),
+        )
+    assert db.added == []
+    assert db.flushes == 0

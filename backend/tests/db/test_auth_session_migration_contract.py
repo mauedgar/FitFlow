@@ -10,7 +10,12 @@ import uuid
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 from threading import Event
+
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 
 import pytest
 from sqlalchemy import create_engine, delete, select, text, update
@@ -280,8 +285,8 @@ def _wait_for_pg_row_lock(engine, pid: int) -> bool:
 
 
 def _competing_update(engine, table: str, sid: uuid.UUID, values: dict, ready: Event,
-                      identity: dict) -> str:
-    """Return exact PG error, never swallow an unexpectedly successful update."""
+                      identity: dict) -> tuple[str | None, str]:
+    """Return SQLSTATE and message, never classify an unrelated SQL error as PASS."""
     assignments = ", ".join(f"{name} = :{name}" for name in values)
     try:
         with engine.begin() as connection:
@@ -292,9 +297,10 @@ def _competing_update(engine, table: str, sid: uuid.UUID, values: dict, ready: E
                 text(f"UPDATE {table} SET {assignments} WHERE sid = :sid"),
                 {**values, "sid": sid},
             )
-        return "UNEXPECTED_SUCCESS"
+        return None, "UNEXPECTED_SUCCESS"
     except DBAPIError as exc:
-        return str(exc.orig)
+        state = getattr(exc.orig, "sqlstate", None) or getattr(exc.orig, "pgcode", None)
+        return state, str(exc.orig)
 
 
 def test_competing_rotation_rejects_stale_generation(
@@ -338,7 +344,8 @@ def test_competing_rotation_rejects_stale_generation(
             finally:
                 transaction.commit()
             result = future.result(timeout=6)
-    assert "auth_session_invalid_refresh_transition" in result
+    assert result[0] == "23514", result
+    assert "auth_session_invalid_refresh_transition" in result[1]
     with disposable_engine.connect() as connection:
         values = connection.execute(
             text(f"SELECT refresh_generation, refresh_credential_digest FROM {table} "
@@ -388,7 +395,151 @@ def test_competing_expiry_uses_clock_after_row_lock(
             finally:
                 transaction.commit()
             result = future.result(timeout=6)
-    assert "auth_session_expired_write" in result
+    assert result[0] == "23514", result
+    assert "auth_session_expired_write" in result[1]
     with disposable_engine.connect() as connection:
         assert connection.scalar(text(f"SELECT revoked_at FROM {table} WHERE sid = :sid"),
                                  {"sid": sid}) is None
+
+
+@pytest.fixture
+def exact_migrated_schema_probe(disposable_engine):
+    """Run the ACTUAL Alembic A1 upgrade in a fully disposable PG schema.
+
+    This is not a CREATE TABLE LIKE copy: real DDL, all three installed triggers,
+    CHECKs, indexes and a real FK (to a synthetic users stub). Two connections
+    can see committed synthetic rows. DROP SCHEMA CASCADE cleans everything.
+    The qualified fitflow_test DB guard is enforced by disposable_engine.
+    """
+    schema = f"fitflow_a1_probe_{uuid.uuid4().hex}"
+    path = (
+        Path(__file__).resolve().parents[2]
+        / "alembic" / "versions" / "a6b7c8d9e0f1_auth_sessions_additive.py"
+    )
+    spec = spec_from_file_location(f"fitflow_a1_probe_{uuid.uuid4().hex}", path)
+    assert spec is not None and spec.loader is not None
+    migration = module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    with disposable_engine.begin() as conn:
+        conn.exec_driver_sql(f"CREATE SCHEMA {schema}")
+        conn.exec_driver_sql(f"CREATE TABLE {schema}.users (id uuid PRIMARY KEY)")
+        conn.exec_driver_sql(f"SET LOCAL search_path TO {schema}, public")
+        migration.op = Operations(MigrationContext.configure(conn))
+        migration.upgrade()
+        user_id = uuid.uuid4()
+        conn.execute(text(f"INSERT INTO {schema}.users (id) VALUES (:id)"), {"id": user_id})
+    try:
+        yield f"{schema}.auth_sessions", user_id
+    finally:
+        with disposable_engine.begin() as conn:
+            conn.exec_driver_sql(f"DROP SCHEMA {schema} CASCADE")
+
+
+def test_full_migrated_schema_fk_triggers_and_two_connection_rotation(
+    disposable_engine, exact_migrated_schema_probe
+) -> None:
+    """Prove lock/rotation on an actual migration-installed table + FK."""
+    table, user_id = exact_migrated_schema_probe
+    sid = uuid.uuid4()
+    now = datetime.now(UTC)
+    with disposable_engine.begin() as conn:
+        triggers = {r[0] for r in conn.execute(text("""
+            SELECT tgname FROM pg_trigger
+            WHERE tgrelid = to_regclass(:table) AND NOT tgisinternal
+        """), {"table": table})}
+        assert triggers == {
+            "fitflow_auth_sessions_before_insert_v1",
+            "fitflow_auth_sessions_before_update_v1",
+            "fitflow_auth_sessions_before_delete_v1",
+        }
+        assert conn.scalar(text("""
+            SELECT confdeltype FROM pg_constraint
+            WHERE conrelid = to_regclass(:table) AND contype = 'f'
+        """), {"table": table}) == "r"
+        conn.execute(text(f"""
+            INSERT INTO {table}
+                (sid, user_id, refresh_generation, refresh_credential_digest,
+                 logout_proof_digest, logout_proof_key_id, absolute_expires_at,
+                 logout_proof_expires_at)
+            VALUES (:sid, :uid, 0, :rd, :ld, 'synthetic-kid', :expiry, :proof)
+        """), {"sid": sid, "uid": user_id, "rd": b"r" * 32, "ld": b"l" * 32,
+               "expiry": now + timedelta(days=7), "proof": now + timedelta(days=8)})
+    ready = Event()
+    identity = {}
+    with disposable_engine.connect() as holder:
+        tx = holder.begin()
+        holder.execute(text(f"SELECT sid FROM {table} WHERE sid=:sid FOR UPDATE"),
+                       {"sid": sid})
+        holder.execute(text(f"""
+            UPDATE {table} SET refresh_generation=1, refresh_credential_digest=:digest
+            WHERE sid=:sid
+        """), {"sid": sid, "digest": b"x" * 32})
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                _competing_update, disposable_engine, table, sid,
+                {"refresh_generation": 1, "refresh_credential_digest": b"y" * 32},
+                ready, identity,
+            )
+            try:
+                assert ready.wait(3)
+                assert _wait_for_pg_row_lock(disposable_engine, identity["pid"])
+            finally:
+                tx.commit()
+            state, message = future.result(timeout=6)
+    assert state == "23514", (state, message)
+    assert "auth_session_invalid_refresh_transition" in message
+    with disposable_engine.connect() as conn:
+        assert conn.execute(text(f"""
+            SELECT refresh_generation, refresh_credential_digest
+            FROM {table} WHERE sid=:sid
+        """), {"sid": sid}).one() == (1, b"x" * 32)
+        with pytest.raises(DBAPIError) as exc:
+            with conn.begin_nested():
+                conn.execute(text(f"DELETE FROM {table} WHERE sid=:sid"), {"sid": sid})
+        assert getattr(exc.value.orig, "sqlstate", None) == "23514"
+        assert "auth_session_retention_not_elapsed" in str(exc.value.orig)
+
+
+def test_full_migrated_schema_expiry_decision_after_lock(
+    disposable_engine, exact_migrated_schema_probe
+) -> None:
+    """One real migration-installed row, lock held across absolute expiry."""
+    table, user_id = exact_migrated_schema_probe
+    sid = uuid.uuid4()
+    now = datetime.now(UTC)
+    expiry = now + timedelta(seconds=3)
+    with disposable_engine.begin() as conn:
+        conn.execute(text(f"""
+            INSERT INTO {table}
+                (sid, user_id, refresh_generation, refresh_credential_digest,
+                 logout_proof_digest, logout_proof_key_id, absolute_expires_at,
+                 logout_proof_expires_at)
+            VALUES (:sid, :uid, 0, :rd, :ld, 'synthetic-kid', :expiry, :proof)
+        """), {"sid": sid, "uid": user_id, "rd": b"r" * 32, "ld": b"l" * 32,
+               "expiry": expiry, "proof": expiry + timedelta(hours=24)})
+    ready = Event()
+    identity = {}
+    with disposable_engine.connect() as holder:
+        tx = holder.begin()
+        holder.execute(text(f"SELECT sid FROM {table} WHERE sid=:sid FOR UPDATE"),
+                       {"sid": sid})
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                _competing_update, disposable_engine, table, sid,
+                {"revoked_at": datetime.now(UTC),
+                 "last_logout_operation_digest": b"o" * 32,
+                 "receipt_key_version": "synthetic-version"},
+                ready, identity,
+            )
+            try:
+                assert ready.wait(3)
+                assert _wait_for_pg_row_lock(disposable_engine, identity["pid"])
+                time.sleep(max(0.0, (expiry - datetime.now(UTC)).total_seconds()) + 0.2)
+            finally:
+                tx.commit()
+            state, message = future.result(timeout=6)
+    assert state == "23514", (state, message)
+    assert "auth_session_expired_write" in message
+    with disposable_engine.connect() as conn:
+        assert conn.scalar(text(f"SELECT revoked_at FROM {table} WHERE sid=:sid"),
+                           {"sid": sid}) is None
