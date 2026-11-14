@@ -1,5 +1,6 @@
 """Registro explícito de los modelos ORM activos de FitFlow."""
 
+from app.db.models.auth_session import AuthSession
 from app.db.models.booking import Booking
 from app.db.models.class_schedule import ClassSchedule
 from app.db.models.class_session import ClassSession
@@ -11,6 +12,7 @@ from app.db.models.teacher import Teacher
 from app.db.models.user import User
 
 __all__ = [
+    "AuthSession",
     "Booking",
     "ClassSchedule",
     "ClassSession",

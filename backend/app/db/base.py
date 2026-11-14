@@ -2,6 +2,7 @@
 
 from app.db.base_class import Base
 from app.db.models import (
+    AuthSession,
     Booking,
     ClassSchedule,
     ClassSession,
@@ -15,6 +16,7 @@ from app.db.models import (
 
 __all__ = [
     "Base",
+    "AuthSession",
     "Booking",
     "ClassSchedule",
     "ClassSession",
