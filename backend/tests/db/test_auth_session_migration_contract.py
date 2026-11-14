@@ -6,16 +6,14 @@ against the pinned PostgreSQL15 service before pytest. Never run on retained DBs
 
 from __future__ import annotations
 
+import os
+import subprocess
 import uuid
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
-from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from threading import Event
-
-from alembic.migration import MigrationContext
-from alembic.operations import Operations
 
 import pytest
 from sqlalchemy import create_engine, delete, select, text, update
@@ -403,46 +401,68 @@ def test_competing_expiry_uses_clock_after_row_lock(
 
 
 @pytest.fixture
-def exact_migrated_schema_probe(disposable_engine):
-    """Run the ACTUAL Alembic A1 upgrade in a fully disposable PG schema.
+def exact_migrated_database_probe(disposable_engine):
+    """Run the actual full Alembic graph on a separate disposable PG15 DB.
 
-    This is not a CREATE TABLE LIKE copy: real DDL, all three installed triggers,
-    CHECKs, indexes and a real FK (to a synthetic users stub). Two connections
-    can see committed synthetic rows. DROP SCHEMA CASCADE cleans everything.
-    The qualified fitflow_test DB guard is enforced by disposable_engine.
+    This is not CREATE TABLE LIKE and does not import the repository's local
+    alembic package (which shadows the installed Alembic during pytest).
+    The qualified GitHub Actions PG15 service is an ephemeral container.
+    The unique database is always dropped after the two-connection proof.
     """
-    schema = f"fitflow_a1_probe_{uuid.uuid4().hex}"
-    path = (
-        Path(__file__).resolve().parents[2]
-        / "alembic" / "versions" / "a6b7c8d9e0f1_auth_sessions_additive.py"
-    )
-    spec = spec_from_file_location(f"fitflow_a1_probe_{uuid.uuid4().hex}", path)
-    assert spec is not None and spec.loader is not None
-    migration = module_from_spec(spec)
-    spec.loader.exec_module(migration)
-    with disposable_engine.begin() as conn:
-        conn.exec_driver_sql(f"CREATE SCHEMA {schema}")
-        conn.exec_driver_sql(f"CREATE TABLE {schema}.users (id uuid PRIMARY KEY)")
-        conn.exec_driver_sql(f"SET LOCAL search_path TO {schema}, public")
-        migration.op = Operations(MigrationContext.configure(conn))
-        migration.upgrade()
-        user_id = uuid.uuid4()
-        conn.execute(text(f"INSERT INTO {schema}.users (id) VALUES (:id)"), {"id": user_id})
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        pytest.skip("Fully disposable database proof is restricted to CI")
+    original = make_url(settings.DATABASE_URL)
+    assert original.database == "fitflow_test"
+    assert original.host in {"127.0.0.1", "localhost", "postgres"}
+    assert original.get_backend_name() == "postgresql"
+    dbname = f"fitflow_a1_probe_{uuid.uuid4().hex}"
+    admin = create_engine(original.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    probe_engine = None
+    created = False
     try:
-        yield f"{schema}.auth_sessions", user_id
+        with admin.connect() as conn:
+            conn.exec_driver_sql(f"CREATE DATABASE {dbname}")
+            created = True
+        probe_url = original.set(database=dbname)
+        env = {**os.environ, "DATABASE_URL": probe_url.render_as_string(hide_password=False)}
+        subprocess.run(
+            ["alembic", "upgrade", "head"],
+            cwd=str(Path(__file__).resolve().parents[2]),
+            env=env,
+            check=True,
+        )
+        probe_engine = create_engine(probe_url, pool_pre_ping=True)
+        with probe_engine.connect() as conn:
+            assert conn.scalar(text("SELECT version_num FROM alembic_version")) == "a6b7c8d9e0f1"
+            assert conn.scalar(text("SELECT to_regclass('auth_sessions')")) is not None
+        user_id = uuid.uuid4()
+        with Session(bind=probe_engine) as session:
+            session.add(User(
+                id=user_id, email=f"a1-probe-{user_id.hex}@example.invalid",
+                hashed_password="synthetic-not-for-login",
+                role=UserRole.admin, active=True,
+            ))
+            session.commit()
+        yield probe_engine, "auth_sessions", user_id
     finally:
-        with disposable_engine.begin() as conn:
-            conn.exec_driver_sql(f"DROP SCHEMA {schema} CASCADE")
+        if probe_engine is not None:
+            probe_engine.dispose()
+        try:
+            if created:
+                with admin.connect() as conn:
+                    conn.exec_driver_sql(f"DROP DATABASE {dbname} WITH (FORCE)")
+        finally:
+            admin.dispose()
 
 
 def test_full_migrated_schema_fk_triggers_and_two_connection_rotation(
-    disposable_engine, exact_migrated_schema_probe
+    exact_migrated_database_probe
 ) -> None:
-    """Prove lock/rotation on an actual migration-installed table + FK."""
-    table, user_id = exact_migrated_schema_probe
+    """Prove lock/rotation on the actual auth_sessions table in an isolated DB."""
+    engine, table, user_id = exact_migrated_database_probe
     sid = uuid.uuid4()
     now = datetime.now(UTC)
-    with disposable_engine.begin() as conn:
+    with engine.begin() as conn:
         triggers = {r[0] for r in conn.execute(text("""
             SELECT tgname FROM pg_trigger
             WHERE tgrelid = to_regclass(:table) AND NOT tgisinternal
@@ -466,7 +486,7 @@ def test_full_migrated_schema_fk_triggers_and_two_connection_rotation(
                "expiry": now + timedelta(days=7), "proof": now + timedelta(days=8)})
     ready = Event()
     identity = {}
-    with disposable_engine.connect() as holder:
+    with engine.connect() as holder:
         tx = holder.begin()
         holder.execute(text(f"SELECT sid FROM {table} WHERE sid=:sid FOR UPDATE"),
                        {"sid": sid})
@@ -476,19 +496,19 @@ def test_full_migrated_schema_fk_triggers_and_two_connection_rotation(
         """), {"sid": sid, "digest": b"x" * 32})
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(
-                _competing_update, disposable_engine, table, sid,
+                _competing_update, engine, table, sid,
                 {"refresh_generation": 1, "refresh_credential_digest": b"y" * 32},
                 ready, identity,
             )
             try:
                 assert ready.wait(3)
-                assert _wait_for_pg_row_lock(disposable_engine, identity["pid"])
+                assert _wait_for_pg_row_lock(engine, identity["pid"])
             finally:
                 tx.commit()
             state, message = future.result(timeout=6)
     assert state == "23514", (state, message)
     assert "auth_session_invalid_refresh_transition" in message
-    with disposable_engine.connect() as conn:
+    with engine.connect() as conn:
         assert conn.execute(text(f"""
             SELECT refresh_generation, refresh_credential_digest
             FROM {table} WHERE sid=:sid
@@ -501,14 +521,14 @@ def test_full_migrated_schema_fk_triggers_and_two_connection_rotation(
 
 
 def test_full_migrated_schema_expiry_decision_after_lock(
-    disposable_engine, exact_migrated_schema_probe
+    exact_migrated_database_probe
 ) -> None:
-    """One real migration-installed row, lock held across absolute expiry."""
-    table, user_id = exact_migrated_schema_probe
+    """One real migrated row, lock held across absolute expiry in isolated DB."""
+    engine, table, user_id = exact_migrated_database_probe
     sid = uuid.uuid4()
     now = datetime.now(UTC)
     expiry = now + timedelta(seconds=3)
-    with disposable_engine.begin() as conn:
+    with engine.begin() as conn:
         conn.execute(text(f"""
             INSERT INTO {table}
                 (sid, user_id, refresh_generation, refresh_credential_digest,
@@ -519,13 +539,13 @@ def test_full_migrated_schema_expiry_decision_after_lock(
                "expiry": expiry, "proof": expiry + timedelta(hours=24)})
     ready = Event()
     identity = {}
-    with disposable_engine.connect() as holder:
+    with engine.connect() as holder:
         tx = holder.begin()
         holder.execute(text(f"SELECT sid FROM {table} WHERE sid=:sid FOR UPDATE"),
                        {"sid": sid})
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(
-                _competing_update, disposable_engine, table, sid,
+                _competing_update, engine, table, sid,
                 {"revoked_at": datetime.now(UTC),
                  "last_logout_operation_digest": b"o" * 32,
                  "receipt_key_version": "synthetic-version"},
@@ -533,13 +553,13 @@ def test_full_migrated_schema_expiry_decision_after_lock(
             )
             try:
                 assert ready.wait(3)
-                assert _wait_for_pg_row_lock(disposable_engine, identity["pid"])
+                assert _wait_for_pg_row_lock(engine, identity["pid"])
                 time.sleep(max(0.0, (expiry - datetime.now(UTC)).total_seconds()) + 0.2)
             finally:
                 tx.commit()
             state, message = future.result(timeout=6)
     assert state == "23514", (state, message)
     assert "auth_session_expired_write" in message
-    with disposable_engine.connect() as conn:
+    with engine.connect() as conn:
         assert conn.scalar(text(f"SELECT revoked_at FROM {table} WHERE sid=:sid"),
                            {"sid": sid}) is None
