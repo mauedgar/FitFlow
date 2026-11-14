@@ -111,3 +111,22 @@ async def test_stage_rejects_naive_expiry_and_empty_kid() -> None:
         await stage_new_session(
             FakeAsyncDB(), **{**kwargs, "absolute_expires_at": datetime(2026, 11, 13)}
         )  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_stage_rejects_nonexact_proof_expiry_before_database_flush() -> None:
+    now = datetime.now(UTC)
+    db = FakeAsyncDB()
+    with pytest.raises(ValueError, match="24 hours"):
+        await stage_new_session(  # type: ignore[arg-type]
+            db,
+            sid=uuid.uuid4(),
+            user_id=uuid.uuid4(),
+            refresh_credential_digest=b"r" * 32,
+            logout_proof_digest=b"l" * 32,
+            logout_proof_key_id="synthetic",
+            absolute_expires_at=now + timedelta(days=7),
+            logout_proof_expires_at=now + timedelta(days=9),
+        )
+    assert db.flushes == 0
+    assert db.added == []

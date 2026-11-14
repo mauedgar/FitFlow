@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from app.crud.crud_auth_session import auth_session as auth_session_crud
@@ -42,6 +42,12 @@ async def stage_new_session(
         raise ValueError("logout_proof_key_id must be nonempty and at most 64 chars")
     if not (absolute_expires_at.tzinfo and logout_proof_expires_at.tzinfo):
         raise ValueError("expiry datetimes must be timezone-aware")
+    if (
+        logout_proof_expires_at.astimezone(UTC) -
+        absolute_expires_at.astimezone(UTC)
+        != timedelta(hours=24)
+    ):
+        raise ValueError("logout proof expiry must equal absolute expiry plus 24 hours")
     record = AuthSession(
         sid=sid,
         user_id=user_id,

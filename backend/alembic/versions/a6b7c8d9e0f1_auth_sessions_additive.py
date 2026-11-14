@@ -20,6 +20,28 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+
+GUARD_INSERT_SQL = """
+CREATE FUNCTION fitflow_auth_sessions_guard_insert_v1()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $fitflow$
+BEGIN
+    -- New sessions always start ACTIVE at generation zero. A receipt may
+    -- only arise from a later, row-locked ACTIVE -> REVOKED transition.
+    IF NEW.refresh_generation IS DISTINCT FROM 0
+       OR NEW.revoked_at IS NOT NULL
+       OR NEW.last_logout_operation_digest IS NOT NULL
+       OR NEW.receipt_key_version IS NOT NULL
+    THEN
+        RAISE EXCEPTION 'auth_session_invalid_initial_state' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$fitflow$
+"""
+
+
 GUARD_UPDATE_SQL = """
 CREATE FUNCTION fitflow_auth_sessions_guard_update_v1()
 RETURNS trigger
@@ -73,7 +95,7 @@ BEGIN
            OR NEW.refresh_generation IS DISTINCT FROM OLD.refresh_generation
            OR NEW.refresh_credential_digest IS DISTINCT FROM OLD.refresh_credential_digest
            OR NEW.revoked_at < OLD.created_at
-           OR NEW.revoked_at > decision_clock + INTERVAL '1 minute'
+           OR NEW.revoked_at > decision_clock
         THEN
             RAISE EXCEPTION 'auth_session_invalid_revocation_transition' USING ERRCODE = '23514';
         END IF;
@@ -163,8 +185,14 @@ def upgrade() -> None:
         "ix_auth_sessions_proof_expires", "auth_sessions", ["logout_proof_expires_at"],
         unique=False,
     )
+    op.execute(GUARD_INSERT_SQL)
     op.execute(GUARD_UPDATE_SQL)
     op.execute(GUARD_DELETE_SQL)
+    op.execute(
+        "CREATE TRIGGER fitflow_auth_sessions_before_insert_v1 "
+        "BEFORE INSERT ON auth_sessions FOR EACH ROW "
+        "EXECUTE FUNCTION fitflow_auth_sessions_guard_insert_v1()"
+    )
     op.execute(
         "CREATE TRIGGER fitflow_auth_sessions_before_update_v1 "
         "BEFORE UPDATE ON auth_sessions FOR EACH ROW "
