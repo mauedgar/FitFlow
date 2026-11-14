@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, configure_mappers
 from app.core.enums import ClassSessionStatus
 from app.db.base import Base
 from app.db.models import (
+    AuthSession,
     Booking,
     ClassSchedule,
     ClassSession,
@@ -19,6 +20,7 @@ from app.db.models import (
 
 
 ACTIVE_TABLES = {
+    "auth_sessions",
     "bookings",
     "class_schedules",
     "class_sessions",
@@ -30,6 +32,7 @@ ACTIVE_TABLES = {
     "users",
 }
 ACTIVE_MODELS = (
+    AuthSession,
     Booking,
     ClassSchedule,
     ClassSession,
@@ -102,6 +105,7 @@ def test_existing_cascade_semantics_are_preserved() -> None:
 
 def test_existing_on_delete_semantics_are_preserved() -> None:
     expected = {
+        ("auth_sessions", "user_id"): "RESTRICT",
         ("bookings", "client_id"): "CASCADE",
         ("bookings", "class_session_id"): "CASCADE",
         ("class_schedules", "gym_class_id"): "CASCADE",
