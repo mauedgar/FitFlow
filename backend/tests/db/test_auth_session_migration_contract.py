@@ -6,6 +6,7 @@ against the pinned PostgreSQL15 service before pytest. Never run on retained DBs
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import uuid
@@ -563,3 +564,143 @@ def test_full_migrated_schema_expiry_decision_after_lock(
     with engine.connect() as conn:
         assert conn.scalar(text(f"SELECT revoked_at FROM {table} WHERE sid=:sid"),
                            {"sid": sid}) is None
+
+
+def _explain_plan(conn, query: str, params: dict) -> dict:
+    """Return the actual PG15 JSON EXPLAIN plan, never guess from index DDL."""
+    raw = conn.execute(text("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + query), params).scalar_one()
+    if isinstance(raw, str):
+        raw = json.loads(raw)
+    assert isinstance(raw, list) and len(raw) == 1
+    assert isinstance(raw[0], dict) and "Plan" in raw[0]
+    return raw[0]["Plan"]
+
+
+def _contains_index(plan: dict, expected: str) -> bool:
+    if plan.get("Index Name") == expected and plan.get("Node Type") in {
+        "Index Scan", "Index Only Scan", "Bitmap Index Scan"
+    }:
+        return True
+    return any(_contains_index(child, expected) for child in plan.get("Plans", []))
+
+
+def test_disposable_migrated_auth_session_indexes_have_real_query_plans(
+    exact_migrated_database_probe
+) -> None:
+    """Bounded 4096-row synthetic PG15 workload; no retained or production SQL.
+
+    Qualifies index use by actual EXPLAIN ANALYZE + BUFFERS, not table metadata.
+    This is not a production latency, throughput, or capacity guarantee.
+    """
+    engine, table, user_id = exact_migrated_database_probe
+    anchor = datetime.now(UTC)
+    with engine.begin() as conn:
+        count = conn.execute(text(f"""
+            INSERT INTO {table}
+                (sid, user_id, refresh_generation, refresh_credential_digest,
+                 logout_proof_digest, logout_proof_key_id, created_at,
+                 absolute_expires_at, logout_proof_expires_at)
+            SELECT gen_random_uuid(), :uid, 0,
+                   decode(repeat('ab', 32), 'hex'), decode(repeat('cd', 32), 'hex'),
+                   'synthetic-index',
+                   CAST(:anchor AS timestamptz) - INTERVAL '45 days'
+                       + (gs.n % 24) * INTERVAL '1 hour',
+                   CAST(:anchor AS timestamptz) + (gs.n - 96) * INTERVAL '1 hour',
+                   CAST(:anchor AS timestamptz) + (gs.n - 96) * INTERVAL '1 hour'
+                       + INTERVAL '24 hours'
+            FROM generate_series(1, 4096) AS gs(n)
+        """), {"uid": user_id, "anchor": anchor}).rowcount
+        assert count == 4096
+        conn.exec_driver_sql(f"ANALYZE {table}")
+        recent_plan = _explain_plan(
+            conn,
+            f"SELECT sid FROM {table} WHERE user_id=:uid "
+            "ORDER BY created_at DESC LIMIT 10",
+            {"uid": user_id},
+        )
+        cleanup_plan = _explain_plan(
+            conn,
+            f"SELECT sid FROM {table} WHERE logout_proof_expires_at <= :cutoff "
+            "ORDER BY logout_proof_expires_at LIMIT 25",
+            {"cutoff": anchor},
+        )
+        assert _contains_index(recent_plan, "ix_auth_sessions_user_created"), recent_plan
+        assert _contains_index(cleanup_plan, "ix_auth_sessions_proof_expires"), cleanup_plan
+        assert recent_plan["Actual Rows"] == 10, recent_plan
+        assert cleanup_plan["Actual Rows"] == 25, cleanup_plan
+
+
+def test_disposable_retention_soft_delete_and_hard_erasure_policy(
+    exact_migrated_database_probe
+) -> None:
+    """DB protection evidence only; legal erasure/key retirement need A2/Ops.
+
+    No automated cleanup or production erasure is enabled by this test.
+    """
+    engine, table, live_user = exact_migrated_database_probe
+    live_sid, old_sid, old_user = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    now = datetime.now(UTC)
+    old_created = now - timedelta(days=12)
+    old_expires = now - timedelta(days=5)
+    with Session(bind=engine) as session:
+        session.add(User(
+            id=old_user, email=f"a1-erasure-{old_user.hex}@example.invalid",
+            hashed_password="synthetic-not-for-login",
+            role=UserRole.admin, active=True,
+        ))
+        session.commit()
+
+    with engine.begin() as conn:
+        stmt = text(f"""
+            INSERT INTO {table}
+                (sid, user_id, refresh_generation, refresh_credential_digest,
+                 logout_proof_digest, logout_proof_key_id, created_at,
+                 absolute_expires_at, logout_proof_expires_at)
+            VALUES (:sid, :uid, 0, :rd, :ld, 'synthetic-retention', :created, :expiry,
+                    :proof)
+        """)
+        conn.execute(stmt, [
+            {"sid": live_sid, "uid": live_user, "rd": b"r" * 32, "ld": b"l" * 32,
+             "created": now, "expiry": now + timedelta(days=7),
+             "proof": now + timedelta(days=8)},
+            {"sid": old_sid, "uid": old_user, "rd": b"r" * 32, "ld": b"l" * 32,
+             "created": old_created, "expiry": old_expires,
+             "proof": old_expires + timedelta(hours=24)},
+        ])
+        conn.execute(
+            text("UPDATE users SET deleted_at=:at WHERE id=:uid"),
+            {"at": now, "uid": live_user},
+        )
+        assert conn.scalar(text("SELECT deleted_at FROM users WHERE id=:uid"),
+                           {"uid": live_user}) is not None
+        assert conn.scalar(text(f"SELECT count(*) FROM {table} WHERE user_id=:uid"),
+                           {"uid": live_user}) == 1
+
+    with pytest.raises(DBAPIError) as early:
+        with engine.begin() as conn:
+            conn.execute(text(f"DELETE FROM {table} WHERE sid=:sid"),
+                         {"sid": live_sid})
+    assert getattr(early.value.orig, "sqlstate", None) == "23514"
+    assert "auth_session_retention_not_elapsed" in str(early.value.orig)
+
+    for user in (live_user, old_user):
+        with pytest.raises(DBAPIError) as blocked:
+            with engine.begin() as conn:
+                conn.execute(text("DELETE FROM users WHERE id=:uid"), {"uid": user})
+        assert getattr(blocked.value.orig, "sqlstate", None) == "23503"
+
+    with engine.begin() as conn:
+        deleted = conn.execute(
+            text(f"DELETE FROM {table} WHERE sid=:sid"), {"sid": old_sid}
+        ).rowcount
+        assert deleted == 1
+        assert conn.scalar(text(f"SELECT count(*) FROM {table} WHERE sid=:sid"),
+                           {"sid": old_sid}) == 0
+        assert conn.execute(text("DELETE FROM users WHERE id=:uid"),
+                            {"uid": old_user}).rowcount == 1
+        assert conn.scalar(text("SELECT count(*) FROM users WHERE id=:uid"),
+                           {"uid": old_user}) == 0
+        assert conn.scalar(text("SELECT count(*) FROM users WHERE id=:uid"),
+                           {"uid": live_user}) == 1
+        assert conn.scalar(text(f"SELECT count(*) FROM {table} WHERE sid=:sid"),
+                           {"sid": live_sid}) == 1
