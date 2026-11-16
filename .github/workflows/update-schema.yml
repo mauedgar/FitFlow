@@ -24,7 +24,8 @@ jobs:
     timeout-minutes: 20
     env:
       # Synthetic CI-only values, never from real/staging accounts.
-      DATABASE_URL: postgresql+psycopg2://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_db
+      # Migration checks use psycopg3 synchronously; application DB access remains asyncpg.
+      DATABASE_URL: postgresql+psycopg://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_db
       SECRET_KEY: fitflow-ci-only-signing-key
       ENV: test
       TESTING: "true"
@@ -50,10 +51,10 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Install Python 3.11.17
+      - name: Install Python 3.15.2
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: "3.11.17"
+          python-version: "3.15.2"
 
       - name: Install pinned uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
@@ -73,7 +74,7 @@ jobs:
       - name: Negative proof — retain data and Alembic revision on populated pre-refactor PG15
         shell: bash
         env:
-          DATABASE_URL: postgresql+psycopg2://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_guard
+          DATABASE_URL: postgresql+psycopg://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_guard
         run: |
           set -euo pipefail
           # Only the disposable GitHub Actions service. No staging or external DB.
@@ -158,7 +159,7 @@ jobs:
               c.execute(text("CREATE ROLE fitflow_ci_migrator LOGIN PASSWORD 'fitflow-ci-migrator-only'"))
               c.execute(text("CREATE DATABASE fitflow_ci_role OWNER fitflow_ci_migrator"))
           PY
-          export DATABASE_URL='postgresql+psycopg2://fitflow_ci_migrator:fitflow-ci-migrator-only@127.0.0.1:5432/fitflow_ci_role'
+          export DATABASE_URL='postgresql+psycopg://fitflow_ci_migrator:fitflow-ci-migrator-only@127.0.0.1:5432/fitflow_ci_role'
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
@@ -170,14 +171,14 @@ jobs:
           echo "PG15_NON_SUPERUSER_OWNER_MIGRATION_PASS"
           # RLS regression: a real non-superuser owner with FORCE RLS cannot
           # see retained gym_classes rows; the migration must still refuse DDL.
-          export DATABASE_URL='postgresql+psycopg2://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/postgres'
+          export DATABASE_URL='postgresql+psycopg://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/postgres'
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
           with create_engine(os.environ["DATABASE_URL"], isolation_level="AUTOCOMMIT").connect() as c:
               c.execute(text("CREATE DATABASE fitflow_ci_rls OWNER fitflow_ci_migrator"))
           PY
-          export DATABASE_URL='postgresql+psycopg2://fitflow_ci_migrator:fitflow-ci-migrator-only@127.0.0.1:5432/fitflow_ci_rls'
+          export DATABASE_URL='postgresql+psycopg://fitflow_ci_migrator:fitflow-ci-migrator-only@127.0.0.1:5432/fitflow_ci_rls'
           (cd backend && alembic upgrade a2b62b427037)
           python - <<'PY'
           import os
