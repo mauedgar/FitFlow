@@ -33,7 +33,7 @@ y artefactos locales son evidencia subordinada al baseline vigente.
 - no existe evidencia actual que requiera iniciar R003.
 - En ese corte M4 permanecia `PLANNED / NOT_SELECTED`; su seleccion posterior
   para preparacion tecnica se registra abajo sin modificar este recibo historico.
-- el runtime local canonico usa `backend/.venv` y Python 3.11.
+- durante ese corte historico, el runtime local canonico usaba `backend/.venv` y Python 3.11; para el baseline posterior consultar `.python-version` y `pyproject.toml`.
 - `uv` permanece como dependency manager primario para materializacion reproducible.
 
 ## Cierre de M1

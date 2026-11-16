@@ -4,6 +4,7 @@ import { Alert, Box, Button, Center, Spinner, Text } from '@chakra-ui/react';
 import axios from 'axios';
 import apiClient from '../../../services/api';
 import { useAuth } from '../../../context/useAuth';
+import { toaster } from '../../ui/toaster-store';
 import { getAuthSessionGeneration } from '../../../utils/authSessionGeneration';
 import { adminTokenExpiryMs, shouldInvalidateCurrentAdminSession } from '../../../utils/adminSession';
 import { useAdminIdentity } from './useAdminIdentity';
@@ -18,6 +19,15 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
   // AuthProvider currently recreates logout; keep effects stable by token/user
   // identity and call the latest action without rebinding each response handler.
   const logoutRef = useRef(logout);
+  const endSession = () => {
+    void logoutRef.current().catch(() => {
+      toaster.create({
+        title: "Sesión local cerrada",
+        description: "No se pudo confirmar la revocación remota de esta sesión.",
+        type: "warning",
+      });
+    });
+  };
   useEffect(() => {
     logoutRef.current = logout;
   }, [logout]);
@@ -26,14 +36,14 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
   const active = currentUser?.role === 'admin' && expiresAt !== null && expiresAt > Date.now();
   const identity = useAdminIdentity(active);
   const confirmedAdmin = identity.isSuccess && identity.data?.active === true &&
-    identity.data?.role === 'admin' && identity.data?.id === currentUser?.email;
+    identity.data?.role === 'admin' && identity.data?.id === currentUser?.id;
 
   useEffect(() => {
     if (!token || !currentUser) return;
     const expectedGeneration = sessionGeneration;
     let sessionActive = true;
     if (expiresAt === null) {
-      logoutRef.current();
+      endSession();
       return;
     }
     let timeoutId: number | undefined;
@@ -41,7 +51,7 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
       if (!sessionActive || expectedGeneration !== getAuthSessionGeneration()) return;
       const remaining = expiresAt - Date.now();
       if (remaining <= 0) {
-        logoutRef.current();
+        endSession();
       } else {
         timeoutId = window.setTimeout(recheck, Math.min(remaining, 2_147_483_647));
       }
@@ -64,9 +74,9 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
           const sent = error.config?.headers?.get?.('Authorization');
           if (shouldInvalidateCurrentAdminSession(
             sessionActive, expectedGeneration, getAuthSessionGeneration(),
-            sent, token, localStorage.getItem('access_token')
+            sent, token, sessionStorage.getItem('access_token')
           )) {
-            logoutRef.current();
+            endSession();
           }
         }
         return Promise.reject(error);
@@ -82,12 +92,12 @@ const AdminSessionGate = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (identity.isSuccess && !confirmedAdmin && sessionGeneration === getAuthSessionGeneration()) {
-      logoutRef.current();
+      endSession();
     }
     if (identity.isError && axios.isAxiosError(identity.error) &&
         identity.error.response?.status === 401 &&
         sessionGeneration === getAuthSessionGeneration()) {
-      logoutRef.current();
+      endSession();
     }
   }, [identity.isSuccess, identity.isError, identity.error, confirmedAdmin, sessionGeneration]);
 

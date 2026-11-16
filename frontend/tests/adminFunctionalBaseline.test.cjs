@@ -69,9 +69,11 @@ test('ADMIN guard rejects expired tokens and retires same-token stale intercepto
   assert.match(gate, /error\.response\?\.status === 401/);
   assert.match(gate, /sessionActive = false/);
   assert.match(gate, /\[token, currentUser, sessionGeneration\]/);
-  assert.match(gate, /logoutRef\.current/);
+  assert.match(gate, /logoutRef\.current\(\)\.catch/);
+  assert.match(gate, /endSession\(\)/);
+  assert.match(gate, /toaster\.create/);
   assert.match(gate, /shouldInvalidateCurrentAdminSession/);
-  assert.match(gate, /localStorage\.getItem\('access_token'\)/);
+  assert.match(gate, /sessionStorage\.getItem\('access_token'\)/);
   assert.match(gate, /<Navigate to="\/login" replace \/>/);
   assert.match(routes, /<AdminSessionGate><AdminLayout \/><\/AdminSessionGate>/);
 });
@@ -155,7 +157,7 @@ test('session-generation mismatch rejects same-token stale 401 callbacks', () =>
 test('auth entrypoints advance their epoch before notifying React context', () => {
   const hook = read('src/context/useAuth.tsx');
   assert.match(hook, /advanceAuthSessionGeneration\(\);\s*context\.login/);
-  assert.match(hook, /advanceAuthSessionGeneration\(\);\s*context\.logout/);
+  assert.match(hook, /advanceAuthSessionGeneration\(\);\s*return context\.logout/);
   assert.match(gate, /expectedGeneration !== getAuthSessionGeneration\(\)/);
   assert.match(gate, /sessionActive, expectedGeneration, getAuthSessionGeneration\(\)/);
   const ts = require('typescript');

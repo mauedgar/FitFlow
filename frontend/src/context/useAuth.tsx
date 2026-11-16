@@ -6,13 +6,13 @@ import { advanceAuthSessionGeneration, getAuthSessionGeneration } from '../utils
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) throw new Error('useAuth must be used within an AuthProvider');
-  const login = (accessToken: string) => {
+  const login = (accessToken: string, refreshToken: string) => {
     advanceAuthSessionGeneration();
-    context.login(accessToken);
+    context.login(accessToken, refreshToken);
   };
-  const logout = () => {
+  const logout = (): Promise<void> => {
     advanceAuthSessionGeneration();
-    context.logout();
+    return context.logout();
   };
   return { ...context, login, logout, sessionGeneration: getAuthSessionGeneration() };
 }

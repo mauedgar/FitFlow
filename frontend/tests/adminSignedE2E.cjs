@@ -44,21 +44,22 @@ async function runtimeSessionState(page) {
   });
 }
 
-async function loginUsingSignedToken(page, token) {
+async function loginUsingSignedToken(page, token, refreshToken) {
+  assert.ok(refreshToken, 'Same-token relogin must use the original registered signed refresh credential');
   // Replays the same *real backend-signed* token to exercise identical-token
   // re-login. Other API requests continue against the real disposable backend.
   const routePattern = '**/api/v1/auth/token';
   await page.route(routePattern, (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify({ access_token: token, token_type: 'bearer', refresh_token: 'synthetic-e2e-only' }),
+    body: JSON.stringify({ access_token: token, token_type: 'bearer', refresh_token: refreshToken }),
   }));
   try {
     await page.getByLabel('Email').fill(email);
     await page.getByLabel('Contraseña').fill(password);
     await page.getByRole('button', { name: 'Ingresar' }).click();
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), token);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), token);
   } finally {
     await page.unroute(routePattern);
   }
@@ -75,7 +76,7 @@ async function verifyRapidReLoginAndStale401(browser) {
     });
     await login(page, email);
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    const signedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+    const signedToken = await page.evaluate(() => sessionStorage.getItem('access_token'));
     assert.ok(signedToken, 'Live browser session must retain signed token');
     const firstState = await runtimeSessionState(page);
     assert.equal(firstState.activeInterceptors, 1, 'Exactly one Axios response interceptor on initial mount');
@@ -96,7 +97,9 @@ async function verifyRapidReLoginAndStale401(browser) {
     // retained signed token again without installing duplicate interceptors.
     await page.reload();
     await page.getByRole('heading', { name: 'Clientes', exact: true }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), signedToken);
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null,
+      'Session must not persist its access token across tabs');
     assert.ok(authMeRequests > requestsBeforeNavigation &&
       authMeRequests <= requestsBeforeNavigation + 2, 'Rehydration rechecks one verified identity');
     const rehydratedState = await runtimeSessionState(page);
@@ -146,9 +149,19 @@ async function verifyRapidReLoginAndStale401(browser) {
             code: error?.code ?? null }));
     });
     await within(seen, 'captured pre-logout Axios request');
+    const revokedResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/v1/auth/logout');
     await page.getByRole('button', { name: 'Menú de perfil' }).click();
     await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
     await page.waitForURL('**/login');
+    const remoteLogout = await within(revokedResponse, 'server-side session logout');
+    assert.equal(remoteLogout.status(), 204,
+      'A03 requires server-confirmed logout; local-only clearing is insufficient');
+    const previousAccess = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + signedToken },
+    });
+    assert.equal(previousAccess.status, 401,
+      'Logout must revoke the backend-signed access JWT before normal expiry');
     await page.waitForFunction(async () => {
       const api = (await import('/src/services/api.ts')).default;
       return api.interceptors.response.handlers.filter(Boolean).length === 0;
@@ -156,10 +169,18 @@ async function verifyRapidReLoginAndStale401(browser) {
     const loggedOutGeneration = (await runtimeSessionState(page)).generation;
     assert.ok(loggedOutGeneration > rehydratedState.generation,
       'Logout must advance the epoch within the rehydrated browser module');
-    await loginUsingSignedToken(page, signedToken);
+    // Keep the same browser document to preserve the in-flight old Axios
+    // response interceptor; only login credentials are sent to the real API.
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Contraseña').fill(password);
+    await page.getByRole('button', { name: 'Ingresar' }).click();
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const renewedToken = await page.evaluate(() => sessionStorage.getItem('access_token'));
+    assert.ok(renewedToken && renewedToken !== signedToken,
+      'New login must issue a new signed session instead of replaying a revoked JWT');
     const newGeneration = (await runtimeSessionState(page)).generation;
     assert.ok(newGeneration > loggedOutGeneration,
-      'Same-token re-login must have a distinct generation');
+      'Fresh post-logout login must have a distinct generation');
     assert.equal((await runtimeSessionState(page)).activeInterceptors, 1,
       'New ADMIN session must install exactly one interceptor');
     releaseResolve();
@@ -170,8 +191,8 @@ async function verifyRapidReLoginAndStale401(browser) {
       'old Axios promise rejected with actual HTTP 401');
     assert.equal(oldResult.kind, 'rejected', 'Old response must reject in the original Axios consumer');
     assert.equal(oldResult.status, 401, 'Old Axios consumer must observe HTTP 401, not cancellation');
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken,
-      'Old 401 must not log out a newer same-token generation');
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), renewedToken,
+      'Old 401 must not log out a newer independently signed session');
     assert.equal((await runtimeSessionState(page)).generation, newGeneration,
       'Late old-generation 401 must not change session generation');
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
@@ -268,8 +289,10 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
 
     await login(page, email);
     await within(firstProfileSeen, 'first pending TanStack /auth/me request');
-    const firstSignedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+    const firstSignedToken = await page.evaluate(() => sessionStorage.getItem('access_token'));
     assert.ok(firstSignedToken, 'Signed JWT must exist during the first pending identity check');
+    const firstSignedRefresh = await page.evaluate(() => sessionStorage.getItem('refresh_token'));
+    assert.ok(firstSignedRefresh, 'Original signed refresh credential must be available for same-token relogin');
 
     // Hold an additional *noncancellable* Axios /auth/me request from the OLD
     // session to verify a real 401 is consumed by its original interceptor.
@@ -289,7 +312,16 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
       dispatchEvent(new PopStateEvent('popstate'));
     });
     await page.getByRole('heading', { name: 'Iniciar Sesión' }).waitFor();
-    await loginUsingSignedToken(page, firstSignedToken);
+    await loginUsingSignedToken(page, firstSignedToken, firstSignedRefresh);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('refresh_token')), firstSignedRefresh,
+      'Identical-token relogin must retain the real registered refresh credential');
+    const liveRefresh = await fetch(API + '/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: firstSignedRefresh }),
+    });
+    assert.equal(liveRefresh.status, 200,
+      'Same-token browser fixture must use a refresh credential registered in the real backend');
     const newState = await runtimeSessionState(page);
     assert.ok(newState.generation >= 2, 'New same-token login must advance auth generation');
     assert.equal(newState.activeInterceptors, 1, 'Only current identity guard interceptor survives');
@@ -325,7 +357,7 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
     assert.equal(probeResult.status, 401, 'Old /auth/me Axios consumer must receive 401, not cancellation');
 
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), firstSignedToken);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), firstSignedToken);
     assert.equal((await runtimeSessionState(page)).generation, newState.generation,
       'Old delivered identity 401 must not invalidate the newer same-token login');
     console.log('ADMIN_DELAYED_IDENTITY_RACE_PASS: original query network outcome=' + networkOutcome.kind
@@ -428,6 +460,148 @@ async function qualifySyntheticFailureDiagnostic(browser) {
   }
 }
 
+/** Mount the actual LoginPage and recover using a backend-signed session.
+ * Intercepted errors are SYNTHETIC; the successful retry must reach real FastAPI.
+ */
+async function verifyMountedIdentityRecovery(browser, failure) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const pattern = '**/api/v1/auth/me**';
+  let failedChecks = 0;
+  const injectFailure = async (route) => {
+    failedChecks += 1;
+    if (failure === 'network') {
+      await route.abort('failed');
+    } else {
+      await route.fulfill({
+        status: failure,
+        contentType: 'application/json',
+        body: '{"detail":"synthetic retry qualification outage"}',
+      });
+    }
+  };
+  try {
+    await page.route(pattern, injectFailure);
+    await login(page, email);
+    await page.getByRole('alert').getByText('La identidad no pudo verificarse. El acceso permanece suspendido.').waitFor();
+    assert.equal(new URL(page.url()).pathname, '/login');
+    assert.ok(failedChecks > 0, 'First signed profile validation must encounter the injected outage');
+    const tokens = await page.evaluate(() => ({
+      access: sessionStorage.getItem('access_token'),
+      refresh: sessionStorage.getItem('refresh_token'),
+    }));
+    assert.ok(tokens.access && tokens.refresh,
+      'Recoverable identity failure must preserve both revocable, tab-scoped credentials');
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), true,
+      'Pending identity cannot be overwritten with a second login');
+    assert.equal(await page.getByRole('heading', { name: 'Panel de administración' }).count(), 0,
+      'Failed profile verification must not render privileged UI');
+
+    await page.unroute(pattern, injectFailure);
+    const verifiedResponse = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === '/api/v1/auth/me' && response.status() === 200);
+    await page.getByRole('button', { name: 'Reintentar verificación' }).click();
+    await within(verifiedResponse, 'real signed /auth/me retry after simulated ' + failure);
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), tokens.access,
+      'Successful retry must reuse the existing signed session, not silently rotate credentials');
+    console.log('MOUNTED_IDENTITY_RETRY_PASS: synthetic=' + failure + ' real_backend_verified=true');
+  } finally {
+    await context.close();
+  }
+}
+
+/** Actual mounted React lifecycle: reject any late identity retry after
+ * logout or LoginPage unmount. The held request may be aborted by TanStack;
+ * never misreport cancellation as successful HTTP delivery.
+ */
+async function verifyMountedLateRetry(browser, disposition) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  const pattern = '**/api/v1/auth/me**';
+  let releaseHeld;
+  const release = new Promise((resolve) => { releaseHeld = resolve; });
+  let retrySeen;
+  const seen = new Promise((resolve) => { retrySeen = resolve; });
+  let retrySettled;
+  const settled = new Promise((resolve) => { retrySettled = resolve; });
+  const firstFailure = (route) => route.fulfill({
+    status: 503,
+    contentType: 'application/json',
+    body: '{"detail":"synthetic first identity outage"}',
+  });
+  try {
+    await page.route(pattern, firstFailure);
+    await login(page, email);
+    await page.getByRole('alert').getByText('La identidad no pudo verificarse. El acceso permanece suspendido.').waitFor();
+    const originalToken = await page.evaluate(() => sessionStorage.getItem('access_token'));
+    assert.ok(originalToken, 'Real backend issued a signed access token');
+    await page.unroute(pattern, firstFailure);
+    await page.route(pattern, async (route) => {
+      retrySeen();
+      await release;
+      try {
+        await route.continue();
+      } catch {
+        // The old request can be canceled after logout or unmount.
+      } finally {
+        retrySettled();
+      }
+    });
+    await page.getByRole('button', { name: 'Reintentar verificación' }).click();
+    await within(seen, 'held mounted React identity retry');
+    assert.equal(await page.getByRole('button', { name: 'Reintentar verificación' }).isDisabled(), true,
+      'An in-flight retry must disable repeated activation');
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), true,
+      'In-flight retry must not permit credential replacement');
+
+    if (disposition === 'logout') {
+      const remoteLogout = page.waitForResponse((response) =>
+        new URL(response.url()).pathname === '/api/v1/auth/logout');
+      await page.getByRole('button', { name: 'Cerrar sesión pendiente' }).click();
+      assert.equal((await within(remoteLogout, 'real remote logout while retry is pending')).status(), 204);
+      await page.waitForFunction(() => sessionStorage.getItem('access_token') === null);
+      const revoked = await fetch(API + '/auth/me', {
+        headers: { Authorization: 'Bearer ' + originalToken },
+      });
+      assert.equal(revoked.status, 401, 'Real backend must revoke the signed session on pending logout');
+    } else {
+      assert.equal(disposition, 'unmount');
+      await page.getByRole('link', { name: /regístrate aquí/i }).click();
+      await page.waitForURL('**/register');
+      // A router URL change is not proof that LoginPage's effect cleanup ran.
+      // Require the replacement React page to mount before releasing its held query.
+      await page.getByRole('heading', { name: 'Crear Cuenta', exact: true }).waitFor();
+      await page.getByRole('heading', { name: 'Iniciar Sesión', exact: true })
+        .waitFor({ state: 'detached' });
+      await page.evaluate(() => new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      }));
+    }
+    assert.equal(await page.getByText('Inicio de sesión exitoso', { exact: true }).count(), 0,
+      'Success toast must be absent before releasing the old retry');
+    const generationAfterDisposition = (await runtimeSessionState(page)).generation;
+    releaseHeld();
+    await within(settled, 'old held identity retry after ' + disposition);
+    // Give the mounted React consumer two real rendering frames to process any
+    // late continuation. This is bounded, event-driven, not a sleep-only oracle.
+    await page.evaluate(() => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }));
+    assert.equal((await runtimeSessionState(page)).generation, generationAfterDisposition,
+      'Late retry must not resurrect or advance auth generation after ' + disposition);
+    assert.equal(await page.getByText('Inicio de sesión exitoso', { exact: true }).count(), 0,
+      'Late retry must not show login success after ' + disposition);
+    assert.equal(new URL(page.url()).pathname, disposition === 'logout' ? '/login' : '/register');
+    assert.equal(await page.getByRole('heading', { name: 'Panel de administración' }).count(), 0,
+      'Old retry must not navigate to privileged content after ' + disposition);
+    console.log('MOUNTED_STALE_RETRY_PASS: action=' + disposition + ' old_request_may_abort=true');
+  } finally {
+    releaseHeld();
+    await context.close();
+  }
+}
+
 async function run() {
   if (process.env.GITHUB_ACTIONS !== 'true' || process.env.FITFLOW_E2E_SYNTHETIC_ONLY !== '1' ||
       !email?.endsWith('@example.com') || !clientEmail?.endsWith('@example.com')) {
@@ -505,8 +679,14 @@ async function run() {
     assert.equal(await mobileMenu.evaluate((element) => element === document.activeElement), true,
       'Escape must restore keyboard focus to mobile menu trigger');
     await mobileMenu.click();
-    await page.getByRole('link', { name: 'Profesores', exact: true }).focus();
-    await page.keyboard.press('Enter');
+    // Wait for the actual portal/dialog to settle before sending keyboard
+    // events: the Chakra focus trap can otherwise re-focus the trigger after
+    // a standalone .focus(), causing Enter to toggle the drawer instead.
+    const drawer = page.getByRole('dialog');
+    await drawer.waitFor({ state: 'visible' });
+    const teachersMenuLink = drawer.getByRole('link', { name: 'Profesores', exact: true });
+    await teachersMenuLink.waitFor({ state: 'visible' });
+    await teachersMenuLink.press('Enter');
     await qualifyTeachersKeyboardRoute(page);
     await page.getByText('Profesora Sintética', { exact: true }).filter({ visible: true }).first().waitFor();
     // Controlled synthetic outage: prove error/retry without changing Product data.
@@ -537,7 +717,7 @@ async function run() {
     await page.getByRole('button', { name: 'Menú de perfil' }).click();
     await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
     await page.waitForURL('**/login');
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('access_token')), null);
     await page.goto(WEB + '/admin');
     await page.waitForURL('**/login');
 
@@ -550,7 +730,8 @@ async function run() {
     const expiredContext = await browser.newContext();
     const expiredPage = await expiredContext.newPage();
     await expiredPage.addInitScript((token) => {
-      localStorage.setItem('access_token', token);
+      sessionStorage.setItem('access_token', token);
+      sessionStorage.setItem('refresh_token', 'expired-synthetic-fixture-only');
     }, expired);
     await expiredPage.goto(WEB + '/admin');
     await expiredPage.waitForURL('**/login');
@@ -562,6 +743,22 @@ async function run() {
     await guestPage.goto(WEB + '/admin');
     await guestPage.waitForURL('**/login');
     await guest.close();
+
+    // Actual signed teacher login and rendered role-gated page. The server's
+    // persisted teacher role is authoritative; no route privilege from UI alias.
+    const teacherContext = await browser.newContext();
+    const teacherPage = await teacherContext.newPage();
+    await login(teacherPage, 'teacher-fitflow@example.com');
+    await teacherPage.waitForURL('**/teacher', { timeout: 20000 });
+    await teacherPage.getByRole('heading', { name: 'Portal docente' }).waitFor();
+    await teacherPage.goto(WEB + '/admin');
+    await teacherPage.waitForURL((url) => !url.pathname.startsWith('/admin'));
+    assert.equal(
+      await teacherPage.getByRole('heading', { name: 'Panel de administración' }).count(),
+      0, 'A signed teacher may never render the admin dashboard'
+    );
+    await teacherContext.close();
+    console.log('TEACHER_SIGNED_ROLE_ROUTE_E2E_PASS');
 
     const wrongRole = await browser.newContext();
     const wrongPage = await wrongRole.newPage();
@@ -575,6 +772,12 @@ async function run() {
     await verifyRapidReLoginAndStale401(browser);
     await verifyDelayedIdentityAcrossSameTokenReLogin(browser);
     await qualifySyntheticFailureDiagnostic(browser);
+    for (const failure of [503, 429, 'network']) {
+      await verifyMountedIdentityRecovery(browser, failure);
+    }
+    for (const disposition of ['logout', 'unmount']) {
+      await verifyMountedLateRetry(browser, disposition);
+    }
     console.log('ADMIN_SIGNED_E2E_PASS: JWT login, backend identity, real data, privacy, 390/1280, role, expired, anonymous, logout, stale session races');
   } finally {
     await browser.close();

@@ -110,6 +110,15 @@ if ($runtime.backend_image_id -cne $state.backend_image_id -or
     $runtime.frontend_image_id -cne $state.frontend_image_id) {
     throw "Smoke image IDs differ from the released images; refusing fixture reset."
 }
+# Fail closed on the host-side HTTP smoke interpreter BEFORE resetting
+# synthetic fixtures. The backend image is separately pinned to CPython 3.15.2.
+# Resolve once and invoke that same executable for the final HTTP check.
+$smokePython = (Get-Command python -CommandType Application -ErrorAction Stop).Source
+$smokePythonVersion = (& $smokePython -c 'import sys; print(f"{sys.implementation.name} {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")') -join "`n"
+if ($LASTEXITCODE -ne 0 -or $smokePythonVersion.Trim() -cne "cpython 3.15.2") {
+    throw "Staging HTTP smoke requires the host CPython 3.15.2 interpreter; refusing fixture reset."
+}
+
 $seedArguments = $composeArguments + @(
     "exec", "-T",
     "-e", "FITFLOW_SMOKE_ALLOW_FIXTURE_RESET=1",
@@ -121,7 +130,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Staging smoke fixture bootstrap failed."
 }
 
-& python (Join-Path $PSScriptRoot "mvp_smoke.py") `
+& $smokePython (Join-Path $PSScriptRoot "mvp_smoke.py") `
     --frontend-url $FrontendUrl `
     --backend-url $BackendUrl
 if ($LASTEXITCODE -ne 0) {

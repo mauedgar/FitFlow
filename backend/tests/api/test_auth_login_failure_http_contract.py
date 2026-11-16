@@ -25,6 +25,7 @@ class LoginUserStub:
     id: uuid.UUID
     hashed_password: str = "synthetic-hash"
     role: UserRole = UserRole.client
+    active: bool = True
 
 
 async def _post_login(

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Box, Button, Flex, Heading, Input, VStack, Text, Link, Field } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { registerUser } from '../services/api';
+import { PASSWORD_POLICY_MESSAGE, publicRegistrationErrorMessage } from '../utils/registrationErrors';
 
 const RegisterPage = () => {
   const [firstName, setFirstName] = useState('');
@@ -58,7 +59,7 @@ const RegisterPage = () => {
       // Mostramos el error que nos llega desde el servicio de API
       toaster.create({
         title: "Error en el registro",
-        description: error instanceof Error ? error.message : "Ocurrió un error inesperado.",
+        description: publicRegistrationErrorMessage(error),
         type: "error",
         duration: 5000,
         closable: true,
@@ -129,6 +130,7 @@ const RegisterPage = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+              <Text fontSize="sm" color="gray.600">{PASSWORD_POLICY_MESSAGE}</Text>
             </Field.Root>
 
             <Field.Root required>
