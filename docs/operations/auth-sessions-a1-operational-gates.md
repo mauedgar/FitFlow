@@ -9,8 +9,8 @@ proposed_target: docs/operations/auth-sessions-a1-operational-gates.md
 # G2-A1 auth_sessions: disposable qualification and retained-data stop gate
 
 > **PROPOSAL ONLY — not canonical FitFlow policy, not a deployment authorization.**
-> This text is staged in GitHub Transport for a separately reviewed Product DocImpact.
-> Its Product target remains absent until independent review and Developer promotion.
+> This file is proposed on [FitFlow Product PR #112](https://github.com/mauedgar/FitFlow/pull/112). At the frozen reference `develop@c8bedd52cc3663f773dbe623f381c83392893dce`, it exists on the PR candidate branch but is not integrated into `develop`.
+> This is an identity snapshot, not a prediction about future merges. Independent review and explicit Developer Product acceptance are required for canonical promotion; this document grants no deployment or retained-data authorization.
 
 ## Subject and evidence
 
@@ -51,13 +51,19 @@ and [operational ruling](https://github.com/mauedgar/ts-execution-transport/blob
 
 ## Disposable test qualification — only within the defined runner
 
-The qualified backend workflow is
+The qualified backend workflow **for the frozen PR #109 A1 candidate**
+at commit `7db818fca0178f7c2edee1a43c0d5d164e9c8d2b` is
 `.github/workflows/fitflow-baseline-ci.yml` on `ubuntu-24.04`
-**GitHub-hosted** Actions with new disposable VM per job, pinned
+**GitHub-hosted** Actions with a new disposable VM per job, pinned
 PostgreSQL 15-alpine and Redis 7-alpine service containers, loopback
 `127.0.0.1:5432`, database `fitflow_test`, dedicated synthetic
 principal, checkout SHA/tree checks, Python 3.15.2 and Alembic upgrade
-before test execution. The fixture's unique `fitflow_a1_probe_<uuid>`
+before test execution. In contrast, the **same workflow path on frozen
+`develop@c8bedd52cc3663f773dbe623f381c83392893dce`** defines the
+`Backend PostgreSQL/Redis (Python 3.11)` job with Python 3.11.17.
+The PR #109 A1 validation results must not be presented as Python 3.15.2
+validation of `develop` or this docs-only PR #112.
+The fixture's unique `fitflow_a1_probe_<uuid>`
 database is permitted to be created/dropped by the *disposable CI-only*
 PostgreSQL test admin.
 
