@@ -1,6 +1,19 @@
 name: FitFlow deterministic validation v0
 
 on:
+  pull_request:
+    branches: [develop]
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths:
+      - .github/workflows/deterministic-ci.yml
+      - .github/workflows/fitflow-baseline-ci.yml
+      - pyproject.toml
+      - uv.lock
+      - .python-version
+      - backend/requirements_backend.txt
+      - backend/requirements_test.txt
+      - Dockerfile
+      - backend/Dockerfile.test
   workflow_dispatch:
     inputs:
       subject_sha:
@@ -28,12 +41,14 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    # Portable receipt generation remains a manually authorized execution.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
         env:
           POSTGRES_DB: fitflow_test
           POSTGRES_USER: fitflow_test_user
@@ -48,7 +63,7 @@ jobs:
           --health-retries 15
 
       redis:
-        image: redis:7-alpine
+        image: redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
         ports:
           - 6379:6379
         options: >-
@@ -70,16 +85,17 @@ jobs:
 
     steps:
       - name: Checkout exact FitFlow subject
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ inputs.subject_sha }}
+          ref: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Guard exact checkout
         shell: bash
         env:
-          SUBJECT_SHA: ${{ inputs.subject_sha }}
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
+          EXPECTED_TREE: ${{ inputs.expected_tree }}
         run: |
           set -euo pipefail
           observed="$(git rev-parse HEAD)"
@@ -87,11 +103,17 @@ jobs:
             echo "SUBJECT_MISMATCH expected=$SUBJECT_SHA observed=$observed" >&2
             exit 1
           fi
+          observed_tree="$(git rev-parse HEAD^{tree})"
+          if [ -n "$EXPECTED_TREE" ] && [ "$observed_tree" != "$EXPECTED_TREE" ]; then
+            echo "TREE_MISMATCH expected=$EXPECTED_TREE observed=$observed_tree" >&2
+            exit 1
+          fi
+          echo "FITFLOW_MANUAL_GIT_IDENTITY_PASS SHA=$observed TREE=$observed_tree"
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - name: Set up Python 3.15.2
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: "3.11"
+          python-version: "3.15.2"
           cache: pip
           cache-dependency-path: backend/requirements_test.txt
 
@@ -106,7 +128,7 @@ jobs:
         id: validation
         continue-on-error: true
         env:
-          SUBJECT_SHA: ${{ inputs.subject_sha }}
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           EXPECTED_TREE: ${{ inputs.expected_tree }}
           OPERATION_ID: ${{ inputs.operation_id }}
           EXECUTION_ATTEMPT_ID: ${{ inputs.execution_attempt_id }}
@@ -131,7 +153,7 @@ jobs:
 
       - name: Checkout portable validation contract v0
         if: always()
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: mauedgar/tecnotron-ai
           ref: f28c812cff4d9c6dd27d71a084fbccfffbadd735
@@ -140,7 +162,7 @@ jobs:
 
       - name: Set up Node 22 for contract validation
         if: always()
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: "22"
           cache: ${{ hashFiles('.tecnotron-contract-v0/package-lock.json') != '' && 'npm' || '' }}
@@ -171,9 +193,9 @@ jobs:
 
       - name: Upload deterministic validation receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: fitflow-deterministic-validation-${{ inputs.subject_sha }}
+          name: fitflow-deterministic-validation-${{ github.event.pull_request.head.sha || inputs.subject_sha }}
           path: ${{ runner.temp }}/fitflow-deterministic-validation
           if-no-files-found: warn
           retention-days: 30
@@ -200,3 +222,112 @@ jobs:
           print(f"VALIDATION_CONCLUSION={conclusion}")
           raise SystemExit(0 if conclusion == "PASS" else 1)
           PY
+
+
+  # Migration-related PRs qualify Windows/Docker automatically; manual runs
+  # remain opt-in and tree-bound when expected_tree is supplied.
+  # Neither platform job is a required develop status context.
+  qualify-windows-python3152:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft)
+    name: Qualify native Windows Python 3.15.2
+    runs-on: windows-2025
+    timeout-minutes: 25
+    env:
+      PYTHONPATH: backend
+      ENV: test
+      TESTING: "true"
+      DEBUG: "false"
+      SECRET_KEY: fitflow-platform-disposable-only
+      # Required Settings field; synthetic tests do not connect to this endpoint.
+      DATABASE_URL: postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
+          persist-credentials: false
+      - name: Guard Windows source identity
+        shell: pwsh
+        env:
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
+          EXPECTED_TREE: ${{ inputs.expected_tree }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $observed = (git rev-parse HEAD).Trim()
+          $tree = (git rev-parse 'HEAD^{tree}').Trim()
+          if ($LASTEXITCODE -ne 0 -or $observed -cne $env:SUBJECT_SHA) { throw 'WINDOWS_SUBJECT_MISMATCH' }
+          if ($env:EXPECTED_TREE -and $tree -cne $env:EXPECTED_TREE) { throw 'WINDOWS_TREE_MISMATCH' }
+          Write-Output "FITFLOW_WINDOWS_IDENTITY_PASS SHA=$observed TREE=$tree"
+      - name: Set up native Python 3.15.2
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: "3.15.2"
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        with:
+          version: "0.13.6"
+      - name: Native Windows lock/install/import and synthetic password contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python --version
+          uv lock --check --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_LOCK_FAIL' }
+          # Exact uv.lock export is compared in baseline CI; enforce hashes on Windows.
+          uv pip install --system --no-cache --require-hashes -r backend/requirements_test.txt
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_DEPENDENCIES_FAIL' }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_PIP_CHECK_FAIL' }
+          python -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, pydantic_core, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_WINDOWS_IMPORT_PASS")'
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_IMPORT_FAIL' }
+          python -m pytest -q backend/tests/unit/test_security_bcrypt_legacy_compat.py backend/tests/unit/test_user_password_byte_validation.py
+          if ($LASTEXITCODE -ne 0) { throw 'WINDOWS_SYNTHETIC_TEST_FAIL' }
+          Write-Output 'FITFLOW_WINDOWS_PY3152_PASS'
+
+  qualify-docker-python3152:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !github.event.pull_request.draft)
+    name: Qualify disposable Docker Python 3.15.2 images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
+          persist-credentials: false
+      - name: Guard Docker source identity
+        shell: bash
+        env:
+          SUBJECT_SHA: ${{ github.event.pull_request.head.sha || inputs.subject_sha }}
+          EXPECTED_TREE: ${{ inputs.expected_tree }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          observed_tree="$(git rev-parse HEAD^{tree})"
+          if [ -n "$EXPECTED_TREE" ]; then
+            test "$observed_tree" = "$EXPECTED_TREE"
+          fi
+          echo "FITFLOW_DOCKER_IDENTITY_PASS SHA=$SUBJECT_SHA TREE=$observed_tree"
+      - name: Build pinned disposable runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOCKER_BUILDKIT=1 docker build --progress=plain -f Dockerfile -t fitflow-c009-runtime:qualification .
+          docker run --rm --entrypoint python fitflow-c009-runtime:qualification -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, pydantic_core, fastapi; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_DOCKER_RUNTIME_IMPORT_PASS")'
+      - name: Build pinned disposable backend test image
+        shell: bash
+        run: |
+          set -euo pipefail
+          DOCKER_BUILDKIT=1 docker build --progress=plain -f backend/Dockerfile.test -t fitflow-c009-test:qualification .
+          docker run --rm --entrypoint python fitflow-c009-test:qualification -c 'import sys, bcrypt, asyncpg, greenlet, psycopg, pydantic_core, fastapi, sqlalchemy, redis, cryptography; assert sys.version_info[:3] == (3, 15, 2); print("FITFLOW_DOCKER_TEST_IMAGE_PASS")'
+          # Run the real synthetic bcrypt and schema tests *inside* the built image.
+          # No retained DB/Redis: the URL is a dummy Settings value; these unit
+          # tests do not open connections and all input passwords are synthetic.
+          docker run --rm \
+            -e ENV=test -e TESTING=true -e DEBUG=false \
+            -e DATABASE_URL=postgresql://fitflow_test_user:fitflow_test_password@127.0.0.1:5432/fitflow_test \
+            -e SECRET_KEY=fitflow-disposable-docker-test-only \
+            --entrypoint python fitflow-c009-test:qualification \
+            -m pytest -q tests/unit/test_security_bcrypt_legacy_compat.py tests/unit/test_user_password_byte_validation.py
+          echo FITFLOW_DOCKER_TEST_IMAGE_UNIT_PASS
+          echo FITFLOW_DOCKER_PY3152_PASS

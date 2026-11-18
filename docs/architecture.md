@@ -18,12 +18,23 @@ runtime en FitFlow sin ADR y aprobacion del desarrollador.
 
 | Área | Tecnologías vigentes |
 | --- | --- |
-| Backend | Python 3.11+, FastAPI async, SQLAlchemy 2.x Async, Alembic, Pydantic v2, PostgreSQL, JWT, Redis |
+| Backend | CPython 3.15.2, FastAPI async, SQLAlchemy 2.x Async, Alembic, Pydantic v2, PostgreSQL, JWT, Redis |
 | Frontend | React, TypeScript, Vite, Chakra UI, TanStack Query, Axios |
 | Entorno | Docker, Docker Compose, PostgreSQL, Adminer; Redis cuando corresponda |
 
 Adminer es tooling de desarrollo. Redis no reemplaza a PostgreSQL como fuente
 persistente.
+
+La version Product de Python corresponde a los manifiestos de la revision
+consultada (`.python-version`, `pyproject.toml` y `uv.lock`). Un candidato PR
+no cambia el baseline de `develop` hasta su integracion competente. Python
+3.11 se reserva exclusivamente como referencia sintetica y aislada para
+verificar compatibilidad con hashes Passlib historicos, no como runtime
+Product, de tests generales ni de staging.
+
+El antiguo workflow `FitFlow Automated Skills` (main/dev, revisor LLM con
+consumo potencial de API) se retiro de esta revision; los controles Product
+vigentes son deterministas y no necesitan ese revisor.
 
 ## Arquitectura vigente
 

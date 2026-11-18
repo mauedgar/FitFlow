@@ -20,6 +20,16 @@ organiza milestones ejecutables sin reabrir responsabilidades ya cerradas.
 El repositorio es la fuente primaria. Los TASK historicos, runs, conversaciones
 y artefactos locales son evidencia subordinada al baseline vigente.
 
+## Baseline Python de la revision consultada
+
+La version Product efectiva se determina por `.python-version`,
+`pyproject.toml` y `uv.lock` **del commit consultado**. En el candidato de
+migracion CPython 3.15.2 estos manifiestos y los runtimes de CI/Docker
+proponen 3.15.2, pero la version solo pasa a ser canonica en `develop`
+despues de aceptacion Product e integracion verificadas. Python 3.11 es
+historia M3 y, en el candidato nuevo, referencia sintetica aislada de
+compatibilidad bcrypt; no es un proceso Product activo.
+
 ## Baseline M3 confirmado (corte historico 2026-09-28)
 
 - `develop` tiene como baseline terminal de Product M3
@@ -33,7 +43,8 @@ y artefactos locales son evidencia subordinada al baseline vigente.
 - no existe evidencia actual que requiera iniciar R003.
 - En ese corte M4 permanecia `PLANNED / NOT_SELECTED`; su seleccion posterior
   para preparacion tecnica se registra abajo sin modificar este recibo historico.
-- el runtime local canonico usa `backend/.venv` y Python 3.11.
+- en ese corte historico, el runtime local usaba `backend/.venv` y Python 3.11;
+  no define el runtime de una revision posterior.
 - `uv` permanece como dependency manager primario para materializacion reproducible.
 
 ## Cierre de M1
