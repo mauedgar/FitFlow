@@ -2,8 +2,8 @@
 document_id: FF-AGENTS-001
 status: canonical
 machine_context: true
-version: 5.2
-updated: 2026-11-02
+version: 5.3
+updated: 2026-11-14
 ---
 
 # Reglas para agentes
@@ -124,3 +124,25 @@ Cada ejecucion debe producir `REVIEW.md`, `VALIDATION.md` y `RESULT.md` usando
 `PASS`, `FAIL`, `NOT_RUN`, `UNAVAILABLE`, `BLOCKED` o `N/A`. Los artefactos
 estructurados del run usan `.ai/contracts/v2/`. Un resumen sin comando, alcance
 y salida verificable no es evidencia.
+
+## FitFlow Product-first risk-adaptive delivery (Developer 2026-11-14)
+
+**Specific future-process overlay:** `docs/operations/fitflow-exceptional-delivery-v1.md`
+records the approved five reforms in a dedicated FitFlow Product responsibility.
+For future work after competent policy integration, classify LOW/MEDIUM/HIGH/
+RELEASE risk and apply proportionate CI, semantic review and advisory routing
+there rather than imposing uniform 0F/0A or full repeat review on every edit.
+The stricter baseline remains for token/session security, retained data,
+migrations, unknown effects and launch decisions.
+
+A bounded Developer grant may delegate **routine** candidate/merge mechanics
+with exact repo, owner, scope, verified SHA/tree, check and allowed effect.
+The existing "default no commit/push/merge" rule applies whenever such a
+specific grant is absent; no IR/CI alone implies Product acceptance. Preserve
+all frozen attempts/verdicts, including Control 013 PR107/PR109 and IR005; no
+retrospective acceptance. Authorize one stable-candidate independent review
+per defined review subject (extra focused security review when genuinely
+needed), reuse deterministic checks during edits, and parallelize only
+disjoint worktrees/write sets. OpenCode2 local dispatch remains via visible
+Orca-owned terminal; Codex Cloud remains optional/experimental, not canonical.
+No dependency on unrelated infrastructure for a functional product gate.
