@@ -140,3 +140,73 @@ async def test_unregistered_signed_refresh_cannot_confirm_logout(
         json={"refresh_token": token},
     )
     assert response.status_code == 401, response.text
+
+
+async def test_tampered_and_expired_signed_refresh_rejected_even_with_redis_key(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+) -> None:
+    """An existing Redis entry cannot override invalid signature or expiration."""
+    from datetime import UTC, datetime, timedelta
+
+    from jose import jwt
+
+    client = get_redis_client()
+    valid = security.create_refresh_token({"sub": str(subject)})
+    forged = valid.rsplit(".", 1)[0] + ".bad-signature"
+    expired = jwt.encode(
+        {
+            "sub": str(subject),
+            "token_use": "refresh",
+            "exp": datetime.now(tz=UTC) - timedelta(minutes=1),
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+    keys = [
+        opaque_jwt_key(REFRESH_PREFIX, forged),
+        opaque_jwt_key(REFRESH_PREFIX, expired),
+    ]
+    assert all(client.exists(key) == 0 for key in keys)
+    try:
+        for token, key in zip((forged, expired), keys, strict=True):
+            client.set(key, str(subject), ex=60)  # Stale or forged key attack.
+            assert not is_refresh_token_valid(token)
+            with pytest.raises(ValueError):
+                store_refresh_token(str(subject), token)
+            response = await api_client.post(
+                f"{settings.API_V1_STR}/auth/refresh",
+                json={"refresh_token": token},
+            )
+            assert response.status_code == 401, response.text
+    finally:
+        client.delete(*keys)
+
+
+async def test_soft_deleted_account_denied_by_both_auth_pipelines(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+) -> None:
+    """Persisted account soft deletion overrides old, correctly signed bearer."""
+    from datetime import UTC, datetime
+
+    from sqlalchemy import update
+
+    from app.services.auth_service import get_user_from_token
+    from app.services.errors import AuthError
+
+    signed = security.create_access_token({
+        "sub": str(subject), "role": "front_desk",
+    })
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(User).where(User.id == subject).values(
+                deleted_at=datetime.now(tz=UTC), active=True
+            )
+        )
+        await db.commit()
+        with pytest.raises(AuthError):
+            await get_user_from_token(signed, db)
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/front-desk/classes",
+        headers={"Authorization": f"Bearer {signed}"},
+    )
+    assert response.status_code == 401, response.text

@@ -28,3 +28,12 @@ or staging approval is inferred from CI.
 
 Only tests on disposable PostgreSQL15/Redis7 in GitHub Actions are authorized.
 No retained data migration, secrets, dependency change, deployment, or merge.
+
+
+## Independent A01 IR001 dispositions on 49b49f36 (historical, immutable)
+
+Original \`FITFLOW-C014-PR116-REGISTRY-A01-WEBINLINE-IR001-20261118-001\` reports RECOMMEND_A01_SCOPED, 0 new findings / 2 advisories and explicitly NO_RECOMMEND for full Product. Original 8474 bytes SHA256 27df6da3ffb65edde8474534f3a228fbc3bff01b635de1666dd03050eedeb8a7; Git Transport custody blob e514afe991d6abed61e4b5ebea4306c0ebf6a809.
+
+A01-A02 negative coverage is expanded here: forged JWT signature and expired signed refresh are both rejected even with synthetic preexisting Redis registration keys; the production guard has not been relaxed. An adjacent auth-service path now rejects soft-deleted users independently of the direct \`get_current_user\` pipeline, with negative HTTP check. This successor has not been independently reviewed or integrated.
+
+A01-A01 legacy exposure still remains: historical raw JWT Redis key names may persist past JWT expiry. No automatic scan, forced deletion or retained-data migration is authorized. A competent deploy/legacy sunset decision must account for the longest signed legacy refresh expiry and inventory of existing keyspace; raw legacy records are never newly written by this candidate. New names are opaque with bounded TTL. Separate A02 durable revocation and PostgreSQL session authority remains NOT_IMPLEMENTED.

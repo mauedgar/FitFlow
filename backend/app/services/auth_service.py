@@ -60,4 +60,6 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
         msg_4 = "Usuario inactivo."
         raise AuthError(msg_4)
 
+    if getattr(user, "deleted_at", None) is not None:
+        raise AuthError("Usuario eliminado.")
     return UserPublic.model_validate(user)
