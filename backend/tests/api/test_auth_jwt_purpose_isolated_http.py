@@ -15,6 +15,8 @@ from sqlalchemy import delete, update
 from sqlalchemy.engine import make_url
 
 from app.core import security
+from app.core.blacklist import BLACKLIST_PREFIX, blacklist_token
+from app.core.redis_client import get_redis_client
 from app.core.config import settings
 from app.core.token_store import delete_refresh_token, store_refresh_token
 from app.core.enums import UserRole
@@ -235,3 +237,118 @@ async def test_actual_disposable_redis_registration_and_refresh(
         assert bearer.status_code == status.HTTP_401_UNAUTHORIZED
     finally:
         delete_refresh_token(token)
+
+
+async def test_refresh_rejects_soft_deleted_active_account(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(User).where(User.id == subject).values(
+                deleted_at=datetime.now(tz=UTC), active=True,
+            )
+        )
+        await db.commit()
+    token = security.create_refresh_token({"sub": str(subject)})
+    result = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": token},
+    )
+    assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
+
+
+async def test_old_signed_role_never_overrides_current_database_role(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+) -> None:
+    # A signed but outdated privileged role must not grant current privileges.
+    old_access = security.create_access_token({
+        "sub": str(subject), "role": UserRole.admin.value,
+    })
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/users/public",
+        headers={"Authorization": f"Bearer {old_access}"},
+    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
+
+
+async def test_actual_disposable_redis_registration_blacklist_and_logout(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+) -> None:
+    """Real Redis7 negative/positive flows only on explicitly isolated CI."""
+    if os.getenv("GITHUB_ACTIONS") != "true":
+        pytest.skip("Never touch real Redis outside disposable GitHub Actions CI")
+    redis_url = settings.REDIS_URL
+    assert redis_url is not None
+    parsed = urlparse(redis_url)
+    assert parsed.scheme == "redis"
+    assert parsed.hostname == "127.0.0.1" and parsed.port == 6379
+    assert parsed.path == "/0"
+
+    refresh = security.create_refresh_token({"sub": str(subject)})
+    access = security.create_access_token({
+        "sub": str(subject), "role": "client",
+    })
+    redis = get_redis_client()
+    assert redis.exists(f"{BLACKLIST_PREFIX}{refresh}") == 0
+    # Signed token alone does not imply Redis registration.
+    denied = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": refresh},
+    )
+    assert denied.status_code == status.HTTP_401_UNAUTHORIZED, denied.text
+
+    store_refresh_token(str(subject), refresh)
+    try:
+        good = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh",
+            json={"refresh_token": refresh},
+        )
+        assert good.status_code == status.HTTP_200_OK, good.text
+
+        logout = await api_client.post(
+            f"{settings.API_V1_STR}/auth/logout",
+            headers={"Authorization": f"Bearer {access}"},
+            json={"refresh_token": refresh},
+        )
+        assert logout.status_code == status.HTTP_204_NO_CONTENT, logout.text
+        assert redis.exists(f"{BLACKLIST_PREFIX}{refresh}") == 1
+
+        denied_again = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh",
+            json={"refresh_token": refresh},
+        )
+        assert denied_again.status_code == status.HTTP_401_UNAUTHORIZED, denied_again.text
+    finally:
+        delete_refresh_token(refresh)
+        redis.delete(f"{BLACKLIST_PREFIX}{refresh}")
+    assert redis.exists(f"{BLACKLIST_PREFIX}{refresh}") == 0
+
+
+async def test_actual_disposable_redis_blacklist_preempts_registered_refresh(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+) -> None:
+    """Blacklisted but registered refresh fails on real ephemeral Redis."""
+    if os.getenv("GITHUB_ACTIONS") != "true":
+        pytest.skip("Never touch real Redis outside disposable GitHub Actions CI")
+    redis_url = settings.REDIS_URL
+    assert redis_url is not None
+    parsed = urlparse(redis_url)
+    assert parsed.scheme == "redis"
+    assert parsed.hostname == "127.0.0.1" and parsed.port == 6379
+    assert parsed.path == "/0"
+
+    token = security.create_refresh_token({"sub": str(subject)})
+    redis = get_redis_client()
+    store_refresh_token(str(subject), token)
+    try:
+        blacklist_token(token)
+        response = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh",
+            json={"refresh_token": token},
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
+    finally:
+        delete_refresh_token(token)
+        redis.delete(f"{BLACKLIST_PREFIX}{token}")
