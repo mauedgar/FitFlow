@@ -152,8 +152,15 @@ async def logout(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para invalidar este token.")
 
     try:
+        if not is_refresh_token_valid(refresh_token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token no registrado.",
+            )
         delete_refresh_token(refresh_token)
         blacklist_token(refresh_token)
+    except HTTPException:
+        raise
     except ExternalServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     except Exception as exc:
