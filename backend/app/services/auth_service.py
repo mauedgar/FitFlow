@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from app.core.security import decode_token
+from app.core.security import decode_token, is_access_token_payload
 from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
@@ -31,7 +31,7 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
             raise AuthError(msg) from err
 
     payload = decode_token(token)
-    if payload is None:
+    if payload is None or not is_access_token_payload(payload):
         msg_0 = "Token inválido o expirado."
         raise AuthError(msg_0)
 

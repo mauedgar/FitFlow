@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -20,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import security
 from app.core.blacklist import blacklist_token, is_token_blacklisted
 from app.core.deps import get_current_user
+from app.crud.crud_user import user as user_crud
 from app.core.token_store import (
     delete_refresh_token,
     is_refresh_token_valid,
@@ -77,6 +79,7 @@ async def login_for_tokens(
 async def refresh_access_token(
     *,
     token_request: RefreshTokenRequest,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> Token:
     """Renueva el Access Token usando un Refresh Token válido."""
     refresh_token = token_request.refresh_token
@@ -89,7 +92,7 @@ async def refresh_access_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token invalidado.")
 
     payload = security.decode_token(refresh_token)
-    if payload is None or "sub" not in payload:
+    if not security.is_refresh_token_payload(payload):
         logger.warning("Invalid or expired refresh token provided")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido o expirado.")
 
@@ -101,7 +104,29 @@ async def refresh_access_token(
         logger.warning("Refresh token not registered in store")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token no registrado.")
 
-    access_token = security.create_access_token(data={"sub": payload["sub"]})
+    # Refresh claims never authorize a role. Load current persisted authority.
+    try:
+        user_id = UUID(payload["sub"])
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado.",
+        ) from exc
+    try:
+        user = await user_crud.get(db, obj_id=user_id)
+    except Exception as exc:
+        logger.exception("DB error during refresh subject validation")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno"
+        ) from exc
+    if user is None or not user.active or user.deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token inválido o expirado.",
+        )
+    access_token = security.create_access_token(
+        data={"sub": str(user.id), "role": user.role.value}
+    )
     logger.info("Access token refreshed for user_id=%s", payload.get("sub"))
     return Token(access_token=access_token)
 
@@ -118,7 +143,7 @@ async def logout(
     """
     refresh_token = token_request.refresh_token
     payload = security.decode_token(refresh_token)
-    if payload is None or "sub" not in payload:
+    if not security.is_refresh_token_payload(payload):
         logger.warning("Logout attempted with invalid refresh token")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Refresh token inválido.")
 

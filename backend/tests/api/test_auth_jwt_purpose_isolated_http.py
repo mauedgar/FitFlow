@@ -1,0 +1,200 @@
+"""Issue 108 — JWT purpose on synthetic disposable PostgreSQL only."""
+from __future__ import annotations
+
+import uuid
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
+
+import httpx
+import pytest
+from fastapi import status
+from jose import jwt
+from sqlalchemy import delete, update
+from sqlalchemy.engine import make_url
+
+from app.core import security
+from app.core.config import settings
+from app.core.enums import UserRole
+from app.db.models.user import User
+from app.db.session import AsyncSessionLocal, engine
+from app.routers import auth as auth_router
+
+pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
+
+
+@pytest.fixture(autouse=True)
+def require_disposable_db() -> None:
+    assert make_url(settings.DATABASE_URL).database == "fitflow_test"
+
+
+@pytest.fixture(autouse=True)
+async def release_engine_pool() -> AsyncIterator[None]:
+    yield
+    await engine.dispose()
+
+
+@pytest.fixture
+async def subject() -> AsyncIterator[uuid.UUID]:
+    identifier = uuid.uuid4()
+    async with AsyncSessionLocal() as db:
+        db.add(User(
+            id=identifier, email=f"jwt-purpose-{identifier.hex}@example.com",
+            hashed_password=security.get_password_hash("synthetic-only"),
+            role=UserRole.client, active=True,
+        ))
+        await db.commit()
+    try:
+        yield identifier
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(User).where(User.id == identifier))
+            await db.commit()
+
+
+def legacy(subject: str, role: str | None) -> str:
+    claims: dict[str, object] = {
+        "sub": subject, "exp": datetime.now(tz=UTC) + timedelta(minutes=5),
+    }
+    if role is not None:
+        claims["role"] = role
+    return jwt.encode(claims, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+async def test_refresh_rejected_as_bearer_on_real_http(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+) -> None:
+    for token in (
+        security.create_refresh_token({"sub": str(subject)}),
+        legacy(str(subject), None),
+    ):
+        for route in ("/auth/me", "/users/public"):
+            result = await api_client.get(
+                f"{settings.API_V1_STR}{route}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
+
+
+async def test_typed_and_legacy_access_on_real_http(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+) -> None:
+    for token in (
+        security.create_access_token({"sub": str(subject), "role": "client"}),
+        legacy(str(subject), "client"),
+    ):
+        result = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert result.status_code == status.HTTP_200_OK, result.text
+        assert result.json()["id"] == str(subject)
+
+
+async def test_access_cannot_refresh_even_if_registered(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _x: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _x: True)
+    for token in (
+        security.create_access_token({"sub": str(subject), "role": "client"}),
+        legacy(str(subject), "client"),
+    ):
+        result = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": token},
+        )
+        assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
+
+
+async def test_access_cannot_be_used_as_logout_refresh(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+) -> None:
+    token = security.create_access_token({"sub": str(subject), "role": "client"})
+    result = await api_client.post(
+        f"{settings.API_V1_STR}/auth/logout",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"refresh_token": token},
+    )
+    assert result.status_code == status.HTTP_400_BAD_REQUEST, result.text
+
+
+async def test_registered_refresh_uses_current_database_role(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _x: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _x: True)
+    refresh = security.create_refresh_token({"sub": str(subject), "role": "admin"})
+    assert "role" not in security.decode_token(refresh)
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(User).where(User.id == subject).values(role=UserRole.teacher)
+        )
+        await db.commit()
+    result = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
+    )
+    assert result.status_code == status.HTTP_200_OK, result.text
+    payload = security.decode_token(result.json()["access_token"])
+    assert payload is not None
+    assert payload["role"] == UserRole.teacher.value
+    assert payload["token_use"] == "access"
+
+
+async def test_untyped_legacy_refresh_mints_typed_access(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _x: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _x: True)
+    result = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": legacy(str(subject), None)},
+    )
+    assert result.status_code == status.HTTP_200_OK, result.text
+    payload = security.decode_token(result.json()["access_token"])
+    assert payload is not None and payload["role"] == "client"
+    assert payload["token_use"] == "access"
+
+
+async def test_refresh_rejects_inactive_missing_and_invalid_uuid(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _x: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _x: True)
+    for missing in (str(uuid.uuid4()), "invalid-uuid"):
+        result = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh",
+            json={"refresh_token": security.create_refresh_token({"sub": missing})},
+        )
+        assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(User).where(User.id == subject).values(active=False))
+        await db.commit()
+    result = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": security.create_refresh_token({"sub": str(subject)})},
+    )
+    assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
+
+
+def test_signed_purpose_override_expiry_and_role_rules() -> None:
+    subject = str(uuid.uuid4())
+    access = security.decode_token(security.create_access_token({
+        "sub": subject, "role": "client", "token_use": "refresh",
+    }))
+    refresh = security.decode_token(security.create_refresh_token({
+        "sub": subject, "role": "admin", "token_use": "access",
+    }))
+    assert access is not None and refresh is not None
+    assert access["token_use"] == "access"
+    assert refresh["token_use"] == "refresh" and "role" not in refresh
+    assert security.is_access_token_payload(access)
+    assert not security.is_refresh_token_payload(access)
+    assert security.is_refresh_token_payload(refresh)
+    assert not security.is_access_token_payload(refresh)
+    assert not security.is_access_token_payload({"sub": subject, "role": "client"})
+    assert not security.is_refresh_token_payload({"sub": subject})
+    assert not security.is_access_token_payload(dict(access, token_use="unknown"))
+    assert not security.is_access_token_payload(dict(access, exp=0))
