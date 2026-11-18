@@ -1,9 +1,11 @@
 """Issue 108 — JWT purpose on synthetic disposable PostgreSQL only."""
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlparse
 
 import httpx
 import pytest
@@ -14,6 +16,7 @@ from sqlalchemy.engine import make_url
 
 from app.core import security
 from app.core.config import settings
+from app.core.token_store import delete_refresh_token, store_refresh_token
 from app.core.enums import UserRole
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
@@ -179,7 +182,7 @@ async def test_refresh_rejects_inactive_missing_and_invalid_uuid(
     assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
 
 
-def test_signed_purpose_override_expiry_and_role_rules() -> None:
+async def test_signed_purpose_override_expiry_and_role_rules() -> None:
     subject = str(uuid.uuid4())
     access = security.decode_token(security.create_access_token({
         "sub": subject, "role": "client", "token_use": "refresh",
@@ -198,3 +201,37 @@ def test_signed_purpose_override_expiry_and_role_rules() -> None:
     assert not security.is_refresh_token_payload({"sub": subject})
     assert not security.is_access_token_payload(dict(access, token_use="unknown"))
     assert not security.is_access_token_payload(dict(access, exp=0))
+
+
+async def test_actual_disposable_redis_registration_and_refresh(
+    api_client: httpx.AsyncClient, subject: uuid.UUID,
+) -> None:
+    """One real Redis7 registration: CI-only, localhost, synthetic user only."""
+    if os.getenv("GITHUB_ACTIONS") != "true":
+        pytest.skip("No real Redis effects outside isolated GitHub Actions CI")
+    redis_url = settings.REDIS_URL
+    assert redis_url is not None
+    parsed = urlparse(redis_url)
+    assert parsed.scheme == "redis"
+    assert parsed.hostname == "127.0.0.1" and parsed.port == 6379
+    assert parsed.path == "/0"
+    token = security.create_refresh_token({"sub": str(subject)})
+    store_refresh_token(str(subject), token)
+    try:
+        response = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh",
+            json={"refresh_token": token},
+        )
+        assert response.status_code == status.HTTP_200_OK, response.text
+        payload = security.decode_token(response.json()["access_token"])
+        assert payload is not None
+        assert payload["sub"] == str(subject)
+        assert payload["role"] == "client"
+        assert payload["token_use"] == "access"
+        bearer = await api_client.get(
+            f"{settings.API_V1_STR}/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert bearer.status_code == status.HTTP_401_UNAUTHORIZED
+    finally:
+        delete_refresh_token(token)
