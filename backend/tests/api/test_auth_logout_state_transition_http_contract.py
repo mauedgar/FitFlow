@@ -40,6 +40,16 @@ async def authenticated_owner() -> AsyncIterator[uuid.UUID]:
     finally:
         app.dependency_overrides.pop(get_current_user, None)
 
+
+@pytest.fixture
+def registered_refresh_for_downstream(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only downstream logout failure tests: registry precondition is established.
+
+    Real registered/unregistered and signed-owner HTTP cases are exercised in
+    test_auth_redis_registry_binding_http.py with disposable Redis, not mocked.
+    """
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
+
 def _refresh_token(user_id: uuid.UUID) -> str:
     return security.create_refresh_token(data={"sub": str(user_id)})
 
@@ -68,6 +78,7 @@ async def test_logout_owner_deletes_refresh_then_blacklists(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
     authenticated_owner: uuid.UUID,
+    registered_refresh_for_downstream: None,  # noqa: ARG001
 ) -> None:
     refresh_token = _refresh_token(authenticated_owner)
     events: list[tuple[str, str]] = []
@@ -141,6 +152,7 @@ async def test_logout_delete_external_service_error_maps_503_before_blacklist(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
     authenticated_owner: uuid.UUID,
+    registered_refresh_for_downstream: None,  # noqa: ARG001
 ) -> None:
     refresh_token = _refresh_token(authenticated_owner)
     events: list[str] = []
@@ -164,6 +176,7 @@ async def test_logout_blacklist_external_service_error_maps_503_after_delete(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
     authenticated_owner: uuid.UUID,
+    registered_refresh_for_downstream: None,  # noqa: ARG001
 ) -> None:
     refresh_token = _refresh_token(authenticated_owner)
     events: list[str] = []
@@ -187,6 +200,7 @@ async def test_logout_delete_generic_failure_maps_500_before_blacklist(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
     authenticated_owner: uuid.UUID,
+    registered_refresh_for_downstream: None,  # noqa: ARG001
 ) -> None:
     refresh_token = _refresh_token(authenticated_owner)
     events: list[str] = []
@@ -210,6 +224,7 @@ async def test_logout_blacklist_generic_failure_maps_500_after_delete(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
     authenticated_owner: uuid.UUID,
+    registered_refresh_for_downstream: None,  # noqa: ARG001
 ) -> None:
     refresh_token = _refresh_token(authenticated_owner)
     events: list[str] = []

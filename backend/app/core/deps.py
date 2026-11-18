@@ -19,7 +19,7 @@ from pydantic import ValidationError
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.core.security import decode_token
+from app.core.security import decode_token, is_access_token_payload
 from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
@@ -50,7 +50,7 @@ async def get_current_user(
 ) -> User:
     """Valida el JWT, obtiene el usuario y verifica que esté activo."""
     payload = decode_token(token)
-    if payload is None:
+    if payload is None or not is_access_token_payload(payload):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado",
@@ -97,12 +97,15 @@ async def require_current_user(
     db: AsyncSession = Depends(get_async_session),
     token: str = Depends(oauth2_scheme),
 ) -> UserPublic:
-    """Devuelve el usuario autenticado usando el servicio de Auth."""
-    user = await get_user_from_token(token, db)
-    if user is None:
-        msg = "Token inválido o ausente."
-        raise AuthError(msg)
-    return user
+    """Devuelve usuario autenticado o HTTP 401, sin filtrar excepciones internas."""
+    try:
+        return await get_user_from_token(token, db)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o usuario no autorizado.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
 
 
