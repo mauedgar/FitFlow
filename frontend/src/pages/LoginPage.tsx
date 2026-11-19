@@ -99,6 +99,9 @@ const LoginPage = () => {
         {logoutConfirmation === 'legacy-unconfirmed' && (
           <Text role="alert">La credencial legada se quitó de este navegador, pero no se puede confirmar su revocación individual. Vencerá en su expiración original.</Text>
         )}
+        {logoutConfirmation === 'expired-unconfirmed' && (
+          <Text role="alert">La cookie de sesión ya no está disponible. No pudimos confirmar la revocación en el servidor; podés iniciar sesión nuevamente con tus credenciales.</Text>
+        )}
 
         {/* ⭐ El estado de carga lo gestiona directamente la mutación */}
         <Box w="100%" asChild><form onSubmit={handleSubmit}>

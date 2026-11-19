@@ -1,4 +1,5 @@
 // src/services/classService.ts
+import axios from 'axios';
 import apiClient from './api';
 import { withExclusiveBrowserCookie } from '../utils/browserCookieLock';
 
@@ -17,6 +18,14 @@ import {
 interface LoginPayload {
   username: string;
   password: string;
+}
+
+/** Missing/expired signed cookie: no exact server revocation receipt possible. */
+export class BrowserLogoutProofUnavailable extends Error {
+  constructor() {
+    super('La credencial del logout ya no está disponible.');
+    this.name = 'BrowserLogoutProofUnavailable';
+  }
 }
 
 const classService = {
@@ -62,6 +71,30 @@ const classService = {
       await apiClient.post(
         '/auth/browser/logout', undefined,
         { headers: { 'X-CSRF-Token': csrfToken } },
+      );
+    });
+  },
+
+  async retryBrowserLogoutFromCookie(): Promise<void> {
+    // Lock GET proof and POST revocation as one cookie-dependent operation.
+    // Only a 401 at the proof GET proves that no usable signed cookie can
+    // identify the former session; a failed POST remains unconfirmed.
+    await withExclusiveBrowserCookie(async () => {
+      let csrf: string;
+      try {
+        const proof = await apiClient.get<{ csrf_token: string }>(
+          '/auth/browser/logout-proof',
+        );
+        csrf = proof.data.csrf_token;
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          throw new BrowserLogoutProofUnavailable();
+        }
+        throw error;
+      }
+      await apiClient.post(
+        '/auth/browser/logout', undefined,
+        { headers: { 'X-CSRF-Token': csrf } },
       );
     });
   },

@@ -38,8 +38,16 @@ Cross-tab browser login/refresh/logout operations use one Web Lock; an
 unsupported browser fails closed rather than silently racing the shared
 cookie. Storage events send no JWT, refresh, CSRF or secrets; other tabs
 invalidate stale access and rehydrate only from the authoritative cookie.
-Unconfirmed logout blocks login and offers retry with recovered cookie
-proof. Transient refresh failures use bounded retry and generation guards.
+Unconfirmed logout blocks login and offers retry. Every retry retrieves the
+current cookie proof and posts logout in the same cross-tab Web Lock, never
+reusing a stale CSRF from another tab. If GET logout-proof returns 401 because
+the signed cookie is unavailable or expired, the UI records
+expired-unconfirmed, clears pending and CSRF markers across tabs and permits
+a new credentialed login. This does NOT assert a PostgreSQL COMMIT or claim
+that an earlier access token was revoked: such a token remains valid only
+until its original signed expiration if its old ledger family is active.
+POST failure/uncertain revocation remains pending rather than inventing
+a 204. Transient refresh failures retain bounded retry/generation guards.
 These guarantees require actual final-head browser and disposable HTTP
 negative tests, and independent review; initial IR001 found 2 frontend
 findings/2 advisories on the historical fd376... HEAD.

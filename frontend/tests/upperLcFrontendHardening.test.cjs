@@ -62,3 +62,19 @@ test('Browser refresh participates in the exclusive login/logout cookie lock', (
   assert.ok(refresh.includes("'/auth/browser/refresh'"));
   assert.ok(!refresh.includes('localStorage.'));
 });
+
+
+test('Missing signed logout cookie unblocks login without inventing PostgreSQL ACK', () => {
+  const provider = load('context/AuthProvider.tsx');
+  const service = load('services/classService.ts');
+  const page = load('pages/LoginPage.tsx');
+  assert.ok(provider.includes("error instanceof BrowserLogoutProofUnavailable"));
+  assert.ok(provider.includes("setLogoutConfirmation('expired-unconfirmed')"));
+  assert.ok(provider.includes('notifyOtherTabs("logout-expired-unconfirmed")'));
+  assert.ok(provider.includes('classService.retryBrowserLogoutFromCookie()'));
+  assert.ok(service.includes('async retryBrowserLogoutFromCookie()'));
+  assert.ok(service.includes('withExclusiveBrowserCookie(async () => {'));
+  assert.ok(service.includes("error.response?.status === 401"));
+  assert.ok(page.includes("logoutConfirmation === 'expired-unconfirmed'"));
+  assert.ok(!page.includes('la revocación quedó confirmada'));
+});

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { jwtDecode } from "jwt-decode";
 import axios from "axios";
 import apiClient from "../services/api";
-import classService from "../services/classService";
+import classService, { BrowserLogoutProofUnavailable } from "../services/classService";
 import { AuthContext, type LogoutConfirmation } from "./AuthContext";
 import { advanceAuthSessionGeneration, getAuthSessionGeneration } from "../utils/authSessionGeneration";
 import type { User, TokenPayload, UserRole, Booking, Client } from "../types";
@@ -117,16 +117,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       queryClient.clear();
       if (action === "logout-pending") {
         sessionStorage.setItem(PENDING_LOGOUT, "1");
-        if (csrfRef.current) sessionStorage.setItem(PENDING_CSRF, csrfRef.current);
+        // CSRF belongs to the original tab's cookie snapshot. Never copy
+        // that stale proof into another tab after an auth generation change.
+        sessionStorage.removeItem(PENDING_CSRF);
+        csrfRef.current = null;
+        setCsrfToken(null);
         setLogoutConfirmation("pending");
         return;
       }
-      if (action === "logout-confirmed" || action === "legacy-logout") {
+      if (action === "logout-confirmed" || action === "legacy-logout" ||
+          action === "logout-expired-unconfirmed") {
         sessionStorage.removeItem(PENDING_LOGOUT);
         sessionStorage.removeItem(PENDING_CSRF);
         csrfRef.current = null;
         setCsrfToken(null);
-        setLogoutConfirmation(action === "logout-confirmed" ? "confirmed" : "legacy-unconfirmed");
+        setLogoutConfirmation(action === "logout-confirmed" ? "confirmed" :
+          action === "logout-expired-unconfirmed" ? "expired-unconfirmed" : "legacy-unconfirmed");
         return;
       }
       if (sessionStorage.getItem(PENDING_LOGOUT) === "1") {
@@ -185,28 +191,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const retryLogout = async (): Promise<void> => {
-    let csrf = csrfRef.current ?? sessionStorage.getItem(PENDING_CSRF);
     const expectedGeneration = getAuthSessionGeneration();
-    if (!csrf) {
-      try {
-        // Another tab can announce PENDING without sharing secret CSRF.
-        // Recover a proof from the existing signed HttpOnly cookie, even
-        // when revocation committed but its network ACK was lost.
-        const proof = await classService.recoverLogoutProof();
-        if (expectedGeneration !== getAuthSessionGeneration()) return;
-        csrf = proof.csrf_token;
-        csrfRef.current = csrf;
-        setCsrfToken(csrf);
-        sessionStorage.setItem(PENDING_CSRF, csrf);
-      } catch {
-        if (expectedGeneration === getAuthSessionGeneration()) {
-          setLogoutConfirmation('pending');
-        }
-        return;
-      }
-    }
     try {
-      await classService.logoutBrowserSession(csrf);
+      // Read the current cookie proof and revoke under one cross-tab Web Lock.
+      // Never reuse CSRF cached before a concurrent tab changed the cookie.
+      await classService.retryBrowserLogoutFromCookie();
       if (getAuthSessionGeneration() !== expectedGeneration) return;
       csrfRef.current = null;
       setCsrfToken(null);
@@ -214,10 +203,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       sessionStorage.removeItem(PENDING_CSRF);
       setLogoutConfirmation('confirmed');
       notifyOtherTabs("logout-confirmed");
-    } catch {
-      if (getAuthSessionGeneration() === expectedGeneration) {
-        setLogoutConfirmation('pending');
+    } catch (error) {
+      if (getAuthSessionGeneration() !== expectedGeneration) return;
+      if (error instanceof BrowserLogoutProofUnavailable) {
+        // Missing/expired cookie means no exact revocation ACK is possible.
+        // This does NOT mean PostgreSQL committed logout. Unblock a fresh
+        // login only after the old cookie can no longer authenticate.
+        csrfRef.current = null;
+        setCsrfToken(null);
+        sessionStorage.removeItem(PENDING_LOGOUT);
+        sessionStorage.removeItem(PENDING_CSRF);
+        setLogoutConfirmation('expired-unconfirmed');
+        notifyOtherTabs("logout-expired-unconfirmed");
+        return;
       }
+      setLogoutConfirmation('pending');
     }
   };
 
