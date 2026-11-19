@@ -56,7 +56,11 @@ async function activeAccessToken(page) {
 
 async function loginWithNewSignedSession(page) {
   // Replaying the old signed JWT after durable logout must NOT grant access.
-  await login(page, email);
+  // Preserve the mounted React generation: page.goto would reset the
+  // session epoch, masking the stale-response protection being tested.
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button', { name: 'Ingresar' }).click();
   await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
   assert.ok(await activeAccessToken(page), 'Browser access must live in memory');
   assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null,
@@ -163,7 +167,7 @@ async function verifyRapidReLoginAndStale401(browser) {
       'Durable relogin must issue a new SID, never replay a revoked SID');
     const newGeneration = (await runtimeSessionState(page)).generation;
     assert.ok(newGeneration > loggedOutGeneration,
-      'Same-token re-login must have a distinct generation');
+      'Same-user re-login must have a distinct generation');
     assert.equal((await runtimeSessionState(page)).activeInterceptors, 1,
       'New ADMIN session must install exactly one interceptor');
     releaseResolve();
