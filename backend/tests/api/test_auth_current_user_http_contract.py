@@ -15,6 +15,7 @@ from sqlalchemy.engine import make_url
 from app.core import security
 from app.core.config import settings
 from app.core.enums import UserRole
+from app.db.models.auth_session import AuthSession
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
 from app.routers import auth as auth_router
@@ -73,17 +74,10 @@ async def persisted_auth_user() -> AsyncIterator[tuple[uuid.UUID, str, str]]:
 
 async def test_login_access_token_subject_resolves_same_user_through_me(
     api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
     persisted_auth_user: tuple[uuid.UUID, str, str],
 ) -> None:
-    """Prove the real /auth/token -> returned access token -> /auth/me chain."""
+    """Prove /auth/token persists a modern signed SID before /auth/me."""
     user_id, email, password = persisted_auth_user
-
-    monkeypatch.setattr(
-        auth_router,
-        "store_refresh_token",
-        lambda _user_id, _token: None,
-    )
 
     login_response = await api_client.post(
         f"{settings.API_V1_STR}/auth/token",
@@ -102,6 +96,14 @@ async def test_login_access_token_subject_resolves_same_user_through_me(
     assert payload is not None
     assert payload["sub"] == str(user_id)
     assert payload["role"] == UserRole.client.value
+    assert isinstance(payload.get("sid"), str) and payload["sid"]
+    refresh_payload = security.decode_token(token_pair["refresh_token"])
+    assert refresh_payload is not None
+    assert refresh_payload["sid"] == payload["sid"]
+    async with AsyncSessionLocal() as db:
+        record = await db.get(AuthSession, uuid.UUID(payload["sid"]))
+        assert record is not None and record.user_id == user_id
+        assert record.revoked_at is None
 
     me_response = await api_client.get(
         f"{settings.API_V1_STR}/auth/me",

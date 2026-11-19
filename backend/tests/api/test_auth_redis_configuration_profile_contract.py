@@ -32,6 +32,8 @@ class LoginUserStub:
     id: uuid.UUID
     hashed_password: str = "synthetic-hash"
     role: UserRole = UserRole.client
+    active: bool = True
+    deleted_at: object | None = None
 
 
 @dataclass(frozen=True)
@@ -83,7 +85,7 @@ async def test_non_redis_route_remains_available_when_redis_is_unconfigured(
     assert response.json() == {"message": "Welcome to FitFlow API"}
 
 
-async def test_login_returns_503_when_redis_is_unconfigured(
+async def test_new_durable_login_does_not_depend_on_redis(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -97,13 +99,21 @@ async def test_login_returns_503_when_redis_is_unconfigured(
     monkeypatch.setattr(auth_router, "user_get_by_email", get_user)
     monkeypatch.setattr(auth_router.security, "verify_password", lambda _plain, _hashed: True)
 
+    captured: list[str] = []
+
+    async def registered(_db: object, *, subject: uuid.UUID, refresh_token: str) -> None:
+        assert subject == user.id
+        captured.append(refresh_token)
+
+    monkeypatch.setattr(auth_router.session_ledger, "register", registered)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/token",
         data={"username": "redis-contract@example.com", "password": "synthetic-password"},
     )
-
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está configurado."}
+    assert response.status_code == status.HTTP_200_OK, response.text
+    signed = security.decode_token(response.json()["refresh_token"])
+    assert signed and signed["sid"] and signed["sub"] == str(user.id)
+    assert captured == [response.json()["refresh_token"]]
 
 
 async def test_refresh_returns_503_when_redis_is_unconfigured(

@@ -304,3 +304,47 @@ async def test_unexpected_logout_exception_is_controlled_503(
     )
     assert response.status_code == 503, response.text
     assert response.json()["detail"] == "Revocación durable no confirmada."
+
+
+async def test_default_token_and_legacy_refresh_url_route_modern_sid_through_pg(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The original API paths must not reintroduce SID-less issuance or Redis dependency."""
+    subject, email, password = account
+    monkeypatch.setattr(settings, "REDIS_URL", None)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": email, "password": password},
+    )
+    assert response.status_code == 200, response.text
+    pair = response.json()
+    access = security.decode_token(pair["access_token"])
+    refresh = security.decode_token(pair["refresh_token"])
+    assert access is not None and refresh is not None
+    assert access["sid"] == refresh["sid"]
+    assert access["sub"] == str(subject)
+    assert refresh["token_use"] == "refresh" and "role" not in refresh
+    renewed = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": pair["refresh_token"]},
+    )
+    assert renewed.status_code == 200, renewed.text
+    renewed_claims = security.decode_token(renewed.json()["access_token"])
+    assert renewed_claims is not None and renewed_claims["sid"] == access["sid"]
+    logout = await api_client.post(
+        f"{settings.API_V1_STR}/auth/logout",
+        headers={"Authorization": f"Bearer {pair['access_token']}"},
+        json={"refresh_token": pair["refresh_token"]},
+    )
+    assert logout.status_code == 204, logout.text
+    blocked = await api_client.get(
+        f"{settings.API_V1_STR}/auth/me",
+        headers={"Authorization": f"Bearer {pair['access_token']}"},
+    )
+    assert blocked.status_code == 401
+    replay = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": pair["refresh_token"]},
+    )
+    assert replay.status_code == 401

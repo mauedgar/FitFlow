@@ -54,7 +54,12 @@ async def login_for_tokens(
         logger.exception("DB error on get_by_email during login")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
-    if not user or not security.verify_password(form_data.password, user.hashed_password):  # pyright: ignore[reportArgumentType]
+    if (
+        user is None
+        or not user.active
+        or user.deleted_at is not None
+        or not security.verify_password(form_data.password, user.hashed_password)
+    ):
         logger.warning("Failed login attempt for email=%s", form_data.username)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -62,18 +67,27 @@ async def login_for_tokens(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = security.create_access_token(data={"sub": str(user.id), "role": user.role.value})
-    refresh_token = security.create_refresh_token(data={"sub": str(user.id)})
-
+    # All new API logins use durable session families. Old signed SID-less
+    # credentials remain readable only until their original expiration.
+    sid = str(uuid4())
+    access_token = security.create_access_token(
+        data={"sub": str(user.id), "role": user.role.value, "sid": sid}
+    )
+    refresh_token = security.create_refresh_token(
+        data={"sub": str(user.id), "sid": sid}
+    )
     try:
-        store_refresh_token(str(user.id), refresh_token)
-    except ExternalServiceError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        await session_ledger.register(
+            db, subject=user.id, refresh_token=refresh_token,
+        )
     except Exception as exc:
-        logger.exception("Failed to store refresh token for user_id=%s", user.id)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
+        logger.exception("Durable API login registration not confirmed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Persistencia de sesiones no disponible.",
+        ) from exc
 
-    logger.info("User %s logged in successfully", user.id)
+    logger.info("User %s logged in with durable session", user.id)
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -83,8 +97,13 @@ async def refresh_access_token(
     token_request: RefreshTokenRequest,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> Token:
-    """Renueva el Access Token usando un Refresh Token válido."""
+    """Modern signed SID routes to PostgreSQL; SID-less legacy uses Redis."""
     refresh_token = token_request.refresh_token
+    signed_payload = security.decode_token(refresh_token)
+    if isinstance(signed_payload, dict) and "sid" in signed_payload:
+        if not security.is_refresh_token_payload(signed_payload):
+            raise HTTPException(status_code=401, detail="Refresh moderno inválido.")
+        return await refresh_durable_session(token_request=token_request, db=db)
     try:
         blacklisted = is_token_blacklisted(refresh_token)
     except ExternalServiceError as exc:
@@ -138,8 +157,9 @@ async def logout(
     *,
     token_request: RefreshTokenRequest,
     current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> None:
-    """Logout real: invalida refresh token en Redis + blacklist.
+    """Modern SID logout is durable; original SID-less logout uses Redis.
 
     Requiere autenticación para evitar invalidaciones arbitrarias.
     """
@@ -152,6 +172,9 @@ async def logout(
     if str(current_user.id) != str(payload["sub"]):
         logger.warning("User %s attempted to logout token of user %s", current_user.id, payload.get("sub"))
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para invalidar este token.")
+    if "sid" in payload:
+        await logout_durable_session(token_request=token_request, db=db)
+        return
 
     try:
         if not is_refresh_token_valid(refresh_token):

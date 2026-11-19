@@ -58,3 +58,28 @@ create localStorage entries for modern credentials.
 STILL OPEN: legacy /auth/token default issuance and old browser E2E
 assumptions; do not claim F01 closed until those are migrated,
 all new-SHA tests/browser E2E pass, and full security IR approves.
+
+
+
+## F01 issuer cutover candidate, subject to exact-SHA CI and IR
+
+The old /auth/token endpoint keeps its original TokenPair response shape but
+**no longer issues new SID-less JWTs**. Every successful API login now creates
+a signed UUID4 family in PostgreSQL and returns only after committed durable
+registration; an uncertain COMMIT yields 503 with no credentials. No Redis
+registration is needed for modern sessions, even when Redis is unavailable.
+
+The historical /auth/refresh and /auth/logout endpoints route SID-bearing
+signed refresh tokens to the same PostgreSQL session authority. Their SID-less
+legacy paths remain read-only-compatibility through original JWT expiration
+and continue using their old Redis blacklist/registration semantics. The
+browser flow uses only HttpOnly cookies and memory-held access JWTs. No
+blanket user/session invalidation, retained Redis cleanup or token rewriting
+is authorized. New credential issuance is scoped to the original secure
+authentication routes, not test factories that explicitly manufacture
+legacy signed tokens to verify compatibility.
+
+Current branch is unaccepted; migrating existing clients to browser cookies,
+frontend logout ACK and negative HTTP tests must be independently reviewed
+on frozen SHA/tree before Product acceptance and nonforced merge. Staging,
+retained-data migration and production remain NOT_RUN.
