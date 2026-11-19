@@ -128,23 +128,18 @@ async def test_sidless_refresh_denied_when_redis_is_unconfigured(
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json() == {"detail": "Refresh de sesión inválido."}
 
-async def test_logout_returns_503_when_redis_is_unconfigured(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+
+async def test_sidless_logout_returns_401_without_redis_dependency(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
     authenticated_owner: uuid.UUID,
 ) -> None:
     monkeypatch.setattr(settings, "REDIS_URL", None)
-    refresh_token = security.create_refresh_token(data={"sub": str(authenticated_owner)})
-
-    response = await api_client.post(
-        f"{settings.API_V1_STR}/auth/logout",
-        json={"refresh_token": refresh_token},
+    refresh = security.create_refresh_token({"sub": str(authenticated_owner)})
+    result = await api_client.post(
+        f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh},
     )
-
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está configurado."}
-
-
+    assert result.status_code == status.HTTP_401_UNAUTHORIZED
+    assert result.json() == {"detail": "Refresh de sesión inválido."}
 
 async def test_sidless_refresh_denied_without_redis_ping(
     api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,

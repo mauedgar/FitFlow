@@ -20,14 +20,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core import security, browser_session
-from app.core.blacklist import blacklist_token, is_token_blacklisted  # noqa: F401
+from app.core.blacklist import blacklist_token, is_token_blacklisted  # noqa: F401 - old test injection only
 from app.core.deps import get_current_user
 from app.crud.crud_user import user as user_crud
 from app.crud import auth_session as session_ledger
 from app.core.token_store import (
-    delete_refresh_token,
-    is_refresh_token_valid,
-    store_refresh_token,
+    delete_refresh_token,  # noqa: F401 - old test injection only
+    is_refresh_token_valid,  # noqa: F401 - old test injection only
+    store_refresh_token,  # noqa: F401 - old test injection only
 )
 from app.db.models.user import User
 from app.db.session import get_async_session
@@ -111,40 +111,15 @@ async def logout(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> None:
-    """Modern SID logout is durable; original SID-less logout uses Redis.
-
-    Requiere autenticación para evitar invalidaciones arbitrarias.
-    """
-    refresh_token = token_request.refresh_token
-    payload = security.decode_token(refresh_token)
+    """Only owner-authenticated durable PostgreSQL SID logout is supported."""
+    payload = security.decode_token(token_request.refresh_token)
     if not security.is_refresh_token_payload(payload):
-        logger.warning("Logout attempted with invalid refresh token")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Refresh token inválido.")
-
+        raise HTTPException(status_code=400, detail="Refresh token inválido.")
+    if "sid" not in payload:
+        raise HTTPException(status_code=401, detail="Refresh de sesión inválido.")
     if str(current_user.id) != str(payload["sub"]):
-        logger.warning("User %s attempted to logout token of user %s", current_user.id, payload.get("sub"))
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para invalidar este token.")
-    if "sid" in payload:
-        await logout_durable_session(token_request=token_request, db=db)
-        return
-
-    try:
-        if not is_refresh_token_valid(refresh_token):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Refresh token no registrado.",
-            )
-        delete_refresh_token(refresh_token)
-        blacklist_token(refresh_token)
-    except HTTPException:
-        raise
-    except ExternalServiceError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.exception("Error invalidating refresh token for user=%s", current_user.id)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
-
-    # 204 No Content implícito
+        raise HTTPException(status_code=403, detail="No autorizado para invalidar este token.")
+    await logout_durable_session(token_request=token_request, db=db)
 
 
 @router.get("/me", response_model=UserPublic, status_code=status.HTTP_200_OK)

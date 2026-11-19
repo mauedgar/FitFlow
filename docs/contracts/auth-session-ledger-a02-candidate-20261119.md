@@ -46,3 +46,11 @@ No Product integration, staging, production or secret effects are presumed.
 Earlier IR001 on fd376... found 5F/7A aggregate, prompting scoped repairs;
 its original reviews and results are preserved unchanged. Final 0F0A
 and all normal GitHub protections are required for merge.
+
+## Control 015 — original API logout URL is now PG-backed (candidate)
+
+The original POST /auth/logout has no Redis state transition. It requires
+a signed refresh with SID plus an authorized owner bearer, and delegates
+to PostgreSQL revocation; failed COMMIT/ACK never returns false 204.
+Use /auth/session/logout for replay when an access bearer has expired or
+was revoked. Legacy SID-less bearer acceptance is not yet removed.

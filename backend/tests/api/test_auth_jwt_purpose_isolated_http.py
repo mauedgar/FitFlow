@@ -302,8 +302,8 @@ async def test_actual_disposable_redis_registration_blacklist_and_logout(
             headers={"Authorization": f"Bearer {access}"},
             json={"refresh_token": refresh},
         )
-        assert logout.status_code == status.HTTP_204_NO_CONTENT, logout.text
-        assert redis.exists(f"{BLACKLIST_PREFIX}{refresh}") == 1
+        assert logout.status_code == status.HTTP_401_UNAUTHORIZED, logout.text
+        assert redis.exists(f"{BLACKLIST_PREFIX}{refresh}") == 0
 
         denied_again = await api_client.post(
             f"{settings.API_V1_STR}/auth/refresh",

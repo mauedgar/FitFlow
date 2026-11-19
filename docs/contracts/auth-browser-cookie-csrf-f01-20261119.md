@@ -73,3 +73,11 @@ PG-registered refresh tokens with sid; legacy untyped and typed SID-less
 refresh never issue new access, even if a historical Redis entry exists.
 Existing signed SID-less bearer and /auth/logout legacy paths remain an
 explicit separate cutover step. No token lifetime extension.
+
+## Control 015 — historical logout alias cutover (candidate, not merged)
+
+POST /auth/logout now rejects SID-less refresh even if Redis registration
+existed. It requires a signed modern refresh family and the current access
+subject owner, then revokes the exact PostgreSQL row. After committed
+revocation, a lost ACK can be reconciled by /auth/session/logout without an
+access bearer. Legacy signed SID-less bearer is still separately pending.
