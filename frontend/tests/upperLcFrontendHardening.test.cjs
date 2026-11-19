@@ -13,7 +13,8 @@ test('Login errors never log the AxiosError or stringify arbitrary response data
   assert.match(page, /error\.response\?\.status === 401/);
   assert.doesNotMatch(page, /error\.response\.data/);
   assert.doesNotMatch(service, /console\.(log|error|debug|warn|info)\s*\(/);
-  assert.match(service, /await apiClient\.post<TokenResponse>\('\/auth\/token'/);
+  assert.match(service, /await apiClient\.post<BrowserSessionResponse>\('\/auth\/browser\/token'/);
+  assert.doesNotMatch(service, /localStorage\.setItem\(/);
 });
 
 test('Mobile navigation uses semantic RouterLink destinations rather than inert anchors', () => {
