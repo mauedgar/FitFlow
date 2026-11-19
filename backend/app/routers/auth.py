@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -145,10 +146,15 @@ async def refresh_access_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token inválido o expirado.",
         )
+    # Legacy refresh must never extend access beyond its signed expiry.
+    legacy_expires_at = datetime.fromtimestamp(payload["exp"], tz=UTC)
+    if legacy_expires_at <= datetime.now(tz=UTC):
+        raise HTTPException(status_code=401, detail="Refresh legado expirado.")
     access_token = security.create_access_token(
-        data={"sub": str(user.id), "role": user.role.value}
+        data={"sub": str(user.id), "role": user.role.value},
+        expires_at=legacy_expires_at,
     )
-    logger.info("Access token refreshed for user_id=%s", payload.get("sub"))
+    logger.info("Legacy access issued with bounded expiry for user_id=%s", payload.get("sub"))
     return Token(access_token=access_token)
 
 

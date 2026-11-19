@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+from jose import jwt
 from fastapi import status
 from sqlalchemy import delete
 from sqlalchemy.engine import make_url
@@ -339,3 +340,30 @@ async def test_refresh_rejects_query_only_refresh_token_transport(
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert query_token not in response.text
+
+
+async def test_legacy_refresh_cannot_extend_past_signed_expiration(
+    api_client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    persisted_auth_user: tuple[uuid.UUID, str, str],
+) -> None:
+    """The final legacy access cannot outlive the original refresh JWT."""
+    uid, _email, _password = persisted_auth_user
+    expires = int((datetime.now(tz=UTC) + timedelta(seconds=105)).timestamp())
+    signed = jwt.encode(
+        {"sub": str(uid), "exp": expires},
+        settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+    )
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": signed},
+    )
+    assert response.status_code == status.HTTP_200_OK, response.text
+    token = security.decode_token(response.json()["access_token"])
+    assert token is not None
+    assert token["token_use"] == "access"
+    assert "sid" not in token
+    assert token["sub"] == str(uid)
+    assert token["exp"] <= expires

@@ -65,6 +65,7 @@ def get_password_hash(password: str) -> str:
 def create_access_token(
     data: dict,
     expires_delta: timedelta | None = None,
+    expires_at: datetime | None = None,
 ) -> str:
     """Crea un Access Token JWT firmado.
 
@@ -75,6 +76,8 @@ def create_access_token(
     expire = datetime.now(tz=UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
+    if expires_at is not None:
+        expire = min(expire, expires_at)
     to_encode = {**data, "token_use": "access", "exp": expire}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
