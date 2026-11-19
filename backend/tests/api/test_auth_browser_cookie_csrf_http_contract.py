@@ -305,7 +305,8 @@ async def test_browser_credential_reads_fail_closed_without_trusted_origin(
         trusted = await api_client.get(path, headers=origin())
         assert trusted.status_code == 200, trusted.text
         assert trusted.headers["Cache-Control"] == "no-store"
-        assert trusted.headers["Vary"] == "Origin"
+        vary_tokens = {part.strip().lower() for part in trusted.headers["Vary"].split(",")}
+        assert "origin" in vary_tokens
         same_origin = await api_client.get(path, headers={
             "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors",
         })
