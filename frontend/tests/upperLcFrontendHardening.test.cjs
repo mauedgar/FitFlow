@@ -13,7 +13,9 @@ test('Login errors never log the AxiosError or stringify arbitrary response data
   assert.match(page, /error\.response\?\.status === 401/);
   assert.doesNotMatch(page, /error\.response\.data/);
   assert.doesNotMatch(service, /console\.(log|error|debug|warn|info)\s*\(/);
-  assert.match(service, /await apiClient\.post<BrowserSessionResponse>\('\/auth\/browser\/token'/);
+  assert.match(service, /await apiClient\.post<BrowserSessionResponse>\(/);
+  assert.match(service, /'\/auth\/browser\/token'/);
+  assert.match(service, /withExclusiveBrowserCookie/);
   assert.doesNotMatch(service, /localStorage\.setItem\(/);
 });
 

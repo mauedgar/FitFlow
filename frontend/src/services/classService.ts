@@ -32,7 +32,7 @@ const classService = {
       );
       return response.data;
     });
-  }
+  },
 
   async restoreBrowserSession(): Promise<BrowserSessionResponse> {
     const result = await apiClient.get<BrowserSessionResponse>('/auth/browser/session');
