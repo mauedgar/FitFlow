@@ -364,6 +364,19 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
     });
     await within(probeSeen, 'old noncancellable /auth/me Axios probe');
 
+    // The legacy test originally attempted to overwrite an ACTIVE HttpOnly
+    // family. That is now correctly blocked (HTTP 409). Revoke the first
+    // disposable family via the exact signed refresh before re-login; hold
+    // the old /auth/me responses so the stale-401 race is still exercised.
+    const oldFamilyCookie = (await context.cookies()).find(
+      (cookie) => cookie.name === 'fitflow_browser_refresh');
+    assert.ok(oldFamilyCookie && oldFamilyCookie.httpOnly,
+      'First browser family has an HttpOnly signed refresh');
+    const durableRevoke = await context.request.post(API + '/auth/session/logout', {
+      data: { refresh_token: oldFamilyCookie.value },
+    });
+    assert.equal(durableRevoke.status(), 204,
+      'Revocation of first family must COMMIT before re-login');
     await page.evaluate(() => {
       history.pushState({}, '', '/login');
       dispatchEvent(new PopStateEvent('popstate'));
