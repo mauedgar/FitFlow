@@ -78,3 +78,19 @@ test('Missing signed logout cookie unblocks login without inventing PostgreSQL A
   assert.ok(page.includes("logoutConfirmation === 'expired-unconfirmed'"));
   assert.ok(!page.includes('la revocación quedó confirmada'));
 });
+
+
+test('Browser provider never restores or stores legacy localStorage bearer', () => {
+  const provider = load('context/AuthProvider.tsx');
+  const context = load('context/AuthContext.tsx');
+  const useAuth = load('context/useAuth.tsx');
+  assert.ok(provider.includes('localStorage.removeItem(LEGACY_ACCESS);'));
+  assert.ok(!provider.includes('localStorage.getItem(LEGACY_ACCESS)'));
+  assert.ok(!provider.includes('localStorage.setItem(LEGACY_ACCESS'));
+  assert.ok(!provider.includes('legacy-unconfirmed'));
+  assert.ok(!provider.includes('notifyOtherTabs("legacy-logout")'));
+  assert.ok(provider.includes('if (!csrf || !accessToken) return;'));
+  assert.ok(provider.includes('void retryLogout();'));
+  assert.ok(context.includes('csrfToken: string'));
+  assert.ok(useAuth.includes('csrfToken: string'));
+});

@@ -1,7 +1,7 @@
 import { createContext } from "react";
 import type { User, UserRole, Booking, Client } from "../types";
 
-export type LogoutConfirmation = 'idle' | 'pending' | 'confirmed' | 'legacy-unconfirmed' | 'expired-unconfirmed';
+export type LogoutConfirmation = 'idle' | 'pending' | 'confirmed' | 'expired-unconfirmed';
 
 // Debes mantener el tipo sincronizado con el value de tu provider
 export interface AuthContextType {
@@ -13,7 +13,7 @@ export interface AuthContextType {
   isClient: boolean;
   isTrainer: boolean;
   isAdmin: boolean;
-  login: (accessToken: string, csrfToken?: string) => void;
+  login: (accessToken: string, csrfToken: string) => void;
   logout: () => void;
   logoutConfirmation: LogoutConfirmation;
   retryLogout: () => Promise<void>;

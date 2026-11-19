@@ -96,9 +96,6 @@ const LoginPage = () => {
             <Button onClick={() => void retryLogout()}>Reintentar salida segura</Button>
           </VStack>
         )}
-        {logoutConfirmation === 'legacy-unconfirmed' && (
-          <Text role="alert">La credencial legada se quitó de este navegador, pero no se puede confirmar su revocación individual. Vencerá en su expiración original.</Text>
-        )}
         {logoutConfirmation === 'expired-unconfirmed' && (
           <Text role="alert">La cookie de sesión ya no está disponible. No pudimos confirmar la revocación en el servidor; podés iniciar sesión nuevamente con tus credenciales.</Text>
         )}

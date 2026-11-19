@@ -17,8 +17,11 @@ SameSite=Lax cookie scoped to /api/v1/auth/browser, Secure outside explicit
 test/development. JS receives access and a cookie-specific HMAC CSRF token,
 never the refresh bearer. Access JWT remains in React memory and is
 rehydrated by GET /auth/browser/session after PostgreSQL SID verification.
-Historical signed SID-less access already stored locally is read only until
-its original exp; modern login does not persist access credentials.
+The browser no longer accepts, decodes or restores historical SID-less
+access saved in localStorage: it discards that key unconditionally. The
+frontend login contract requires both a modern access bearer and cookie-bound
+CSRF; only in-memory access is accepted. API legacy credential handling
+remains an independent backend cutover gate, not silently claimed complete.
 
 Mutation POSTs /auth/browser/refresh and /auth/browser/logout require exact
 allowlisted first-party Origin plus X-CSRF-Token; login requires Origin.
@@ -52,8 +55,8 @@ These guarantees require actual final-head browser and disposable HTTP
 negative tests, and independent review; initial IR001 found 2 frontend
 findings/2 advisories on the historical fd376... HEAD.
 
-Legacy /auth/token new issuance is durable SID-backed, but existing
-signed SID-less refresh may still produce SID-less access bounded by its
+Legacy /auth/token new issuance is durable SID-backed, but the backend still
+accepts existing signed SID-less refresh and may produce SID-less access bounded by its
 original signed refresh expiry. Legacy access is NOT individually family
 revocable; no immediate full legacy remote logout is claimed. After original
 expiry, reauthentication is required. No unbounded extension or automatic

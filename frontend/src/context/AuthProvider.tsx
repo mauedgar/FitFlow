@@ -20,8 +20,7 @@ const notifyOtherTabs = (action: string): void => {
 };
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  // Modern access bearer stays in memory; legacy SID-less access is read
-  // from localStorage only until its original signed expiry.
+  // Access bearer remains in memory. No prior localStorage bearer is trusted.
   const [token, setToken] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const csrfRef = useRef<string | null>(null);
@@ -66,20 +65,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoadingAuth(false);
       return;
     }
-    const previous = localStorage.getItem(LEGACY_ACCESS);
-    if (previous) {
-      try {
-        const decoded = jwtDecode<TokenPayload>(previous);
-        if (!decoded.sid && typeof decoded.exp === 'number' &&
-            decoded.exp * 1000 > Date.now()) {
-          setToken(previous);
-          decodeToken(previous);
-          setIsLoadingAuth(false);
-          return;
-        }
-      } catch { /* invalid signed token is not revived */ }
-      localStorage.removeItem(LEGACY_ACCESS);
-    }
+    // Pre-consumer cutover: drop even signed-looking historical localStorage
+    // credentials without decoding or accepting them as a browser session.
+    localStorage.removeItem(LEGACY_ACCESS);
     void classService.restoreBrowserSession().then((session) => {
       if (cancelled || generation !== getAuthSessionGeneration()) return;
       csrfRef.current = session.csrf_token;
@@ -109,7 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Initial cookie restoration may have been invalidated by this event.
       // Never leave the UI indefinitely behind the auth-loading gate.
       setIsLoadingAuth(false);
-      if (action === "login") localStorage.removeItem(LEGACY_ACCESS);
+      localStorage.removeItem(LEGACY_ACCESS);
       setToken(null);
       setCurrentUser(null);
       setUserRole(null);
@@ -125,14 +113,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setLogoutConfirmation("pending");
         return;
       }
-      if (action === "logout-confirmed" || action === "legacy-logout" ||
+      if (action === "logout-confirmed" ||
           action === "logout-expired-unconfirmed") {
         sessionStorage.removeItem(PENDING_LOGOUT);
         sessionStorage.removeItem(PENDING_CSRF);
         csrfRef.current = null;
         setCsrfToken(null);
-        setLogoutConfirmation(action === "logout-confirmed" ? "confirmed" :
-          action === "logout-expired-unconfirmed" ? "expired-unconfirmed" : "legacy-unconfirmed");
+        setLogoutConfirmation(action === "logout-confirmed" ?
+          "confirmed" : "expired-unconfirmed");
         return;
       }
       if (sessionStorage.getItem(PENDING_LOGOUT) === "1") {
@@ -157,30 +145,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => window.removeEventListener("storage", onSharedSession);
   }, [decodeToken, queryClient]);
 
-  const login = (accessToken: string, csrf?: string) => {
+  const login = (accessToken: string, csrf: string) => {
     if (sessionStorage.getItem(PENDING_LOGOUT) === "1") {
       setLogoutConfirmation("pending");
       return; // A stale login response must not erase logout recovery.
     }
-    if (csrf) {
-      localStorage.removeItem(LEGACY_ACCESS);
-      csrfRef.current = csrf;
-      setCsrfToken(csrf);
-      sessionStorage.removeItem(PENDING_LOGOUT);
-      sessionStorage.removeItem(PENDING_CSRF);
-    } else {
-      try {
-        const decoded = jwtDecode<TokenPayload>(accessToken);
-        if (!decoded.sid && typeof decoded.exp === 'number' &&
-            decoded.exp * 1000 > Date.now()) {
-          localStorage.setItem(LEGACY_ACCESS, accessToken);
-        } else {
-          localStorage.removeItem(LEGACY_ACCESS);
-        }
-      } catch { localStorage.removeItem(LEGACY_ACCESS); }
-      csrfRef.current = null;
-      setCsrfToken(null);
-    }
+    if (!csrf || !accessToken) return; // No access-only/legacy login.
+    localStorage.removeItem(LEGACY_ACCESS);
+    csrfRef.current = csrf;
+    setCsrfToken(csrf);
+    sessionStorage.removeItem(PENDING_LOGOUT);
+    sessionStorage.removeItem(PENDING_CSRF);
     setLogoutConfirmation('idle');
     setToken(accessToken);
     decodeToken(accessToken);
@@ -222,23 +197,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
-    const csrf = csrfRef.current;
     localStorage.removeItem(LEGACY_ACCESS);
     setToken(null);
     setCurrentUser(null);
     setUserRole(null);
     delete apiClient.defaults.headers.common["Authorization"];
     queryClient.clear();
-    if (csrf) {
-      sessionStorage.setItem(PENDING_LOGOUT, '1');
-      sessionStorage.setItem(PENDING_CSRF, csrf);
-      setLogoutConfirmation('pending');
-      notifyOtherTabs("logout-pending");
-      void retryLogout();
-    } else {
-      setLogoutConfirmation('legacy-unconfirmed');
-      notifyOtherTabs("legacy-logout");
-    }
+    // A missing in-memory CSRF does not prove the HttpOnly cookie is absent.
+    // Always attempt an exact cookie-bound server logout before concluding.
+    sessionStorage.setItem(PENDING_LOGOUT, '1');
+    sessionStorage.removeItem(PENDING_CSRF);
+    setLogoutConfirmation('pending');
+    notifyOtherTabs("logout-pending");
+    void retryLogout();
   };
 
   // Bounded retries for transient refresh failures, generation-guarded.
