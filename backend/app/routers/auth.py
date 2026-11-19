@@ -225,7 +225,7 @@ async def create_durable_login(
         await session_ledger.register(
             db, subject=user.id, refresh_token=refresh_token
         )
-    except (SQLAlchemyError, OSError) as exc:
+    except Exception as exc:
         logger.exception("Durable login registration could not be confirmed")
         raise HTTPException(
             status_code=503, detail="Persistencia de sesiones no disponible."
@@ -294,7 +294,7 @@ async def logout_durable_session(
         )
     try:
         outcome = await session_ledger.revoke(db, refresh_token=token)
-    except SQLAlchemyError as exc:
+    except Exception as exc:
         logger.exception("Durable session logout cannot confirm PostgreSQL COMMIT")
         raise HTTPException(
             status_code=503, detail="Revocación durable no confirmada."

@@ -56,3 +56,24 @@ Until frontend integration and the sunset ruling are reviewed, global login,
 refresh and logout remain in transition. Redis cannot override a revoked
 modern session. Failures before confirmed PostgreSQL COMMIT must not return
 204. No live migration, production, secrets or user tokens were altered.
+
+
+## IR001 F02 successor — controlled unknown transaction outcome
+
+The independent IR001 at older HEAD 30a2a6bd33ed37c51d1cfbb5cb29e602f3155038
+was NO_RECOMMEND with F01 legacy issuance and F02 uncertain commit error
+contracts, plus five advisories. Its ORIGINAL remains unchanged. This
+successor catches unexpected registration and logout transaction exceptions,
+cleans up registration transaction state on any ordinary exception and
+returns HTTP 503 without any credentials / without false 204. Tests now
+inject failures **after an actual durable COMMIT** and show the first
+response is UNCONFIRMED (503), while an exact signed refresh replay after
+new DB connection returns the prior durable revocation ACK (204). Database
+failure never implies re-running SQL writes blindly. Orphan modern sessions
+after lost login ACK expire naturally without a bearer reaching clients.
+
+**F01 remains OPEN:** legacy /auth/token still issues SID-less credentials,
+and the frontend still uses that route. No silent cutover or source-only
+assertion that all real users already use PostgreSQL sessions. A coordinated
+frontend and legacy-issuance sunset, with original-expiry compatibility and
+explicit reauthentication, is required before Product acceptance.

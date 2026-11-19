@@ -230,3 +230,77 @@ async def test_unconfirmed_database_logout_never_returns_204(
         json={"refresh_token": refresh},
     )
     assert response.status_code == 503, response.text
+
+
+
+async def test_unknown_register_commit_outcome_never_returns_token_pair(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _uid, email, password = account
+    real_register = auth_router.session_ledger.register
+
+    async def committed_but_no_response(db: object, *, subject: uuid.UUID, refresh_token: str):
+        await real_register(db, subject=subject, refresh_token=refresh_token)
+        raise ConnectionError("synthetic connection lost after registration COMMIT")
+
+    monkeypatch.setattr(auth_router.session_ledger, "register", committed_but_no_response)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/session/token",
+        data={"username": email, "password": password},
+    )
+    assert response.status_code == 503, response.text
+    assert "access_token" not in response.text
+    assert "refresh_token" not in response.text
+
+
+async def test_unknown_logout_ack_after_real_commit_reconciles_on_exact_replay(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _uid, email, password = account
+    access, refresh = await new_session(api_client, email, password)
+    real_revoke = auth_router.session_ledger.revoke
+
+    async def committed_but_ack_lost(db: object, *, refresh_token: str) -> str:
+        result = await real_revoke(db, refresh_token=refresh_token)
+        assert result == "COMMITTED"
+        raise ConnectionError("synthetic network ACK lost after COMMIT")
+
+    monkeypatch.setattr(auth_router.session_ledger, "revoke", committed_but_ack_lost)
+    first = await api_client.post(
+        f"{settings.API_V1_STR}/auth/session/logout",
+        json={"refresh_token": refresh},
+    )
+    assert first.status_code == 503, first.text
+    monkeypatch.setattr(auth_router.session_ledger, "revoke", real_revoke)
+    await engine.dispose()
+    exact_replay = await api_client.post(
+        f"{settings.API_V1_STR}/auth/session/logout",
+        json={"refresh_token": refresh},
+    )
+    assert exact_replay.status_code == 204, exact_replay.text
+    denied = await api_client.get(
+        f"{settings.API_V1_STR}/auth/me",
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert denied.status_code == 401, denied.text
+
+
+async def test_unexpected_logout_exception_is_controlled_503(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _uid, email, password = account
+    _access, refresh = await new_session(api_client, email, password)
+
+    async def unexpected(*_args: object, **_kwargs: object) -> str:
+        raise RuntimeError("synthetic transaction finalization error")
+
+    monkeypatch.setattr(auth_router.session_ledger, "revoke", unexpected)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/session/logout",
+        json={"refresh_token": refresh},
+    )
+    assert response.status_code == 503, response.text
+    assert response.json()["detail"] == "Revocación durable no confirmada."

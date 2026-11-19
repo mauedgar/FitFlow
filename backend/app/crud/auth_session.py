@@ -54,8 +54,17 @@ async def register(db: AsyncSession, *, subject: UUID, refresh_token: str) -> Au
         id=sid, user_id=subject,
         refresh_digest=fingerprint(refresh_token), expires_at=expiry,
     )
-    db.add(row)
-    await db.commit()
+    try:
+        db.add(row)
+        await db.commit()
+    except Exception:
+        # An uncertain COMMIT must never be treated as an issued credential.
+        # Rollback is best-effort cleanup; the caller returns no token or 204.
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        raise
     return row
 
 
