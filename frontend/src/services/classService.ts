@@ -9,7 +9,7 @@ import {
   type ClassSession,
   type Booking,
   type BookingCreatePayload,
-  type TokenResponse,
+  type BrowserSessionResponse,
   type ClientWeeklyAgendaView
 } from '../types';
 
@@ -20,17 +20,37 @@ interface LoginPayload {
 
 const classService = {
   // --- Autenticación ---
-  async login(payload: LoginPayload): Promise<TokenResponse> {
+  async login(payload: LoginPayload): Promise<BrowserSessionResponse> {
     const formData = new URLSearchParams();
     formData.append('username', payload.username);
     formData.append('password', payload.password);
 
-    const response = await apiClient.post<TokenResponse>('/auth/token', formData, {
+    const response = await apiClient.post<BrowserSessionResponse>('/auth/browser/token', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
     return response.data;
+  },
+
+  async restoreBrowserSession(): Promise<BrowserSessionResponse> {
+    const result = await apiClient.get<BrowserSessionResponse>('/auth/browser/session');
+    return result.data;
+  },
+
+  async refreshBrowserSession(csrfToken: string): Promise<BrowserSessionResponse> {
+    const result = await apiClient.post<BrowserSessionResponse>(
+      '/auth/browser/refresh', undefined,
+      { headers: { 'X-CSRF-Token': csrfToken } },
+    );
+    return result.data;
+  },
+
+  async logoutBrowserSession(csrfToken: string): Promise<void> {
+    await apiClient.post(
+      '/auth/browser/logout', undefined,
+      { headers: { 'X-CSRF-Token': csrfToken } },
+    );
   },
 
   // --- GymClass Endpoints ---

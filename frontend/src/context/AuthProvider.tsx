@@ -1,112 +1,195 @@
-import React, { useState, useEffect, useCallback, type ReactNode } from "react";
+import React, { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { jwtDecode } from "jwt-decode";
 import apiClient from "../services/api";
 import classService from "../services/classService";
-import { AuthContext } from "./AuthContext";
+import { AuthContext, type LogoutConfirmation } from "./AuthContext";
+import { getAuthSessionGeneration } from "../utils/authSessionGeneration";
 import type { User, TokenPayload, UserRole, Booking, Client } from "../types";
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
+interface AuthProviderProps { children: ReactNode; }
+const LEGACY_ACCESS = "access_token";
+const PENDING_LOGOUT = "fitflow_logout_pending";
+const PENDING_CSRF = "fitflow_logout_csrf";
 
-// Componente Provider que maneja la lógica de autenticación y provee el contexto
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(localStorage.getItem("access_token"));
+  // Modern access bearer stays in memory; legacy SID-less access is read
+  // from localStorage only until its original signed expiry.
+  const [token, setToken] = useState<string | null>(null);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const csrfRef = useRef<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [logoutConfirmation, setLogoutConfirmation] = useState<LogoutConfirmation>('idle');
   const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
 
-  // Decodifica el accessToken y setea el usuario y rol
   const decodeToken = useCallback((accessToken: string | null) => {
     if (!accessToken) {
       setCurrentUser(null);
       setUserRole(null);
-      setIsLoadingAuth(false);
       delete apiClient.defaults.headers.common["Authorization"];
       return;
     }
     try {
-      const decoded: TokenPayload = jwtDecode(accessToken);
+      const decoded = jwtDecode<TokenPayload>(accessToken);
+      if (typeof decoded.exp !== 'number' || decoded.exp * 1000 <= Date.now()) {
+        throw new Error('Access token expired');
+      }
       setCurrentUser({ email: decoded.sub!, role: decoded.role! });
       setUserRole(decoded.role || null);
       apiClient.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
-    } catch (error) {
-      // Manejo de error si el token está corrupto o expiró
-      console.error("Failed to decode token:", error);
-      localStorage.removeItem("access_token");
+    } catch {
+      localStorage.removeItem(LEGACY_ACCESS);
       setToken(null);
       setCurrentUser(null);
       setUserRole(null);
       delete apiClient.defaults.headers.common["Authorization"];
-    } finally {
-      setIsLoadingAuth(false);
     }
   }, []);
 
-  // Al montar, intenta rehidratar el token y usuario desde localStorage
   useEffect(() => {
-    const storedToken = localStorage.getItem("access_token");
-    setToken(storedToken);
-    decodeToken(storedToken);
-    if (!storedToken) setIsLoadingAuth(false); // Si no hay token, termina la carga inicial
+    let cancelled = false;
+    const generation = getAuthSessionGeneration();
+    if (sessionStorage.getItem(PENDING_LOGOUT) === '1') {
+      csrfRef.current = sessionStorage.getItem(PENDING_CSRF);
+      setCsrfToken(csrfRef.current);
+      setLogoutConfirmation('pending');
+      setIsLoadingAuth(false);
+      return;
+    }
+    const previous = localStorage.getItem(LEGACY_ACCESS);
+    if (previous) {
+      try {
+        const decoded = jwtDecode<TokenPayload>(previous);
+        if (!decoded.sid && typeof decoded.exp === 'number' &&
+            decoded.exp * 1000 > Date.now()) {
+          setToken(previous);
+          decodeToken(previous);
+          setIsLoadingAuth(false);
+          return;
+        }
+      } catch { /* invalid signed token is not revived */ }
+      localStorage.removeItem(LEGACY_ACCESS);
+    }
+    void classService.restoreBrowserSession().then((session) => {
+      if (cancelled || generation !== getAuthSessionGeneration()) return;
+      csrfRef.current = session.csrf_token;
+      setCsrfToken(session.csrf_token);
+      setToken(session.access_token);
+      decodeToken(session.access_token);
+      setLogoutConfirmation('idle');
+    }).catch(() => {
+      if (cancelled || generation !== getAuthSessionGeneration()) return;
+      setToken(null);
+      decodeToken(null);
+    }).finally(() => { if (!cancelled) setIsLoadingAuth(false); });
+    return () => { cancelled = true; };
   }, [decodeToken]);
 
-  // Login: guarda el token y decodifica
-  const login = (accessToken: string) => {
-    localStorage.setItem("access_token", accessToken);
+  const login = (accessToken: string, csrf?: string) => {
+    if (csrf) {
+      localStorage.removeItem(LEGACY_ACCESS);
+      csrfRef.current = csrf;
+      setCsrfToken(csrf);
+      sessionStorage.removeItem(PENDING_LOGOUT);
+      sessionStorage.removeItem(PENDING_CSRF);
+    } else {
+      try {
+        const decoded = jwtDecode<TokenPayload>(accessToken);
+        if (!decoded.sid && typeof decoded.exp === 'number' &&
+            decoded.exp * 1000 > Date.now()) {
+          localStorage.setItem(LEGACY_ACCESS, accessToken);
+        } else {
+          localStorage.removeItem(LEGACY_ACCESS);
+        }
+      } catch { localStorage.removeItem(LEGACY_ACCESS); }
+      csrfRef.current = null;
+      setCsrfToken(null);
+    }
+    setLogoutConfirmation('idle');
     setToken(accessToken);
     decodeToken(accessToken);
+    setIsLoadingAuth(false);
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
     queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
   };
 
-  // Logout: limpia todo el estado y la cache de queries
+  const retryLogout = async (): Promise<void> => {
+    const csrf = csrfRef.current ?? sessionStorage.getItem(PENDING_CSRF);
+    if (!csrf) {
+      setLogoutConfirmation('pending');
+      return;
+    }
+    const expectedGeneration = getAuthSessionGeneration();
+    try {
+      await classService.logoutBrowserSession(csrf);
+      if (getAuthSessionGeneration() !== expectedGeneration) return;
+      csrfRef.current = null;
+      setCsrfToken(null);
+      sessionStorage.removeItem(PENDING_LOGOUT);
+      sessionStorage.removeItem(PENDING_CSRF);
+      setLogoutConfirmation('confirmed');
+    } catch {
+      if (getAuthSessionGeneration() === expectedGeneration) {
+        setLogoutConfirmation('pending');
+      }
+    }
+  };
+
   const logout = () => {
-    localStorage.removeItem("access_token");
+    const csrf = csrfRef.current;
+    localStorage.removeItem(LEGACY_ACCESS);
     setToken(null);
     setCurrentUser(null);
     setUserRole(null);
     delete apiClient.defaults.headers.common["Authorization"];
     queryClient.clear();
+    if (csrf) {
+      sessionStorage.setItem(PENDING_LOGOUT, '1');
+      sessionStorage.setItem(PENDING_CSRF, csrf);
+      setLogoutConfirmation('pending');
+      void retryLogout();
+    } else {
+      setLogoutConfirmation('legacy-unconfirmed');
+    }
   };
+
+  useEffect(() => {
+    if (!token || !csrfToken) return;
+    let expiry: number;
+    try { expiry = jwtDecode<TokenPayload>(token).exp * 1000; }
+    catch { return; }
+    if (!Number.isFinite(expiry)) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void classService.refreshBrowserSession(csrfToken).then((session) => {
+        if (cancelled) return;
+        csrfRef.current = session.csrf_token;
+        setCsrfToken(session.csrf_token);
+        setToken(session.access_token);
+        decodeToken(session.access_token);
+      }).catch(() => { /* Backend guards still enforce expiry. */ });
+    }, Math.max(0, expiry - Date.now() - 60000));
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [token, csrfToken, decodeToken]);
 
   const isAuthenticated = !!token && !!currentUser;
   const isClient = userRole === "client";
   const isTrainer = userRole === "trainer";
   const isAdmin = userRole === "admin";
-
-  // TanStack Query obtiene los bookings SOLO si está autenticado y es cliente
   const { data: userBookings, isLoading: isLoadingBookings } = useQuery<Booking[]>({
     queryKey: ["myBookings"],
-    queryFn: () => {
-    return classService.getMyBookings();
-    },    
+    queryFn: () => classService.getMyBookings(),
     enabled: isAuthenticated && isClient,
   });
-
   const value = {
-    token,
-    currentClient,
-    currentUser,
-    userRole,
-    isAuthenticated,
-    isClient,
-    isTrainer,
-    isAdmin,
-    login,
-    logout,
-    userBookings,
-    isLoadingBookings,
-    isLoadingAuth,
+    token, currentClient, currentUser, userRole,
+    isAuthenticated, isClient, isTrainer, isAdmin,
+    login, logout, logoutConfirmation, retryLogout,
+    userBookings, isLoadingBookings, isLoadingAuth,
   };
-
-  if (isLoadingAuth) {
-    // Puedes poner aquí tu spinner o Skeleton si lo prefieres
-    return null;
-  }
-
+  if (isLoadingAuth) return null;
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

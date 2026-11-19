@@ -5,6 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 // 1. Creamos una instancia de Axios con configuración base
 const apiClient = axios.create({
   baseURL: API_BASE_URL, // La URL base de tu backend FastAPI
+  withCredentials: true, // HttpOnly refresh scoped to /auth/browser/*
   headers: {
     'Content-Type': 'application/json',
   },
@@ -20,7 +21,7 @@ export const loginUser = async (email: string, password: string) => {
   formData.append('password', password);
 
   try {
-    const response = await apiClient.post('/login/token', formData, {
+    const response = await apiClient.post('/auth/browser/token', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
