@@ -33,3 +33,26 @@ concurrent refresh/logout, lost ACK, old-client handling, no false HTTP 204,
 independent whole-source security IR, distinct Product acceptance and
 nonforced merge. No production, secrets, rulesets, retained DB, deploy or
 changes to upstream PR114/116 in this commit.
+
+
+
+## Phase 2 opt-in API and bearer guard candidate (not accepted)
+
+Modern opt-in endpoints are `POST /auth/session/token`,
+`POST /auth/session/refresh`, `POST /auth/session/logout`.
+The new login commits a signed UUID4 family row before releasing JWTs.
+Both existing bearer guard paths consult PostgreSQL for any JWT containing
+`sid`; absence, wrong owner, expiry or durable revocation denies access
+independently of Redis. Modern refresh verifies its signed refresh digest and
+current active PostgreSQL account role. Modern logout accepts possession
+of the exact signed refresh without requiring unexpired access bearer,
+revokes with SELECT FOR UPDATE + COMMIT, and accepts exact idempotent replay.
+
+The old /auth/token, /auth/refresh, /auth/logout paths remain in place
+for SID-less legacy credentials through original JWT expiry. They are NOT
+represented as durable session-family endpoints. New clients must explicitly
+adopt modern endpoints and reauthenticate after the bounded legacy period.
+Until frontend integration and the sunset ruling are reviewed, global login,
+refresh and logout remain in transition. Redis cannot override a revoked
+modern session. Failures before confirmed PostgreSQL COMMIT must not return
+204. No live migration, production, secrets or user tokens were altered.
