@@ -49,3 +49,16 @@ test('Browser login blocks while durable logout is pending and synchronizes tabs
   assert.match(provider, /\[2000, 5000, 10000\]/);
   assert.doesNotMatch(provider, /localStorage\.setItem\(LEGACY_ACCESS, accessToken\)\s*;\s*\/\/.*modern/);
 });
+
+
+test('Browser refresh participates in the exclusive login/logout cookie lock', () => {
+  const service = load('services/classService.ts');
+  const login = service.split('async login(payload: LoginPayload)')[1].split('async restoreBrowserSession')[0];
+  const refresh = service.split('async refreshBrowserSession')[1].split('async recoverLogoutProof')[0];
+  const logout = service.split('async logoutBrowserSession')[1].split('// --- GymClass Endpoints ---')[0];
+  for (const op of [login, refresh, logout]) {
+    assert.ok(op.includes('withExclusiveBrowserCookie(async () => {'));
+  }
+  assert.ok(refresh.includes("'/auth/browser/refresh'"));
+  assert.ok(!refresh.includes('localStorage.'));
+});

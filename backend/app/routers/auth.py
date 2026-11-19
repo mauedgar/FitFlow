@@ -402,9 +402,11 @@ async def browser_cookie_rehydrate(
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> dict[str, str]:
     """Read-only boot: a cookie does not itself grant access without PG."""
+    browser_session.require_credential_read_origin(request)
     token = browser_session.cookie_refresh_token(request)
     body = await _browser_access(db, token)
     response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Origin"
     return body
 
 
@@ -419,11 +421,13 @@ async def browser_logout_proof(
     A proof is not access and is not an indication that PostgreSQL committed
     revocation. No new bearer JWT or refresh cookie is issued here.
     """
+    browser_session.require_credential_read_origin(request)
     signed = browser_session.cookie_refresh_token(request)
     payload = security.decode_token(signed)
     if not security.is_refresh_token_payload(payload) or "sid" not in payload:
         raise HTTPException(status_code=401, detail="Cookie de sesión inválida.")
     response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Origin"
     return {"csrf_token": browser_session.csrf_value(signed)}
 
 

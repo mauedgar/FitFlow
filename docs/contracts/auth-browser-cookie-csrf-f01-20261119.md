@@ -22,6 +22,10 @@ its original exp; modern login does not persist access credentials.
 
 Mutation POSTs /auth/browser/refresh and /auth/browser/logout require exact
 allowlisted first-party Origin plus X-CSRF-Token; login requires Origin.
+Credential-bearing GET /auth/browser/session and GET /auth/browser/logout-proof
+require allowed Origin for cross-origin requests; for same-origin script GETs
+without Origin, Fetch Metadata must confirm same-origin non-navigation.
+Untrusted/absent origins without acceptable Fetch Metadata fail closed.
 GET /auth/browser/logout-proof recovers ONLY the same-cookie HMAC proof for
 idempotent retry after a lost logout ACK. It does not mint bearer or attest
 revocation, and uses no-store. Logout returns HTTP204 and clears the cookie
@@ -30,7 +34,7 @@ A browser login with an existing signed refresh cookie is rejected with 409
 until logout clears it, even if PG already committed revocation but its ACK
 was lost. This prevents overwriting an unreconciled session family's proof.
 
-Cross-tab browser login/logout writes are serialized via Web Locks; an
+Cross-tab browser login/refresh/logout operations use one Web Lock; an
 unsupported browser fails closed rather than silently racing the shared
 cookie. Storage events send no JWT, refresh, CSRF or secrets; other tabs
 invalidate stale access and rehydrate only from the authoritative cookie.

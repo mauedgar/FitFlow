@@ -37,6 +37,23 @@ def _origin(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Origen de sesión no autorizado.")
 
 
+def require_credential_read_origin(request: Request) -> None:
+    """Protect GETs returning signed access JWT or CSRF material.
+
+    Cross-origin fetches carry Origin; same-origin GET may omit it, so
+    require Fetch Metadata explicitly identifying a same-origin script read.
+    This browser boundary does not replace authentication by signed cookie.
+    """
+    if request.headers.get("origin") is not None:
+        _origin(request)
+        return
+    if (
+        request.headers.get("sec-fetch-site") != "same-origin"
+        or request.headers.get("sec-fetch-mode") not in {"cors", "same-origin"}
+    ):
+        raise HTTPException(status_code=403, detail="Origen de lectura no autorizado.")
+
+
 def csrf_value(refresh_token: str) -> str:
     """Signed, session-bound proof, never a bearer credential by itself."""
     return new(

@@ -40,11 +40,14 @@ const classService = {
   },
 
   async refreshBrowserSession(csrfToken: string): Promise<BrowserSessionResponse> {
-    const result = await apiClient.post<BrowserSessionResponse>(
-      '/auth/browser/refresh', undefined,
-      { headers: { 'X-CSRF-Token': csrfToken } },
-    );
-    return result.data;
+    // Coordinate the shared HttpOnly cookie with login and logout across tabs.
+    return withExclusiveBrowserCookie(async () => {
+      const result = await apiClient.post<BrowserSessionResponse>(
+        '/auth/browser/refresh', undefined,
+        { headers: { 'X-CSRF-Token': csrfToken } },
+      );
+      return result.data;
+    });
   },
 
   async recoverLogoutProof(): Promise<{ csrf_token: string }> {

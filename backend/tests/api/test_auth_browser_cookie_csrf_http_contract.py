@@ -83,7 +83,9 @@ async def test_cookie_login_rehydrate_refresh_logout_and_replay_denial(
     assert "domain=" not in cookie
     assert response.headers["cache-control"] == "no-store"
     assert browser_session.COOKIE_NAME in api_client.cookies
-    boot = await api_client.get(f"{settings.API_V1_STR}/auth/browser/session")
+    boot = await api_client.get(
+        f"{settings.API_V1_STR}/auth/browser/session", headers=origin(),
+    )
     assert boot.status_code == 200, boot.text
     assert boot.json()["csrf_token"] == body["csrf_token"]
     renewed = await api_client.post(
@@ -138,6 +140,7 @@ async def test_cookie_csrf_origin_forgery_and_header_mismatch_rejected(
         assert response.status_code == 403, response.text
     still_live = await api_client.get(
         f"{settings.API_V1_STR}/auth/browser/session",
+        headers=origin(),
     )
     assert still_live.status_code == 200, still_live.text
 
@@ -192,6 +195,7 @@ async def test_second_browser_login_must_not_replace_active_cookie_family(
     assert "revocación" in replacement.json()["detail"]
     still_active = await api_client.get(
         f"{settings.API_V1_STR}/auth/browser/session",
+        headers=origin(),
     )
     assert still_active.status_code == 200, still_active.text
     assert still_active.json()["csrf_token"] == csrf
@@ -235,6 +239,7 @@ async def test_cookie_postcommit_recovery_proof_preserves_idempotent_logout(
 
     proof = await api_client.get(
         f"{settings.API_V1_STR}/auth/browser/logout-proof",
+        headers=origin(),
     )
     assert proof.status_code == 200, proof.text
     assert proof.json() == {"csrf_token": csrf}
@@ -263,7 +268,9 @@ async def test_cookie_existing_active_family_cannot_be_replaced(
     conflict = await login(api_client, email, password)
     assert conflict.status_code == 409, conflict.text
     assert "set-cookie" not in conflict.headers
-    assert (await api_client.get(f"{settings.API_V1_STR}/auth/browser/session")).status_code == 200
+    assert (await api_client.get(
+        f"{settings.API_V1_STR}/auth/browser/session", headers=origin(),
+    )).status_code == 200
     logout = await api_client.post(
         f"{settings.API_V1_STR}/auth/browser/logout",
         headers={**origin(), "X-CSRF-Token": csrf},
@@ -271,3 +278,35 @@ async def test_cookie_existing_active_family_cannot_be_replaced(
     assert logout.status_code == 204, logout.text
     new_login = await login(api_client, email, password)
     assert new_login.status_code == 200, new_login.text
+
+
+async def test_browser_credential_reads_fail_closed_without_trusted_origin(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+) -> None:
+    """No access bearer or CSRF proof for untrusted browser reads."""
+    _uid, email, password = account
+    logged = await login(api_client, email, password)
+    assert logged.status_code == 200, logged.text
+    for suffix in ("/session", "/logout-proof"):
+        path = f"{settings.API_V1_STR}/auth/browser{suffix}"
+        denied_headers = (
+            {},
+            {"Origin": "https://evil.example.org"},
+            {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors"},
+            {"Sec-Fetch-Site": "same-site", "Sec-Fetch-Mode": "cors"},
+            {"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "navigate"},
+            {**origin(), "Sec-Fetch-Site": "cross-site"},
+        )
+        for headers in denied_headers:
+            denied = await api_client.get(path, headers=headers)
+            assert denied.status_code == 403, (suffix, headers, denied.text)
+            assert "access_token" not in denied.text
+            assert "csrf_token" not in denied.text
+        trusted = await api_client.get(path, headers=origin())
+        assert trusted.status_code == 200, trusted.text
+        assert trusted.headers["Cache-Control"] == "no-store"
+        assert trusted.headers["Vary"] == "Origin"
+        same_origin = await api_client.get(path, headers={
+            "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors",
+        })
+        assert same_origin.status_code == 200, same_origin.text

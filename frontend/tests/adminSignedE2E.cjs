@@ -374,7 +374,9 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
     const oldFamilyCookie = (await context.cookies()).find(
       (cookie) => cookie.name === 'fitflow_browser_refresh');
     assert.ok(oldFamilyCookie && oldFamilyCookie.httpOnly);
-    const proof = await context.request.get(API + '/auth/browser/session');
+    const proof = await context.request.get(API + '/auth/browser/session', {
+      headers: { Origin: WEB },
+    });
     assert.equal(proof.status(), 200, 'Old family must still be valid');
     const { csrf_token: oldCsrf } = await proof.json();
     const durableRevoke = await context.request.post(API + '/auth/browser/logout', {
