@@ -14,12 +14,12 @@ import logging
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core import security
+from app.core import security, browser_session
 from app.core.blacklist import blacklist_token, is_token_blacklisted
 from app.core.deps import get_current_user
 from app.crud.crud_user import user as user_crud
@@ -301,3 +301,106 @@ async def logout_durable_session(
         ) from exc
     if outcome not in {"COMMITTED", "ALREADY_COMMITTED"}:
         raise HTTPException(status_code=401, detail="Sesión inexistente o inválida.")
+
+
+# Browser-cookie flow: never serialize the signed refresh JWT into JS-visible JSON.
+# API clients retain the separate /session/* bearer mode until cutover is accepted.
+
+async def _browser_access(
+    db: AsyncSession, refresh_token: str,
+) -> dict[str, str]:
+    """Validate signed purpose, exact session digest and current persisted role."""
+    payload = security.decode_token(refresh_token)
+    if not security.is_refresh_token_payload(payload) or "sid" not in payload:
+        raise HTTPException(status_code=401, detail="Sesión de navegador inválida.")
+    try:
+        active = await session_ledger.is_active(
+            db, sid=payload["sid"], subject=payload["sub"],
+            refresh_token=refresh_token,
+        )
+        if not active:
+            raise HTTPException(status_code=401, detail="Sesión revocada o expirada.")
+        uid = UUID(payload["sub"])
+        user = await user_crud.get(db, obj_id=uid)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=401, detail="Sesión de navegador inválida.") from exc
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=503, detail="Persistencia de sesiones no disponible.") from exc
+    if user is None or not user.active or user.deleted_at is not None:
+        raise HTTPException(status_code=401, detail="Usuario no autorizado.")
+    access = security.create_access_token(
+        {"sub": str(user.id), "role": user.role.value, "sid": payload["sid"]}
+    )
+    return {"access_token": access, "token_type": "bearer",
+            "csrf_token": browser_session.csrf_value(refresh_token)}
+
+
+@router.post("/browser/token", status_code=status.HTTP_200_OK)
+async def browser_cookie_login(
+    *,
+    request: Request,
+    response: Response,
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> dict[str, str]:
+    """Authenticate, durably COMMIT family, set HttpOnly refresh only."""
+    browser_session.require_login_origin(request)
+    pair = await create_durable_login(form_data=form_data, db=db)
+    browser_session.set_refresh_cookie(response, pair.refresh_token)
+    return {
+        "access_token": pair.access_token,
+        "token_type": "bearer",
+        "csrf_token": browser_session.csrf_value(pair.refresh_token),
+    }
+
+
+@router.get("/browser/session", status_code=status.HTTP_200_OK)
+async def browser_cookie_rehydrate(
+    *,
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> dict[str, str]:
+    """Read-only boot: a cookie does not itself grant access without PG."""
+    token = browser_session.cookie_refresh_token(request)
+    body = await _browser_access(db, token)
+    response.headers["Cache-Control"] = "no-store"
+    return body
+
+
+@router.post("/browser/refresh", status_code=status.HTTP_200_OK)
+async def browser_cookie_refresh(
+    *,
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> dict[str, str]:
+    """Both strict Origin and HMAC CSRF header required for cookie POST."""
+    token = browser_session.cookie_refresh_token(request)
+    browser_session.verify_state_change(request, token)
+    result = await _browser_access(db, token)
+    response.headers["Cache-Control"] = "no-store"
+    return result
+
+
+@router.post("/browser/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def browser_cookie_logout(
+    *,
+    request: Request,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+) -> None:
+    """Clear HttpOnly cookie only after confirmed DB COMMIT or exact replay."""
+    token = browser_session.cookie_refresh_token(request)
+    browser_session.verify_state_change(request, token)
+    payload = security.decode_token(token)
+    if not security.is_refresh_token_payload(payload) or "sid" not in payload:
+        raise HTTPException(status_code=401, detail="Sesión de navegador inválida.")
+    try:
+        outcome = await session_ledger.revoke(db, refresh_token=token)
+    except Exception as exc:
+        logger.exception("Browser logout PostgreSQL ACK not confirmed")
+        raise HTTPException(status_code=503, detail="Logout no confirmado.") from exc
+    if outcome not in {"COMMITTED", "ALREADY_COMMITTED"}:
+        raise HTTPException(status_code=401, detail="Sesión revocada o inválida.")
+    browser_session.clear_refresh_cookie(response)
