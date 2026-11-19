@@ -368,15 +368,23 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
     // family. That is now correctly blocked (HTTP 409). Revoke the first
     // disposable family via the exact signed refresh before re-login; hold
     // the old /auth/me responses so the stale-401 race is still exercised.
+    // Use real browser logout: PG commits and server clears HttpOnly
+    // refresh cookie. A direct API /session/logout revokes PG but deliberately
+    // leaves a cookie that the browser-login guard must not overwrite.
     const oldFamilyCookie = (await context.cookies()).find(
       (cookie) => cookie.name === 'fitflow_browser_refresh');
-    assert.ok(oldFamilyCookie && oldFamilyCookie.httpOnly,
-      'First browser family has an HttpOnly signed refresh');
-    const durableRevoke = await context.request.post(API + '/auth/session/logout', {
-      data: { refresh_token: oldFamilyCookie.value },
+    assert.ok(oldFamilyCookie && oldFamilyCookie.httpOnly);
+    const proof = await context.request.get(API + '/auth/browser/session');
+    assert.equal(proof.status(), 200, 'Old family must still be valid');
+    const { csrf_token: oldCsrf } = await proof.json();
+    const durableRevoke = await context.request.post(API + '/auth/browser/logout', {
+      headers: { Origin: WEB, 'X-CSRF-Token': oldCsrf },
     });
     assert.equal(durableRevoke.status(), 204,
-      'Revocation of first family must COMMIT before re-login');
+      'Browser logout must COMMIT and clear the old cookie');
+    assert.equal((await context.cookies()).some(
+      (cookie) => cookie.name === 'fitflow_browser_refresh'), false,
+      'No signed refresh cookie may be replaced before confirmed logout');
     await page.evaluate(() => {
       history.pushState({}, '', '/login');
       dispatchEvent(new PopStateEvent('popstate'));

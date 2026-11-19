@@ -383,7 +383,7 @@ async def browser_cookie_login(
         if security.is_refresh_token_payload(prior_claims) and "sid" in prior_claims:
             raise HTTPException(
                 status_code=409,
-                detail="Confirmá el logout anterior antes de iniciar otra sesión.",
+                detail="Confirmá la revocación del logout anterior antes de iniciar otra sesión.",
             )
     pair = await create_durable_login(form_data=form_data, db=db)
     browser_session.set_refresh_cookie(response, pair.refresh_token)
