@@ -67,6 +67,77 @@ async function loginWithNewSignedSession(page) {
     'Modern access must not enter localStorage');
 }
 
+
+async function verifyPendingLogoutCannotBeSilentlyReplaced(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  try {
+    await login(page, email);
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const access = await activeAccessToken(page);
+    assert.ok(access, 'Signed family was registered');
+    // Abort BEFORE forwarding, so the server has no revocation COMMIT.
+    await page.route('**/auth/browser/logout', async route => route.abort());
+    await page.getByRole('button', { name: 'Menú de perfil' }).click();
+    await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await page.waitForURL('**/login');
+    await page.getByRole('button', { name: 'Reintentar salida segura' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), true,
+      'No login may overwrite a pending durable logout cookie');
+    const stillActive = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + access },
+    });
+    assert.equal(stillActive.status, 200, 'Aborted logout did not revoke old family');
+    await page.unroute('**/auth/browser/logout');
+    await page.getByRole('button', { name: 'Reintentar salida segura' }).click();
+    await page.waitForFunction(() => sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), false,
+      'Login unblocks only after PG-confirmed logout or exact replay');
+    const revoked = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + access },
+    });
+    assert.equal(revoked.status, 401);
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyCrossTabCookieSynchronizationAndReplacementGuard(browser) {
+  // Tabs share one actual browser cookie but have distinct React memory.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const first = await context.newPage();
+  const second = await context.newPage();
+  try {
+    await login(first, email);
+    await first.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    assert.ok(await activeAccessToken(first));
+    await second.goto(WEB + '/admin');
+    await second.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    assert.ok(await activeAccessToken(second), 'Other tab must rehydrate same cookie');
+
+    // Another login must not overwrite a still-registered durable family.
+    await second.goto(WEB + '/login');
+    await second.getByLabel('Email').fill(email);
+    await second.getByLabel('Contraseña').fill(password);
+    const denial = second.waitForResponse(response =>
+      response.url() === API + '/auth/browser/token' && response.status() === 409);
+    await second.getByRole('button', { name: 'Ingresar' }).click();
+    await within(denial, 'active family replacement must return 409');
+
+    // Server-confirmed logout propagates a nonsecret storage event to both tabs.
+    await first.getByRole('button', { name: 'Menú de perfil' }).click();
+    await first.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await first.waitForURL('**/login');
+    await second.waitForFunction(async () => {
+      const api = (await import('/src/services/api.ts')).default;
+      return !api.defaults.headers.common.Authorization;
+    });
+    assert.equal(await activeAccessToken(second), null);
+  } finally {
+    await context.close();
+  }
+}
+
 async function verifyRapidReLoginAndStale401(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
@@ -586,6 +657,8 @@ async function run() {
     assert.equal(await wrongPage.getByRole('heading', { name: 'Panel de administración' }).count(), 0);
     await wrongRole.close();
     await context.close();
+    await verifyPendingLogoutCannotBeSilentlyReplaced(browser);
+    await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
     await verifyRapidReLoginAndStale401(browser);
     await verifyDelayedIdentityAcrossSameTokenReLogin(browser);
     await qualifySyntheticFailureDiagnostic(browser);

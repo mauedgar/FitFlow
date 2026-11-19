@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 import httpx
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 from sqlalchemy.engine import make_url
 
 from app.core import security
@@ -64,6 +64,11 @@ async def test_signed_registry_owner_and_opaque_positive_ttl(
 ) -> None:
     token = security.create_refresh_token({"sub": str(subject)})
     redis = get_redis_client()
+    redis_major = int(redis.info(section="server")["redis_version"].split(".")[0])
+    assert redis_major == 7  # Exact disposable CI server, not URL assumption.
+    async with AsyncSessionLocal() as db:
+        pg_version = int(await db.scalar(text("SHOW server_version_num")))
+    assert 150000 <= pg_version < 160000  # Disposable PostgreSQL15.
     key = opaque_jwt_key(REFRESH_PREFIX, token)
     legacy = legacy_jwt_key(REFRESH_PREFIX, token)
     assert redis.exists(key) == 0 and redis.exists(legacy) == 0

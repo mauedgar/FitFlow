@@ -1,16 +1,23 @@
 import React, { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { jwtDecode } from "jwt-decode";
+import axios from "axios";
 import apiClient from "../services/api";
 import classService from "../services/classService";
 import { AuthContext, type LogoutConfirmation } from "./AuthContext";
-import { getAuthSessionGeneration } from "../utils/authSessionGeneration";
+import { advanceAuthSessionGeneration, getAuthSessionGeneration } from "../utils/authSessionGeneration";
 import type { User, TokenPayload, UserRole, Booking, Client } from "../types";
 
 interface AuthProviderProps { children: ReactNode; }
 const LEGACY_ACCESS = "access_token";
 const PENDING_LOGOUT = "fitflow_logout_pending";
 const PENDING_CSRF = "fitflow_logout_csrf";
+const SYNC_KEY = "fitflow_browser_auth_epoch";
+
+/** Broadcast only a non-secret state-change signal; never a bearer or CSRF. */
+const notifyOtherTabs = (action: string): void => {
+  localStorage.setItem(SYNC_KEY, `${action}|${Date.now()}|${crypto.randomUUID()}`);
+};
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Modern access bearer stays in memory; legacy SID-less access is read
@@ -84,11 +91,71 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (cancelled || generation !== getAuthSessionGeneration()) return;
       setToken(null);
       decodeToken(null);
-    }).finally(() => { if (!cancelled) setIsLoadingAuth(false); });
+    }).finally(() => {
+      if (!cancelled && generation === getAuthSessionGeneration()) {
+        setIsLoadingAuth(false);
+      }
+    });
     return () => { cancelled = true; };
   }, [decodeToken]);
 
+  // Tabs share the HttpOnly cookie, but not React memory or sessionStorage.
+  // Reconcile the actual cookie on a versioned nonsecret storage event.
+  useEffect(() => {
+    const onSharedSession = (event: StorageEvent) => {
+      if (event.key !== SYNC_KEY || !event.newValue) return;
+      const action = event.newValue.split("|")[0];
+      const generation = advanceAuthSessionGeneration();
+      // Initial cookie restoration may have been invalidated by this event.
+      // Never leave the UI indefinitely behind the auth-loading gate.
+      setIsLoadingAuth(false);
+      if (action === "login") localStorage.removeItem(LEGACY_ACCESS);
+      setToken(null);
+      setCurrentUser(null);
+      setUserRole(null);
+      delete apiClient.defaults.headers.common["Authorization"];
+      queryClient.clear();
+      if (action === "logout-pending") {
+        sessionStorage.setItem(PENDING_LOGOUT, "1");
+        if (csrfRef.current) sessionStorage.setItem(PENDING_CSRF, csrfRef.current);
+        setLogoutConfirmation("pending");
+        return;
+      }
+      if (action === "logout-confirmed" || action === "legacy-logout") {
+        sessionStorage.removeItem(PENDING_LOGOUT);
+        sessionStorage.removeItem(PENDING_CSRF);
+        csrfRef.current = null;
+        setCsrfToken(null);
+        setLogoutConfirmation(action === "logout-confirmed" ? "confirmed" : "legacy-unconfirmed");
+        return;
+      }
+      if (sessionStorage.getItem(PENDING_LOGOUT) === "1") {
+        setLogoutConfirmation("pending");
+        return; // Never abandon a pending family to follow a new cookie.
+      }
+      void classService.restoreBrowserSession().then(session => {
+        if (getAuthSessionGeneration() !== generation) return;
+        csrfRef.current = session.csrf_token;
+        setCsrfToken(session.csrf_token);
+        setToken(session.access_token);
+        decodeToken(session.access_token);
+        setLogoutConfirmation("idle");
+      }).catch(() => {
+        if (getAuthSessionGeneration() !== generation) return;
+        csrfRef.current = null;
+        setCsrfToken(null);
+        decodeToken(null);
+      });
+    };
+    window.addEventListener("storage", onSharedSession);
+    return () => window.removeEventListener("storage", onSharedSession);
+  }, [decodeToken, queryClient]);
+
   const login = (accessToken: string, csrf?: string) => {
+    if (sessionStorage.getItem(PENDING_LOGOUT) === "1") {
+      setLogoutConfirmation("pending");
+      return; // A stale login response must not erase logout recovery.
+    }
     if (csrf) {
       localStorage.removeItem(LEGACY_ACCESS);
       csrfRef.current = csrf;
@@ -114,6 +181,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoadingAuth(false);
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
     queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
+    notifyOtherTabs("login");
   };
 
   const retryLogout = async (): Promise<void> => {
@@ -131,6 +199,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       sessionStorage.removeItem(PENDING_LOGOUT);
       sessionStorage.removeItem(PENDING_CSRF);
       setLogoutConfirmation('confirmed');
+      notifyOtherTabs("logout-confirmed");
     } catch {
       if (getAuthSessionGeneration() === expectedGeneration) {
         setLogoutConfirmation('pending');
@@ -150,29 +219,69 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       sessionStorage.setItem(PENDING_LOGOUT, '1');
       sessionStorage.setItem(PENDING_CSRF, csrf);
       setLogoutConfirmation('pending');
+      notifyOtherTabs("logout-pending");
       void retryLogout();
     } else {
       setLogoutConfirmation('legacy-unconfirmed');
+      notifyOtherTabs("legacy-logout");
     }
   };
 
+  // Bounded retries for transient refresh failures, generation-guarded.
+  // HTTP 401 means durable revocation, never silently retry an invalid token.
   useEffect(() => {
     if (!token || !csrfToken) return;
     let expiry: number;
     try { expiry = jwtDecode<TokenPayload>(token).exp * 1000; }
     catch { return; }
     if (!Number.isFinite(expiry)) return;
+    const generation = getAuthSessionGeneration();
     let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void classService.refreshBrowserSession(csrfToken).then((session) => {
-        if (cancelled) return;
+    let inFlight = false;
+    let retries = 0;
+    let timer: number | undefined;
+    const schedule = (ms: number) => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(() => { void refresh(); }, ms);
+    };
+    const refresh = async () => {
+      if (cancelled || inFlight || generation !== getAuthSessionGeneration()) return;
+      inFlight = true;
+      try {
+        const session = await classService.refreshBrowserSession(csrfToken);
+        if (cancelled || generation !== getAuthSessionGeneration()) return;
         csrfRef.current = session.csrf_token;
         setCsrfToken(session.csrf_token);
         setToken(session.access_token);
         decodeToken(session.access_token);
-      }).catch(() => { /* Backend guards still enforce expiry. */ });
-    }, Math.max(0, expiry - Date.now() - 60000));
-    return () => { cancelled = true; window.clearTimeout(timer); };
+      } catch (error) {
+        if (cancelled || generation !== getAuthSessionGeneration()) return;
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          csrfRef.current = null;
+          setCsrfToken(null);
+          setToken(null);
+          decodeToken(null);
+          return;
+        }
+        if (retries < 3) {
+          const retryDelays = [2000, 5000, 10000];
+          schedule(retryDelays[retries]);
+          retries += 1;
+        }
+        // After bounded failures, online/reload recovery may retry from cookie.
+        // Never manufacture a server logout ACK or persist the access bearer.
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onOnline = () => { if (!cancelled) void refresh(); };
+    window.addEventListener("online", onOnline);
+    schedule(Math.max(0, expiry - Date.now() - 60000));
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+      window.removeEventListener("online", onOnline);
+    };
   }, [token, csrfToken, decodeToken]);
 
   const isAuthenticated = !!token && !!currentUser;

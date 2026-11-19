@@ -10,9 +10,10 @@ integration: false
 
 Developer approved authoritative PostgreSQL session state and a bounded
 legacy transition preserving original expiry, with reauthentication at cutover.
-This FIRST candidate provides ORM, empty Alembic migration and transactional
-CRUD + disposable tests. **Public login, refresh, bearer guards and logout are
-NOT YET CONNECTED**, so full A02 revocation is NOT IMPLEMENTED/ACCEPTED.
+**Historical Phase 1 (superseded):** the original isolated candidate added
+ORM/Alembic/CRUD before HTTP routes were connected. Current PR118 source
+DOES connect login, refresh, both guards and durable logout through PostgreSQL.
+The implemented SOURCE CANDIDATE is NOT_ACCEPTED/NOT_DEPLOYED.
 
 The new table stores a random signed UUID4 family ID, authenticated user UUID,
 SHA256 refresh credential digest, original expires_at, created_at, revoked_at.
@@ -72,8 +73,21 @@ new DB connection returns the prior durable revocation ACK (204). Database
 failure never implies re-running SQL writes blindly. Orphan modern sessions
 after lost login ACK expire naturally without a bearer reaching clients.
 
-**F01 remains OPEN:** legacy /auth/token still issues SID-less credentials,
-and the frontend still uses that route. No silent cutover or source-only
-assertion that all real users already use PostgreSQL sessions. A coordinated
+**Historical F01 (source repaired in PR118):** the original default issuer
+once minted SID-less JWTs and frontend used that route. Current /auth/token
+creates a durable SID-backed family and frontend uses /auth/browser/token;
+retained-data migration and production rollout have NOT_RUN. A coordinated
 frontend and legacy-issuance sunset, with original-expiry compatibility and
 explicit reauthentication, is required before Product acceptance.
+
+
+## Combined PR118 effective status
+
+Current PR118 HEAD `fd376994da9698350fe7f86058be5ca6add66e92` contains
+PG-backed login, refresh, bearer guards, and logout in source. Signed
+historical SID-less access remains valid until its original expiration;
+legacy refresh can mint an access JWT with expiry bounded by its own original
+signed expiration, outside durable SID revocation. No retained PostgreSQL
+migration, user/token invalidation, or production deployment has happened.
+Approval requires exact candidate CI, full independent review and Product
+acceptance, not historical scoped PASS.

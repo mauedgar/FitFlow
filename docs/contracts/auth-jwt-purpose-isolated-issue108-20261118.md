@@ -47,13 +47,23 @@ refresh rejection, registered positive refresh, blacklist denial, real logout
 204 and denial after revocation, with per-credential cleanup. The new tests
 do **not** claim to prove atomic logout after Redis crashes or a client ACK loss.
 
-**Separate inherited Redis trust boundary:** `token_store.is_refresh_token_valid`
-currently checks token-key existence but does not compare its stored user-id
-value with signed JWT `sub`. That behavior predates this JWT-purpose candidate
-and is neither repaired nor declared secure here. Binding Redis registration
+**Historical inherited Redis trust boundary (repaired by later A01):** on this
+original JWT-purpose slice, the token store checked key existence rather
+than owner binding. The present PR118 `is_refresh_token_valid` validates
+signed purpose/expiration and compares the Redis-stored owner to JWT `sub`
+using `compare_digest`; do not attribute the later fix to this old slice. Binding Redis registration
 to a persisted owner, plus opaque keys/TTL/SID revocation and durable logout
 ACK, require their own competent scope/implementation and security review;
 no retained Redis change or credential migration is authorized. This
 candidate's success must not be described as complete refresh registry
 ownership integrity or full remote-session revocation. Issue #108 stays OPEN
 until those separately authorized security responsibilities are reconciled.
+
+
+## Combined PR118 effective status (newer than this isolated slice)
+
+JWT purpose, Redis signed-owner binding, new SID-backed PostgreSQL login,
+durable modern logout and browser HttpOnly/CSRF flows are now implemented as
+source candidates. Historical references to unimplemented logout above refer
+to their original time. Residual legacy Redis key/blacklist, bounded SID-less
+access, full review and retained-data migration are NOT_ACCEPTED/NOT_DEPLOYED.

@@ -21,10 +21,17 @@ const LoginPage = () => {
   // ⭐ 1. Definimos la mutación de login
   const loginMutation = useMutation<BrowserSessionResponse, AxiosError, { username: string; password: string }>({
     // La función que ejecuta la llamada a la API
-    mutationFn: (credentials) => classService.login(credentials),
+    mutationFn: (credentials) => {
+      if (logoutConfirmation === "pending") {
+        return Promise.reject(new Error("Logout pendiente de confirmación"));
+      }
+      return classService.login(credentials);
+    },
 
     // Callback que se ejecuta si la mutación es exitosa
     onSuccess: (data) => {
+      // A late successful response cannot erase an unconfirmed logout.
+      if (sessionStorage.getItem("fitflow_logout_pending") === "1") return;
       // Llamamos a la función login del AuthContext, pasando solo el token
       // El AuthContext ya se encarga de decodificar y establecer el rol
       login(data.access_token, data.csrf_token);
@@ -72,6 +79,7 @@ const LoginPage = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (logoutConfirmation === "pending" || loginMutation.isPending) return;
     // ⭐ 3. Disparamos la mutación con las credenciales
     loginMutation.mutate({ username: email, password });
   };
@@ -102,7 +110,7 @@ const LoginPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@email.com"
                   autoComplete='email'
-                  disabled={loginMutation.isPending}
+                  disabled={loginMutation.isPending || logoutConfirmation === 'pending'}
                 />
               </Field.Root>
 
@@ -115,7 +123,7 @@ const LoginPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="********"
                   autoComplete="current-password"
-                  disabled={loginMutation.isPending}
+                  disabled={loginMutation.isPending || logoutConfirmation === 'pending'}
                 />
               </Field.Root>
 
@@ -124,7 +132,7 @@ const LoginPage = () => {
                 colorPalette="teal"
                 w="100%"
                 loading={loginMutation.isPending}
-                disabled={loginMutation.isPending}
+                disabled={loginMutation.isPending || logoutConfirmation === 'pending'}
               >
                 Ingresar
               </Button>

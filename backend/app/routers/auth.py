@@ -374,6 +374,27 @@ async def browser_cookie_login(
 ) -> dict[str, str]:
     """Authenticate, durably COMMIT family, set HttpOnly refresh only."""
     browser_session.require_login_origin(request)
+    # Do NOT replace a still-active same-browser session family: doing so
+    # would orphan a pending logout refresh proof and make durable ACK false.
+    prior_cookie = request.cookies.get(browser_session.COOKIE_NAME)
+    if prior_cookie:
+        prior_claims = security.decode_token(prior_cookie)
+        if security.is_refresh_token_payload(prior_claims) and "sid" in prior_claims:
+            try:
+                active_family = await session_ledger.is_active(
+                    db, sid=prior_claims["sid"], subject=prior_claims["sub"],
+                    refresh_token=prior_cookie,
+                )
+            except Exception as exc:
+                logger.exception("Browser family replacement status unknown")
+                raise HTTPException(
+                    status_code=503, detail="Estado de sesión no confirmado."
+                ) from exc
+            if active_family:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Cerrá la sesión actual y confirmá su revocación antes de ingresar nuevamente.",
+                )
     pair = await create_durable_login(form_data=form_data, db=db)
     browser_session.set_refresh_cookie(response, pair.refresh_token)
     return {

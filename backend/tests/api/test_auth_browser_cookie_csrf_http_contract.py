@@ -176,3 +176,31 @@ async def test_cookie_secure_flag_required_outside_local_profiles(
     assert "secure" in cookie
     assert "httponly" in cookie
     assert "samesite=lax" in cookie
+
+
+async def test_second_browser_login_must_not_replace_active_cookie_family(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+) -> None:
+    """An unrevoked family cannot lose its sole HttpOnly refresh proof."""
+    _uid, email, password = account
+    first = await login(api_client, email, password)
+    assert first.status_code == 200, first.text
+    csrf = first.json()["csrf_token"]
+
+    replacement = await login(api_client, email, password)
+    assert replacement.status_code == 409, replacement.text
+    assert "revocación" in replacement.json()["detail"]
+    still_active = await api_client.get(
+        f"{settings.API_V1_STR}/auth/browser/session",
+    )
+    assert still_active.status_code == 200, still_active.text
+    assert still_active.json()["csrf_token"] == csrf
+
+    confirmed = await api_client.post(
+        f"{settings.API_V1_STR}/auth/browser/logout",
+        headers={**origin(), "X-CSRF-Token": csrf},
+    )
+    assert confirmed.status_code == 204, confirmed.text
+    reauthenticated = await login(api_client, email, password)
+    assert reauthenticated.status_code == 200, reauthenticated.text
+    assert reauthenticated.json()["csrf_token"] != csrf

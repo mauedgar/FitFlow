@@ -33,3 +33,17 @@ test('Carousel pauses autoplay on pointer or focus and respects reduced motion',
     assert.ok(source.includes(token), 'missing ' + token);
   }
 });
+
+
+test('Browser login blocks while durable logout is pending and synchronizes tabs without bearer storage', () => {
+  const page = load('pages/LoginPage.tsx');
+  const provider = load('context/AuthProvider.tsx');
+  assert.match(page, /logoutConfirmation === ['"]pending['"]/);
+  assert.match(page, /disabled=\{loginMutation\.isPending \|\| logoutConfirmation === ['"]pending['"]\}/);
+  assert.match(provider, /window\.addEventListener\("storage", onSharedSession\)/);
+  assert.match(provider, /advanceAuthSessionGeneration\(\)/);
+  assert.match(provider, /notifyOtherTabs\("logout-pending"\)/);
+  assert.match(provider, /notifyOtherTabs\("logout-confirmed"\)/);
+  assert.match(provider, /\[2000, 5000, 10000\]/);
+  assert.doesNotMatch(provider, /localStorage\.setItem\(LEGACY_ACCESS, accessToken\)\s*;\s*\/\/.*modern/);
+});

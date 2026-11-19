@@ -1,6 +1,7 @@
 """Disposable PostgreSQL15-only checks for durable session ledger."""
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -103,3 +104,23 @@ async def test_legacy_mismatch_and_rollback_are_fail_closed(owner: uuid.UUID) ->
     async with AsyncSessionLocal() as db:
         assert await is_active(db, sid=sid, subject=str(owner))
         assert await revoke(db, refresh_token=token) == "COMMITTED"
+
+
+async def test_concurrent_exact_refresh_logout_is_serialized_by_postgres(
+    owner: uuid.UUID,
+) -> None:
+    """Two transactions: exactly one durable COMMIT, one idempotent replay."""
+    sid, refresh = new_login(owner)
+    async with AsyncSessionLocal() as db:
+        await register(db, subject=owner, refresh_token=refresh)
+
+    async def revoke_from_new_connection() -> str:
+        async with AsyncSessionLocal() as db:
+            return await revoke(db, refresh_token=refresh)
+
+    results = await asyncio.gather(
+        revoke_from_new_connection(), revoke_from_new_connection(),
+    )
+    assert sorted(results) == ["ALREADY_COMMITTED", "COMMITTED"]
+    async with AsyncSessionLocal() as db:
+        assert not await is_active(db, sid=sid, subject=str(owner))

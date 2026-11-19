@@ -1,7 +1,7 @@
 ---
 document_id: FF-ISSUE108-F01-BROWSER-COOKIE-20261119-001
-status: backend_candidate_unaccepted
-baseline: PR117@c4ce5f882f8d3c605cbb278b0099e2fd5a2f162d
+status: combined_source_candidate_unaccepted
+baseline: PR118@fd376994da9698350fe7f86058be5ca6add66e92
 issue: 108
 integration: false
 ---
@@ -31,12 +31,11 @@ modern cookies. Browser logout returns 204 and clears cookie only after
 a durable transaction or an exact committed replay; uncertainty returns
 503 and preserves cookie for retry. Both guards check the PostgreSQL SID.
 
-**THIS FIRST INCREMENT DOES NOT YET ADOPT THESE ROUTES FROM THE FRONTEND**
-and does not stop /auth/token legacy SID-less issuance, so F01 remains
-OPEN/HIGH and PR117/this successor are NOT approved for integration.
-A further coordinated frontend/default-token cutover with native full
-CI, browser network-recovery tests, legacy expiration policy and
-independent full security IR is mandatory. No retained migration,
+**Historical stage 1 (superseded at current PR118 HEAD):** the initial backend-only
+increment had not integrated frontend and the old default issuer still
+minted SID-less tokens. Current PR118 frontend now uses the browser cookie
+session endpoints and /auth/token now issues PostgreSQL-backed SID families.
+This is an implemented *candidate*, not Product acceptance or deployment. No retained migration,
 production cookie activation, credentials, staging or deploy.
 
 
@@ -55,9 +54,10 @@ Existing signed SID-less access already in localStorage may still be
 read until its original exp, but the new browser flow does not
 create localStorage entries for modern credentials.
 
-STILL OPEN: legacy /auth/token default issuance and old browser E2E
-assumptions; do not claim F01 closed until those are migrated,
-all new-SHA tests/browser E2E pass, and full security IR approves.
+**Historical stage 2 (superseded):** these earlier default-issuer and E2E
+assumptions were repaired in later PR118 commits. Current source CI is green,
+but the full 39-path independent security review, unresolved legacy access
+window and production migration remain separate gates.
 
 
 
@@ -79,7 +79,18 @@ is authorized. New credential issuance is scoped to the original secure
 authentication routes, not test factories that explicitly manufacture
 legacy signed tokens to verify compatibility.
 
-Current branch is unaccepted; migrating existing clients to browser cookies,
-frontend logout ACK and negative HTTP tests must be independently reviewed
+Current PR118 source is unaccepted: implemented frontend cookie, logout ACK,
+and negative HTTP tests must still be independently reviewed
 on frozen SHA/tree before Product acceptance and nonforced merge. Staging,
 retained-data migration and production remain NOT_RUN.
+
+
+## Effective status at current PR118 candidate
+
+Head `fd376994da9698350fe7f86058be5ca6add66e92` is IMPLEMENTED_SOURCE_CANDIDATE,
+NOT_ACCEPTED, NOT_MERGED, NOT_DEPLOYED. Legacy SID-less access JWTs may remain
+valid only until signed expiry. Legacy refresh may issue a bounded SID-less
+access (not beyond the original signed refresh expiry), outside modern durable
+family revocation. This finite compatibility tradeoff and the lack of a
+retained migration, production origin qualification or final 0F/0A IR
+must not be misrepresented as globally durable logout.
