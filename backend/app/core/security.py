@@ -75,7 +75,7 @@ def create_access_token(
     expire = datetime.now(tz=UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode = {**data, "exp": expire}
+    to_encode = {**data, "token_use": "access", "exp": expire}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -94,7 +94,7 @@ def create_refresh_token(data: dict) -> str:
     expire = datetime.now(tz=UTC) + timedelta(
         minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
     )
-    to_encode = {**data, "exp": expire}
+    to_encode = {**{k: v for k, v in data.items() if k != "role"}, "token_use": "refresh", "exp": expire}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -115,3 +115,40 @@ def decode_token(token: str) -> dict | None:
         return None
     except JWTError:
         return None
+
+
+
+def _has_live_expiry(payload: dict) -> bool:
+    """Require signed expiration even for historical untyped JWTs."""
+    exp = payload.get("exp")
+    return (
+        not isinstance(exp, bool)
+        and isinstance(exp, (int, float))
+        and exp > datetime.now(tz=UTC).timestamp()
+    )
+
+
+def is_access_token_payload(payload: dict | None) -> bool:
+    """Never accept refresh JWT as bearer, including untyped legacy refresh."""
+    if not isinstance(payload, dict):
+        return False
+    if not isinstance(payload.get("sub"), str) or not payload["sub"]:
+        return False
+    if not _has_live_expiry(payload):
+        return False
+    purpose = payload.get("token_use")
+    if purpose is not None:
+        return purpose == "access"
+    return isinstance(payload.get("role"), str) and bool(payload["role"])
+
+
+def is_refresh_token_payload(payload: dict | None) -> bool:
+    """A refresh JWT cannot carry role; only bounded untyped legacy is valid."""
+    if not isinstance(payload, dict):
+        return False
+    if not isinstance(payload.get("sub"), str) or not payload["sub"]:
+        return False
+    if not _has_live_expiry(payload) or "role" in payload:
+        return False
+    purpose = payload.get("token_use")
+    return purpose == "refresh" or "token_use" not in payload

@@ -18,6 +18,7 @@ def test_orm_metadata_and_mappers_load() -> None:
     configure_mappers()
 
     assert set(Base.metadata.tables) == {
+        "auth_sessions",
         "bookings",
         "class_schedules",
         "class_sessions",

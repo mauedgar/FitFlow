@@ -6,7 +6,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from app.core.security import decode_token
+from app.core.security import decode_token, is_access_token_payload
+from app.crud import auth_session as session_ledger
 from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
@@ -31,7 +32,7 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
             raise AuthError(msg) from err
 
     payload = decode_token(token)
-    if payload is None:
+    if payload is None or not is_access_token_payload(payload):
         msg_0 = "Token inválido o expirado."
         raise AuthError(msg_0)
 
@@ -52,6 +53,11 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
     else:
         user = await user_crud.get(db=db, obj_id=user_id)
 
+    if "sid" in payload:
+        if not await session_ledger.is_active(
+            db, sid=payload["sid"], subject=token_data.sub,
+        ):
+            raise AuthError("Sesión no registrada o revocada.")
     if not user:
         msg_3 = "Usuario no encontrado."
         raise AuthError(msg_3)
@@ -60,4 +66,6 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
         msg_4 = "Usuario inactivo."
         raise AuthError(msg_4)
 
+    if getattr(user, "deleted_at", None) is not None:
+        raise AuthError("Usuario eliminado.")
     return UserPublic.model_validate(user)
