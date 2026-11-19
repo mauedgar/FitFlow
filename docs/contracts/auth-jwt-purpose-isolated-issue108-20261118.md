@@ -43,3 +43,10 @@ Old IR findings and advisories remain unchanged. Exact final source
 needs fresh 0F0A independent review, PG15/Redis7/CPython3.15.2 native CI
 and Developer Product acceptance. No retained migration, staging, secret
 rotation, production or merge is implied by this documentation.
+
+## Control 015 — successor refresh gate (candidate, not merged)
+
+Original /auth/refresh now delegates exclusively to the PostgreSQL session
+ledger after a signed SID check, without Redis fallback or SID-less issuance.
+Existing /auth/logout legacy and bearer SID-less authorization are not yet
+retired. Native CI and independent review on exact successor SHA required.

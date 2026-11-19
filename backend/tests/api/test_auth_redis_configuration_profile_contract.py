@@ -116,20 +116,17 @@ async def test_new_durable_login_does_not_depend_on_redis(
     assert captured == [response.json()["refresh_token"]]
 
 
-async def test_refresh_returns_503_when_redis_is_unconfigured(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+
+async def test_sidless_refresh_denied_when_redis_is_unconfigured(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "REDIS_URL", None)
-
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
         json={"refresh_token": "opaque-refresh-token"},
     )
-
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está configurado."}
-
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh de sesión inválido."}
 
 async def test_logout_returns_503_when_redis_is_unconfigured(
     api_client: httpx.AsyncClient,
@@ -148,25 +145,22 @@ async def test_logout_returns_503_when_redis_is_unconfigured(
     assert response.json() == {"detail": "Redis no está configurado."}
 
 
-async def test_refresh_returns_503_when_configured_redis_is_unavailable(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+
+async def test_sidless_refresh_denied_without_redis_ping(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class UnavailableRedisClient:
         def ping(self) -> None:
-            raise RedisError("synthetic Redis outage")
-
+            raise AssertionError("Refresh must never contact Redis")
     monkeypatch.setattr(settings, "REDIS_URL", "redis://configured-but-unavailable:6379/0")
     monkeypatch.setattr(
-        redis_client.Redis,
-        "from_url",
+        redis_client.Redis, "from_url",
         lambda *_args, **_kwargs: UnavailableRedisClient(),
     )
-
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
         json={"refresh_token": "opaque-refresh-token"},
     )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh de sesión inválido."}
 
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está disponible."}

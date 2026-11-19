@@ -208,35 +208,34 @@ async def test_me_with_valid_missing_user_id_preserves_404_contract(
     assert response.json() == {"detail": "Usuario no encontrado"}
 
 # R003 refresh-token HTTP contract
+
 async def test_refresh_registered_token_returns_access_token_with_same_user_id_subject(
     api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
     persisted_auth_user: tuple[uuid.UUID, str, str],
 ) -> None:
-    user_id, _email, _password = persisted_auth_user
-    refresh_token = security.create_refresh_token(data={"sub": str(user_id)})
-    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
-    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
-
-    response = await api_client.post(
-        f"{settings.API_V1_STR}/auth/refresh",
-        json={"refresh_token": refresh_token},
+    """The old API URL serves a real registered PostgreSQL session."""
+    uid, email, password = persisted_auth_user
+    logged = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": email, "password": password},
     )
-
-    assert response.status_code == status.HTTP_200_OK, response.text
-    assert response.request.url.query == b""
-    body = response.json()
-    assert body["access_token"]
-    payload = security.decode_token(body["access_token"])
+    assert logged.status_code == status.HTTP_200_OK, logged.text
+    refreshed = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh",
+        json={"refresh_token": logged.json()["refresh_token"]},
+    )
+    assert refreshed.status_code == status.HTTP_200_OK, refreshed.text
+    payload = security.decode_token(refreshed.json()["access_token"])
     assert payload is not None
-    assert payload["sub"] == str(user_id)
+    assert payload["sub"] == str(uid)
+    original = security.decode_token(logged.json()["refresh_token"])
+    assert original is not None
+    assert payload["sid"] == original["sid"]
 
 
 async def test_refresh_with_malformed_token_returns_401(
     api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
         json={"refresh_token": "definitely-not-a-jwt"},
@@ -244,90 +243,74 @@ async def test_refresh_with_malformed_token_returns_401(
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.request.url.query == b""
     assert "definitely-not-a-jwt" not in response.text
-    assert response.json() == {"detail": "Refresh token inv\u00e1lido o expirado."}
+    assert response.json() == {"detail": "Refresh de sesión inválido."}
 
 
 async def test_refresh_with_expired_token_returns_401(
     api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    expired_token = security.create_access_token(
-        data={"sub": str(uuid.uuid4())},
-        expires_delta=timedelta(seconds=-1),
+    expired = security.create_access_token(
+        {"sub": str(uuid.uuid4())}, expires_delta=timedelta(seconds=-1)
     )
-    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
     response = await api_client.post(
-        f"{settings.API_V1_STR}/auth/refresh",
-        json={"refresh_token": expired_token},
+        f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": expired},
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert response.json() == {"detail": "Refresh token inv\u00e1lido o expirado."}
+    assert response.json() == {"detail": "Refresh de sesión inválido."}
 
 
 async def test_refresh_with_unregistered_token_returns_401(
     api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    refresh_token = security.create_refresh_token(data={"sub": str(uuid.uuid4())})
-    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
-    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: False)
+    refresh = security.create_refresh_token({
+        "sub": str(uuid.uuid4()), "sid": str(uuid.uuid4()),
+    })
     response = await api_client.post(
-        f"{settings.API_V1_STR}/auth/refresh",
-        json={"refresh_token": refresh_token},
+        f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert response.json() == {"detail": "Refresh token no registrado."}
+    assert response.json() == {"detail": "Sesión no registrada o revocada."}
 
 
-async def test_refresh_with_blacklisted_token_returns_401(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_redis_blacklist_cannot_authorize_sidless_refresh(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    refresh_token = security.create_refresh_token(data={"sub": str(uuid.uuid4())})
-    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: True)
+    signed = security.create_refresh_token({"sub": str(uuid.uuid4())})
+    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
     monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
     response = await api_client.post(
-        f"{settings.API_V1_STR}/auth/refresh",
-        json={"refresh_token": refresh_token},
+        f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": signed},
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert response.json() == {"detail": "Refresh token invalidado."}
+    assert response.json() == {"detail": "Refresh de sesión inválido."}
 
 
-async def test_refresh_blacklist_external_service_error_maps_to_503(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_sidless_refresh_never_consults_blacklist_when_redis_fails(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def unavailable(_token: str) -> bool:
-        raise auth_router.ExternalServiceError("Redis no est\u00e1 disponible.")
-
+        raise AssertionError("Redis blacklist must not be consulted")
     monkeypatch.setattr(auth_router, "is_token_blacklisted", unavailable)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
         json={"refresh_token": "opaque-refresh-token"},
     )
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no est\u00e1 disponible."}
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh de sesión inválido."}
 
 
-async def test_refresh_token_store_external_service_error_maps_to_503(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_sidless_refresh_never_consults_redis_registry(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    refresh_token = security.create_refresh_token(data={"sub": str(uuid.uuid4())})
-
+    signed = security.create_refresh_token({"sub": str(uuid.uuid4())})
     def unavailable(_token: str) -> bool:
-        raise auth_router.ExternalServiceError("Redis no est\u00e1 disponible.")
-
-    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
+        raise AssertionError("Redis registry must not be consulted")
     monkeypatch.setattr(auth_router, "is_refresh_token_valid", unavailable)
     response = await api_client.post(
-        f"{settings.API_V1_STR}/auth/refresh",
-        json={"refresh_token": refresh_token},
+        f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": signed},
     )
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no est\u00e1 disponible."}
-
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh de sesión inválido."}
 
 async def test_refresh_rejects_query_only_refresh_token_transport(
     api_client: httpx.AsyncClient,
@@ -342,28 +325,22 @@ async def test_refresh_rejects_query_only_refresh_token_transport(
     assert query_token not in response.text
 
 
-async def test_legacy_refresh_cannot_extend_past_signed_expiration(
+
+async def test_legacy_refresh_cannot_mint_access_even_before_original_expiration(
     api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
     persisted_auth_user: tuple[uuid.UUID, str, str],
 ) -> None:
-    """The final legacy access cannot outlive the original refresh JWT."""
     uid, _email, _password = persisted_auth_user
     expires = int((datetime.now(tz=UTC) + timedelta(seconds=105)).timestamp())
-    signed = jwt.encode(
+    untyped = jwt.encode(
         {"sub": str(uid), "exp": expires},
         settings.SECRET_KEY, algorithm=settings.ALGORITHM,
     )
-    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _token: False)
-    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _token: True)
-    response = await api_client.post(
-        f"{settings.API_V1_STR}/auth/refresh",
-        json={"refresh_token": signed},
-    )
-    assert response.status_code == status.HTTP_200_OK, response.text
-    token = security.decode_token(response.json()["access_token"])
-    assert token is not None
-    assert token["token_use"] == "access"
-    assert "sid" not in token
-    assert token["sub"] == str(uid)
-    assert token["exp"] <= expires
+    typed = security.create_refresh_token({"sub": str(uid)})
+    for signed in (untyped, typed):
+        response = await api_client.post(
+            f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": signed},
+        )
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert "access_token" not in response.text
+

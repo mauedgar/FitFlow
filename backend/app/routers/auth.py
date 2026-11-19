@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID, uuid4
 
@@ -21,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core import security, browser_session
-from app.core.blacklist import blacklist_token, is_token_blacklisted
+from app.core.blacklist import blacklist_token, is_token_blacklisted  # noqa: F401
 from app.core.deps import get_current_user
 from app.crud.crud_user import user as user_crud
 from app.crud import auth_session as session_ledger
@@ -98,64 +97,11 @@ async def refresh_access_token(
     token_request: RefreshTokenRequest,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> Token:
-    """Modern signed SID routes to PostgreSQL; SID-less legacy uses Redis."""
-    refresh_token = token_request.refresh_token
-    signed_payload = security.decode_token(refresh_token)
-    if isinstance(signed_payload, dict) and "sid" in signed_payload:
-        if not security.is_refresh_token_payload(signed_payload):
-            raise HTTPException(status_code=401, detail="Refresh moderno inválido.")
-        return await refresh_durable_session(token_request=token_request, db=db)
-    try:
-        blacklisted = is_token_blacklisted(refresh_token)
-    except ExternalServiceError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-    if blacklisted:
-        logger.warning("Attempt to refresh with blacklisted token")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token invalidado.")
-
-    payload = security.decode_token(refresh_token)
-    if not security.is_refresh_token_payload(payload):
-        logger.warning("Invalid or expired refresh token provided")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido o expirado.")
-
-    try:
-        registered = is_refresh_token_valid(refresh_token)
-    except ExternalServiceError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-    if not registered:
-        logger.warning("Refresh token not registered in store")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token no registrado.")
-
-    # Refresh claims never authorize a role. Load current persisted authority.
-    try:
-        user_id = UUID(payload["sub"])
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token inválido o expirado.",
-        ) from exc
-    try:
-        user = await user_crud.get(db, obj_id=user_id)
-    except Exception as exc:
-        logger.exception("DB error during refresh subject validation")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno"
-        ) from exc
-    if user is None or not user.active or user.deleted_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token inválido o expirado.",
-        )
-    # Legacy refresh must never extend access beyond its signed expiry.
-    legacy_expires_at = datetime.fromtimestamp(payload["exp"], tz=UTC)
-    if legacy_expires_at <= datetime.now(tz=UTC):
-        raise HTTPException(status_code=401, detail="Refresh legado expirado.")
-    access_token = security.create_access_token(
-        data={"sub": str(user.id), "role": user.role.value},
-        expires_at=legacy_expires_at,
-    )
-    logger.info("Legacy access issued with bounded expiry for user_id=%s", payload.get("sub"))
-    return Token(access_token=access_token)
+    """Only PostgreSQL-backed SID sessions may refresh; Redis is never read."""
+    payload = security.decode_token(token_request.refresh_token)
+    if not security.is_refresh_token_payload(payload) or "sid" not in payload:
+        raise HTTPException(status_code=401, detail="Refresh de sesión inválido.")
+    return await refresh_durable_session(token_request=token_request, db=db)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)

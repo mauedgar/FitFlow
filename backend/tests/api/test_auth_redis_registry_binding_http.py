@@ -83,7 +83,7 @@ async def test_signed_registry_owner_and_opaque_positive_ttl(
         answer = await api_client.post(
             f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": token},
         )
-        assert answer.status_code == 200, answer.text
+        assert answer.status_code == 401, answer.text
     finally:
         delete_refresh_token(token)
 

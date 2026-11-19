@@ -123,44 +123,38 @@ async def test_access_cannot_be_used_as_logout_refresh(
     assert result.status_code == status.HTTP_400_BAD_REQUEST, result.text
 
 
+
 async def test_registered_refresh_uses_current_database_role(
     api_client: httpx.AsyncClient, subject: uuid.UUID,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _x: False)
-    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _x: True)
-    refresh = security.create_refresh_token({"sub": str(subject), "role": "admin"})
-    assert "role" not in security.decode_token(refresh)
+    """Modern refresh rehydrates the persisted role, not a refresh claim."""
+    logged = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": f"jwt-purpose-{subject.hex}@example.com",
+              "password": "synthetic-only"},
+    )
+    assert logged.status_code == status.HTTP_200_OK, logged.text
+    refresh = logged.json()["refresh_token"]
     async with AsyncSessionLocal() as db:
-        await db.execute(
-            update(User).where(User.id == subject).values(role=UserRole.teacher)
-        )
+        await db.execute(update(User).where(User.id == subject).values(role=UserRole.teacher))
         await db.commit()
     result = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
     )
     assert result.status_code == status.HTTP_200_OK, result.text
     payload = security.decode_token(result.json()["access_token"])
-    assert payload is not None
-    assert payload["role"] == UserRole.teacher.value
-    assert payload["token_use"] == "access"
+    assert payload is not None and payload["role"] == UserRole.teacher.value
 
 
-async def test_untyped_legacy_refresh_mints_typed_access(
+async def test_untyped_legacy_refresh_cannot_mint_access(
     api_client: httpx.AsyncClient, subject: uuid.UUID,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(auth_router, "is_token_blacklisted", lambda _x: False)
-    monkeypatch.setattr(auth_router, "is_refresh_token_valid", lambda _x: True)
     result = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
         json={"refresh_token": legacy(str(subject), None)},
     )
-    assert result.status_code == status.HTTP_200_OK, result.text
-    payload = security.decode_token(result.json()["access_token"])
-    assert payload is not None and payload["role"] == "client"
-    assert payload["token_use"] == "access"
-
+    assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
+    assert "access_token" not in result.text
 
 async def test_refresh_rejects_inactive_missing_and_invalid_uuid(
     api_client: httpx.AsyncClient, subject: uuid.UUID,
@@ -224,12 +218,8 @@ async def test_actual_disposable_redis_registration_and_refresh(
             f"{settings.API_V1_STR}/auth/refresh",
             json={"refresh_token": token},
         )
-        assert response.status_code == status.HTTP_200_OK, response.text
-        payload = security.decode_token(response.json()["access_token"])
-        assert payload is not None
-        assert payload["sub"] == str(subject)
-        assert payload["role"] == "client"
-        assert payload["token_use"] == "access"
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
+        assert "access_token" not in response.text
         bearer = await api_client.get(
             f"{settings.API_V1_STR}/auth/me",
             headers={"Authorization": f"Bearer {token}"},
@@ -305,7 +295,7 @@ async def test_actual_disposable_redis_registration_blacklist_and_logout(
             f"{settings.API_V1_STR}/auth/refresh",
             json={"refresh_token": refresh},
         )
-        assert good.status_code == status.HTTP_200_OK, good.text
+        assert good.status_code == status.HTTP_401_UNAUTHORIZED, good.text
 
         logout = await api_client.post(
             f"{settings.API_V1_STR}/auth/logout",

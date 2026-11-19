@@ -65,3 +65,11 @@ mass session invalidation.
 Deployment STOP: retained PG migration NOT_RUN, no staging/prod activation,
 no assumed cross-site SameSite=None fallback, CORS/HTTPS topology not
 qualified, no secret rotation, no 0F0A final independent acceptance yet.
+
+## Control 015 — Backend refresh cutover (candidate)
+
+The /auth/refresh compatibility URL now authorizes only signed, typed,
+PG-registered refresh tokens with sid; legacy untyped and typed SID-less
+refresh never issue new access, even if a historical Redis entry exists.
+Existing signed SID-less bearer and /auth/logout legacy paths remain an
+explicit separate cutover step. No token lifetime extension.
