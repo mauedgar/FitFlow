@@ -6,64 +6,40 @@ baseline: develop@276481de41f6829e8dd7beed79127e13237b5dcb
 integration: false
 ---
 
-# Issue 108 — JWT purpose boundary, isolated candidate
+# JWT purpose boundary: composed current PR118 candidate
 
-This candidate is based on canonical FitFlow CPython3.15.2 develop after PR113.
-Developer delegated JWT-purpose ownership away from diverged PR107 into a new
-isolated candidate, without modifying or reusing PR107/109/111's historical
-attempts, commits, reviews, session revocation and frontend changes.
+The original PR114-only source and its independent NO_RECOMMEND reports are
+IMMUTABLE HISTORICAL EVIDENCE. The current source is the composed PR118
+candidate, not an assertion that the inherited Redis bug remains unfixed.
 
-Emitters set signed, nonoverridable `token_use=access` or `token_use=refresh`.
-Refresh emitters strip any caller-supplied role. Both bearer guards reject
-refresh JWT, including untyped legacy refresh. Refresh and logout reject
-access JWT. Unknown explicit purposes, absent/expired `exp`, invalid subject
-and signed role on legacy refresh are invalid. Untyped legacy access requires
-a signed nonempty role and live expiration; untyped legacy refresh has no
-role and remains subject to existing Redis registration/blacklist.
+All newly issued JWTs contain signed, non-overridable token_use access or
+refresh. Refresh JWTs discard any role claim. Both bearer guards reject
+refresh-as-access, including untyped legacy refresh. Access cannot be
+refresh/logout proof. Invalid purpose, subject or expiration fail closed.
+Untyped historical access requires a signed role and original exp; untyped
+historical refresh must omit role and have a live original exp.
 
-Refresh now resolves a current, active, non-soft-deleted account by UUID from
-PostgreSQL before issuing a typed access JWT with that account's current role.
-Never trust client-provided refresh role. No token migration, credential reset
-or retained Redis/PostgreSQL effect occurs in this candidate. The existing
-logout API still requires bearer authentication: authoritative durable
-revocation, Redis TTL/opaque keys, `sid`, SPA logout recovery and pending ACK
-remain separate unaccepted Product responsibilities under PR107.
+All new logins through /auth/token, /auth/session/token and
+/auth/browser/token establish signed UUID4 SID families in PostgreSQL before
+emitting credentials. Modern refresh/logout and both guards consult
+PostgreSQL persistent session state; Redis cannot revive a revoked SID.
+Refresh and roles use the current, active, nondeleted persisted User.
 
-Only disposable PostgreSQL/Redis and synthetic identities may be used for
-HTTP validation. Require final-head Python3.15.2 CI and independent full
-security review with explicit 0F/0A disposition before acceptance. Neither
-historical PR107 CI nor this candidate's source is an acceptance grant.
-Staging, deployment, secrets, migrations and ruleset changes are excluded.
+The original A01 Redis owner-binding issue is REPAIRED in source: signed
+refresh sub must match stored Redis owner, opaque new registration keys are
+SHA256-derived and expire within signed JWT exp, mismatched opaque entries
+never fall back to raw legacy keys. Historical raw Redis records remain
+read-only compatibility and are not automatically deleted.
 
+Existing signed SID-less refresh, with authentic historical registration
+and no blacklist, may issue another SID-less access with expiration capped
+to the ORIGINAL signed refresh expiry. No manufactured SID family is
+attributed to these tokens. Legacy logout cannot instantly invalidate all
+already-issued SID-less access: those tokens live until their signed exp.
+This bounded residual is explicit and needs Product risk disposition before
+the global 0F0A gate; do not disguise it as modern durable revocation.
 
-## IR001 review disposition — residual coverage and inherited registry boundary
-
-IR001 on exact earlier HEAD `85245095b27fb21420e7847b49390e26d0e6444f`
-returned immutable `NO_RECOMMEND / 0F / 2A` (not a source acceptance).
-The successor adds isolated PostgreSQL HTTP cases for active-but-soft-deleted
-users and stale signed role with a current unprivileged database role; and
-strict GITHUB_ACTIONS-only real disposable Redis7 cases for unregistered
-refresh rejection, registered positive refresh, blacklist denial, real logout
-204 and denial after revocation, with per-credential cleanup. The new tests
-do **not** claim to prove atomic logout after Redis crashes or a client ACK loss.
-
-**Historical inherited Redis trust boundary (repaired by later A01):** on this
-original JWT-purpose slice, the token store checked key existence rather
-than owner binding. The present PR118 `is_refresh_token_valid` validates
-signed purpose/expiration and compares the Redis-stored owner to JWT `sub`
-using `compare_digest`; do not attribute the later fix to this old slice. Binding Redis registration
-to a persisted owner, plus opaque keys/TTL/SID revocation and durable logout
-ACK, require their own competent scope/implementation and security review;
-no retained Redis change or credential migration is authorized. This
-candidate's success must not be described as complete refresh registry
-ownership integrity or full remote-session revocation. Issue #108 stays OPEN
-until those separately authorized security responsibilities are reconciled.
-
-
-## Combined PR118 effective status (newer than this isolated slice)
-
-JWT purpose, Redis signed-owner binding, new SID-backed PostgreSQL login,
-durable modern logout and browser HttpOnly/CSRF flows are now implemented as
-source candidates. Historical references to unimplemented logout above refer
-to their original time. Residual legacy Redis key/blacklist, bounded SID-less
-access, full review and retained-data migration are NOT_ACCEPTED/NOT_DEPLOYED.
+Old IR findings and advisories remain unchanged. Exact final source
+needs fresh 0F0A independent review, PG15/Redis7/CPython3.15.2 native CI
+and Developer Product acceptance. No retained migration, staging, secret
+rotation, production or merge is implied by this documentation.

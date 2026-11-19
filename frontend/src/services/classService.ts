@@ -1,5 +1,6 @@
 // src/services/classService.ts
 import apiClient from './api';
+import { withExclusiveBrowserCookie } from '../utils/browserCookieLock';
 
 import {
   type GymClass,
@@ -21,17 +22,17 @@ interface LoginPayload {
 const classService = {
   // --- Autenticación ---
   async login(payload: LoginPayload): Promise<BrowserSessionResponse> {
-    const formData = new URLSearchParams();
-    formData.append('username', payload.username);
-    formData.append('password', payload.password);
-
-    const response = await apiClient.post<BrowserSessionResponse>('/auth/browser/token', formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+    return withExclusiveBrowserCookie(async () => {
+      const formData = new URLSearchParams();
+      formData.append('username', payload.username);
+      formData.append('password', payload.password);
+      const response = await apiClient.post<BrowserSessionResponse>(
+        '/auth/browser/token', formData,
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      );
+      return response.data;
     });
-    return response.data;
-  },
+  }
 
   async restoreBrowserSession(): Promise<BrowserSessionResponse> {
     const result = await apiClient.get<BrowserSessionResponse>('/auth/browser/session');
@@ -46,11 +47,20 @@ const classService = {
     return result.data;
   },
 
-  async logoutBrowserSession(csrfToken: string): Promise<void> {
-    await apiClient.post(
-      '/auth/browser/logout', undefined,
-      { headers: { 'X-CSRF-Token': csrfToken } },
+  async recoverLogoutProof(): Promise<{ csrf_token: string }> {
+    const response = await apiClient.get<{ csrf_token: string }>(
+      '/auth/browser/logout-proof',
     );
+    return response.data;
+  },
+
+  async logoutBrowserSession(csrfToken: string): Promise<void> {
+    await withExclusiveBrowserCookie(async () => {
+      await apiClient.post(
+        '/auth/browser/logout', undefined,
+        { headers: { 'X-CSRF-Token': csrfToken } },
+      );
+    });
   },
 
   // --- GymClass Endpoints ---

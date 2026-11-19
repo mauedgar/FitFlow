@@ -1,42 +1,39 @@
 ---
 document_id: FF-ISSUE108-REDIS-REGISTRY-20261118-001
-status: review_required
+status: candidate_not_accepted
 issue: 108
-baseline: 114@e5391ad3eb68fc27f84517fb811679fca3892536
+baseline: develop@276481de41f6829e8dd7beed79127e13237b5dcb
 integration: false
 ---
 
-# JWT refresh ownership — bounded follow-up candidate
+# Redis registry A01 and modern durable revocation A02 — PR118
 
-Separate stacked PR ownership; PR114 remains frozen and unmodified.
-The original IR002 remains NO_RECOMMEND 0F/2A, unchanged.
+This is the CURRENT composed candidate, not the original pre-repair PR114 or
+PR116 snapshot. Earlier scoped independent IRs remain historical.
 
-New refresh registration compares signed unexpired JWT sub with the supplied
-user, stores an opaque SHA256-derived key with positive expiry bounded by
-signed JWT exp. Refresh verification checks the signed sub against the value
-stored in Redis, not key existence alone. If a new opaque registration exists
-with wrong owner, it fails closed without falling back to a legacy raw key.
-Legacy raw keys are read-only for compatibility and are never written anew.
-Logout rejects a refresh without matching registration.
+Redis token_store requires signed purpose, subject and live exp; it compares
+persisted registration owner against JWT sub (never mere key existence).
+New registrations use opaque SHA256-derived key names and signed-exp-bounded
+positive TTL. Mismatched opaque owners fail closed without fallback to old
+raw keys. Historical SID-less raw registration keys are read-only and not
+automatically rewritten. Existing raw-key/blacklist remnants may outlive
+their token expiry and require separate authorized retained keyspace
+inventory/sunset, never an implicit bulk cleanup.
 
-This resolves the narrow Redis subject-binding invariant if independently
-validated. **It does not repair revocation atomicity, unbounded historical
-Redis data, logout ACK durability, already issued access tokens, family-scoped
-revocation, raw JWT legacy blacklist keys, or persistence after Redis restart.**
-Those are a high-risk separate session-revocation gate; no source integration
-or staging approval is inferred from CI.
+Modern signed SID registration and revocation ARE IMPLEMENTED in current
+unmerged PR118 code: PostgreSQL AuthSession owns registration, durable
+row-locked revoked_at and exact idempotent replay. Redis is not a security
+authority for modern login, refresh, bearer guards or logout. A revoked
+modern family stays denied after Redis cache loss or restart.
 
-Only tests on disposable PostgreSQL15/Redis7 in GitHub Actions are authorized.
-No retained data migration, secrets, dependency change, deployment, or merge.
+Historical SID-less refresh remains validated through Redis registration/
+blacklist and may mint only expiry-CAPPED SID-less access. A legacy refresh
+logout does not revoke every already-issued access credential of that user;
+signed legacy access may remain until original exp. No retroactive family
+assignment or blanket subject-wide revocation is claimed. This compatibility
+boundary is NOT equivalent to modern durable logout.
 
-
-## Independent A01 IR001 dispositions on 49b49f36 (historical, immutable)
-
-Original `FITFLOW-C014-PR116-REGISTRY-A01-WEBINLINE-IR001-20261118-001` reports RECOMMEND_A01_SCOPED, 0 new findings / 2 advisories and explicitly NO_RECOMMEND for full Product. Original 8474 bytes SHA256 27df6da3ffb65edde8474534f3a228fbc3bff01b635de1666dd03050eedeb8a7; Git Transport custody blob e514afe991d6abed61e4b5ebea4306c0ebf6a809.
-
-A01-A02 negative coverage is expanded here: forged JWT signature and expired signed refresh are both rejected even with synthetic preexisting Redis registration keys; the production guard has not been relaxed. An adjacent auth-service path now rejects soft-deleted users independently of the direct `get_current_user` pipeline, with negative HTTP check. This successor has not been independently reviewed or integrated.
-
-A01-A01 legacy exposure still remains: historical raw JWT Redis key names may persist past JWT expiry. No automatic scan, forced deletion or retained-data migration is authorized. A competent deploy/legacy sunset decision must account for the longest signed legacy refresh expiry and inventory of existing keyspace; raw legacy records are never newly written by this candidate. New names are opaque with bounded TTL. **Current combined candidate:** A02 PostgreSQL session authority and modern
-durable logout ARE IMPLEMENTED IN SOURCE on PR118. They are NOT_ACCEPTED,
-NOT_DEPLOYED and not migrated into retained databases. The original Redis
-legacy-surface limitations remain historic compatibility risks.
+No retained Redis/PostgreSQL writes, credentials, secret updates, staging,
+production or migration were performed. Current code/tests/doc are
+candidate-only, requiring full exact-HEAD 0F0A independent review and
+authorized nonforced merge.

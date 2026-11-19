@@ -374,27 +374,17 @@ async def browser_cookie_login(
 ) -> dict[str, str]:
     """Authenticate, durably COMMIT family, set HttpOnly refresh only."""
     browser_session.require_login_origin(request)
-    # Do NOT replace a still-active same-browser session family: doing so
-    # would orphan a pending logout refresh proof and make durable ACK false.
+    # A signed cookie is the only proof for retrying an uncertain logout,
+    # including when PG COMMIT succeeded but its 204 ACK was lost. Do not
+    # replace even an already-revoked family before exact replay clears it.
     prior_cookie = request.cookies.get(browser_session.COOKIE_NAME)
     if prior_cookie:
         prior_claims = security.decode_token(prior_cookie)
         if security.is_refresh_token_payload(prior_claims) and "sid" in prior_claims:
-            try:
-                active_family = await session_ledger.is_active(
-                    db, sid=prior_claims["sid"], subject=prior_claims["sub"],
-                    refresh_token=prior_cookie,
-                )
-            except Exception as exc:
-                logger.exception("Browser family replacement status unknown")
-                raise HTTPException(
-                    status_code=503, detail="Estado de sesión no confirmado."
-                ) from exc
-            if active_family:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Cerrá la sesión actual y confirmá su revocación antes de ingresar nuevamente.",
-                )
+            raise HTTPException(
+                status_code=409,
+                detail="Confirmá el logout anterior antes de iniciar otra sesión.",
+            )
     pair = await create_durable_login(form_data=form_data, db=db)
     browser_session.set_refresh_cookie(response, pair.refresh_token)
     return {
@@ -416,6 +406,25 @@ async def browser_cookie_rehydrate(
     body = await _browser_access(db, token)
     response.headers["Cache-Control"] = "no-store"
     return body
+
+
+@router.get("/browser/logout-proof", status_code=status.HTTP_200_OK)
+async def browser_logout_proof(
+    *,
+    request: Request,
+    response: Response,
+) -> dict[str, str]:
+    """Recover CSRF for exact cookie retry after a lost logout ACK.
+
+    A proof is not access and is not an indication that PostgreSQL committed
+    revocation. No new bearer JWT or refresh cookie is issued here.
+    """
+    signed = browser_session.cookie_refresh_token(request)
+    payload = security.decode_token(signed)
+    if not security.is_refresh_token_payload(payload) or "sid" not in payload:
+        raise HTTPException(status_code=401, detail="Cookie de sesión inválida.")
+    response.headers["Cache-Control"] = "no-store"
+    return {"csrf_token": browser_session.csrf_value(signed)}
 
 
 @router.post("/browser/refresh", status_code=status.HTTP_200_OK)

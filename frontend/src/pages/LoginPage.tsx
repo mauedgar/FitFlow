@@ -61,7 +61,9 @@ const LoginPage = () => {
     onError: (error) => {
       // El objeto AxiosError puede contener credenciales en config.data.
       // No se registra ni se muestra información arbitraria del servidor.
-      const errorMessage = error.response?.status === 401
+      const errorMessage = error.response?.status === 409
+        ? "Confirmá el logout de la sesión anterior antes de ingresar nuevamente."
+        : error.response?.status === 401
         ? "Email o contraseña incorrectos."
         : error.message === "Network Error"
           ? "Error de red. Asegúrate de que el servidor está corriendo."

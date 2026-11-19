@@ -1,96 +1,52 @@
 ---
 document_id: FF-ISSUE108-F01-BROWSER-COOKIE-20261119-001
-status: combined_source_candidate_unaccepted
-baseline: PR118@fd376994da9698350fe7f86058be5ca6add66e92
+status: candidate_not_accepted
 issue: 108
+baseline: develop@276481de41f6829e8dd7beed79127e13237b5dcb
 integration: false
 ---
 
-# First-party modern browser sessions — CSRF and cookie candidate
+# Browser authentication and CSRF: current PR118 candidate
 
-This first F01 successor is isolated from the existing PR117 branch.
-New browser routes are /auth/browser/token (FORM),
-/auth/browser/session (read-only bootstrap), /auth/browser/refresh (POST),
-and /auth/browser/logout (POST). The JSON never returns a refresh JWT.
-Browser refresh is in a host-only HttpOnly cookie scoped to the browser-auth
-path, SameSite=Lax, with Secure in all non-local profiles; development/test
-HTTP exception is explicit and NEVER authorized as a production setting.
-No session secrets go into localStorage by these new endpoints.
+This document supersedes earlier phase-specific statements that said the
+frontend had not adopted cookies or /auth/token still issued new SID-less
+credentials. PR118 is an UNMERGED SOURCE CANDIDATE, not deployed or accepted.
 
-Cookie POST requires **exact configured first-party Origin**,
-rejects Sec-Fetch-Site cross-site, and compares a per-credential HMAC
-derived via server secret and presented in X-CSRF-Token (login requires
-Origin before any cookie exists). Browser JS obtains CSRF from the login
-response or read-only authenticated bootstrap and only uses it in a
-custom header. Cross-origin consumers not sharing the same site will
-not receive Lax cookies; production requires a same-site frontend/API or
-an approved reverse proxy, not automatic SameSite=None.
+The SPA calls POST /auth/browser/token. Refresh lives in a host-only HttpOnly
+SameSite=Lax cookie scoped to /api/v1/auth/browser, Secure outside explicit
+test/development. JS receives access and a cookie-specific HMAC CSRF token,
+never the refresh bearer. Access JWT remains in React memory and is
+rehydrated by GET /auth/browser/session after PostgreSQL SID verification.
+Historical signed SID-less access already stored locally is read only until
+its original exp; modern login does not persist access credentials.
 
-PostgreSQL remains the only durable revocation authority for SID-bearing
-modern cookies. Browser logout returns 204 and clears cookie only after
-a durable transaction or an exact committed replay; uncertainty returns
-503 and preserves cookie for retry. Both guards check the PostgreSQL SID.
+Mutation POSTs /auth/browser/refresh and /auth/browser/logout require exact
+allowlisted first-party Origin plus X-CSRF-Token; login requires Origin.
+GET /auth/browser/logout-proof recovers ONLY the same-cookie HMAC proof for
+idempotent retry after a lost logout ACK. It does not mint bearer or attest
+revocation, and uses no-store. Logout returns HTTP204 and clears the cookie
+ONLY after PG commit or verified exact replay; unconfirmed result is 503.
+A browser login with an existing signed refresh cookie is rejected with 409
+until logout clears it, even if PG already committed revocation but its ACK
+was lost. This prevents overwriting an unreconciled session family's proof.
 
-**Historical stage 1 (superseded at current PR118 HEAD):** the initial backend-only
-increment had not integrated frontend and the old default issuer still
-minted SID-less tokens. Current PR118 frontend now uses the browser cookie
-session endpoints and /auth/token now issues PostgreSQL-backed SID families.
-This is an implemented *candidate*, not Product acceptance or deployment. No retained migration,
-production cookie activation, credentials, staging or deploy.
+Cross-tab browser login/logout writes are serialized via Web Locks; an
+unsupported browser fails closed rather than silently racing the shared
+cookie. Storage events send no JWT, refresh, CSRF or secrets; other tabs
+invalidate stale access and rehydrate only from the authoritative cookie.
+Unconfirmed logout blocks login and offers retry with recovered cookie
+proof. Transient refresh failures use bounded retry and generation guards.
+These guarantees require actual final-head browser and disposable HTTP
+negative tests, and independent review; initial IR001 found 2 frontend
+findings/2 advisories on the historical fd376... HEAD.
 
+Legacy /auth/token new issuance is durable SID-backed, but existing
+signed SID-less refresh may still produce SID-less access bounded by its
+original signed refresh expiry. Legacy access is NOT individually family
+revocable; no immediate full legacy remote logout is claimed. After original
+expiry, reauthentication is required. No unbounded extension or automatic
+mass session invalidation.
 
-## SPA/browser integration successor (not integrated)
-
-New login invokes /auth/browser/token with credentials and receives
-access+CSRF, never a raw refresh JWT. Refresh cookie is scoped to
-/auth/browser and inaccessible via JavaScript. Modern access is held
-only in React memory and rehydrated after reload via GET
-/auth/browser/session, which checks the durable PostgreSQL SID.
-
-The UI uses X-CSRF-Token for cookie refresh/logout, withCredentials,
-and an explicit PENDING state whenever server-side logout ACK is
-not confirmed; retry is offered and 204 is the sole success signal.
-Existing signed SID-less access already in localStorage may still be
-read until its original exp, but the new browser flow does not
-create localStorage entries for modern credentials.
-
-**Historical stage 2 (superseded):** these earlier default-issuer and E2E
-assumptions were repaired in later PR118 commits. Current source CI is green,
-but the full 39-path independent security review, unresolved legacy access
-window and production migration remain separate gates.
-
-
-
-## F01 issuer cutover candidate, subject to exact-SHA CI and IR
-
-The old /auth/token endpoint keeps its original TokenPair response shape but
-**no longer issues new SID-less JWTs**. Every successful API login now creates
-a signed UUID4 family in PostgreSQL and returns only after committed durable
-registration; an uncertain COMMIT yields 503 with no credentials. No Redis
-registration is needed for modern sessions, even when Redis is unavailable.
-
-The historical /auth/refresh and /auth/logout endpoints route SID-bearing
-signed refresh tokens to the same PostgreSQL session authority. Their SID-less
-legacy paths remain read-only-compatibility through original JWT expiration
-and continue using their old Redis blacklist/registration semantics. The
-browser flow uses only HttpOnly cookies and memory-held access JWTs. No
-blanket user/session invalidation, retained Redis cleanup or token rewriting
-is authorized. New credential issuance is scoped to the original secure
-authentication routes, not test factories that explicitly manufacture
-legacy signed tokens to verify compatibility.
-
-Current PR118 source is unaccepted: implemented frontend cookie, logout ACK,
-and negative HTTP tests must still be independently reviewed
-on frozen SHA/tree before Product acceptance and nonforced merge. Staging,
-retained-data migration and production remain NOT_RUN.
-
-
-## Effective status at current PR118 candidate
-
-Head `fd376994da9698350fe7f86058be5ca6add66e92` is IMPLEMENTED_SOURCE_CANDIDATE,
-NOT_ACCEPTED, NOT_MERGED, NOT_DEPLOYED. Legacy SID-less access JWTs may remain
-valid only until signed expiry. Legacy refresh may issue a bounded SID-less
-access (not beyond the original signed refresh expiry), outside modern durable
-family revocation. This finite compatibility tradeoff and the lack of a
-retained migration, production origin qualification or final 0F/0A IR
-must not be misrepresented as globally durable logout.
+Deployment STOP: retained PG migration NOT_RUN, no staging/prod activation,
+no assumed cross-site SameSite=None fallback, CORS/HTTPS topology not
+qualified, no secret rotation, no 0F0A final independent acceptance yet.

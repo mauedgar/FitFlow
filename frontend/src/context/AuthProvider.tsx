@@ -185,12 +185,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const retryLogout = async (): Promise<void> => {
-    const csrf = csrfRef.current ?? sessionStorage.getItem(PENDING_CSRF);
-    if (!csrf) {
-      setLogoutConfirmation('pending');
-      return;
-    }
+    let csrf = csrfRef.current ?? sessionStorage.getItem(PENDING_CSRF);
     const expectedGeneration = getAuthSessionGeneration();
+    if (!csrf) {
+      try {
+        // Another tab can announce PENDING without sharing secret CSRF.
+        // Recover a proof from the existing signed HttpOnly cookie, even
+        // when revocation committed but its network ACK was lost.
+        const proof = await classService.recoverLogoutProof();
+        if (expectedGeneration !== getAuthSessionGeneration()) return;
+        csrf = proof.csrf_token;
+        csrfRef.current = csrf;
+        setCsrfToken(csrf);
+        sessionStorage.setItem(PENDING_CSRF, csrf);
+      } catch {
+        if (expectedGeneration === getAuthSessionGeneration()) {
+          setLogoutConfirmation('pending');
+        }
+        return;
+      }
+    }
     try {
       await classService.logoutBrowserSession(csrf);
       if (getAuthSessionGeneration() !== expectedGeneration) return;

@@ -204,3 +204,70 @@ async def test_second_browser_login_must_not_replace_active_cookie_family(
     reauthenticated = await login(api_client, email, password)
     assert reauthenticated.status_code == 200, reauthenticated.text
     assert reauthenticated.json()["csrf_token"] != csrf
+
+
+async def test_cookie_postcommit_recovery_proof_preserves_idempotent_logout(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A lost ACK must not let login overwrite the remaining cookie proof."""
+    _uid, email, password = account
+    login_response = await login(api_client, email, password)
+    assert login_response.status_code == 200, login_response.text
+    csrf = login_response.json()["csrf_token"]
+    original = auth_router.session_ledger.revoke
+
+    async def commit_then_lose_ack(db: object, *, refresh_token: str) -> str:
+        result = await original(db, refresh_token=refresh_token)
+        assert result == "COMMITTED"
+        raise ConnectionError("synthetic lost ACK after PostgreSQL commit")
+
+    monkeypatch.setattr(auth_router.session_ledger, "revoke", commit_then_lose_ack)
+    response = await api_client.post(
+        f"{settings.API_V1_STR}/auth/browser/logout",
+        headers={**origin(), "X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 503, response.text
+    assert "set-cookie" not in response.headers
+    denied = await login(api_client, email, password)
+    assert denied.status_code == 409, denied.text
+    assert "set-cookie" not in denied.headers
+
+    proof = await api_client.get(
+        f"{settings.API_V1_STR}/auth/browser/logout-proof",
+    )
+    assert proof.status_code == 200, proof.text
+    assert proof.json() == {"csrf_token": csrf}
+    assert proof.headers.get("Cache-Control") == "no-store"
+    assert "access_token" not in proof.text
+
+    monkeypatch.setattr(auth_router.session_ledger, "revoke", original)
+    replay = await api_client.post(
+        f"{settings.API_V1_STR}/auth/browser/logout",
+        headers={**origin(), "X-CSRF-Token": proof.json()["csrf_token"]},
+    )
+    assert replay.status_code == 204, replay.text
+    assert "max-age=0" in replay.headers["set-cookie"].lower()
+    restarted = await login(api_client, email, password)
+    assert restarted.status_code == 200, restarted.text
+
+
+async def test_cookie_existing_active_family_cannot_be_replaced(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+) -> None:
+    """The first family remains durably authoritative until explicit logout."""
+    _uid, email, password = account
+    first = await login(api_client, email, password)
+    assert first.status_code == 200, first.text
+    csrf = first.json()["csrf_token"]
+    conflict = await login(api_client, email, password)
+    assert conflict.status_code == 409, conflict.text
+    assert "set-cookie" not in conflict.headers
+    assert (await api_client.get(f"{settings.API_V1_STR}/auth/browser/session")).status_code == 200
+    logout = await api_client.post(
+        f"{settings.API_V1_STR}/auth/browser/logout",
+        headers={**origin(), "X-CSRF-Token": csrf},
+    )
+    assert logout.status_code == 204, logout.text
+    new_login = await login(api_client, email, password)
+    assert new_login.status_code == 200, new_login.text
