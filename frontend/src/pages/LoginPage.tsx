@@ -20,7 +20,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
 
   // ⭐ 1. Definimos la mutación de login
-  const loginMutation = useMutation<{ session: BrowserSessionResponse; startedGeneration: number }, AxiosError, { username: string; password: string }>({
+  const loginMutation = useMutation<{ session: BrowserSessionResponse; startedGeneration: number; startedEpoch: string | null }, AxiosError, { username: string; password: string }>({
     // La función que ejecuta la llamada a la API
     mutationFn: async (credentials) => {
       if (logoutConfirmation === "pending") {
@@ -31,14 +31,15 @@ const LoginPage = () => {
       const startedGeneration = getAuthSessionGeneration();
       const startedEpoch = localStorage.getItem(AUTH_SYNC_KEY);
       const session = await classService.login(credentials, startedGeneration, startedEpoch);
-      return { session, startedGeneration };
+      return { session, startedGeneration, startedEpoch };
     },
 
     // Callback que se ejecuta si la mutación es exitosa
-    onSuccess: ({ session: data, startedGeneration }) => {
+    onSuccess: ({ session: data, startedGeneration, startedEpoch }) => {
       // A late 200 is not an authorization to overwrite a newer tab logout.
       // Do not call useAuth.login or navigate for a stale generation.
       if (startedGeneration !== getAuthSessionGeneration() ||
+          localStorage.getItem(AUTH_SYNC_KEY) !== startedEpoch ||
           sessionStorage.getItem("fitflow_logout_pending") === "1") return;
       // Llamamos a la función login del AuthContext, pasando solo el token
       // El AuthContext ya se encarga de decodificar y establecer el rol

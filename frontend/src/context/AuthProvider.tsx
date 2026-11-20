@@ -59,6 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     let cancelled = false;
     const generation = getAuthSessionGeneration();
+    const sharedEpoch = localStorage.getItem(SYNC_KEY);
     if (sessionStorage.getItem(PENDING_LOGOUT) === '1') {
       csrfRef.current = sessionStorage.getItem(PENDING_CSRF);
       setCsrfToken(csrfRef.current);
@@ -70,7 +71,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // credentials without decoding or accepting them as a browser session.
     localStorage.removeItem(LEGACY_ACCESS);
     void classService.restoreBrowserSession().then((session) => {
-      if (cancelled || generation !== getAuthSessionGeneration()) return;
+      // Storage events can be missed or delivered out of order. Verify the
+      // shared epoch at the point of accepting an asynchronous bearer.
+      if (cancelled || generation !== getAuthSessionGeneration() ||
+          localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+          sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
       csrfRef.current = session.csrf_token;
       setCsrfToken(session.csrf_token);
       setToken(session.access_token);
@@ -93,7 +98,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const onSharedSession = (event: StorageEvent) => {
       if (event.key !== SYNC_KEY || !event.newValue) return;
-      const action = event.newValue.split("|")[0];
+      const eventEpoch = event.newValue;
+      // A delayed old storage event must not undo a newer logout.
+      if (localStorage.getItem(SYNC_KEY) !== eventEpoch) return;
+      const action = eventEpoch.split("|")[0];
       const generation = advanceAuthSessionGeneration();
       // Initial cookie restoration may have been invalidated by this event.
       // Never leave the UI indefinitely behind the auth-loading gate.
@@ -129,14 +137,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return; // Never abandon a pending family to follow a new cookie.
       }
       void classService.restoreBrowserSession().then(session => {
-        if (getAuthSessionGeneration() !== generation) return;
+        if (getAuthSessionGeneration() !== generation ||
+            localStorage.getItem(SYNC_KEY) !== eventEpoch ||
+            sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
         csrfRef.current = session.csrf_token;
         setCsrfToken(session.csrf_token);
         setToken(session.access_token);
         decodeToken(session.access_token);
         setLogoutConfirmation("idle");
       }).catch(() => {
-        if (getAuthSessionGeneration() !== generation) return;
+        if (getAuthSessionGeneration() !== generation ||
+            localStorage.getItem(SYNC_KEY) !== eventEpoch ||
+            sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
         csrfRef.current = null;
         setCsrfToken(null);
         decodeToken(null);
@@ -147,11 +159,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [decodeToken, queryClient]);
 
   const login = (accessToken: string, csrf: string) => {
-    if (sessionStorage.getItem(PENDING_LOGOUT) === "1") {
+    if (sessionStorage.getItem(PENDING_LOGOUT) === "1" ||
+        localStorage.getItem(SYNC_KEY)?.startsWith('logout-pending|')) {
       setLogoutConfirmation("pending");
       return; // A stale login response must not erase logout recovery.
     }
     if (!csrf || !accessToken) return; // No access-only/legacy login.
+    // A successful new identity supersedes earlier async reads and retries.
+    advanceAuthSessionGeneration();
     localStorage.removeItem(LEGACY_ACCESS);
     csrfRef.current = csrf;
     setCsrfToken(csrf);
@@ -204,6 +219,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
+    if (sessionStorage.getItem(PENDING_LOGOUT) === '1') {
+      void retryLogout(); // Join the existing exact recovery attempt.
+      return;
+    }
+    // Same-tab storage events do not fire in their source tab: fence every
+    // in-flight refresh, login and restoration before clearing auth state.
+    advanceAuthSessionGeneration();
+    sessionStorage.setItem(PENDING_LOGOUT, '1');
     localStorage.removeItem(LEGACY_ACCESS);
     setToken(null);
     setCurrentUser(null);
@@ -212,7 +235,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     queryClient.clear();
     // A missing in-memory CSRF does not prove the HttpOnly cookie is absent.
     // Always attempt an exact cookie-bound server logout before concluding.
-    sessionStorage.setItem(PENDING_LOGOUT, '1');
     sessionStorage.removeItem(PENDING_CSRF);
     setLogoutConfirmation('pending');
     notifyOtherTabs("logout-pending");
@@ -228,6 +250,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     catch { return; }
     if (!Number.isFinite(expiry)) return;
     const generation = getAuthSessionGeneration();
+    const sharedEpoch = localStorage.getItem(SYNC_KEY);
     let cancelled = false;
     let inFlight = false;
     let retries = 0;
@@ -237,17 +260,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       timer = window.setTimeout(() => { void refresh(); }, ms);
     };
     const refresh = async () => {
-      if (cancelled || inFlight || generation !== getAuthSessionGeneration()) return;
+      if (cancelled || inFlight || generation !== getAuthSessionGeneration() ||
+          localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+          sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
       inFlight = true;
       try {
         const session = await classService.refreshBrowserSession();
-        if (cancelled || generation !== getAuthSessionGeneration()) return;
+        if (cancelled || generation !== getAuthSessionGeneration() ||
+            localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+            sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
         csrfRef.current = session.csrf_token;
         setCsrfToken(session.csrf_token);
         setToken(session.access_token);
         decodeToken(session.access_token);
       } catch (error) {
-        if (cancelled || generation !== getAuthSessionGeneration()) return;
+        if (cancelled || generation !== getAuthSessionGeneration() ||
+            localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+            sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
         if (axios.isAxiosError(error) && error.response?.status === 401) {
           csrfRef.current = null;
           setCsrfToken(null);

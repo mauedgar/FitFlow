@@ -181,3 +181,18 @@ test('Queued browser login rechecks the cross-tab epoch inside its Web Lock', ()
   assert.ok(login.includes('throw new BrowserLoginSuperseded()'));
   assert.ok(provider.includes('retryLogoutInFlight.current'));
 });
+
+test('Same-tab logout advances generation; all SPA credential restores compare shared epoch', () => {
+  const provider = load('context/AuthProvider.tsx');
+  const page = load('pages/LoginPage.tsx');
+  const logout = provider.split('const logout = () => {')[1]
+    .split('// Bounded retries')[0];
+  assert.ok(logout.indexOf('advanceAuthSessionGeneration();') <
+    logout.indexOf('setToken(null);'));
+  assert.ok(logout.includes("sessionStorage.setItem(PENDING_LOGOUT, '1')"));
+  assert.ok(provider.includes('const eventEpoch = event.newValue'));
+  assert.ok(provider.includes('localStorage.getItem(SYNC_KEY) !== eventEpoch'));
+  assert.ok(provider.includes('localStorage.getItem(SYNC_KEY) !== sharedEpoch'));
+  assert.ok(provider.includes("sessionStorage.getItem(PENDING_LOGOUT) === '1'"));
+  assert.ok(page.includes('localStorage.getItem(AUTH_SYNC_KEY) !== startedEpoch'));
+});

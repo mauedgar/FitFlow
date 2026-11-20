@@ -68,6 +68,54 @@ async function loginWithNewSignedSession(page) {
 }
 
 
+
+async function verifySameTabRefreshCannotRestoreBearerDuringLogout(browser) {
+  // Hold a real signed refresh HTTP 200 while local logout begins; the
+  // newly bumped same-tab generation must reject that late authorization.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  let announceResponse, releaseResponse;
+  const captured = new Promise(resolve => { announceResponse = resolve; });
+  const held = new Promise(resolve => { releaseResponse = resolve; });
+  try {
+    await login(page, email);
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(page);
+    assert.ok(oldAccess, 'Initial bearer must be a real signed session');
+
+    await page.route('**/auth/browser/refresh', async route => {
+      const response = await route.fetch();
+      assert.equal(response.status(), 200, 'Synthetic refresh reached the real backend');
+      announceResponse();
+      await held;
+      await route.fulfill({ response });
+    });
+
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    await within(captured, 'held same-tab signed refresh response');
+    const before = await runtimeSessionState(page);
+    await page.getByRole('button', { name: 'Menú de perfil' }).click();
+    await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await page.waitForURL('**/login');
+    assert.equal(await activeAccessToken(page), null,
+      'Local logout must clear bearer before the delayed response');
+    const after = await runtimeSessionState(page);
+    assert.ok(after.generation > before.generation,
+      'Same-tab logout must advance the generation synchronously');
+    releaseResponse();
+    await page.waitForFunction(() => sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal(await activeAccessToken(page), null,
+      'Late refresh may not resurrect an in-memory bearer after logout');
+    const old = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    });
+    assert.equal(old.status, 401, 'Real PostgreSQL revocation must still hold');
+  } finally {
+    releaseResponse?.();
+    await context.close();
+  }
+}
+
 async function verifyPendingLogoutCannotBeSilentlyReplaced(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
@@ -995,6 +1043,7 @@ async function run() {
     assert.equal(await wrongPage.getByRole('heading', { name: 'Panel de administración' }).count(), 0);
     await wrongRole.close();
     await context.close();
+    await verifySameTabRefreshCannotRestoreBearerDuringLogout(browser);
     await verifyPendingLogoutCannotBeSilentlyReplaced(browser);
     await verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser);
     await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);

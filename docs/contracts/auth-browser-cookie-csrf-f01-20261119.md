@@ -136,3 +136,20 @@ A signed two-tab Playwright regression intentionally stalls the proof
 GET and checks that another tab regains login responsiveness. Review and
 exact-head CI are required; this is not a guarantee against a backend
 commit whose HTTP ACK was lost.
+
+## IR006 S04 candidate repair — local and shared epoch barriers
+
+An accepted same-tab logout increments the auth generation synchronously
+before clearing memory and initiating durable cookie logout. An in-flight
+refresh cannot repopulate Axios bearer or React auth state after logout,
+even if its HTTP 200 arrives before the exact PostgreSQL revoke ACK.
+A repeated same-tab logout joins the original retry and does not bump the
+generation again.
+
+All asynchronous browser restore and refresh responses now compare the
+current shared localStorage auth epoch at acceptance time rather than rely
+only on delivery of storage events. LoginPage also rejects a late login
+response after that shared epoch changes. This does not claim that
+localStorage is a security token; it is a nonsecret invalidation marker.
+A real Playwright signed refresh response is held across a same-tab logout
+to exercise these boundaries. CI/independent review on the new SHA required.
