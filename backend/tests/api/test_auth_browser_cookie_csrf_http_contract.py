@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from sqlalchemy import delete
+from jose import jwt
+from sqlalchemy import delete, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -311,3 +313,40 @@ async def test_browser_credential_reads_fail_closed_without_trusted_origin(
             "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors",
         })
         assert same_origin.status_code == 200, same_origin.text
+
+
+
+async def test_expired_signed_cookie_does_not_overwrite_unresolved_logout_family(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+) -> None:
+    """An anomalously still-present expired signed cookie is not an ACK.
+
+    Real browsers evict at Max-Age; this forces the edge case explicitly
+    so the server never issues another family while signed proof remains.
+    """
+    uid, email, password = account
+    expired = jwt.encode(
+        {
+            "sub": str(uid), "sid": str(uuid.uuid4()),
+            "token_use": "refresh",
+            "exp": int((datetime.now(tz=UTC) - timedelta(seconds=35)).timestamp()),
+        },
+        settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+    )
+    api_client.cookies.set(
+        browser_session.COOKIE_NAME, expired, path=browser_session.COOKIE_PATH,
+    )
+    denied = await login(api_client, email, password)
+    assert denied.status_code == 409, denied.text
+    assert "access_token" not in denied.text
+    assert "set-cookie" not in denied.headers
+    async with AsyncSessionLocal() as db:
+        existing = await db.scalar(
+            select(AuthSession).where(AuthSession.user_id == uid)
+        )
+        assert existing is None, "No PG family may be minted behind the stale cookie"
+    # A browser which has actually expired its cookie can authenticate anew;
+    # the server never reports the previous logout as confirmed.
+    api_client.cookies.clear()
+    admitted = await login(api_client, email, password)
+    assert admitted.status_code == 200, admitted.text

@@ -2,7 +2,7 @@
 
 • Login con Access + Refresh Tokens
 • Refresh de Access Token
-• Logout con blacklist + Redis
+• Logout y revocación transaccional con PostgreSQL
 • Información del usuario autenticado
 • Integrado con CRUDUser y servicios
 • Compatible con TanStack Query
@@ -67,8 +67,8 @@ async def login_for_tokens(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # All new API logins use durable session families. Old signed SID-less
-    # credentials remain readable only until their original expiration.
+    # All API logins and bearer guards now require a typed, registered SID.
+    # Historical SID-less credentials are not accepted, even if signed.
     sid = str(uuid4())
     access_token = security.create_access_token(
         data={"sub": str(user.id), "role": user.role.value, "sid": sid}
@@ -136,8 +136,8 @@ async def get_me(
 
 
 # ---------------------------------------------------------------------------
-# Durable modern sessions (opt-in API; legacy routes remain unchanged).
-# These endpoints use PostgreSQL as the only revocation authority.
+# Durable modern sessions; original /token, /refresh and /logout are
+# PostgreSQL-backed aliases, not Redis-based legacy authority.
 # ---------------------------------------------------------------------------
 
 @router.post("/session/token", response_model=TokenPair, status_code=status.HTTP_200_OK)
@@ -297,17 +297,18 @@ async def browser_cookie_login(
 ) -> dict[str, str]:
     """Authenticate, durably COMMIT family, set HttpOnly refresh only."""
     browser_session.require_login_origin(request)
-    # A signed cookie is the only proof for retrying an uncertain logout,
-    # including when PG COMMIT succeeded but its 204 ACK was lost. Do not
-    # replace even an already-revoked family before exact replay clears it.
+    # An exact signed refresh family remains the only replay proof after
+    # lost ACK, even if its JWT has expired. Never let a subsequent login
+    # overwrite it while the browser still sends that cookie. The browser
+    # normally evicts the cookie at Max-Age; no revoked/expired cookie here
+    # is treated as proof that PostgreSQL confirmed a logout.
     prior_cookie = request.cookies.get(browser_session.COOKIE_NAME)
-    if prior_cookie:
-        prior_claims = security.decode_token(prior_cookie)
-        if security.is_refresh_token_payload(prior_claims) and "sid" in prior_claims:
-            raise HTTPException(
-                status_code=409,
-                detail="Confirmá la revocación del logout anterior antes de iniciar otra sesión.",
-            )
+    if (prior_cookie and
+            session_ledger.signed_refresh_family_for_replay(prior_cookie) is not None):
+        raise HTTPException(
+            status_code=409,
+            detail="Confirmá la revocación del logout anterior antes de iniciar otra sesión.",
+        )
     pair = await create_durable_login(form_data=form_data, db=db)
     browser_session.set_refresh_cookie(response, pair.refresh_token)
     return {

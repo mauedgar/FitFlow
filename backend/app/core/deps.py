@@ -95,7 +95,12 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = await user_crud.get(db, obj_id=user_id)
+    try:
+        user = await user_crud.get(db, obj_id=user_id)
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503, detail="Persistencia de sesiones no disponible."
+        ) from exc
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 

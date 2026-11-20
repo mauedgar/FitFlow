@@ -153,3 +153,21 @@ response after that shared epoch changes. This does not claim that
 localStorage is a security token; it is a nonsecret invalidation marker.
 A real Playwright signed refresh response is held across a same-tab logout
 to exercise these boundaries. CI/independent review on the new SHA required.
+
+
+
+## IR006 S02 — Signed expired-cookie boundary and final user lookup
+
+The browser login gate rejects any still-present *signed* modern refresh
+family cookie, even when its JWT has passed its signed expiry. Such a cookie
+is still useful as an identity for an exact lost-ACK reconciliation, but
+it is never proof of a PostgreSQL revocation. The server returns HTTP409
+without Set-Cookie or new PG session issuance. Normal browsers remove
+expired cookies according to Max-Age; a test forces an anomalously retained
+cookie and proves that a subsequent login requires it to be discarded
+first. No product path calls this a confirmed logout. Invalidly signed
+cookies are not considered replay proof.
+
+The bearer guard also maps a PostgreSQL failure during its final user
+lookup to the same HTTP503 persistence-unavailable contract as an error
+during the SID ledger lookup. Both cases have dedicated negative HTTP tests.

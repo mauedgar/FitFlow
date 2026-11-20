@@ -11,9 +11,10 @@ import pytest
 from jose import jwt
 from fastapi import status
 from sqlalchemy import delete
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.engine import make_url
 
-from app.core import security
+from app.core import security, deps as auth_deps
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.db.models.auth_session import AuthSession
@@ -340,3 +341,30 @@ async def test_legacy_refresh_cannot_mint_access_even_before_original_expiration
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert "access_token" not in response.text
 
+
+
+
+async def test_current_user_final_pg_lookup_error_returns_503(
+    api_client: httpx.AsyncClient,
+    persisted_auth_user: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An outage after the SID check is still persistence-unavailable."""
+    _uid, email, password = persisted_auth_user
+    logged = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": email, "password": password},
+    )
+    assert logged.status_code == 200, logged.text
+    access = logged.json()["access_token"]
+
+    async def unavailable(*_args: object, **_kwargs: object) -> None:
+        raise SQLAlchemyError("synthetic user lookup failure")
+
+    monkeypatch.setattr(auth_deps.user_crud, "get", unavailable)
+    response = await api_client.get(
+        f"{settings.API_V1_STR}/auth/me",
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert response.status_code == 503, response.text
+    assert response.json() == {"detail": "Persistencia de sesiones no disponible."}
