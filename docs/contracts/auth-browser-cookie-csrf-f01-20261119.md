@@ -111,3 +111,14 @@ Native CI and complete independent review on frozen candidate are required.
   verify exact *already committed* PostgreSQL logout replay, with owner,
   SID and constant-time refresh digest match. Expired credentials still
   cannot revoke active families, mint access or authenticate.
+
+## Control 015 — IR004 security profile and fixture repairs (candidate)
+
+Missing ENV defaults to fail-closed production (DEBUG false). Any unknown
+profile denies startup. Staging and production require explicit HTTPS
+credential origins with nonlocal hostnames; staging still requires Redis.
+Explicit development/test profiles can use non-Secure cookies only with
+loopback CORS origins. The cancellation and P0 security suites now invoke
+the same localhost + fitflow_test + ENV=test + TESTING guard before any
+synthetic INSERT, including no-auth tests. CI and new independent review
+must revalidate this candidate before Product acceptance.

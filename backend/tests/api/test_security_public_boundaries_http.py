@@ -15,11 +15,10 @@ import httpx
 import pytest
 from fastapi import status
 from sqlalchemy import delete, func, select
-from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.enums import ActivityType, UserRole
-from auth_session_test_helpers import committed_access
+from auth_session_test_helpers import committed_access, require_local_test_database
 from app.core.security import create_access_token
 from app.db.models import GymClass, User
 from app.db.session import AsyncSessionLocal, engine
@@ -42,9 +41,7 @@ class SecurityActors:
 
 @pytest.fixture(autouse=True)
 def require_disposable_database() -> None:
-    assert make_url(settings.DATABASE_URL).database == "fitflow_test", (
-        "Security HTTP contract may use only fitflow_test"
-    )
+    require_local_test_database()
 
 
 @pytest.fixture(autouse=True)

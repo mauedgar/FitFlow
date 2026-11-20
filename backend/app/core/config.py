@@ -42,8 +42,9 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-    ENV: str = "development"
-    DEBUG: bool = True
+    # An omitted profile is production-safe: explicit local mode is required.
+    ENV: str = "production"
+    DEBUG: bool = False
 
     # -----------------------------------------------------------------------
     # BASE DE DATOS
@@ -92,20 +93,36 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_staging_contract(self) -> Self:
-        """Reject development defaults that are unsafe in staging."""
-        if self.ENV != "staging":
+        """Reject HTTP credential origins and unsafe implicit environments."""
+        if self.ENV not in {"development", "test", "staging", "production"}:
+            raise ValueError("ENV must explicitly name a supported profile")
+        local_hosts = {"localhost", "127.0.0.1", "::1"}
+        if self.ENV in {"development", "test"}:
+            if any(
+                urlparse(origin).hostname not in local_hosts
+                or urlparse(origin).scheme not in {"http", "https"}
+                for origin in self.BACKEND_CORS_ORIGINS
+            ):
+                raise ValueError("Local profiles require loopback CORS origins")
             return self
 
         if self.DEBUG:
-            raise ValueError("DEBUG must be false in staging")
-        if self.REDIS_URL is None:
+            raise ValueError("DEBUG must be false in staging or production")
+        if self.ENV == "staging" and self.REDIS_URL is None:
             raise ValueError("REDIS_URL is required in staging")
         if not self.BACKEND_CORS_ORIGINS:
-            raise ValueError("BACKEND_CORS_ORIGINS is required in staging")
-
-        local_hosts = {"localhost", "127.0.0.1", "::1"}
-        if any(urlparse(origin).hostname in local_hosts for origin in self.BACKEND_CORS_ORIGINS):
-            raise ValueError("localhost CORS origins are forbidden in staging")
+            raise ValueError("BACKEND_CORS_ORIGINS is required in staging or production")
+        for origin in self.BACKEND_CORS_ORIGINS:
+            parsed = urlparse(origin)
+            if parsed.hostname in local_hosts:
+                raise ValueError("localhost CORS origins are forbidden in staging or production")
+            if (
+                parsed.scheme != "https"
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+            ):
+                raise ValueError("HTTPS CORS origins are required in staging or production")
         return self
 
     # -----------------------------------------------------------------------

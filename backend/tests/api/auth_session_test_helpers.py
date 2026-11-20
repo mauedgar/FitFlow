@@ -17,14 +17,17 @@ from app.db.models.auth_session import AuthSession
 from app.db.session import AsyncSessionLocal
 
 
-def staged_access(db: AsyncSession, user_id: UUID, role: str) -> str:
-    """Stage a real modern session row; caller commits with synthetic users."""
+def require_local_test_database() -> None:
+    """Fail before any synthetic INSERT, even if no bearer will be minted."""
     target = make_url(settings.DATABASE_URL)
     assert target.database == "fitflow_test"
     assert (target.host or "").lower() in {"127.0.0.1", "localhost", "::1"}
     assert settings.ENV == "test" and settings.TESTING
-    # CI and developer local synthetic profiles only: never register fixture
-    # families against a remote host with a deceptively named database.
+
+
+def staged_access(db: AsyncSession, user_id: UUID, role: str) -> str:
+    """Stage a real modern session row; caller commits with synthetic users."""
+    require_local_test_database()
     sid = uuid4()
     refresh = create_refresh_token({"sub": str(user_id), "sid": str(sid)})
     family = signed_refresh_family(refresh)
