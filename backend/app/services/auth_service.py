@@ -9,7 +9,6 @@ from uuid import UUID
 from app.core.security import decode_token, is_access_token_payload
 from app.crud import auth_session as session_ledger
 from app.crud.crud_user import user as user_crud
-from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
 from app.schemas.user import UserPublic
 from app.services.errors import AuthError
@@ -18,18 +17,15 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> UserPublic:  # noqa: UP037
+async def get_user_from_token(token: str, db: "AsyncSession") -> UserPublic:
     """Decodifica JWT y devuelve el usuario público.
 
     Lanza AuthError en cualquier fallo de autenticación o estado.
     """
+    # The caller owns the injected AsyncSession lifetime. No orphaned async
+    # generator or implicit connection survives success/failure here.
     if db is None:
-        gen = get_async_session()
-        try:
-            db = await gen.__anext__()
-        except StopAsyncIteration as err:
-            msg = "No se pudo obtener sesión de DB."
-            raise AuthError(msg) from err
+        raise AuthError("Sesión de DB requerida.")
 
     payload = decode_token(token)
     if payload is None or not is_access_token_payload(payload):

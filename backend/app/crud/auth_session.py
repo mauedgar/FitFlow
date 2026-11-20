@@ -4,11 +4,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from hashlib import sha256
 from hmac import compare_digest
+from math import isfinite
+
+from jose import JWTError, jwt
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.security import decode_token, is_refresh_token_payload
 from app.db.models.auth_session import AuthSession
 
@@ -42,6 +46,40 @@ def signed_refresh_family(token: str) -> tuple[UUID, UUID, datetime] | None:
     if family is None or expires <= datetime.now(tz=UTC):
         return None
     return family, owner, expires
+
+
+def signed_refresh_family_for_replay(token: str) -> tuple[UUID, UUID, datetime] | None:
+    """Verify an exact signed refresh family, ignoring expiry ONLY for replay.
+
+    Never authorize active sessions from this parser: revoke() still checks
+    row state, signed claims, owner and constant-time digest. Expiration is
+    deliberately enforced before any first-time COMMIT.
+    """
+    try:
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM],
+            options={"verify_exp": False},
+        )
+    except (JWTError, TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict) or payload.get("token_use") != "refresh":
+        return None
+    if "role" in payload or not isinstance(payload.get("sub"), str):
+        return None
+    sid = _uuid4(payload.get("sid"))
+    exp = payload.get("exp")
+    if sid is None or isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        return None
+    if not isfinite(exp):
+        return None
+    try:
+        owner = UUID(payload["sub"])
+        expiry = datetime.fromtimestamp(exp, tz=UTC)
+    except (ValueError, TypeError, OverflowError):
+        return None
+    if str(owner) != payload["sub"]:
+        return None
+    return sid, owner, expiry
 
 
 async def register(db: AsyncSession, *, subject: UUID, refresh_token: str) -> AuthSession:
@@ -97,10 +135,10 @@ async def revoke(db: AsyncSession, *, refresh_token: str) -> str:
 
     A second call with same exact signed refresh returns ALREADY_COMMITTED.
     """
-    claim = signed_refresh_family(refresh_token)
+    claim = signed_refresh_family_for_replay(refresh_token)
     if claim is None:
         return "INVALID"
-    sid, owner, _ = claim
+    sid, owner, signed_expiry = claim
     try:
         row = await db.scalar(
             select(AuthSession).where(
@@ -115,7 +153,9 @@ async def revoke(db: AsyncSession, *, refresh_token: str) -> str:
         if row.revoked_at is not None:
             await db.rollback()
             return "ALREADY_COMMITTED"
-        if row.expires_at <= datetime.now(tz=UTC):
+        if row.expires_at <= datetime.now(tz=UTC) or signed_expiry <= datetime.now(tz=UTC):
+            # An expired signed token may ACK an already-revoked row above,
+            # but can NEVER revoke one which was still active.
             await db.rollback()
             return "INVALID"
         row.revoked_at = datetime.now(tz=UTC)

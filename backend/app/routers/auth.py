@@ -235,13 +235,15 @@ async def logout_durable_session(
     The only success receipt is PostgreSQL COMMIT or an exact replay.
     """
     token = token_request.refresh_token
-    payload = security.decode_token(token)
-    if not security.is_refresh_token_payload(payload):
+    if session_ledger.signed_refresh_family_for_replay(token) is None:
+        # Old SID-less refresh still has a distinct rejection contract while
+        # expired signed modern refresh may only ACK an earlier exact COMMIT.
+        payload = security.decode_token(token)
+        if security.is_refresh_token_payload(payload) and "sid" not in payload:
+            raise HTTPException(
+                status_code=409, detail="Token legado: requiere reautenticación.",
+            )
         raise HTTPException(status_code=400, detail="Refresh de sesión inválido.")
-    if "sid" not in payload:
-        raise HTTPException(
-            status_code=409, detail="Token legado: requiere reautenticación.",
-        )
     try:
         outcome = await session_ledger.revoke(db, refresh_token=token)
     except Exception as exc:
@@ -344,8 +346,9 @@ async def browser_logout_proof(
     """
     browser_session.require_credential_read_origin(request)
     signed = browser_session.cookie_refresh_token(request)
-    payload = security.decode_token(signed)
-    if not security.is_refresh_token_payload(payload) or "sid" not in payload:
+    # A signed expired refresh is proof of the exact family for retry only,
+    # never a bearer credential or permission to mint another access token.
+    if session_ledger.signed_refresh_family_for_replay(signed) is None:
         raise HTTPException(status_code=401, detail="Cookie de sesión inválida.")
     response.headers["Cache-Control"] = "no-store"
     response.headers["Vary"] = "Origin"
@@ -377,8 +380,7 @@ async def browser_cookie_logout(
     """Clear HttpOnly cookie only after confirmed DB COMMIT or exact replay."""
     token = browser_session.cookie_refresh_token(request)
     browser_session.verify_state_change(request, token)
-    payload = security.decode_token(token)
-    if not security.is_refresh_token_payload(payload) or "sid" not in payload:
+    if session_ledger.signed_refresh_family_for_replay(token) is None:
         raise HTTPException(status_code=401, detail="Sesión de navegador inválida.")
     try:
         outcome = await session_ledger.revoke(db, refresh_token=token)

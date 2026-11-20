@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+
+from jose import jwt
 
 import httpx
 import pytest
@@ -14,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core import security
 from app.core.config import settings
 from app.core.enums import UserRole
+from app.crud.auth_session import fingerprint
 from app.db.models.auth_session import AuthSession
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
@@ -348,3 +351,47 @@ async def test_default_token_and_legacy_refresh_url_route_modern_sid_through_pg(
         json={"refresh_token": pair["refresh_token"]},
     )
     assert replay.status_code == 401
+
+
+async def test_expired_signed_refresh_exact_ack_only_after_pg_commit(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+) -> None:
+    """Expired token cannot revoke active family; exact committed replay is 204."""
+    uid, _email, _password = account
+    expired = datetime.now(tz=UTC) - timedelta(seconds=45)
+    revoked_sid, active_sid = uuid.uuid4(), uuid.uuid4()
+    def signed(sid: uuid.UUID) -> str:
+        return jwt.encode(
+            {"sub": str(uid), "sid": str(sid), "token_use": "refresh",
+             "exp": int(expired.timestamp())},
+            settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+        )
+    revoked_token, active_token = signed(revoked_sid), signed(active_sid)
+    async with AsyncSessionLocal() as db:
+        db.add_all([
+            AuthSession(id=revoked_sid, user_id=uid,
+                        refresh_digest=fingerprint(revoked_token),
+                        expires_at=expired, revoked_at=expired),
+            AuthSession(id=active_sid, user_id=uid,
+                        refresh_digest=fingerprint(active_token),
+                        expires_at=expired),
+        ])
+        await db.commit()
+    confirmed = await api_client.post(
+        f"{settings.API_V1_STR}/auth/session/logout",
+        json={"refresh_token": revoked_token},
+    )
+    assert confirmed.status_code == 204, confirmed.text
+    blocked = await api_client.post(
+        f"{settings.API_V1_STR}/auth/session/logout",
+        json={"refresh_token": active_token},
+    )
+    assert blocked.status_code == 401, blocked.text
+    renewed = await api_client.post(
+        f"{settings.API_V1_STR}/auth/session/refresh",
+        json={"refresh_token": revoked_token},
+    )
+    assert renewed.status_code == 401, renewed.text
+    async with AsyncSessionLocal() as db:
+        unchanged = await db.get(AuthSession, active_sid)
+        assert unchanged is not None and unchanged.revoked_at is None

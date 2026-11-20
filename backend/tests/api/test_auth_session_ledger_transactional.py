@@ -4,7 +4,9 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+
+from jose import jwt
 
 import pytest
 from sqlalchemy import delete
@@ -13,7 +15,7 @@ from sqlalchemy.engine import make_url
 from app.core import security
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.crud.auth_session import is_active, register, revoke, signed_refresh_family
+from app.crud.auth_session import fingerprint, is_active, register, revoke, signed_refresh_family
 from app.db.models.auth_session import AuthSession
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
@@ -124,3 +126,40 @@ async def test_concurrent_exact_refresh_logout_is_serialized_by_postgres(
     assert sorted(results) == ["ALREADY_COMMITTED", "COMMITTED"]
     async with AsyncSessionLocal() as db:
         assert not await is_active(db, sid=sid, subject=str(owner))
+
+
+async def test_expired_refresh_replays_only_an_already_revoked_exact_family(
+    owner: uuid.UUID,
+) -> None:
+    """No expired token can perform a first revoke, even if signed correctly."""
+    expired = datetime.now(tz=UTC) - timedelta(seconds=60)
+    replay_sid, active_sid = uuid.uuid4(), uuid.uuid4()
+    def signed(sid: uuid.UUID) -> str:
+        return jwt.encode(
+            {"sub": str(owner), "sid": str(sid), "token_use": "refresh",
+             "exp": int(expired.timestamp())},
+            settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+        )
+    replay_token, active_token = signed(replay_sid), signed(active_sid)
+    async with AsyncSessionLocal() as db:
+        db.add_all([
+            AuthSession(id=replay_sid, user_id=owner,
+                        refresh_digest=fingerprint(replay_token),
+                        expires_at=expired, revoked_at=expired),
+            AuthSession(id=active_sid, user_id=owner,
+                        refresh_digest=fingerprint(active_token),
+                        expires_at=expired),
+        ])
+        await db.commit()
+    async with AsyncSessionLocal() as db:
+        assert await revoke(db, refresh_token=replay_token) == "ALREADY_COMMITTED"
+        assert await revoke(db, refresh_token=active_token) == "INVALID"
+        forged = jwt.encode(
+            {"sub": str(uuid.uuid4()), "sid": str(replay_sid),
+             "token_use": "refresh", "exp": int(expired.timestamp())},
+            settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+        )
+        assert await revoke(db, refresh_token=forged) == "INVALID"
+        assert await is_active(db, sid=str(active_sid), subject=str(owner)) is False
+        row = await db.get(AuthSession, active_sid)
+        assert row is not None and row.revoked_at is None
