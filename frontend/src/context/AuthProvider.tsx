@@ -5,14 +5,14 @@ import axios from "axios";
 import apiClient from "../services/api";
 import classService, { BrowserLogoutProofUnavailable } from "../services/classService";
 import { AuthContext, type LogoutConfirmation } from "./AuthContext";
-import { advanceAuthSessionGeneration, getAuthSessionGeneration } from "../utils/authSessionGeneration";
+import { AUTH_SYNC_KEY, advanceAuthSessionGeneration, getAuthSessionGeneration } from "../utils/authSessionGeneration";
 import type { User, TokenPayload, UserRole, Booking, Client } from "../types";
 
 interface AuthProviderProps { children: ReactNode; }
 const LEGACY_ACCESS = "access_token";
 const PENDING_LOGOUT = "fitflow_logout_pending";
 const PENDING_CSRF = "fitflow_logout_csrf";
-const SYNC_KEY = "fitflow_browser_auth_epoch";
+const SYNC_KEY = AUTH_SYNC_KEY;
 
 /** Broadcast only a non-secret state-change signal; never a bearer or CSRF. */
 const notifyOtherTabs = (action: string): void => {
@@ -24,6 +24,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const csrfRef = useRef<string | null>(null);
+  const retryLogoutInFlight = useRef<Promise<void> | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -165,35 +166,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     notifyOtherTabs("login");
   };
 
-  const retryLogout = async (): Promise<void> => {
+  const retryLogout = (): Promise<void> => {
+    // A manual retry during an automatic retry must join its original result;
+    // two same-tab GET/POST chains could otherwise overwrite a confirmed ACK.
+    if (retryLogoutInFlight.current) return retryLogoutInFlight.current;
     const expectedGeneration = getAuthSessionGeneration();
-    try {
-      // Read the current cookie proof and revoke under one cross-tab Web Lock.
-      // Never reuse CSRF cached before a concurrent tab changed the cookie.
-      await classService.retryBrowserLogoutFromCookie();
-      if (getAuthSessionGeneration() !== expectedGeneration) return;
-      csrfRef.current = null;
-      setCsrfToken(null);
-      sessionStorage.removeItem(PENDING_LOGOUT);
-      sessionStorage.removeItem(PENDING_CSRF);
-      setLogoutConfirmation('confirmed');
-      notifyOtherTabs("logout-confirmed");
-    } catch (error) {
-      if (getAuthSessionGeneration() !== expectedGeneration) return;
-      if (error instanceof BrowserLogoutProofUnavailable) {
-        // Missing/expired cookie means no exact revocation ACK is possible.
-        // This does NOT mean PostgreSQL committed logout. Unblock a fresh
-        // login only after the old cookie can no longer authenticate.
+    const task = (async (): Promise<void> => {
+      try {
+        await classService.retryBrowserLogoutFromCookie();
+        if (getAuthSessionGeneration() !== expectedGeneration) return;
         csrfRef.current = null;
         setCsrfToken(null);
         sessionStorage.removeItem(PENDING_LOGOUT);
         sessionStorage.removeItem(PENDING_CSRF);
-        setLogoutConfirmation('expired-unconfirmed');
-        notifyOtherTabs("logout-expired-unconfirmed");
-        return;
+        setLogoutConfirmation('confirmed');
+        notifyOtherTabs("logout-confirmed");
+      } catch (error) {
+        if (getAuthSessionGeneration() !== expectedGeneration) return;
+        if (error instanceof BrowserLogoutProofUnavailable) {
+          // Missing/expired cookie is never a server COMMIT acknowledgement.
+          csrfRef.current = null;
+          setCsrfToken(null);
+          sessionStorage.removeItem(PENDING_LOGOUT);
+          sessionStorage.removeItem(PENDING_CSRF);
+          setLogoutConfirmation('expired-unconfirmed');
+          notifyOtherTabs("logout-expired-unconfirmed");
+          return;
+        }
+        setLogoutConfirmation('pending');
       }
-      setLogoutConfirmation('pending');
-    }
+    })();
+    retryLogoutInFlight.current = task;
+    void task.finally(() => {
+      if (retryLogoutInFlight.current === task) retryLogoutInFlight.current = null;
+    });
+    return task;
   };
 
   const logout = () => {

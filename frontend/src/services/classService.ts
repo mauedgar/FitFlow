@@ -2,6 +2,7 @@
 import axios from 'axios';
 import apiClient from './api';
 import { withExclusiveBrowserCookie } from '../utils/browserCookieLock';
+import { AUTH_SYNC_KEY, getAuthSessionGeneration } from '../utils/authSessionGeneration';
 
 import {
   type GymClass,
@@ -28,10 +29,29 @@ export class BrowserLogoutProofUnavailable extends Error {
   }
 }
 
+/** Stale queued logins must not write a new cookie after a real logout. */
+export class BrowserLoginSuperseded extends Error {
+  constructor() {
+    super('El estado de la sesión cambió antes de iniciar el login.');
+    this.name = 'BrowserLoginSuperseded';
+  }
+}
+
 const classService = {
   // --- Autenticación ---
-  async login(payload: LoginPayload): Promise<BrowserSessionResponse> {
+  async login(
+    payload: LoginPayload,
+    expectedGeneration: number,
+    expectedSharedEpoch: string | null,
+  ): Promise<BrowserSessionResponse> {
     return withExclusiveBrowserCookie(async (signal) => {
+      // Evaluate inside the Web Lock before POST/Set-Cookie. Cross-tab storage
+      // events can arrive late, so compare the actual shared epoch too.
+      if (getAuthSessionGeneration() !== expectedGeneration ||
+          localStorage.getItem(AUTH_SYNC_KEY) !== expectedSharedEpoch ||
+          sessionStorage.getItem('fitflow_logout_pending') === '1') {
+        throw new BrowserLoginSuperseded();
+      }
       const formData = new URLSearchParams();
       formData.append('username', payload.username);
       formData.append('password', payload.password);

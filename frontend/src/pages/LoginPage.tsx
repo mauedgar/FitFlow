@@ -4,8 +4,8 @@ import { Box, Button, Heading, Input, VStack, Text, Link, Container, Field } fro
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query'; // ⭐ Importamos useMutation
 import { useAuth } from '../context/useAuth'; // ⭐ Importamos el contexto de Auth
-import classService from '../services/classService'; // ⭐ Usaremos classService para el login
-import { getAuthSessionGeneration } from '../utils/authSessionGeneration';
+import classService, { BrowserLoginSuperseded } from '../services/classService'; // ⭐ Login con Web Lock
+import { AUTH_SYNC_KEY, getAuthSessionGeneration } from '../utils/authSessionGeneration';
 import { UserRole, type BrowserSessionResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
 import { AxiosError } from 'axios'; // ⭐ Para un manejo de errores más específico
 import { type TokenPayload } from '../types';
@@ -29,7 +29,8 @@ const LoginPage = () => {
       // Capture BEFORE network dispatch: a later cross-tab logout invalidates
       // this operation even if the server eventually returns HTTP 200.
       const startedGeneration = getAuthSessionGeneration();
-      const session = await classService.login(credentials);
+      const startedEpoch = localStorage.getItem(AUTH_SYNC_KEY);
+      const session = await classService.login(credentials, startedGeneration, startedEpoch);
       return { session, startedGeneration };
     },
 
@@ -66,6 +67,7 @@ const LoginPage = () => {
 
     // Callback que se ejecuta si la mutación falla
     onError: (error) => {
+      if (error instanceof BrowserLoginSuperseded) return; // A newer logout won.
       // El objeto AxiosError puede contener credenciales en config.data.
       // No se registra ni se muestra información arbitraria del servidor.
       const errorMessage = error.response?.status === 409

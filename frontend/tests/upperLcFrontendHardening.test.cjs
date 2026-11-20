@@ -163,3 +163,21 @@ test('No alternate browser login path may bypass the exclusive cookie Web Lock',
   assert.deepEqual(offenders, [], 'Only locked classService may write the browser login cookie');
   assert.doesNotMatch(load('services/api.ts'), /export const loginUser/);
 });
+
+
+test('Queued browser login rechecks the cross-tab epoch inside its Web Lock', () => {
+  const page = load('pages/LoginPage.tsx');
+  const service = load('services/classService.ts');
+  const generation = load('utils/authSessionGeneration.ts');
+  const provider = load('context/AuthProvider.tsx');
+  assert.ok(generation.includes("AUTH_SYNC_KEY = 'fitflow_browser_auth_epoch'"));
+  assert.ok(page.includes('const startedEpoch = localStorage.getItem(AUTH_SYNC_KEY)'));
+  assert.ok(page.includes('classService.login(credentials, startedGeneration, startedEpoch)'));
+  const login = service.split('async login(')[1].split('async restoreBrowserSession')[0];
+  assert.ok(login.indexOf('withExclusiveBrowserCookie(async (signal)') <
+    login.indexOf('getAuthSessionGeneration() !== expectedGeneration'));
+  assert.ok(login.indexOf('localStorage.getItem(AUTH_SYNC_KEY) !== expectedSharedEpoch') <
+    login.indexOf("'/auth/browser/token'"));
+  assert.ok(login.includes('throw new BrowserLoginSuperseded()'));
+  assert.ok(provider.includes('retryLogoutInFlight.current'));
+});
