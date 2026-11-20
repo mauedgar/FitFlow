@@ -109,8 +109,13 @@ async def register(db: AsyncSession, *, subject: UUID, refresh_token: str) -> Au
 async def is_active(
     db: AsyncSession, *, sid: str, subject: str,
     refresh_token: str | None = None,
+    for_update: bool = False,
 ) -> bool:
-    """Revoked, missing, wrong-owner, expired or wrong-digest is always deny."""
+    """Check the live session; lock the row while minting refresh access.
+
+    A refresh and an exact logout serialize on the same PG row lock.
+    Ordinary bearer verification uses a nonlocking MVCC read.
+    """
     family = _uuid4(sid)
     try:
         owner = UUID(subject)
@@ -118,9 +123,12 @@ async def is_active(
         return False
     if family is None:
         return False
-    row = await db.scalar(
-        select(AuthSession).where(AuthSession.id == family, AuthSession.user_id == owner)
+    query = select(AuthSession).where(
+        AuthSession.id == family, AuthSession.user_id == owner,
     )
+    if for_update:
+        query = query.with_for_update()
+    row = await db.scalar(query)
     if row is None or row.revoked_at is not None:
         return False
     if row.expires_at <= datetime.now(tz=UTC):

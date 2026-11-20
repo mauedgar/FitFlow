@@ -9,7 +9,8 @@ from datetime import UTC, datetime, timedelta
 from jose import jwt
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.engine import make_url
 
 from app.core import security
@@ -126,6 +127,40 @@ async def test_concurrent_exact_refresh_logout_is_serialized_by_postgres(
     assert sorted(results) == ["ALREADY_COMMITTED", "COMMITTED"]
     async with AsyncSessionLocal() as db:
         assert not await is_active(db, sid=sid, subject=str(owner))
+
+
+async def test_refresh_exclusive_row_lock_serializes_logout_and_preserves_bearer_reads(
+    owner: uuid.UUID,
+) -> None:
+    """Real PG NOWAIT witnesses a refresh/logout mutual exclusion barrier."""
+    sid, signed = new_login(owner)
+    async with AsyncSessionLocal() as db:
+        await register(db, subject=owner, refresh_token=signed)
+
+    async with AsyncSessionLocal() as minting:
+        assert await is_active(
+            minting, sid=sid, subject=str(owner),
+            refresh_token=signed, for_update=True,
+        )
+        async with AsyncSessionLocal() as normal_bearer:
+            assert await is_active(normal_bearer, sid=sid, subject=str(owner))
+            await normal_bearer.rollback()
+        async with AsyncSessionLocal() as competing_logout:
+            with pytest.raises(DBAPIError):
+                await competing_logout.scalar(
+                    select(AuthSession)
+                    .where(AuthSession.id == uuid.UUID(sid))
+                    .with_for_update(nowait=True)
+                )
+            await competing_logout.rollback()
+        await minting.rollback()
+
+    async with AsyncSessionLocal() as db:
+        assert await revoke(db, refresh_token=signed) == "COMMITTED"
+        assert not await is_active(
+            db, sid=sid, subject=str(owner),
+            refresh_token=signed, for_update=True,
+        )
 
 
 async def test_expired_refresh_replays_only_an_already_revoked_exact_family(

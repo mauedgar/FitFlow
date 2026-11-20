@@ -71,3 +71,14 @@ without closing it: the caller must inject/own the AsyncSession.
 Test-only family helper requires localhost plus test profile and
 fitflow_test, not database name alone; fixture teardown remains an
 independent review concern, and this is not a claim of production safety.
+
+## Control 015 — IR004 refresh/logout PG row lock (candidate)
+
+Both /auth/session/refresh and /auth/browser/refresh now obtain an
+exclusive SELECT FOR UPDATE on the exact session-family row before
+reading persisted user role and issuing access. A logout must acquire
+that same lock and COMMIT; it cannot overtake an in-progress refresh.
+Ordinary bearer verification and cookie session rehydrate remain
+nonlocking to avoid serializing normal reads. A disposable real
+PostgreSQL NOWAIT regression witnesses the lock boundary and its release.
+Source and tests remain subject to new exact-commit CI and IR.

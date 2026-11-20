@@ -197,7 +197,7 @@ async def refresh_durable_session(
     try:
         allowed = await session_ledger.is_active(
             db, sid=payload["sid"], subject=payload["sub"],
-            refresh_token=refresh_token,
+            refresh_token=refresh_token, for_update=True,
         )
     except SQLAlchemyError as exc:
         raise HTTPException(
@@ -259,7 +259,7 @@ async def logout_durable_session(
 # API clients retain the separate /session/* bearer mode until cutover is accepted.
 
 async def _browser_access(
-    db: AsyncSession, refresh_token: str,
+    db: AsyncSession, refresh_token: str, *, for_update: bool = False,
 ) -> dict[str, str]:
     """Validate signed purpose, exact session digest and current persisted role."""
     payload = security.decode_token(refresh_token)
@@ -268,7 +268,7 @@ async def _browser_access(
     try:
         active = await session_ledger.is_active(
             db, sid=payload["sid"], subject=payload["sub"],
-            refresh_token=refresh_token,
+            refresh_token=refresh_token, for_update=for_update,
         )
         if not active:
             raise HTTPException(status_code=401, detail="Sesión revocada o expirada.")
@@ -365,7 +365,7 @@ async def browser_cookie_refresh(
     """Both strict Origin and HMAC CSRF header required for cookie POST."""
     token = browser_session.cookie_refresh_token(request)
     browser_session.verify_state_change(request, token)
-    result = await _browser_access(db, token)
+    result = await _browser_access(db, token, for_update=True)
     response.headers["Cache-Control"] = "no-store"
     return result
 
