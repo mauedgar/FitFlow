@@ -360,6 +360,57 @@ async function verifyQueuedLoginCannotResurrectAfterRealLogout(browser) {
   }
 }
 
+
+async function verifySurvivingTabRecoversOrphanedLogout(browser) {
+  // Real cookie-bound HTTP revocation after the initiator closes without
+  // reaching the server. No synthetic localStorage ACK is supplied.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const initiator = await context.newPage();
+  const survivor = await context.newPage();
+  let releaseHeld;
+  let reportCaptured;
+  const release = new Promise(resolve => { releaseHeld = resolve; });
+  const captured = new Promise(resolve => { reportCaptured = resolve; });
+  try {
+    await login(initiator, email);
+    await initiator.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(initiator);
+    assert.ok(oldAccess);
+    await survivor.goto(WEB + '/admin');
+    await survivor.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await initiator.route('**/auth/browser/logout', route => route.abort());
+    await survivor.route('**/auth/browser/logout', async route => {
+      reportCaptured();
+      await release;
+      await route.continue();
+    });
+    await initiator.getByRole('button', { name: 'Menú de perfil' }).click();
+    await initiator.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(captured, 'survivor auto recovery POST');
+    assert.equal(await survivor.evaluate(
+      () => sessionStorage.getItem('fitflow_logout_pending')), '1');
+    assert.equal((await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    })).status, 200, 'Intercepted survivor POST has not revoked the old family');
+    await initiator.close(); // Origin dies; the surviving tab owns the recovery.
+    const ack = survivor.waitForResponse(response =>
+      response.url() === API + '/auth/browser/logout' && response.status() === 204);
+    releaseHeld();
+    await within(ack, 'real PG revocation ACK in survivor');
+    await survivor.waitForFunction(
+      () => sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal((await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    })).status, 401, 'Confirmed survivor ACK must revoke the old family');
+    await survivor.goto(WEB + '/login');
+    assert.equal(await survivor.getByRole('button', { name: 'Ingresar' }).isDisabled(),
+      false, 'Sign-in unblocks only after real revocation ACK');
+  } finally {
+    releaseHeld?.();
+    await context.close();
+  }
+}
+
 async function verifySameTabConcurrentLogoutRetriesJoinOriginal(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
@@ -1047,6 +1098,7 @@ async function run() {
     await verifyPendingLogoutCannotBeSilentlyReplaced(browser);
     await verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser);
     await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
+    await verifySurvivingTabRecoversOrphanedLogout(browser);
     await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
     await verifyQueuedLoginCannotResurrectAfterRealLogout(browser);
     await verifySameTabConcurrentLogoutRetriesJoinOriginal(browser);

@@ -25,6 +25,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const csrfRef = useRef<string | null>(null);
   const retryLogoutInFlight = useRef<Promise<void> | null>(null);
+  // Only a surviving tab or a reloaded pending session needs automatic
+  // orphan recovery; the initiating tab already owns its original POST.
+  const needsOrphanRecovery = useRef(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -61,6 +64,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const generation = getAuthSessionGeneration();
     const sharedEpoch = localStorage.getItem(SYNC_KEY);
     if (sessionStorage.getItem(PENDING_LOGOUT) === '1') {
+      needsOrphanRecovery.current = true;
       csrfRef.current = sessionStorage.getItem(PENDING_CSRF);
       setCsrfToken(csrfRef.current);
       setLogoutConfirmation('pending');
@@ -82,11 +86,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       decodeToken(session.access_token);
       setLogoutConfirmation('idle');
     }).catch(() => {
-      if (cancelled || generation !== getAuthSessionGeneration()) return;
+      if (cancelled || generation !== getAuthSessionGeneration() ||
+          localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+          sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
       setToken(null);
       decodeToken(null);
     }).finally(() => {
-      if (!cancelled && generation === getAuthSessionGeneration()) {
+      if (!cancelled && generation === getAuthSessionGeneration() &&
+          localStorage.getItem(SYNC_KEY) === sharedEpoch &&
+          sessionStorage.getItem(PENDING_LOGOUT) !== '1') {
         setIsLoadingAuth(false);
       }
     });
@@ -113,6 +121,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       delete apiClient.defaults.headers.common["Authorization"];
       queryClient.clear();
       if (action === "logout-pending") {
+        // The origin tab may close before POST. A surviving tab must recover
+        // the signed cookie using its own bounded, deduplicated attempt.
+        needsOrphanRecovery.current = true;
         sessionStorage.setItem(PENDING_LOGOUT, "1");
         // CSRF belongs to the original tab's cookie snapshot. Never copy
         // that stale proof into another tab after an auth generation change.
@@ -124,6 +135,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       if (action === "logout-confirmed" ||
           action === "logout-expired-unconfirmed") {
+        needsOrphanRecovery.current = false;
         sessionStorage.removeItem(PENDING_LOGOUT);
         sessionStorage.removeItem(PENDING_CSRF);
         csrfRef.current = null;
@@ -181,7 +193,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     notifyOtherTabs("login");
   };
 
-  const retryLogout = (): Promise<void> => {
+  const retryLogout = useCallback((): Promise<void> => {
     // A manual retry during an automatic retry must join its original result;
     // two same-tab GET/POST chains could otherwise overwrite a confirmed ACK.
     if (retryLogoutInFlight.current) return retryLogoutInFlight.current;
@@ -216,7 +228,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (retryLogoutInFlight.current === task) retryLogoutInFlight.current = null;
     });
     return task;
-  };
+  }, []);
+
+  // A peer's logout-pending signal or a tab reload is not an ACK. Try one
+  // signed cookie-bound recovery after the pending UI is visible, and retry
+  // only on a genuine online transition after a transient failure. The
+  // existing in-flight ref and cookie Web Lock prevent same-tab duplicates.
+  useEffect(() => {
+    if (logoutConfirmation !== 'pending' ||
+        sessionStorage.getItem(PENDING_LOGOUT) !== '1') return;
+    const recover = () => {
+      if (sessionStorage.getItem(PENDING_LOGOUT) === '1') void retryLogout();
+    };
+    window.addEventListener('online', recover);
+    let timer: number | undefined;
+    if (needsOrphanRecovery.current) {
+      needsOrphanRecovery.current = false;
+      timer = window.setTimeout(recover, 150);
+    }
+    return () => {
+      window.removeEventListener('online', recover);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [logoutConfirmation, retryLogout]);
 
   const logout = () => {
     if (sessionStorage.getItem(PENDING_LOGOUT) === '1') {
@@ -226,6 +260,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Same-tab storage events do not fire in their source tab: fence every
     // in-flight refresh, login and restoration before clearing auth state.
     advanceAuthSessionGeneration();
+    needsOrphanRecovery.current = false;
     sessionStorage.setItem(PENDING_LOGOUT, '1');
     localStorage.removeItem(LEGACY_ACCESS);
     setToken(null);

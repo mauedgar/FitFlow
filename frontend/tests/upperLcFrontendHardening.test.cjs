@@ -196,3 +196,15 @@ test('Same-tab logout advances generation; all SPA credential restores compare s
   assert.ok(provider.includes("sessionStorage.getItem(PENDING_LOGOUT) === '1'"));
   assert.ok(page.includes('localStorage.getItem(AUTH_SYNC_KEY) !== startedEpoch'));
 });
+
+test('Orphaned cross-tab pending logout schedules a bounded signed recovery', () => {
+  const provider = load('context/AuthProvider.tsx');
+  assert.ok(provider.includes('needsOrphanRecovery.current = true;'));
+  assert.ok(provider.includes('window.setTimeout(recover, 150)'));
+  assert.ok(provider.includes("window.addEventListener('online', recover)"));
+  assert.ok(provider.includes("window.removeEventListener('online', recover)"));
+  assert.ok(provider.includes("sessionStorage.getItem(PENDING_LOGOUT) === '1'"));
+  assert.ok(provider.includes('if (retryLogoutInFlight.current) return retryLogoutInFlight.current'));
+  assert.ok(provider.includes('localStorage.getItem(SYNC_KEY) !== sharedEpoch'));
+  assert.ok(provider.includes("sessionStorage.getItem(PENDING_LOGOUT) !== '1'"));
+});
