@@ -123,7 +123,7 @@ def test_staging_fails_closed_on_unsafe_or_missing_values(
         "https://fitflow.example:99999",
         "https://fitflow.example:",
         "https://user:password@fitflow.example",
-        "https://fitflow.example\\\\unexpected",
+        "https://fitflow.example\\unexpected",
     ],
 )
 @pytest.mark.parametrize("profile", ["staging", "production"])

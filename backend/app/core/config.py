@@ -99,7 +99,7 @@ class Settings(BaseSettings):
         fragment, credentials, whitespace, invalid port or trailing slash.
         """
         if not isinstance(origin, str) or not origin or any(
-            ch.isspace() or ch == "\\\\" for ch in origin
+            ch.isspace() or ch == "\\" for ch in origin
         ):
             return False
         try:

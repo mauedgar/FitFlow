@@ -147,13 +147,14 @@ test('No alternate browser login path may bypass the exclusive cookie Web Lock',
   const offenders = [];
   while (queue.length) {
     const folder = queue.pop();
+    if (!folder) continue;
     for (const item of fs.readdirSync(folder, { withFileTypes: true })) {
       const absolute = path.join(folder, item.name);
       if (item.isDirectory()) queue.push(absolute);
-      else if (/\\.tsx?$/.test(item.name)) {
-        const relative = path.relative(srcRoot, absolute).replaceAll('\\\\', '/');
+      else if (item.name.endsWith('.ts') || item.name.endsWith('.tsx')) {
+        const relative = path.relative(srcRoot, absolute).split(path.sep).join('/');
         if (relative !== 'services/classService.ts' &&
-            /\\/auth\\/browser\\/token/.test(fs.readFileSync(absolute, 'utf8'))) {
+            fs.readFileSync(absolute, 'utf8').includes('/auth/browser/token')) {
           offenders.push(relative);
         }
       }
