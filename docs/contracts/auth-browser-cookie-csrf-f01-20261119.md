@@ -94,3 +94,20 @@ domains now register synthetic PG sessions with signed refresh digest using
 a disposable test-only helper (no Product TESTING bypass). All user/domain
 claims and signing still flow through standard Product paths.
 Native CI and complete independent review on frozen candidate are required.
+
+## Control 015 — IR003 source repairs (candidate, not accepted)
+
+- A delayed successful login response is bound to the auth generation at
+  dispatch; if another tab reports a later logout, its HTTP 200 cannot
+  re-establish React identity or navigate to a protected page.
+- Browser refresh takes the exclusive cookie Web Lock *before* acquiring
+  the current cookie-bound CSRF proof. It no longer sends a proof captured
+  before waiting for another tab's cookie transition.
+- AdminSessionGate uses only the current in-memory bearer for 401 matching,
+  never a historical localStorage credential.
+- The browser regression suite adds a held successful login delivery and
+  a queued refresh after a concurrent signed cookie replacement.
+- A refresh JWT may be signature-verified beyond expiry solely as a key to
+  verify exact *already committed* PostgreSQL logout replay, with owner,
+  SID and constant-time refresh digest match. Expired credentials still
+  cannot revoke active families, mint access or authenticate.

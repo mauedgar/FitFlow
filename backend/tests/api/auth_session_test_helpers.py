@@ -19,8 +19,12 @@ from app.db.session import AsyncSessionLocal
 
 def staged_access(db: AsyncSession, user_id: UUID, role: str) -> str:
     """Stage a real modern session row; caller commits with synthetic users."""
-    assert make_url(settings.DATABASE_URL).database == "fitflow_test"
+    target = make_url(settings.DATABASE_URL)
+    assert target.database == "fitflow_test"
+    assert (target.host or "").lower() in {"127.0.0.1", "localhost", "::1"}
     assert settings.ENV == "test" and settings.TESTING
+    # CI and developer local synthetic profiles only: never register fixture
+    # families against a remote host with a deceptively named database.
     sid = uuid4()
     refresh = create_refresh_token({"sub": str(user_id), "sid": str(sid)})
     family = signed_refresh_family(refresh)

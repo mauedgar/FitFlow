@@ -265,5 +265,5 @@ async def test_booking_cancel_authenticated_disallowed_teacher() -> None:
         f"case=disallowed_teacher http={response.status_code} booking={stored.value}"
     )
 
-    assert response.status_code >= status.HTTP_400_BAD_REQUEST, response.text
+    assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
     assert stored == BookingStatus.confirmed

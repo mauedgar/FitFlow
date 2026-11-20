@@ -54,3 +54,20 @@ a signed refresh with SID plus an authorized owner bearer, and delegates
 to PostgreSQL revocation; failed COMMIT/ACK never returns false 204.
 Use /auth/session/logout for replay when an access bearer has expired or
 was revoked. Legacy SID-less bearer acceptance is not yet removed.
+
+## Control 015 — expiry-boundary replay and session ownership
+
+Independent IR003 identified a missing expiry-boundary ACK. The ledger
+now parses a signed refresh with expiration ignored only in its exact
+replay path; an active session must still have both unexpired signed JWT
+and ledger row. After commit and loss of ACK, the same already-revoked
+family may acknowledge 204 even if the refresh JWT expires before retry.
+An expired token cannot revoke any row which is not already revoked.
+Disposable PostgreSQL unit/HTTP tests cover exact committed replay,
+expired unrevoked rejection and spoofed subject rejection.
+
+Standalone auth_service no longer opens an async FastAPI dependency
+without closing it: the caller must inject/own the AsyncSession.
+Test-only family helper requires localhost plus test profile and
+fitflow_test, not database name alone; fixture teardown remains an
+independent review concern, and this is not a claim of production safety.
