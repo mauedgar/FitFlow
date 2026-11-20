@@ -15,7 +15,7 @@ from app.core.enums import (
     ClassSessionStatus,
     UserRole,
 )
-from app.core.security import create_access_token
+from auth_session_test_helpers import committed_access
 from app.db.models import (
     Booking,
     ClassSchedule,
@@ -135,17 +135,16 @@ async def _fixture(
         await db.flush()
 
         booking_id = booking.id
+        caller_id = (
+            owner_user.id if caller_role == UserRole.client and caller_owns_booking
+            else caller_user.id if caller_role is not None else None
+        )
         await db.commit()
 
-    if caller_email is None:
+    if caller_email is None or caller_id is None or caller_role is None:
         return booking_id, None
 
-    access_token = create_access_token(
-        {
-            "sub": caller_email,
-            "role": caller_role.value if caller_role is not None else "",
-        }
-    )
+    access_token = await committed_access(caller_id, caller_role.value)
     return booking_id, access_token
 
 

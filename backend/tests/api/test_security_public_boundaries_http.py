@@ -19,6 +19,7 @@ from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.enums import ActivityType, UserRole
+from auth_session_test_helpers import committed_access
 from app.core.security import create_access_token
 from app.db.models import GymClass, User
 from app.db.session import AsyncSessionLocal, engine
@@ -83,15 +84,11 @@ async def actors() -> AsyncIterator[SecurityActors]:
         await db.commit()
     identities = {user.role.value: user.id for user in users}
     tokens = {
-        name: create_access_token({"sub": str(user_id), "role": name})
+        name: await committed_access(user_id, name)
         for name, user_id in identities.items()
     }
-    tokens["inactive"] = create_access_token(
-        {"sub": str(inactive.id), "role": "client"}
-    )
-    tokens["forged_admin"] = create_access_token(
-        {"sub": str(identities["client"]), "role": "admin"}
-    )
+    tokens["inactive"] = await committed_access(inactive.id, "client")
+    tokens["forged_admin"] = await committed_access(identities["client"], "admin")
     try:
         yield SecurityActors(
             marker=marker,
