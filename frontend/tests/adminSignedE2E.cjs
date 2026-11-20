@@ -232,6 +232,125 @@ async function verifyLateLoginResponseRejectedAfterCrossTabLogout(browser) {
   }
 }
 
+
+async function verifyQueuedLoginCannotResurrectAfterRealLogout(browser) {
+  // The queued browser login begins before another tab confirms logout.
+  // Real PG logout must commit while the lock is held by test instrumentation;
+  // after the shared epoch advances the queued login must NEVER POST or set cookie.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const owner = await context.newPage();
+  const contender = await context.newPage();
+  let releaseHeld;
+  let loginPosts = 0;
+  try {
+    await login(owner, email);
+    await owner.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(owner);
+    assert.ok(oldAccess);
+    await contender.goto(WEB + '/login');
+    await contender.getByLabel('Email').waitFor();
+    const before = await runtimeSessionState(contender);
+    const heldLock = owner.evaluate(async () => {
+      await navigator.locks.request('fitflow-auth-cookie-write', async () => {
+        window.__ffHoldLoginQueue = true;
+        await new Promise(resolve => { window.__ffReleaseLoginQueue = resolve; });
+      });
+    });
+    releaseHeld = () => owner.evaluate(() => window.__ffReleaseLoginQueue?.());
+    await owner.waitForFunction(() => window.__ffHoldLoginQueue === true);
+    contender.on('request', request => {
+      if (request.method() === 'POST' && request.url() === API + '/auth/browser/token') {
+        loginPosts++;
+      }
+    });
+    await contender.getByLabel('Email').fill(email);
+    await contender.getByLabel('Contraseña').fill(password);
+    await contender.getByRole('button', { name: 'Ingresar' }).click();
+    await contender.waitForFunction(async () => {
+      const state = await navigator.locks.query();
+      return state.pending.some(item => item.name === 'fitflow-auth-cookie-write');
+    });
+
+    const proof = await context.request.get(API + '/auth/browser/logout-proof', {
+      headers: { Origin: WEB },
+    });
+    assert.equal(proof.status(), 200);
+    const csrf = (await proof.json()).csrf_token;
+    const logout = await context.request.post(API + '/auth/browser/logout', {
+      headers: { Origin: WEB, 'X-CSRF-Token': csrf },
+    });
+    assert.equal(logout.status(), 204, 'Real PostgreSQL logout must confirm COMMIT');
+    const revoked = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    });
+    assert.equal(revoked.status, 401);
+    // Only a nonsecret status crosses tabs. This simulates the broadcast
+    // that the normal AuthProvider emits following the HTTP 204 response.
+    await owner.evaluate(() => localStorage.setItem(
+      'fitflow_browser_auth_epoch',
+      'logout-confirmed|' + Date.now() + '|' + crypto.randomUUID(),
+    ));
+    await contender.waitForFunction(async initial => {
+      const epochs = await import('/src/utils/authSessionGeneration.ts');
+      return epochs.getAuthSessionGeneration() > initial;
+    }, before.generation);
+    await releaseHeld();
+    await heldLock;
+    await contender.waitForFunction(() => {
+      const loginButton = document.querySelector('button[type=submit]');
+      return loginButton && !loginButton.disabled;
+    });
+    assert.equal(loginPosts, 0, 'Superseded queued login must not issue HTTP POST');
+    assert.equal(new URL(contender.url()).pathname, '/login');
+    assert.equal(await activeAccessToken(contender), null);
+    const cookies = await context.cookies(API + '/auth/browser');
+    assert.equal(cookies.some(cookie => cookie.name === 'fitflow_browser_refresh'), false,
+      'A queued stale login cannot re-create HttpOnly cookie after real logout');
+  } finally {
+    await releaseHeld?.().catch(() => {});
+    await context.close();
+  }
+}
+
+async function verifySameTabConcurrentLogoutRetriesJoinOriginal(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  let release;
+  let notify;
+  let logoutPosts = 0;
+  const hold = new Promise(resolve => { release = resolve; });
+  const intercepted = new Promise(resolve => { notify = resolve; });
+  try {
+    await login(page, email);
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await page.route('**/auth/browser/logout', async route => {
+      logoutPosts++;
+      const response = await route.fetch();
+      assert.equal(response.status(), 204);
+      notify();
+      await hold;
+      await route.fulfill({ response });
+    });
+    await page.getByRole('button', { name: 'Menú de perfil' }).click();
+    await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(intercepted, 'held real PG logout response');
+    await page.waitForURL('**/login');
+    const retry = page.getByRole('button', { name: 'Reintentar salida segura' });
+    await retry.waitFor();
+    await retry.click();
+    await retry.click();
+    release();
+    await page.waitForFunction(() => sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal(logoutPosts, 1, 'Manual retries must join the original request');
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), false);
+    assert.equal(await page.getByText('La cookie de sesión ya no está disponible.', { exact: false }).count(), 0,
+      'A proven 204 cannot be overwritten by an expired-unconfirmed retry');
+  } finally {
+    release?.();
+    await context.close();
+  }
+}
+
 async function verifyRefreshReadsCsrfAfterQueuedCookieLock(browser) {
   // An external API request rotates the shared cookie while a tab is
   // queued on the Web Lock. Refresh MUST read the latest signed proof.
@@ -880,6 +999,8 @@ async function run() {
     await verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser);
     await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
     await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
+    await verifyQueuedLoginCannotResurrectAfterRealLogout(browser);
+    await verifySameTabConcurrentLogoutRetriesJoinOriginal(browser);
     await verifyRefreshReadsCsrfAfterQueuedCookieLock(browser);
     await verifyStalledProofReleasesCookieLock(browser);
     await verifyRapidReLoginAndStale401(browser);
