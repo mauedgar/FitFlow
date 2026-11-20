@@ -23,7 +23,7 @@ from app.core.enums import (
     MembershipStatus,
     UserRole,
 )
-from app.core.security import create_access_token
+from auth_session_test_helpers import staged_access
 from app.core.timezone import LOCAL_TZ
 from app.db.models import (
     Booking,
@@ -238,13 +238,9 @@ async def _seed_fixture() -> ClientWeeklyAgendaFixture:
             ineligible_session_id=ineligible.id,
             excluded_session_ids={cancelled.id, end_boundary.id},
             tokens={
-                UserRole.client: create_access_token(
-                    {"sub": str(client_user.id), "role": UserRole.client.value}
-                ),
+                UserRole.client: staged_access(db, client_user.id, UserRole.client.value),
                 **{
-                    role: create_access_token(
-                        {"sub": str(user.id), "role": role.value}
-                    )
+                    role: staged_access(db, user.id, role.value)
                     for role, user in auth_users.items()
                 },
             },

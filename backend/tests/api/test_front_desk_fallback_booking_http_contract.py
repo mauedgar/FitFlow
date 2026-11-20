@@ -23,7 +23,7 @@ from app.core.enums import (
     MembershipStatus,
     UserRole,
 )
-from app.core.security import create_access_token
+from auth_session_test_helpers import staged_access
 from app.db.models import (
     Booking,
     ClassSchedule,
@@ -185,21 +185,10 @@ async def _seed_fallback_fixture() -> FallbackFixture:
             client_id=target_client.id,
             membership_id=membership.id,
             tokens={
-                UserRole.admin: create_access_token(
-                    {"sub": str(admin_user.id), "role": UserRole.admin.value}
-                ),
-                UserRole.front_desk: create_access_token(
-                    {
-                        "sub": str(front_desk_user.id),
-                        "role": UserRole.front_desk.value,
-                    }
-                ),
-                UserRole.client: create_access_token(
-                    {"sub": str(client_caller.id), "role": UserRole.client.value}
-                ),
-                UserRole.teacher: create_access_token(
-                    {"sub": str(teacher_caller.id), "role": UserRole.teacher.value}
-                ),
+                UserRole.admin: staged_access(db, admin_user.id, UserRole.admin.value),
+                UserRole.front_desk: staged_access(db, front_desk_user.id, UserRole.front_desk.value,),
+                UserRole.client: staged_access(db, client_caller.id, UserRole.client.value),
+                UserRole.teacher: staged_access(db, teacher_caller.id, UserRole.teacher.value),
             },
         )
         await db.commit()

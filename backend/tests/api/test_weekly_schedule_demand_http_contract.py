@@ -19,7 +19,7 @@ from app.core.enums import (
     ClassSessionStatus,
     UserRole,
 )
-from app.core.security import create_access_token
+from auth_session_test_helpers import staged_access
 from app.core.timezone import LOCAL_TZ
 from app.db.models import (
     Booking,
@@ -240,9 +240,7 @@ async def _seed_weekly_demand_fixture() -> WeeklyDemandFixture:
             },
             schedule_id=schedule.id,
             tokens={
-                role: create_access_token(
-                    {"sub": str(user.id), "role": role.value}
-                )
+                role: staged_access(db, user.id, role.value)
                 for role, user in auth_users.items()
             },
         )
