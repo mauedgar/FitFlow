@@ -81,3 +81,16 @@ existed. It requires a signed modern refresh family and the current access
 subject owner, then revokes the exact PostgreSQL row. After committed
 revocation, a lost ACK can be reconciled by /auth/session/logout without an
 access bearer. Legacy signed SID-less bearer is still separately pending.
+
+## Control 015 — strict modern bearer gate (candidate, not accepted)
+
+Both `get_current_user` and `get_user_from_token` require signed,
+typed access JWTs containing a canonical UUID subject, canonical UUID4 SID
+and declared role; every request checks the SID against the live
+PostgreSQL family before loading user. Signed old SID-less or untyped tokens
+and email-subject tokens are invalid even before expiry. The old browser
+localStorage compatibility path was already retired. Ten real HTTP test
+domains now register synthetic PG sessions with signed refresh digest using
+a disposable test-only helper (no Product TESTING bypass). All user/domain
+claims and signing still flow through standard Product paths.
+Native CI and complete independent review on frozen candidate are required.

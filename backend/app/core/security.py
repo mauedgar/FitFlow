@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import bcrypt
 from app.core.config import settings
@@ -132,17 +133,29 @@ def _has_live_expiry(payload: dict) -> bool:
 
 
 def is_access_token_payload(payload: dict | None) -> bool:
-    """Never accept refresh JWT as bearer, including untyped legacy refresh."""
-    if not isinstance(payload, dict):
-        return False
-    if not isinstance(payload.get("sub"), str) or not payload["sub"]:
+    """Only signed, typed UUID/SID access may reach PostgreSQL guards.
+
+    Pre-consumer cutover: untyped, SID-less and email-subject JWTs are no
+    longer bearer credentials, even before their original signed expiry.
+    """
+    if not isinstance(payload, dict) or payload.get("token_use") != "access":
         return False
     if not _has_live_expiry(payload):
         return False
-    purpose = payload.get("token_use")
-    if purpose is not None:
-        return purpose == "access"
-    return isinstance(payload.get("role"), str) and bool(payload["role"])
+    if not isinstance(payload.get("role"), str) or not payload["role"]:
+        return False
+    if not isinstance(payload.get("sub"), str) or not isinstance(payload.get("sid"), str):
+        return False
+    try:
+        subject = UUID(payload["sub"])
+        sid = UUID(payload["sid"])
+    except ValueError:
+        return False
+    return (
+        str(subject) == payload["sub"]
+        and sid.version == 4
+        and str(sid) == payload["sid"]
+    )
 
 
 def is_refresh_token_payload(payload: dict | None) -> bool:

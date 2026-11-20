@@ -184,30 +184,26 @@ async def test_me_with_signed_non_uuid_subject_never_returns_500(
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.status_code != status.HTTP_500_INTERNAL_SERVER_ERROR
-    assert response.json() == {"detail": "Token mal formado"}
+    assert response.json() == {"detail": "Token inválido o expirado"}
 
 
-async def test_me_with_valid_missing_user_id_preserves_404_contract(
+
+async def test_me_with_unregistered_modern_family_returns_401(
     api_client: httpx.AsyncClient,
 ) -> None:
-    """A valid UUID with no User row preserves bounded user-not-found behavior."""
+    """A signed bearer never reaches User lookup without a live PG family."""
     missing_user_id = uuid.uuid4()
-    token = security.create_access_token(
-        data={
-            "sub": str(missing_user_id),
-            "role": UserRole.client.value,
-        }
-    )
-
+    token = security.create_access_token({
+        "sub": str(missing_user_id),
+        "role": UserRole.client.value,
+        "sid": str(uuid.uuid4()),
+    })
     response = await api_client.get(
         f"{settings.API_V1_STR}/auth/me",
         headers={"Authorization": f"Bearer {token}"},
     )
-
-    assert response.status_code == status.HTTP_404_NOT_FOUND
-    assert response.json() == {"detail": "Usuario no encontrado"}
-
-# R003 refresh-token HTTP contract
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Sesión no registrada o revocada."}
 
 async def test_refresh_registered_token_returns_access_token_with_same_user_id_subject(
     api_client: httpx.AsyncClient,

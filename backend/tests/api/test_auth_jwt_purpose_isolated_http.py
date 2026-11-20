@@ -15,6 +15,7 @@ from sqlalchemy import delete, update
 from sqlalchemy.engine import make_url
 
 from app.core import security
+from auth_session_test_helpers import committed_access
 from app.core.blacklist import BLACKLIST_PREFIX, blacklist_token
 from app.core.redis_client import get_redis_client
 from app.core.config import settings
@@ -80,20 +81,33 @@ async def test_refresh_rejected_as_bearer_on_real_http(
             assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
 
 
-async def test_typed_and_legacy_access_on_real_http(
+
+async def test_registered_modern_access_and_legacy_denial_on_both_guards(
     api_client: httpx.AsyncClient, subject: uuid.UUID,
 ) -> None:
-    for token in (
+    live = await committed_access(subject, "client")
+    valid = await api_client.get(
+        f"{settings.API_V1_STR}/auth/me",
+        headers={"Authorization": f"Bearer {live}"},
+    )
+    assert valid.status_code == status.HTTP_200_OK, valid.text
+    assert valid.json()["id"] == str(subject)
+    for invalid in (
         security.create_access_token({"sub": str(subject), "role": "client"}),
         legacy(str(subject), "client"),
+        security.create_access_token({
+            "sub": str(subject), "role": "client", "sid": str(uuid.uuid4()),
+        }),
+        security.create_access_token({
+            "sub": str(subject), "role": "client", "sid": "not-a-uuid",
+        }),
     ):
-        result = await api_client.get(
-            f"{settings.API_V1_STR}/auth/me",
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        assert result.status_code == status.HTTP_200_OK, result.text
-        assert result.json()["id"] == str(subject)
-
+        for route in ("/auth/me", "/users/public"):
+            denied = await api_client.get(
+                f"{settings.API_V1_STR}{route}",
+                headers={"Authorization": f"Bearer {invalid}"},
+            )
+            assert denied.status_code == status.HTTP_401_UNAUTHORIZED, denied.text
 
 async def test_access_cannot_refresh_even_if_registered(
     api_client: httpx.AsyncClient, subject: uuid.UUID,
@@ -111,18 +125,17 @@ async def test_access_cannot_refresh_even_if_registered(
         assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
 
 
+
 async def test_access_cannot_be_used_as_logout_refresh(
     api_client: httpx.AsyncClient, subject: uuid.UUID,
 ) -> None:
-    token = security.create_access_token({"sub": str(subject), "role": "client"})
+    token = await committed_access(subject, "client")
     result = await api_client.post(
         f"{settings.API_V1_STR}/auth/logout",
         headers={"Authorization": f"Bearer {token}"},
         json={"refresh_token": token},
     )
     assert result.status_code == status.HTTP_400_BAD_REQUEST, result.text
-
-
 
 async def test_registered_refresh_uses_current_database_role(
     api_client: httpx.AsyncClient, subject: uuid.UUID,
@@ -189,7 +202,7 @@ async def test_signed_purpose_override_expiry_and_role_rules() -> None:
     assert access is not None and refresh is not None
     assert access["token_use"] == "access"
     assert refresh["token_use"] == "refresh" and "role" not in refresh
-    assert security.is_access_token_payload(access)
+    assert not security.is_access_token_payload(access)  # No SID, not a bearer.
     assert not security.is_refresh_token_payload(access)
     assert security.is_refresh_token_payload(refresh)
     assert not security.is_access_token_payload(refresh)
@@ -249,19 +262,16 @@ async def test_refresh_rejects_soft_deleted_active_account(
     assert result.status_code == status.HTTP_401_UNAUTHORIZED, result.text
 
 
-async def test_old_signed_role_never_overrides_current_database_role(
+
+async def test_signed_role_never_overrides_current_database_role(
     api_client: httpx.AsyncClient, subject: uuid.UUID,
 ) -> None:
-    # A signed but outdated privileged role must not grant current privileges.
-    old_access = security.create_access_token({
-        "sub": str(subject), "role": UserRole.admin.value,
-    })
+    forged_role = await committed_access(subject, UserRole.admin.value)
     response = await api_client.get(
         f"{settings.API_V1_STR}/users/public",
-        headers={"Authorization": f"Bearer {old_access}"},
+        headers={"Authorization": f"Bearer {forged_role}"},
     )
     assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
-
 
 async def test_actual_disposable_redis_registration_blacklist_and_logout(
     api_client: httpx.AsyncClient, subject: uuid.UUID,

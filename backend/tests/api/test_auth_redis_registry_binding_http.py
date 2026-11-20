@@ -12,6 +12,7 @@ from sqlalchemy import delete, text
 from sqlalchemy.engine import make_url
 
 from app.core import security
+from auth_session_test_helpers import committed_access
 from app.core.config import settings
 from app.core.token_keys import legacy_jwt_key, opaque_jwt_key
 from app.core.token_store import (
@@ -198,9 +199,7 @@ async def test_soft_deleted_account_denied_by_both_auth_pipelines(
     from app.services.auth_service import get_user_from_token
     from app.services.errors import AuthError
 
-    signed = security.create_access_token({
-        "sub": str(subject), "role": "front_desk",
-    })
+    signed = await committed_access(subject, "front_desk")
     async with AsyncSessionLocal() as db:
         await db.execute(
             update(User).where(User.id == subject).values(

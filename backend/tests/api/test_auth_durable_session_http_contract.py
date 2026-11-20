@@ -189,7 +189,7 @@ async def test_unregistered_modern_jwt_and_legacy_compatibility(
         f"{settings.API_V1_STR}/auth/me",
         headers={"Authorization": f"Bearer {legacy_access}"},
     )
-    assert legacy_me.status_code == 200
+    assert legacy_me.status_code == 401
 
 
 async def test_refresh_resolves_current_database_role_and_inactive_account(

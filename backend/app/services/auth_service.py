@@ -46,18 +46,17 @@ async def get_user_from_token(token: str, db: "AsyncSession | None" = None) -> U
         msg_2 = "Token sin sujeto válido."
         raise AuthError(msg_2)
 
+    # A signed access without a registered SID can no longer resolve any
+    # user, including old email subjects and otherwise valid legacy JWTs.
     try:
         user_id = UUID(token_data.sub)
-    except ValueError:
-        user = await user_crud.get_by_email(db=db, email=token_data.sub)
-    else:
-        user = await user_crud.get(db=db, obj_id=user_id)
-
-    if "sid" in payload:
-        if not await session_ledger.is_active(
-            db, sid=payload["sid"], subject=token_data.sub,
-        ):
-            raise AuthError("Sesión no registrada o revocada.")
+    except ValueError as exc:
+        raise AuthError("Token mal formado.") from exc
+    if not await session_ledger.is_active(
+        db, sid=payload["sid"], subject=token_data.sub,
+    ):
+        raise AuthError("Sesión no registrada o revocada.")
+    user = await user_crud.get(db=db, obj_id=user_id)
     if not user:
         msg_3 = "Usuario no encontrado."
         raise AuthError(msg_3)

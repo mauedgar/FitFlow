@@ -81,20 +81,19 @@ async def get_current_user(
             detail="Token mal formado",
         ) from err
 
-    if "sid" in payload:
-        try:
-            allowed = await session_ledger.is_active(
-                db, sid=payload["sid"], subject=token_data.sub,
-            )
-        except SQLAlchemyError as exc:
-            raise HTTPException(
-                status_code=503, detail="Persistencia de sesiones no disponible."
-            ) from exc
-        if not allowed:
-            raise HTTPException(
-                status_code=401, detail="Sesión no registrada o revocada.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    try:
+        allowed = await session_ledger.is_active(
+            db, sid=payload["sid"], subject=token_data.sub,
+        )
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503, detail="Persistencia de sesiones no disponible."
+        ) from exc
+    if not allowed:
+        raise HTTPException(
+            status_code=401, detail="Sesión no registrada o revocada.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     user = await user_crud.get(db, obj_id=user_id)
     if not user:
