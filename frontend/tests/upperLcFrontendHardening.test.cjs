@@ -139,3 +139,26 @@ test('Cookie Web Lock uses a finite abort budget and all auth writers propagate 
   assert.ok(legacy.includes('this.retryBrowserLogoutFromCookie()'));
   assert.ok(!legacy.includes("X-CSRF-Token"));
 });
+
+
+test('No alternate browser login path may bypass the exclusive cookie Web Lock', () => {
+  const srcRoot = path.join(__dirname, '..', 'src');
+  const queue = [srcRoot];
+  const offenders = [];
+  while (queue.length) {
+    const folder = queue.pop();
+    for (const item of fs.readdirSync(folder, { withFileTypes: true })) {
+      const absolute = path.join(folder, item.name);
+      if (item.isDirectory()) queue.push(absolute);
+      else if (/\\.tsx?$/.test(item.name)) {
+        const relative = path.relative(srcRoot, absolute).replaceAll('\\\\', '/');
+        if (relative !== 'services/classService.ts' &&
+            /\\/auth\\/browser\\/token/.test(fs.readFileSync(absolute, 'utf8'))) {
+          offenders.push(relative);
+        }
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], 'Only locked classService may write the browser login cookie');
+  assert.doesNotMatch(load('services/api.ts'), /export const loginUser/);
+});

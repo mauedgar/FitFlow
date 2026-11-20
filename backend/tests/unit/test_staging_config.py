@@ -110,3 +110,33 @@ def test_staging_fails_closed_on_unsafe_or_missing_values(
 ) -> None:
     with pytest.raises(ValidationError, match=message):
         make_settings(**override)
+
+
+@pytest.mark.parametrize(
+    "bad_origin",
+    [
+        "https://fitflow.example/path",
+        "https://fitflow.example/",
+        "https://fitflow.example?debug=1",
+        "https://fitflow.example/#fragment",
+        "https://fitflow.example:bad",
+        "https://fitflow.example:99999",
+        "https://fitflow.example:",
+        "https://user:password@fitflow.example",
+        "https://fitflow.example\\\\unexpected",
+    ],
+)
+@pytest.mark.parametrize("profile", ["staging", "production"])
+def test_nonlocal_profiles_require_canonical_origin_syntax(
+    bad_origin: str, profile: str,
+) -> None:
+    with pytest.raises(ValidationError, match="serialized CORS origins"):
+        make_settings(ENV=profile, BACKEND_CORS_ORIGINS=[bad_origin])
+
+
+def test_local_profile_also_rejects_path_bearing_origin() -> None:
+    with pytest.raises(ValidationError, match="loopback CORS origins"):
+        make_settings(
+            ENV="development",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173/stealth"],
+        )

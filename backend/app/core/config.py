@@ -15,7 +15,7 @@ Incluye:
 
 from pathlib import Path
 from typing import Self
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -91,6 +91,36 @@ class Settings(BaseSettings):
     # -----------------------------------------------------------------------
     REDIS_URL: str | None = None
 
+    @staticmethod
+    def _valid_serialized_origin(origin: str, schemes: set[str]) -> bool:
+        """Require a browser Origin, not an arbitrary HTTPS URL.
+
+        Origin serializes as scheme://host[:port] without path, query,
+        fragment, credentials, whitespace, invalid port or trailing slash.
+        """
+        if not isinstance(origin, str) or not origin or any(
+            ch.isspace() or ch == "\\\\" for ch in origin
+        ):
+            return False
+        try:
+            parsed = urlsplit(origin)
+            port = parsed.port  # Raises ValueError for invalid/out-of-range ports.
+        except ValueError:
+            return False
+        return (
+            parsed.scheme in schemes
+            and bool(parsed.hostname)
+            and bool(parsed.netloc)
+            and parsed.username is None
+            and parsed.password is None
+            and not parsed.path
+            and not parsed.query
+            and not parsed.fragment
+            and not parsed.netloc.endswith(":")
+            and (port is None or port > 0)
+            and origin == f"{parsed.scheme}://{parsed.netloc}"
+        )
+
     @model_validator(mode="after")
     def validate_staging_contract(self) -> Self:
         """Reject HTTP credential origins and unsafe implicit environments."""
@@ -99,8 +129,8 @@ class Settings(BaseSettings):
         local_hosts = {"localhost", "127.0.0.1", "::1"}
         if self.ENV in {"development", "test"}:
             if any(
-                urlparse(origin).hostname not in local_hosts
-                or urlparse(origin).scheme not in {"http", "https"}
+                not self._valid_serialized_origin(origin, {"http", "https"})
+                or urlsplit(origin).hostname not in local_hosts
                 for origin in self.BACKEND_CORS_ORIGINS
             ):
                 raise ValueError("Local profiles require loopback CORS origins")
@@ -113,16 +143,10 @@ class Settings(BaseSettings):
         if not self.BACKEND_CORS_ORIGINS:
             raise ValueError("BACKEND_CORS_ORIGINS is required in staging or production")
         for origin in self.BACKEND_CORS_ORIGINS:
-            parsed = urlparse(origin)
-            if parsed.hostname in local_hosts:
+            if not self._valid_serialized_origin(origin, {"https"}):
+                raise ValueError("HTTPS serialized CORS origins are required in staging or production")
+            if urlsplit(origin).hostname in local_hosts:
                 raise ValueError("localhost CORS origins are forbidden in staging or production")
-            if (
-                parsed.scheme != "https"
-                or not parsed.hostname
-                or parsed.username is not None
-                or parsed.password is not None
-            ):
-                raise ValueError("HTTPS CORS origins are required in staging or production")
         return self
 
     # -----------------------------------------------------------------------

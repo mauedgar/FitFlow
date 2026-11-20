@@ -20,9 +20,13 @@ from app.db.session import AsyncSessionLocal
 def require_local_test_database() -> None:
     """Fail before any synthetic INSERT, even if no bearer will be minted."""
     target = make_url(settings.DATABASE_URL)
-    assert target.database == "fitflow_test"
-    assert (target.host or "").lower() in {"127.0.0.1", "localhost", "::1"}
-    assert settings.ENV == "test" and settings.TESTING
+    if not (
+        target.database == "fitflow_test"
+        and (target.host or "").lower() in {"127.0.0.1", "localhost", "::1"}
+        and settings.ENV == "test"
+        and settings.TESTING
+    ):
+        raise RuntimeError("BLOCKED_PRECONDITION: only local disposable fitflow_test is allowed")
 
 
 def staged_access(db: AsyncSession, user_id: UUID, role: str) -> str:
@@ -31,7 +35,8 @@ def staged_access(db: AsyncSession, user_id: UUID, role: str) -> str:
     sid = uuid4()
     refresh = create_refresh_token({"sub": str(user_id), "sid": str(sid)})
     family = signed_refresh_family(refresh)
-    assert family is not None and family[0] == sid and family[1] == user_id
+    if family is None or family[0] != sid or family[1] != user_id:
+        raise RuntimeError("BLOCKED_PRECONDITION: invalid synthetic signed session")
     db.add(AuthSession(
         id=sid, user_id=user_id, refresh_digest=fingerprint(refresh),
         expires_at=family[2],

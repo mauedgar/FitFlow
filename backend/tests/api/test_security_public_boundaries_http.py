@@ -344,3 +344,20 @@ async def test_auth_me_preserves_valid_admin_identity_and_rejects_invalid_token(
         headers={"Authorization": "Bearer not-a-valid-jwt"},
     )
     assert invalid.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+
+@pytest.mark.parametrize(
+    "invalid_url",
+    [
+        "postgresql://synthetic@remote.example/fitflow_test",
+        "postgresql://synthetic@127.0.0.1/fitflow_prod",
+    ],
+)
+def test_synthetic_session_helper_denies_non_disposable_database_even_without_assert(
+    monkeypatch: pytest.MonkeyPatch, invalid_url: str,
+) -> None:
+    """A RuntimeError—not an optimized-away assert—must precede DB writes."""
+    monkeypatch.setattr(settings, "DATABASE_URL", invalid_url)
+    with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
+        require_local_test_database()
