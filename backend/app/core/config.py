@@ -143,10 +143,16 @@ class Settings(BaseSettings):
         if not self.BACKEND_CORS_ORIGINS:
             raise ValueError("BACKEND_CORS_ORIGINS is required in staging or production")
         for origin in self.BACKEND_CORS_ORIGINS:
-            if not self._valid_serialized_origin(origin, {"https"}):
-                raise ValueError("HTTPS serialized CORS origins are required in staging or production")
+            if not self._valid_serialized_origin(origin, {"http", "https"}):
+                raise ValueError(
+                    "HTTPS CORS origins are required: invalid serialized CORS origins"
+                )
             if urlsplit(origin).hostname in local_hosts:
                 raise ValueError("localhost CORS origins are forbidden in staging or production")
+            if not self._valid_serialized_origin(origin, {"https"}):
+                raise ValueError(
+                    "HTTPS CORS origins are required: invalid serialized CORS origins"
+                )
         return self
 
     # -----------------------------------------------------------------------
