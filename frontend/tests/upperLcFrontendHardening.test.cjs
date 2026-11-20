@@ -134,7 +134,7 @@ test('Cookie Web Lock uses a finite abort budget and all auth writers propagate 
     assert.ok(op.includes('withExclusiveBrowserCookie(async (signal) => {'));
     assert.ok(op.includes('signal'));
   }
-  const legacy = service.split('async logoutBrowserSession(_csrfToken: string)')[1]
+  const legacy = service.split('async logoutBrowserSession()')[1]
     .split('async retryBrowserLogoutFromCookie')[0];
   assert.ok(legacy.includes('this.retryBrowserLogoutFromCookie()'));
   assert.ok(!legacy.includes("X-CSRF-Token"));

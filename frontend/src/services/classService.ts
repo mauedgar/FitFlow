@@ -70,7 +70,7 @@ const classService = {
     return response.data;
   },
 
-  async logoutBrowserSession(_csrfToken: string): Promise<void> {
+  async logoutBrowserSession(): Promise<void> {
     // Deprecated compatibility wrapper: never trust a proof captured before
     // acquiring the Web Lock. Obtain the current proof and revoke atomically.
     await this.retryBrowserLogoutFromCookie();
