@@ -188,26 +188,22 @@ async function verifyCrossTabCookieSynchronizationAndReplacementGuard(browser) {
 
 
 async function verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser) {
-  // Synthetic cookie expiry after a network-aborted logout (no PG COMMIT).
-  // The UI must distinguish lost proof from server-confirmed revocation.
+  // Single-tab cookie expiry after a network-aborted logout (no PG COMMIT).
+  // The separate two-tab test covers automatic orphaned logout recovery.
+  // Here no surviving peer can independently COMMIT before cookie removal.
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const first = await context.newPage();
-  const second = await context.newPage();
   try {
     await login(first, email);
     await first.getByRole('heading', { name: 'Panel de administración' }).waitFor();
     const priorAccess = await activeAccessToken(first);
     assert.ok(priorAccess);
-    await second.goto(WEB + '/admin');
-    await second.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-
     await first.route('**/auth/browser/logout', route => route.abort());
     await first.getByRole('button', { name: 'Menú de perfil' }).click();
     await first.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
     await first.waitForURL('**/login');
     await first.getByRole('button', { name: 'Reintentar salida segura' }).waitFor();
-    await second.getByRole('button', { name: 'Ingresar' }).waitFor();
-    assert.equal(await second.getByRole('button', { name: 'Ingresar' }).isDisabled(), true);
+    assert.equal(await first.getByRole('button', { name: 'Ingresar' }).isDisabled(), true);
 
     // Browser expires/discards the cookie while the logout remains pending.
     await context.clearCookies();
@@ -215,8 +211,6 @@ async function verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser) {
     await first.getByRole('button', { name: 'Reintentar salida segura' }).click();
     await first.getByText('La cookie de sesión ya no está disponible.', { exact: false }).waitFor();
     assert.equal(await first.getByRole('button', { name: 'Ingresar' }).isDisabled(), false);
-    await second.waitForFunction(() => sessionStorage.getItem('fitflow_logout_pending') === null);
-    assert.equal(await second.getByRole('button', { name: 'Ingresar' }).isDisabled(), false);
     // No false server ACK: abort-before-forwarding means original access
     // remains active in PG until its signed expiration.
     const oldStillLive = await fetch(API + '/auth/me', {
