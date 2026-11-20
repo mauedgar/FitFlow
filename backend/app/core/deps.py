@@ -27,7 +27,7 @@ from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
 from app.schemas.user import UserPublic  # noqa: TC001
 from app.services.auth_service import get_user_from_token
-from app.services.errors import AuthError, PermissionDeniedError
+from app.services.errors import AuthError
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -142,9 +142,9 @@ def require_roles(*allowed_roles: UserRole) -> Callable[..., Awaitable[UserPubli
         if user.role not in allowed_roles:
             roles_list = ", ".join(r.value for r in allowed_roles)
             msg = f"Este recurso requiere uno de los siguientes roles: {roles_list}."
-            raise PermissionDeniedError(
-                msg,
-            )
+            # Dependency failures must map to 403, never an uncaught
+            # domain exception converted to an HTTP 500.
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
         return user
 
     return guard
@@ -172,7 +172,7 @@ def require_admin_or_self(id_param_name: str = "user_id") -> Callable[..., Await
             return user
 
         msg = "Acceso denegado."
-        raise PermissionDeniedError(msg)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
 
     return guard
 
