@@ -55,9 +55,9 @@ test('Browser refresh participates in the exclusive login/logout cookie lock', (
   const service = load('services/classService.ts');
   const login = service.split('async login(payload: LoginPayload)')[1].split('async restoreBrowserSession')[0];
   const refresh = service.split('async refreshBrowserSession')[1].split('async recoverLogoutProof')[0];
-  const logout = service.split('async logoutBrowserSession')[1].split('// --- GymClass Endpoints ---')[0];
+  const logout = service.split('async retryBrowserLogoutFromCookie')[1].split('// --- GymClass Endpoints ---')[0];
   for (const op of [login, refresh, logout]) {
-    assert.ok(op.includes('withExclusiveBrowserCookie(async () => {'));
+    assert.ok(op.includes('withExclusiveBrowserCookie(async (signal) => {'));
   }
   assert.ok(refresh.includes("'/auth/browser/refresh'"));
   assert.ok(!refresh.includes('localStorage.'));
@@ -73,7 +73,7 @@ test('Missing signed logout cookie unblocks login without inventing PostgreSQL A
   assert.ok(provider.includes('notifyOtherTabs("logout-expired-unconfirmed")'));
   assert.ok(provider.includes('classService.retryBrowserLogoutFromCookie()'));
   assert.ok(service.includes('async retryBrowserLogoutFromCookie()'));
-  assert.ok(service.includes('withExclusiveBrowserCookie(async () => {'));
+  assert.ok(service.includes('withExclusiveBrowserCookie(async (signal) => {'));
   assert.ok(service.includes("error.response?.status === 401"));
   assert.ok(page.includes("logoutConfirmation === 'expired-unconfirmed'"));
   assert.ok(!page.includes('la revocación quedó confirmada'));
@@ -107,10 +107,35 @@ test('Login responses are rejected after newer auth generation; refresh proof is
       page.indexOf('login(data.access_token, data.csrf_token);'));
   const refresh = service.split('async refreshBrowserSession()')[1]
     .split('async recoverLogoutProof')[0];
-  assert.ok(refresh.includes('withExclusiveBrowserCookie(async () => {'));
+  assert.ok(refresh.includes('withExclusiveBrowserCookie(async (signal) => {'));
   assert.ok(refresh.indexOf("'\/auth/browser/logout-proof'") <
     refresh.indexOf("'\/auth/browser/refresh'"));
   assert.ok(!refresh.includes('csrfToken: string'));
   assert.ok(provider.includes('classService.refreshBrowserSession()'));
   assert.ok(!admin.includes("localStorage.getItem('access_token')"));
+});
+
+
+test('Cookie Web Lock uses a finite abort budget and all auth writers propagate AbortSignal', () => {
+  const lock = load('utils/browserCookieLock.ts');
+  const service = load('services/classService.ts');
+  assert.ok(lock.includes('COOKIE_OPERATION_BUDGET_MS = 12_000'));
+  assert.ok(lock.includes('setTimeout(() => controller.abort()'));
+  assert.ok(lock.includes('signal: controller.signal'));
+  assert.ok(lock.includes('() => operation(controller.signal)'));
+  assert.ok(lock.includes('clearTimeout(timeoutId)'));
+  const login = service.split('async login(payload: LoginPayload)')[1]
+    .split('async restoreBrowserSession')[0];
+  const refresh = service.split('async refreshBrowserSession()')[1]
+    .split('async recoverLogoutProof')[0];
+  const retry = service.split('async retryBrowserLogoutFromCookie()')[1]
+    .split('// --- GymClass Endpoints ---')[0];
+  for (const op of [login, refresh, retry]) {
+    assert.ok(op.includes('withExclusiveBrowserCookie(async (signal) => {'));
+    assert.ok(op.includes('signal'));
+  }
+  const legacy = service.split('async logoutBrowserSession(_csrfToken: string)')[1]
+    .split('async retryBrowserLogoutFromCookie')[0];
+  assert.ok(legacy.includes('this.retryBrowserLogoutFromCookie()'));
+  assert.ok(!legacy.includes("X-CSRF-Token"));
 });

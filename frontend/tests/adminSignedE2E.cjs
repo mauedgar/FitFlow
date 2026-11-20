@@ -287,6 +287,53 @@ async function verifyRefreshReadsCsrfAfterQueuedCookieLock(browser) {
   }
 }
 
+async function verifyStalledProofReleasesCookieLock(browser) {
+  // Real two-tab liveness test: proof GET intentionally never answers until
+  // its requester aborts. The second tab must eventually acquire the lock.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const first = await context.newPage();
+  const second = await context.newPage();
+  let releaseBlockedProof;
+  let markIntercepted;
+  const gate = new Promise(resolve => { releaseBlockedProof = resolve; });
+  const intercepted = new Promise(resolve => { markIntercepted = resolve; });
+  try {
+    await login(first, email);
+    await first.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await second.goto(WEB + '/login');
+    await second.getByLabel('Email').fill(email);
+    await second.getByLabel('Contraseña').fill(password);
+
+    await first.route('**/auth/browser/logout-proof', async route => {
+      markIntercepted();
+      await gate;
+      await route.abort().catch(() => {});
+    });
+    const slowRefresh = first.evaluate(async () => {
+      const client = (await import('/src/services/classService.ts')).default;
+      try {
+        await client.refreshBrowserSession();
+        return 'UNEXPECTED_SUCCESS';
+      } catch {
+        return 'ABORTED';
+      }
+    });
+    await within(intercepted, 'stalled csrf proof intercept');
+    const startedAt = Date.now();
+    const denied = second.waitForResponse(response =>
+      response.url() === API + '/auth/browser/token' && response.status() === 409);
+    await second.getByRole('button', { name: 'Ingresar' }).click();
+    const result = await within(slowRefresh, 'abort of stalled auth lock', 18000);
+    assert.equal(result, 'ABORTED');
+    await within(denied, 'second tab released after auth lock budget', 18000);
+    assert.ok(Date.now() - startedAt < 18000,
+      'Auth Web Lock must release before bounded browser test deadline');
+  } finally {
+    releaseBlockedProof?.();
+    await context.close();
+  }
+}
+
 async function verifyRapidReLoginAndStale401(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
@@ -834,6 +881,7 @@ async function run() {
     await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
     await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
     await verifyRefreshReadsCsrfAfterQueuedCookieLock(browser);
+    await verifyStalledProofReleasesCookieLock(browser);
     await verifyRapidReLoginAndStale401(browser);
     await verifyDelayedIdentityAcrossSameTokenReLogin(browser);
     await qualifySyntheticFailureDiagnostic(browser);

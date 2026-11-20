@@ -31,13 +31,13 @@ export class BrowserLogoutProofUnavailable extends Error {
 const classService = {
   // --- Autenticación ---
   async login(payload: LoginPayload): Promise<BrowserSessionResponse> {
-    return withExclusiveBrowserCookie(async () => {
+    return withExclusiveBrowserCookie(async (signal) => {
       const formData = new URLSearchParams();
       formData.append('username', payload.username);
       formData.append('password', payload.password);
       const response = await apiClient.post<BrowserSessionResponse>(
         '/auth/browser/token', formData,
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal },
       );
       return response.data;
     });
@@ -51,13 +51,13 @@ const classService = {
   async refreshBrowserSession(): Promise<BrowserSessionResponse> {
     // Acquire the lock BEFORE reading the cookie-bound CSRF proof. A token
     // captured by React before the lock wait may belong to another cookie.
-    return withExclusiveBrowserCookie(async () => {
+    return withExclusiveBrowserCookie(async (signal) => {
       const proof = await apiClient.get<{ csrf_token: string }>(
-        '/auth/browser/logout-proof',
+        '/auth/browser/logout-proof', { signal },
       );
       const result = await apiClient.post<BrowserSessionResponse>(
         '/auth/browser/refresh', undefined,
-        { headers: { 'X-CSRF-Token': proof.data.csrf_token } },
+        { headers: { 'X-CSRF-Token': proof.data.csrf_token }, signal },
       );
       return result.data;
     });
@@ -70,24 +70,21 @@ const classService = {
     return response.data;
   },
 
-  async logoutBrowserSession(csrfToken: string): Promise<void> {
-    await withExclusiveBrowserCookie(async () => {
-      await apiClient.post(
-        '/auth/browser/logout', undefined,
-        { headers: { 'X-CSRF-Token': csrfToken } },
-      );
-    });
+  async logoutBrowserSession(_csrfToken: string): Promise<void> {
+    // Deprecated compatibility wrapper: never trust a proof captured before
+    // acquiring the Web Lock. Obtain the current proof and revoke atomically.
+    await this.retryBrowserLogoutFromCookie();
   },
 
   async retryBrowserLogoutFromCookie(): Promise<void> {
     // Lock GET proof and POST revocation as one cookie-dependent operation.
     // Only a 401 at the proof GET proves that no usable signed cookie can
     // identify the former session; a failed POST remains unconfirmed.
-    await withExclusiveBrowserCookie(async () => {
+    await withExclusiveBrowserCookie(async (signal) => {
       let csrf: string;
       try {
         const proof = await apiClient.get<{ csrf_token: string }>(
-          '/auth/browser/logout-proof',
+          '/auth/browser/logout-proof', { signal },
         );
         csrf = proof.data.csrf_token;
       } catch (error) {
@@ -98,7 +95,7 @@ const classService = {
       }
       await apiClient.post(
         '/auth/browser/logout', undefined,
-        { headers: { 'X-CSRF-Token': csrf } },
+        { headers: { 'X-CSRF-Token': csrf }, signal },
       );
     });
   },

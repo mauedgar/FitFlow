@@ -122,3 +122,17 @@ loopback CORS origins. The cancellation and P0 security suites now invoke
 the same localhost + fitflow_test + ENV=test + TESTING guard before any
 synthetic INSERT, including no-auth tests. CI and new independent review
 must revalidate this candidate before Product acceptance.
+
+## Control 015 — IR004 bounded browser Web Lock (candidate)
+
+The exclusive cookie mutation Web Lock has a total 12-second budget
+including queue acquisition and network work. Each login, refresh and
+signed logout operation propagates the AbortSignal into its Axios
+requests. A stalled proof GET cannot retain the mutation lock without
+a bounded cancellation; an aborted logout remains unconfirmed in UI.
+Legacy logoutBrowserSession accepts its old argument but ignores that
+stale proof and delegates to the exact cookie proof read under the lock.
+A signed two-tab Playwright regression intentionally stalls the proof
+GET and checks that another tab regains login responsiveness. Review and
+exact-head CI are required; this is not a guarantee against a backend
+commit whose HTTP ACK was lost.
