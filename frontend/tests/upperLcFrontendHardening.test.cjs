@@ -53,7 +53,7 @@ test('Browser login blocks while durable logout is pending and synchronizes tabs
 
 test('Browser refresh participates in the exclusive login/logout cookie lock', () => {
   const service = load('services/classService.ts');
-  const login = service.split('async login(payload: LoginPayload)')[1].split('async restoreBrowserSession')[0];
+  const login = service.split('async login(')[1].split('async restoreBrowserSession')[0];
   const refresh = service.split('async refreshBrowserSession')[1].split('async recoverLogoutProof')[0];
   const logout = service.split('async retryBrowserLogoutFromCookie')[1].split('// --- GymClass Endpoints ---')[0];
   for (const op of [login, refresh, logout]) {
@@ -124,7 +124,7 @@ test('Cookie Web Lock uses a finite abort budget and all auth writers propagate 
   assert.ok(lock.includes('signal: controller.signal'));
   assert.ok(lock.includes('() => operation(controller.signal)'));
   assert.ok(lock.includes('clearTimeout(timeoutId)'));
-  const login = service.split('async login(payload: LoginPayload)')[1]
+  const login = service.split('async login(')[1]
     .split('async restoreBrowserSession')[0];
   const refresh = service.split('async refreshBrowserSession()')[1]
     .split('async recoverLogoutProof')[0];
