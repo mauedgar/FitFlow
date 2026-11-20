@@ -183,6 +183,110 @@ async function verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser) {
   }
 }
 
+
+async function verifyLateLoginResponseRejectedAfterCrossTabLogout(browser) {
+  // Synthetic network interleaving: hold a real HTTP 200 login response
+  // until a different tab announces a newer logout generation.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const observer = await context.newPage();
+  const pending = await context.newPage();
+  let release;
+  let captured;
+  const blocked = new Promise(resolve => { release = resolve; });
+  const wasCaptured = new Promise(resolve => { captured = resolve; });
+  try {
+    await observer.goto(WEB + '/login');
+    await pending.goto(WEB + '/login');
+    const before = await runtimeSessionState(pending);
+    await pending.route('**/auth/browser/token', async route => {
+      const response = await route.fetch();
+      assert.equal(response.status(), 200, 'Synthetic login was successfully registered');
+      captured();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await pending.getByLabel('Email').fill(email);
+    await pending.getByLabel('Contraseña').fill(password);
+    await pending.getByRole('button', { name: 'Ingresar' }).click();
+    await within(wasCaptured, 'held successful browser login');
+    await observer.evaluate(() => {
+      localStorage.setItem('fitflow_browser_auth_epoch',
+        'logout-confirmed|' + Date.now() + '|' + crypto.randomUUID());
+    });
+    await pending.waitForFunction(async (initial) => {
+      const epochs = await import('/src/utils/authSessionGeneration.ts');
+      return epochs.getAuthSessionGeneration() > initial;
+    }, before.generation);
+    release();
+    await pending.waitForFunction(() => {
+      const button = document.querySelector('button[type=submit]');
+      return button && !button.disabled;
+    });
+    assert.equal(new URL(pending.url()).pathname, '/login',
+      'Late HTTP 200 must not navigate after a newer logout');
+    assert.equal(await activeAccessToken(pending), null,
+      'A stale successful login must not restore memory bearer');
+  } finally {
+    release?.();
+    await context.close();
+  }
+}
+
+async function verifyRefreshReadsCsrfAfterQueuedCookieLock(browser) {
+  // An external API request rotates the shared cookie while a tab is
+  // queued on the Web Lock. Refresh MUST read the latest signed proof.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const first = await context.newPage();
+  const second = await context.newPage();
+  try {
+    await login(first, email);
+    await first.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await second.goto(WEB + '/admin');
+    await second.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const beforeProof = await context.request.get(API + '/auth/browser/logout-proof', {
+      headers: { Origin: WEB },
+    });
+    assert.equal(beforeProof.status(), 200);
+    const originalCsrf = (await beforeProof.json()).csrf_token;
+    const held = first.evaluate(async () => {
+      await navigator.locks.request('fitflow-auth-cookie-write', async () => {
+        window.__fitflowHeldLock = true;
+        await new Promise(resolve => { window.__fitflowReleaseLock = resolve; });
+      });
+    });
+    await first.waitForFunction(() => window.__fitflowHeldLock === true);
+    const queued = second.evaluate(async () => {
+      const service = (await import('/src/services/classService.ts')).default;
+      return service.refreshBrowserSession();
+    });
+    await second.waitForFunction(async () => {
+      const state = await navigator.locks.query();
+      return state.pending.some(lock => lock.name === 'fitflow-auth-cookie-write');
+    });
+    try {
+      const logout = await context.request.post(API + '/auth/browser/logout', {
+        headers: { Origin: WEB, 'X-CSRF-Token': originalCsrf },
+      });
+      assert.equal(logout.status(), 204);
+      const replacement = await context.request.post(API + '/auth/browser/token', {
+        headers: { Origin: WEB },
+        form: { username: email, password },
+      });
+      assert.equal(replacement.status(), 200);
+    } finally {
+      await first.evaluate(() => window.__fitflowReleaseLock());
+    }
+    await held;
+    const refreshed = await within(queued, 'post-lock refresh of rotated cookie');
+    assert.ok(refreshed.access_token, 'Refresh must return access for replacement family');
+    assert.notEqual(refreshed.csrf_token, originalCsrf,
+      'Refresh must read the new cookie-bound proof within the acquired lock');
+  } finally {
+    await first.evaluate(() => window.__fitflowReleaseLock?.()).catch(() => {});
+    await context.close();
+  }
+}
+
 async function verifyRapidReLoginAndStale401(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
@@ -728,6 +832,8 @@ async function run() {
     await verifyPendingLogoutCannotBeSilentlyReplaced(browser);
     await verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser);
     await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
+    await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
+    await verifyRefreshReadsCsrfAfterQueuedCookieLock(browser);
     await verifyRapidReLoginAndStale401(browser);
     await verifyDelayedIdentityAcrossSameTokenReLogin(browser);
     await qualifySyntheticFailureDiagnostic(browser);

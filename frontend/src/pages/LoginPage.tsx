@@ -5,6 +5,7 @@ import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query'; // ⭐ Importamos useMutation
 import { useAuth } from '../context/useAuth'; // ⭐ Importamos el contexto de Auth
 import classService from '../services/classService'; // ⭐ Usaremos classService para el login
+import { getAuthSessionGeneration } from '../utils/authSessionGeneration';
 import { UserRole, type BrowserSessionResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
 import { AxiosError } from 'axios'; // ⭐ Para un manejo de errores más específico
 import { type TokenPayload } from '../types';
@@ -19,19 +20,25 @@ const LoginPage = () => {
   const navigate = useNavigate();
 
   // ⭐ 1. Definimos la mutación de login
-  const loginMutation = useMutation<BrowserSessionResponse, AxiosError, { username: string; password: string }>({
+  const loginMutation = useMutation<{ session: BrowserSessionResponse; startedGeneration: number }, AxiosError, { username: string; password: string }>({
     // La función que ejecuta la llamada a la API
-    mutationFn: (credentials) => {
+    mutationFn: async (credentials) => {
       if (logoutConfirmation === "pending") {
-        return Promise.reject(new Error("Logout pendiente de confirmación"));
+        throw new Error("Logout pendiente de confirmación");
       }
-      return classService.login(credentials);
+      // Capture BEFORE network dispatch: a later cross-tab logout invalidates
+      // this operation even if the server eventually returns HTTP 200.
+      const startedGeneration = getAuthSessionGeneration();
+      const session = await classService.login(credentials);
+      return { session, startedGeneration };
     },
 
     // Callback que se ejecuta si la mutación es exitosa
-    onSuccess: (data) => {
-      // A late successful response cannot erase an unconfirmed logout.
-      if (sessionStorage.getItem("fitflow_logout_pending") === "1") return;
+    onSuccess: ({ session: data, startedGeneration }) => {
+      // A late 200 is not an authorization to overwrite a newer tab logout.
+      // Do not call useAuth.login or navigate for a stale generation.
+      if (startedGeneration !== getAuthSessionGeneration() ||
+          sessionStorage.getItem("fitflow_logout_pending") === "1") return;
       // Llamamos a la función login del AuthContext, pasando solo el token
       // El AuthContext ya se encarga de decodificar y establecer el rol
       login(data.access_token, data.csrf_token);

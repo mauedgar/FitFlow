@@ -48,12 +48,16 @@ const classService = {
     return result.data;
   },
 
-  async refreshBrowserSession(csrfToken: string): Promise<BrowserSessionResponse> {
-    // Coordinate the shared HttpOnly cookie with login and logout across tabs.
+  async refreshBrowserSession(): Promise<BrowserSessionResponse> {
+    // Acquire the lock BEFORE reading the cookie-bound CSRF proof. A token
+    // captured by React before the lock wait may belong to another cookie.
     return withExclusiveBrowserCookie(async () => {
+      const proof = await apiClient.get<{ csrf_token: string }>(
+        '/auth/browser/logout-proof',
+      );
       const result = await apiClient.post<BrowserSessionResponse>(
         '/auth/browser/refresh', undefined,
-        { headers: { 'X-CSRF-Token': csrfToken } },
+        { headers: { 'X-CSRF-Token': proof.data.csrf_token } },
       );
       return result.data;
     });

@@ -233,7 +233,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (cancelled || inFlight || generation !== getAuthSessionGeneration()) return;
       inFlight = true;
       try {
-        const session = await classService.refreshBrowserSession(csrfToken);
+        const session = await classService.refreshBrowserSession();
         if (cancelled || generation !== getAuthSessionGeneration()) return;
         csrfRef.current = session.csrf_token;
         setCsrfToken(session.csrf_token);

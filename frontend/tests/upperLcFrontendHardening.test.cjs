@@ -94,3 +94,23 @@ test('Browser provider never restores or stores legacy localStorage bearer', () 
   assert.ok(context.includes('csrfToken: string'));
   assert.ok(useAuth.includes('csrfToken: string'));
 });
+
+test('Login responses are rejected after newer auth generation; refresh proof is read INSIDE the cookie lock', () => {
+  const page = load('pages/LoginPage.tsx');
+  const service = load('services/classService.ts');
+  const admin = load('components/admin/auth/AdminSessionGate.tsx');
+  const provider = load('context/AuthProvider.tsx');
+  assert.ok(page.includes('startedGeneration = getAuthSessionGeneration()'));
+  assert.ok(page.includes('startedGeneration !== getAuthSessionGeneration()'));
+  assert.ok(!page.includes('login(data.access_token, data.csrf_token);') ||
+    page.indexOf('startedGeneration !== getAuthSessionGeneration()') <
+      page.indexOf('login(data.access_token, data.csrf_token);'));
+  const refresh = service.split('async refreshBrowserSession()')[1]
+    .split('async recoverLogoutProof')[0];
+  assert.ok(refresh.includes('withExclusiveBrowserCookie(async () => {'));
+  assert.ok(refresh.indexOf("'\/auth/browser/logout-proof'") <
+    refresh.indexOf("'\/auth/browser/refresh'"));
+  assert.ok(!refresh.includes('csrfToken: string'));
+  assert.ok(provider.includes('classService.refreshBrowserSession()'));
+  assert.ok(!admin.includes("localStorage.getItem('access_token')"));
+});
