@@ -223,3 +223,14 @@ test('A real HTTP204 ACK is recorded while the exclusive cookie Web Lock remains
   assert.ok(logout.indexOf('await apiClient.post(') < logout.indexOf('onConfirmed?.();'));
   assert.ok(logout.indexOf('onConfirmed?.();') < logout.indexOf('    });'));
 });
+
+test('Only exact HTTP204 may record a browser logout ACK, even without local pending state', () => {
+  const service = load('services/classService.ts');
+  const provider = load('context/AuthProvider.tsx');
+  const logout = service.split('async retryBrowserLogoutFromCookie(onConfirmed?: () => void)')[1]
+    .split('// --- GymClass Endpoints ---')[0];
+  assert.ok(logout.includes('response.status !== 204'));
+  assert.ok(logout.indexOf('response.status !== 204') < logout.indexOf('onConfirmed?.();'));
+  assert.ok(provider.includes('action === "logout-confirmed" && !realAck'));
+  assert.ok(provider.includes('setLogoutConfirmation(realAck ? "confirmed" : "expired-unconfirmed")'));
+});

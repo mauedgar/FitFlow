@@ -113,11 +113,16 @@ const classService = {
         }
         throw error;
       }
-      await apiClient.post(
+      const response = await apiClient.post<void>(
         '/auth/browser/logout', undefined,
         { headers: { 'X-CSRF-Token': csrf }, signal },
       );
-      // Invoke after real server ACK while the Web Lock is still held.
+      if (response.status !== 204) {
+        // Axios accepts any 2xx by default; only HTTP 204 is the durable
+        // PostgreSQL revocation ACK. Other 2xx leave logout pending.
+        throw new Error('El servidor no confirmó la revocación de la sesión.');
+      }
+      // Invoke ONLY after exact HTTP 204 while Web Lock is still held.
       onConfirmed?.();
     });
   },

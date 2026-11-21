@@ -472,6 +472,49 @@ async function verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser) {
   }
 }
 
+
+async function verifyNon204LogoutCannotInventAck(browser) {
+  // Axios considers all 2xx successful. Neither 200 nor 202 is a durable
+  // server revocation receipt. The old signed bearer must remain active.
+  for (const bogusStatus of [200, 202]) {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    try {
+      await login(page, email);
+      await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+      const oldAccess = await activeAccessToken(page);
+      assert.ok(oldAccess);
+      await page.route('**/auth/browser/logout', route =>
+        route.fulfill({ status: bogusStatus, body: 'not-a-commit' }));
+      await page.getByRole('button', { name: 'Menú de perfil' }).click();
+      await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+      await page.waitForURL('**/login');
+      await page.getByRole('button', { name: 'Reintentar salida segura' }).waitFor();
+      assert.equal(await page.evaluate(
+        () => sessionStorage.getItem('fitflow_logout_pending')), '1');
+      assert.equal(await page.evaluate(
+        () => localStorage.getItem('fitflow_logout_confirmed_operation')), null,
+      'A non-204 response must not record a false ACK');
+      assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), true);
+      assert.equal((await fetch(API + '/auth/me', {
+        headers: { Authorization: 'Bearer ' + oldAccess },
+      })).status, 200, 'A mocked non-204 never revokes the PG family');
+      await page.unroute('**/auth/browser/logout');
+      await page.getByRole('button', { name: 'Reintentar salida segura' }).click();
+      await page.waitForFunction(
+        () => sessionStorage.getItem('fitflow_logout_pending') === null);
+      assert.ok(await page.evaluate(
+        () => localStorage.getItem('fitflow_logout_confirmed_operation')),
+      'Only the later real PG 204 may record a confirmed operation');
+      assert.equal((await fetch(API + '/auth/me', {
+        headers: { Authorization: 'Bearer ' + oldAccess },
+      })).status, 401, 'Real retry must revoke the original family');
+    } finally {
+      await context.close();
+    }
+  }
+}
+
 async function verifySameTabConcurrentLogoutRetriesJoinOriginal(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
@@ -1161,6 +1204,7 @@ async function run() {
     await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
     await verifySurvivingTabRecoversOrphanedLogout(browser);
     await verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser);
+    await verifyNon204LogoutCannotInventAck(browser);
     await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
     await verifyQueuedLoginCannotResurrectAfterRealLogout(browser);
     await verifySameTabConcurrentLogoutRetriesJoinOriginal(browser);

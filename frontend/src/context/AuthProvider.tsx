@@ -164,16 +164,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return; // A terminal for a different operation cannot settle this one.
         }
         const realAck = isConfirmedLogout(operation);
-        if (action === "logout-confirmed" && pendingOperation && !realAck) {
-          setLogoutConfirmation("pending");
-          return; // Storage alone cannot prove the PG COMMIT.
+        if (action === "logout-confirmed" && !realAck) {
+          // Even without a local pending marker, a storage signal alone
+          // cannot prove an exact PostgreSQL HTTP 204.
+          if (pendingOperation) setLogoutConfirmation("pending");
+          return;
         }
         needsOrphanRecovery.current = false;
         clearPendingLogout();
         csrfRef.current = null;
         setCsrfToken(null);
-        setLogoutConfirmation(realAck || action === "logout-confirmed" ?
-          "confirmed" : "expired-unconfirmed");
+        setLogoutConfirmation(realAck ? "confirmed" : "expired-unconfirmed");
         return;
       }
       if (sessionStorage.getItem(PENDING_LOGOUT) === "1") {
