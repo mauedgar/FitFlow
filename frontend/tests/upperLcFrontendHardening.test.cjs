@@ -71,7 +71,7 @@ test('Missing signed logout cookie unblocks login without inventing PostgreSQL A
   assert.ok(provider.includes("error instanceof BrowserLogoutProofUnavailable"));
   assert.ok(provider.includes("setLogoutConfirmation('expired-unconfirmed')"));
   assert.ok(provider.includes('notifyOtherTabs("logout-expired-unconfirmed", operation ?? undefined)'));
-  assert.ok(provider.includes('classService.retryBrowserLogoutFromCookie()'));
+  assert.ok(provider.includes('classService.retryBrowserLogoutFromCookie(() => {'));
   assert.ok(service.includes('async retryBrowserLogoutFromCookie(onConfirmed?: () => void)'));
   assert.ok(service.includes('withExclusiveBrowserCookie(async (signal) => {'));
   assert.ok(service.includes("error.response?.status === 401"));
