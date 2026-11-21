@@ -12,11 +12,23 @@ interface AuthProviderProps { children: ReactNode; }
 const LEGACY_ACCESS = "access_token";
 const PENDING_LOGOUT = "fitflow_logout_pending";
 const PENDING_CSRF = "fitflow_logout_csrf";
+const PENDING_OPERATION = "fitflow_logout_operation";
+const CONFIRMED_OPERATION = "fitflow_logout_confirmed_operation";
 const SYNC_KEY = AUTH_SYNC_KEY;
 
-/** Broadcast only a non-secret state-change signal; never a bearer or CSRF. */
-const notifyOtherTabs = (action: string): void => {
-  localStorage.setItem(SYNC_KEY, `${action}|${Date.now()}|${crypto.randomUUID()}`);
+/** A server-confirmed operation UUID is never a bearer/CSRF credential. */
+const signalOperation = (epoch: string | null): string | null =>
+  epoch?.split("|")[2] || null;
+const isConfirmedLogout = (operation: string | null): boolean =>
+  !!operation && localStorage.getItem(CONFIRMED_OPERATION) === operation;
+const clearPendingLogout = (): void => {
+  sessionStorage.removeItem(PENDING_LOGOUT);
+  sessionStorage.removeItem(PENDING_CSRF);
+  sessionStorage.removeItem(PENDING_OPERATION);
+};
+/** Broadcast only nonsecret state changes across tabs. */
+const notifyOtherTabs = (action: string, operation = crypto.randomUUID()): void => {
+  localStorage.setItem(SYNC_KEY, `${action}|${Date.now()}|${operation}`);
 };
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
@@ -64,10 +76,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const generation = getAuthSessionGeneration();
     const sharedEpoch = localStorage.getItem(SYNC_KEY);
     if (sessionStorage.getItem(PENDING_LOGOUT) === '1') {
-      needsOrphanRecovery.current = true;
-      csrfRef.current = sessionStorage.getItem(PENDING_CSRF);
-      setCsrfToken(csrfRef.current);
-      setLogoutConfirmation('pending');
+      const operation = sessionStorage.getItem(PENDING_OPERATION);
+      if (isConfirmedLogout(operation)) {
+        needsOrphanRecovery.current = false;
+        clearPendingLogout();
+        csrfRef.current = null;
+        setCsrfToken(null);
+        setLogoutConfirmation('confirmed');
+      } else {
+        needsOrphanRecovery.current = true;
+        csrfRef.current = sessionStorage.getItem(PENDING_CSRF);
+        setCsrfToken(csrfRef.current);
+        setLogoutConfirmation('pending');
+      }
       setIsLoadingAuth(false);
       return;
     }
@@ -110,6 +131,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // A delayed old storage event must not undo a newer logout.
       if (localStorage.getItem(SYNC_KEY) !== eventEpoch) return;
       const action = eventEpoch.split("|")[0];
+      const operation = signalOperation(eventEpoch);
+      const pendingOperation = sessionStorage.getItem(PENDING_OPERATION);
       const generation = advanceAuthSessionGeneration();
       // Initial cookie restoration may have been invalidated by this event.
       // Never leave the UI indefinitely behind the auth-loading gate.
@@ -125,6 +148,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // the signed cookie using its own bounded, deduplicated attempt.
         needsOrphanRecovery.current = true;
         sessionStorage.setItem(PENDING_LOGOUT, "1");
+        if (operation) sessionStorage.setItem(PENDING_OPERATION, operation);
         // CSRF belongs to the original tab's cookie snapshot. Never copy
         // that stale proof into another tab after an auth generation change.
         sessionStorage.removeItem(PENDING_CSRF);
@@ -135,12 +159,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       if (action === "logout-confirmed" ||
           action === "logout-expired-unconfirmed") {
+        if (pendingOperation && pendingOperation !== operation) {
+          setLogoutConfirmation("pending");
+          return; // A terminal for a different operation cannot settle this one.
+        }
+        const realAck = isConfirmedLogout(operation);
+        if (action === "logout-confirmed" && pendingOperation && !realAck) {
+          setLogoutConfirmation("pending");
+          return; // Storage alone cannot prove the PG COMMIT.
+        }
         needsOrphanRecovery.current = false;
-        sessionStorage.removeItem(PENDING_LOGOUT);
-        sessionStorage.removeItem(PENDING_CSRF);
+        clearPendingLogout();
         csrfRef.current = null;
         setCsrfToken(null);
-        setLogoutConfirmation(action === "logout-confirmed" ?
+        setLogoutConfirmation(realAck || action === "logout-confirmed" ?
           "confirmed" : "expired-unconfirmed");
         return;
       }
@@ -182,8 +214,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem(LEGACY_ACCESS);
     csrfRef.current = csrf;
     setCsrfToken(csrf);
-    sessionStorage.removeItem(PENDING_LOGOUT);
-    sessionStorage.removeItem(PENDING_CSRF);
+    clearPendingLogout();
     setLogoutConfirmation('idle');
     setToken(accessToken);
     decodeToken(accessToken);
@@ -261,6 +292,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // in-flight refresh, login and restoration before clearing auth state.
     advanceAuthSessionGeneration();
     needsOrphanRecovery.current = false;
+    const operation = crypto.randomUUID();
+    sessionStorage.setItem(PENDING_OPERATION, operation);
     sessionStorage.setItem(PENDING_LOGOUT, '1');
     localStorage.removeItem(LEGACY_ACCESS);
     setToken(null);
@@ -272,7 +305,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Always attempt an exact cookie-bound server logout before concluding.
     sessionStorage.removeItem(PENDING_CSRF);
     setLogoutConfirmation('pending');
-    notifyOtherTabs("logout-pending");
+    notifyOtherTabs("logout-pending", operation);
     void retryLogout();
   };
 
