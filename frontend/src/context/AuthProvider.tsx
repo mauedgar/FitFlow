@@ -27,7 +27,7 @@ const clearPendingLogout = (): void => {
   sessionStorage.removeItem(PENDING_OPERATION);
 };
 /** Broadcast only nonsecret state changes across tabs. */
-const notifyOtherTabs = (action: string, operation = crypto.randomUUID()): void => {
+const notifyOtherTabs = (action: string, operation: string = crypto.randomUUID()): void => {
   localStorage.setItem(SYNC_KEY, `${action}|${Date.now()}|${operation}`);
 };
 
