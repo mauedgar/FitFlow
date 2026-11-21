@@ -6,8 +6,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from app.core.security import decode_token, is_access_token_payload
 from pydantic import ValidationError
+
+from app.core.security import decode_token, is_access_token_payload
 from app.crud import auth_session as session_ledger
 from app.crud.crud_user import user as user_crud
 from app.schemas.token import TokenPayload

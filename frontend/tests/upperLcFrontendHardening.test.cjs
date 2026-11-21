@@ -44,7 +44,7 @@ test('Browser login blocks while durable logout is pending and synchronizes tabs
   assert.match(page, /disabled=\{loginMutation\.isPending \|\| logoutConfirmation === ['"]pending['"]\}/);
   assert.match(provider, /window\.addEventListener\("storage", onSharedSession\)/);
   assert.match(provider, /advanceAuthSessionGeneration\(\)/);
-  assert.match(provider, /notifyOtherTabs\("logout-pending"\)/);
+  assert.match(provider, /notifyOtherTabs\("logout-pending", operation\)/);
   assert.match(provider, /notifyOtherTabs\("logout-confirmed"\)/);
   assert.match(provider, /\[2000, 5000, 10000\]/);
   assert.doesNotMatch(provider, /localStorage\.setItem\(LEGACY_ACCESS, accessToken\)\s*;\s*\/\/.*modern/);
@@ -70,9 +70,9 @@ test('Missing signed logout cookie unblocks login without inventing PostgreSQL A
   const page = load('pages/LoginPage.tsx');
   assert.ok(provider.includes("error instanceof BrowserLogoutProofUnavailable"));
   assert.ok(provider.includes("setLogoutConfirmation('expired-unconfirmed')"));
-  assert.ok(provider.includes('notifyOtherTabs("logout-expired-unconfirmed")'));
+  assert.ok(provider.includes('notifyOtherTabs("logout-expired-unconfirmed", operation ?? undefined)'));
   assert.ok(provider.includes('classService.retryBrowserLogoutFromCookie()'));
-  assert.ok(service.includes('async retryBrowserLogoutFromCookie()'));
+  assert.ok(service.includes('async retryBrowserLogoutFromCookie(onConfirmed?: () => void)'));
   assert.ok(service.includes('withExclusiveBrowserCookie(async (signal) => {'));
   assert.ok(service.includes("error.response?.status === 401"));
   assert.ok(page.includes("logoutConfirmation === 'expired-unconfirmed'"));
@@ -128,7 +128,7 @@ test('Cookie Web Lock uses a finite abort budget and all auth writers propagate 
     .split('async restoreBrowserSession')[0];
   const refresh = service.split('async refreshBrowserSession()')[1]
     .split('async recoverLogoutProof')[0];
-  const retry = service.split('async retryBrowserLogoutFromCookie()')[1]
+  const retry = service.split('async retryBrowserLogoutFromCookie(onConfirmed?: () => void)')[1]
     .split('// --- GymClass Endpoints ---')[0];
   for (const op of [login, refresh, retry]) {
     assert.ok(op.includes('withExclusiveBrowserCookie(async (signal) => {'));
@@ -207,4 +207,19 @@ test('Orphaned cross-tab pending logout schedules a bounded signed recovery', ()
   assert.ok(provider.includes('if (retryLogoutInFlight.current) return retryLogoutInFlight.current'));
   assert.ok(provider.includes('localStorage.getItem(SYNC_KEY) !== sharedEpoch'));
   assert.ok(provider.includes("sessionStorage.getItem(PENDING_LOGOUT) !== '1'"));
+});
+
+test('A real HTTP204 ACK is recorded while the exclusive cookie Web Lock remains held', () => {
+  const provider = load('context/AuthProvider.tsx');
+  const service = load('services/classService.ts');
+  assert.ok(provider.includes('const CONFIRMED_OPERATION = "fitflow_logout_confirmed_operation"'));
+  assert.ok(provider.includes('sessionStorage.setItem(PENDING_OPERATION, operation)'));
+  assert.ok(provider.includes('localStorage.setItem(CONFIRMED_OPERATION, operation)'));
+  assert.ok(provider.includes('isConfirmedLogout(operation)'));
+  assert.ok(provider.includes('signalOperation(epoch) === operation'));
+  const logout = service.split('async retryBrowserLogoutFromCookie(onConfirmed?: () => void)')[1]
+    .split('// --- GymClass Endpoints ---')[0];
+  assert.ok(logout.includes('withExclusiveBrowserCookie(async (signal) => {'));
+  assert.ok(logout.indexOf('await apiClient.post(') < logout.indexOf('onConfirmed?.();'));
+  assert.ok(logout.indexOf('onConfirmed?.();') < logout.indexOf('    });'));
 });

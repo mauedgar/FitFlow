@@ -405,6 +405,73 @@ async function verifySurvivingTabRecoversOrphanedLogout(browser) {
   }
 }
 
+
+async function verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser) {
+  // The origin's real server COMMIT happens before the first tab receives
+  // HTTP 204; a peer auto-recovery waits on the same Web Lock.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const origin = await context.newPage();
+  const peer = await context.newPage();
+  let free;
+  let captured;
+  const held = new Promise(resolve => { free = resolve; });
+  const intercepted = new Promise(resolve => { captured = resolve; });
+  try {
+    await login(origin, email);
+    await origin.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(origin);
+    assert.ok(oldAccess);
+    await peer.goto(WEB + '/admin');
+    await peer.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await origin.route('**/auth/browser/logout', async route => {
+      const response = await route.fetch();
+      assert.equal(response.status(), 204, 'Original real PG revocation must COMMIT');
+      captured();
+      await held;
+      await route.fulfill({ response });
+    });
+    await origin.getByRole('button', { name: 'Menú de perfil' }).click();
+    await origin.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(intercepted, 'held real logout HTTP 204');
+    await peer.waitForFunction(async () => {
+      const locks = await navigator.locks.query();
+      return locks.pending.some(lock => lock.name === 'fitflow-auth-cookie-write');
+    });
+    const operation = await peer.evaluate(
+      () => sessionStorage.getItem('fitflow_logout_operation'));
+    assert.ok(operation, 'Both tabs must refer to the same pending logout');
+    free();
+    await origin.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    await peer.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    const both = await Promise.all([origin, peer].map(page => page.evaluate(() => ({
+      confirmed: localStorage.getItem('fitflow_logout_confirmed_operation'),
+      epoch: localStorage.getItem('fitflow_browser_auth_epoch'),
+      pending: sessionStorage.getItem('fitflow_logout_pending'),
+      operation: sessionStorage.getItem('fitflow_logout_operation'),
+    }))));
+    for (const state of both) {
+      assert.equal(state.confirmed, operation, 'Real 204 must persist exact nonsecret receipt');
+      assert.equal(state.pending, null);
+      assert.equal(state.operation, null);
+      assert.ok(state.epoch.startsWith('logout-confirmed|') &&
+        state.epoch.endsWith('|' + operation),
+      'A later missing proof 401 must not downgrade confirmed status');
+    }
+    assert.equal(await peer.getByText(
+      'La cookie de sesión ya no está disponible.', { exact: false }).count(), 0,
+    'A peer must not show expired-unconfirmed after a real PG ACK');
+    const revoked = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    });
+    assert.equal(revoked.status, 401, 'Original access family is revoked');
+  } finally {
+    free?.();
+    await context.close();
+  }
+}
+
 async function verifySameTabConcurrentLogoutRetriesJoinOriginal(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
@@ -1093,6 +1160,7 @@ async function run() {
     await verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser);
     await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
     await verifySurvivingTabRecoversOrphanedLogout(browser);
+    await verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser);
     await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
     await verifyQueuedLoginCannotResurrectAfterRealLogout(browser);
     await verifySameTabConcurrentLogoutRetriesJoinOriginal(browser);
