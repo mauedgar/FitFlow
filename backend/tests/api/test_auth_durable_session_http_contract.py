@@ -10,7 +10,7 @@ from jose import jwt
 import httpx
 import pytest
 from sqlalchemy import delete, update
-from sqlalchemy.engine import make_url
+from auth_session_test_helpers import require_local_test_database
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core import security
@@ -27,7 +27,7 @@ pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
 @pytest.fixture(autouse=True)
 def require_synthetic_database() -> None:
-    assert make_url(settings.DATABASE_URL).database == "fitflow_test"
+    require_local_test_database()
 
 
 @pytest.fixture(autouse=True)
