@@ -325,7 +325,9 @@ async def test_inactive_user_is_denied_even_with_signed_token(
         f"{API}/users/public",
         headers=actors.headers("inactive"),
     )
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.headers.get("www-authenticate") == "Bearer"
+    assert response.json() == {"detail": "Token inválido o usuario no autorizado."}
     assert "p0-" not in response.text
 
 
