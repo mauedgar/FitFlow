@@ -259,7 +259,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Join same-tab original; distinct tabs use the exclusive cookie Web Lock.
     if (retryLogoutInFlight.current) return retryLogoutInFlight.current;
     const expectedGeneration = getAuthSessionGeneration();
-    const operation = sessionStorage.getItem(PENDING_OPERATION);
+    const storedOperation = sessionStorage.getItem(PENDING_OPERATION);
+    // An old pending tab may lack an operation ID after an upgrade.
+    // Establish a nonsecret ID before attempting signed-cookie revocation.
+    const operation = storedOperation ?? crypto.randomUUID();
+    if (!storedOperation && sessionStorage.getItem(PENDING_LOGOUT) === '1') {
+      sessionStorage.setItem(PENDING_OPERATION, operation);
+      notifyOtherTabs("logout-pending", operation);
+    }
     const activeOperation = (): boolean =>
       getAuthSessionGeneration() === expectedGeneration &&
       sessionStorage.getItem(PENDING_LOGOUT) === '1' &&

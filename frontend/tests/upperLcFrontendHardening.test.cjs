@@ -266,5 +266,7 @@ test('Terminal logout validates pending identity before clearing a newer bearer'
   assert.ok(retry.includes('if (activeOperation() &&'));
   assert.ok(retry.includes('sessionStorage.getItem(PENDING_OPERATION) === operation'));
   assert.ok(p.includes('const MAX_CONFIRMED_HISTORY = 128'));
+  assert.ok(p.includes('const operation = storedOperation ?? crypto.randomUUID()'));
+  assert.ok(p.includes("if (!storedOperation && sessionStorage.getItem(PENDING_LOGOUT) === '1')"));
   assert.ok(p.includes('confirmedHistory().includes(operation)'));
 });
