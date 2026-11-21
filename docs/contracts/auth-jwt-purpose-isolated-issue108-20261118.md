@@ -16,8 +16,10 @@ All newly issued JWTs contain signed, non-overridable token_use access or
 refresh. Refresh JWTs discard any role claim. Both bearer guards reject
 refresh-as-access, including untyped legacy refresh. Access cannot be
 refresh/logout proof. Invalid purpose, subject or expiration fail closed.
-Untyped historical access requires a signed role and original exp; untyped
-historical refresh must omit role and have a live original exp.
+Historically, signed untyped access had a role and original expiry, while
+untyped refresh was role-free. Those are historical format observations:
+the current bearer and refresh endpoints reject untyped and SID-less tokens,
+regardless of whether the cryptographic signature is still unexpired.
 
 All new logins through /auth/token, /auth/session/token and
 /auth/browser/token establish signed UUID4 SID families in PostgreSQL before
@@ -31,13 +33,14 @@ SHA256-derived and expire within signed JWT exp, mismatched opaque entries
 never fall back to raw legacy keys. Historical raw Redis records remain
 read-only compatibility and are not automatically deleted.
 
-Existing signed SID-less refresh, with authentic historical registration
-and no blacklist, may issue another SID-less access with expiration capped
-to the ORIGINAL signed refresh expiry. No manufactured SID family is
-attributed to these tokens. Legacy logout cannot instantly invalidate all
-already-issued SID-less access: those tokens live until their signed exp.
-This bounded residual is explicit and needs Product risk disposition before
-the global 0F0A gate; do not disguise it as modern durable revocation.
+Current PR118 /auth/refresh and /auth/session/refresh reject all signed
+SID-less refresh: historical Redis registration/blacklist is not an active
+HTTP compatibility route, and NO new SID-less access is issued. The current
+bearer guards reject both untyped access and SID-less access regardless of
+remaining cryptographic exp. No retrospective SID family is manufactured
+for an old token. A historical signed token may still exist until its exp,
+but this is not current bearer authorization or a revocation guarantee.
+Any residual Redis key cleanup is a separate retained-data decision.
 
 Old IR findings and advisories remain unchanged. Exact final source
 needs fresh 0F0A independent review, PG15/Redis7/CPython3.15.2 native CI
@@ -48,5 +51,6 @@ rotation, production or merge is implied by this documentation.
 
 Original /auth/refresh now delegates exclusively to the PostgreSQL session
 ledger after a signed SID check, without Redis fallback or SID-less issuance.
-Existing /auth/logout legacy and bearer SID-less authorization are not yet
-retired. Native CI and independent review on exact successor SHA required.
+The original /auth/logout alias requires a modern SID-backed refresh and
+authenticated owner bearer; both bearer guards reject SID-less tokens.
+Native CI and independent review on exact successor SHA remain mandatory.

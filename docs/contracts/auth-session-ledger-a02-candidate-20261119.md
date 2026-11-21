@@ -29,12 +29,12 @@ replay clears it. A POST /auth/browser/refresh after PG commit cannot revive
 the revoked session.
 
 Existing signed SID-less tokens cannot be retrospectively assigned a
-cryptographically certain session family. Legacy registered refresh may
-mint bounded access until its ORIGINAL refresh expiration; after expiry,
-reauthenticate. Already-issued SID-less access may remain live until its
-signed exp after logout. That residual compatibility window is disclosed,
-not misrepresented as immediate family-wide logout. No password reset or
-subject-wide mass invalidation is performed.
+cryptographically certain PostgreSQL session family. Current HTTP refresh
+rejects all SID-less tokens even with historical Redis registration, and
+current bearer guards reject signed SID-less/untyped access regardless of
+remaining cryptographic expiry. Historical tokens may still be signed until
+exp, but they are not accepted as modern access. Reauthentication is
+required; no password reset or subject-wide mass invalidation is implied.
 
 Alembic a6b7c8d9e0f1 creates an initially empty auth_sessions table with
 FK owner and scoped digest. Its DOWNGRADE destroys this table and may run
@@ -53,7 +53,8 @@ The original POST /auth/logout has no Redis state transition. It requires
 a signed refresh with SID plus an authorized owner bearer, and delegates
 to PostgreSQL revocation; failed COMMIT/ACK never returns false 204.
 Use /auth/session/logout for replay when an access bearer has expired or
-was revoked. Legacy SID-less bearer acceptance is not yet removed.
+was revoked. Signed SID-less bearer acceptance was removed in this PR118 candidate;
+only typed PostgreSQL-registered SID families can authorize requests.
 
 ## Control 015 — expiry-boundary replay and session ownership
 

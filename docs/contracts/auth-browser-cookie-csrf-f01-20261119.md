@@ -55,12 +55,14 @@ These guarantees require actual final-head browser and disposable HTTP
 negative tests, and independent review; initial IR001 found 2 frontend
 findings/2 advisories on the historical fd376... HEAD.
 
-Legacy /auth/token new issuance is durable SID-backed, but the backend still
-accepts existing signed SID-less refresh and may produce SID-less access bounded by its
-original signed refresh expiry. Legacy access is NOT individually family
-revocable; no immediate full legacy remote logout is claimed. After original
-expiry, reauthentication is required. No unbounded extension or automatic
-mass session invalidation.
+Current /auth/token new issuance is durable SID-backed. The current HTTP
+refresh endpoints reject signed SID-less refresh even if Redis retains an
+old registration; no SID-less access can be minted or refreshed by them.
+The strict modern bearer gate also rejects historically issued SID-less
+and untyped access tokens even before their signed expiry. These artifacts
+cannot be retroactively assigned a family; reauthentication is required.
+Historically issued tokens might remain cryptographically signed until exp,
+but that is not a claim of present endpoint acceptance or family revocation.
 
 Deployment STOP: retained PG migration NOT_RUN, no staging/prod activation,
 no assumed cross-site SameSite=None fallback, CORS/HTTPS topology not
@@ -71,8 +73,8 @@ qualified, no secret rotation, no 0F0A final independent acceptance yet.
 The /auth/refresh compatibility URL now authorizes only signed, typed,
 PG-registered refresh tokens with sid; legacy untyped and typed SID-less
 refresh never issue new access, even if a historical Redis entry exists.
-Existing signed SID-less bearer and /auth/logout legacy paths remain an
-explicit separate cutover step. No token lifetime extension.
+The original /auth/logout alias and signed SID-less bearer gates have also
+cut over to PostgreSQL SID-only authority. No token lifetime extension.
 
 ## Control 015 — historical logout alias cutover (candidate, not merged)
 
@@ -80,7 +82,8 @@ POST /auth/logout now rejects SID-less refresh even if Redis registration
 existed. It requires a signed modern refresh family and the current access
 subject owner, then revokes the exact PostgreSQL row. After committed
 revocation, a lost ACK can be reconciled by /auth/session/logout without an
-access bearer. Legacy signed SID-less bearer is still separately pending.
+access bearer. Strict signed SID-bearing access guards are already implemented in this
+candidate; signed SID-less bearer is rejected, not an open compatibility path.
 
 ## Control 015 — strict modern bearer gate (candidate, not accepted)
 
@@ -192,3 +195,21 @@ during the SID ledger lookup. Both cases have dedicated negative HTTP tests.
   or final user database outages remain HTTP 503 without exception leaks.
 - These are candidate semantics pending exact-HEAD CI and a new
   independent review; this document does not accept the Product.
+
+## Current PR118 candidate behavior (supersedes older stage notes)
+
+| HTTP route | Accepted credential | Security authority | Returned credential |
+|---|---|---|---|
+| POST /auth/token, /auth/session/token | Password plus live User | PostgreSQL AuthSession COMMIT | Typed SID access + refresh |
+| POST /auth/refresh, /auth/session/refresh | Signed typed SID refresh | PostgreSQL registered active SID + exact digest | Typed SID access only |
+| POST /auth/logout | Signed typed SID refresh + owner access | PostgreSQL exact family COMMIT | 204 after COMMIT/replay |
+| POST /auth/session/logout | Signed typed SID refresh | PostgreSQL exact family COMMIT/replay | 204 after confirmed result |
+| POST /auth/browser/token | Password and allowed Origin | PostgreSQL + HttpOnly signed cookie | In-memory access + CSRF, no refresh JSON |
+| GET /auth/browser/session | Signed cookie and allowed Origin | PostgreSQL live family | In-memory access + CSRF |
+| POST /auth/browser/refresh | Cookie plus Origin and CSRF | PostgreSQL live family under row lock | In-memory access + CSRF |
+| POST /auth/browser/logout | Cookie plus Origin and CSRF | PostgreSQL COMMIT/replay | Cookie cleared only after actual 204 |
+
+The current bearer guards reject historical signed SID-less or untyped
+access tokens. Old Redis registration keys are not an HTTP refresh
+fallback. All these statements describe **candidate code**, not an accepted
+merge, deployed behavior or proof independent of actual tests.

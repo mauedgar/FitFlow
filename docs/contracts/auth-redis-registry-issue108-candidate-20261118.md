@@ -26,12 +26,14 @@ row-locked revoked_at and exact idempotent replay. Redis is not a security
 authority for modern login, refresh, bearer guards or logout. A revoked
 modern family stays denied after Redis cache loss or restart.
 
-Historical SID-less refresh remains validated through Redis registration/
-blacklist and may mint only expiry-CAPPED SID-less access. A legacy refresh
-logout does not revoke every already-issued access credential of that user;
-signed legacy access may remain until original exp. No retroactive family
-assignment or blanket subject-wide revocation is claimed. This compatibility
-boundary is NOT equivalent to modern durable logout.
+Historical SID-less refresh registration and blacklist keys may still be
+present in Redis, but the current /auth/refresh and /auth/session/refresh
+endpoints never consult them to mint access. No SID-less access is issued.
+The current bearer gates also reject old SID-less and untyped access tokens
+regardless of their original signed exp. Cryptographically old artifacts may
+exist until expiry, without an HTTP authorization path or retroactive SID
+family assignment. Retained Redis cleanup needs separate authorization;
+do not infer a subject-wide revocation or delete keys implicitly.
 
 No retained Redis/PostgreSQL writes, credentials, secret updates, staging,
 production or migration were performed. Current code/tests/doc are
