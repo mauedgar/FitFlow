@@ -96,7 +96,7 @@ const classService = {
     await this.retryBrowserLogoutFromCookie();
   },
 
-  async retryBrowserLogoutFromCookie(): Promise<void> {
+  async retryBrowserLogoutFromCookie(onConfirmed?: () => void): Promise<void> {
     // Lock GET proof and POST revocation as one cookie-dependent operation.
     // Only a 401 at the proof GET proves that no usable signed cookie can
     // identify the former session; a failed POST remains unconfirmed.
@@ -117,6 +117,8 @@ const classService = {
         '/auth/browser/logout', undefined,
         { headers: { 'X-CSRF-Token': csrf }, signal },
       );
+      // Invoke after real server ACK while the Web Lock is still held.
+      onConfirmed?.();
     });
   },
 

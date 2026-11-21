@@ -225,30 +225,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const retryLogout = useCallback((): Promise<void> => {
-    // A manual retry during an automatic retry must join its original result;
-    // two same-tab GET/POST chains could otherwise overwrite a confirmed ACK.
+    // Join same-tab original; distinct tabs use the exclusive cookie Web Lock.
     if (retryLogoutInFlight.current) return retryLogoutInFlight.current;
     const expectedGeneration = getAuthSessionGeneration();
+    const operation = sessionStorage.getItem(PENDING_OPERATION);
+    const activeOperation = (): boolean => {
+      if (!operation) {
+        return getAuthSessionGeneration() === expectedGeneration &&
+          sessionStorage.getItem(PENDING_LOGOUT) === '1';
+      }
+      const epoch = localStorage.getItem(SYNC_KEY);
+      return sessionStorage.getItem(PENDING_OPERATION) === operation ||
+        (signalOperation(epoch) === operation &&
+          epoch?.split("|")[0]?.startsWith("logout-") === true);
+    };
+    const confirmLocal = (): void => {
+      needsOrphanRecovery.current = false;
+      csrfRef.current = null;
+      setCsrfToken(null);
+      clearPendingLogout();
+      setLogoutConfirmation('confirmed');
+    };
     const task = (async (): Promise<void> => {
       try {
-        await classService.retryBrowserLogoutFromCookie();
-        if (getAuthSessionGeneration() !== expectedGeneration) return;
-        csrfRef.current = null;
-        setCsrfToken(null);
-        sessionStorage.removeItem(PENDING_LOGOUT);
-        sessionStorage.removeItem(PENDING_CSRF);
-        setLogoutConfirmation('confirmed');
-        notifyOtherTabs("logout-confirmed");
+        await classService.retryBrowserLogoutFromCookie(() => {
+          // Only a real HTTP 204 records an ACK. Do so BEFORE releasing the
+          // shared Web Lock so that queued proof-401 responses cannot win.
+          if (operation) {
+            localStorage.setItem(CONFIRMED_OPERATION, operation);
+            const epoch = localStorage.getItem(SYNC_KEY);
+            if (signalOperation(epoch) === operation &&
+                !epoch?.startsWith("logout-confirmed|")) {
+              notifyOtherTabs("logout-confirmed", operation);
+            }
+          }
+        });
+        if (!activeOperation()) return; // Never erase a newer identity.
+        confirmLocal();
+        if (!operation) notifyOtherTabs("logout-confirmed");
       } catch (error) {
-        if (getAuthSessionGeneration() !== expectedGeneration) return;
+        if (operation && isConfirmedLogout(operation)) {
+          // Another tab got HTTP 204; a subsequent missing cookie is not
+          // permitted to downgrade its confirmed receipt.
+          if (activeOperation()) confirmLocal();
+          return;
+        }
+        if (!activeOperation()) return;
         if (error instanceof BrowserLogoutProofUnavailable) {
-          // Missing/expired cookie is never a server COMMIT acknowledgement.
+          // No signed proof is an unconfirmed result, NEVER a server ACK.
           csrfRef.current = null;
           setCsrfToken(null);
-          sessionStorage.removeItem(PENDING_LOGOUT);
-          sessionStorage.removeItem(PENDING_CSRF);
+          clearPendingLogout();
           setLogoutConfirmation('expired-unconfirmed');
-          notifyOtherTabs("logout-expired-unconfirmed");
+          notifyOtherTabs("logout-expired-unconfirmed", operation ?? undefined);
+          if (operation && isConfirmedLogout(operation)) confirmLocal();
           return;
         }
         setLogoutConfirmation('pending');
