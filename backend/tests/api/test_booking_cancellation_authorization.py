@@ -6,7 +6,6 @@ from uuid import UUID
 import httpx
 import pytest
 from fastapi import status
-from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.enums import (
@@ -15,7 +14,7 @@ from app.core.enums import (
     ClassSessionStatus,
     UserRole,
 )
-from app.core.security import create_access_token
+from auth_session_test_helpers import committed_access, require_local_test_database
 from app.db.models import (
     Booking,
     ClassSchedule,
@@ -37,11 +36,7 @@ async def dispose_engine_pool_after_test() -> AsyncIterator[None]:
 
 @pytest.fixture(autouse=True)
 def require_isolated_test_database() -> None:
-    database_name = make_url(settings.DATABASE_URL).database
-    assert database_name == "fitflow_test", (
-        "Booking cancellation API tests require fitflow_test; "
-        f"configured database is {database_name!r}."
-    )
+    require_local_test_database()
 
 
 async def _fixture(
@@ -135,17 +130,16 @@ async def _fixture(
         await db.flush()
 
         booking_id = booking.id
+        caller_id = (
+            owner_user.id if caller_role == UserRole.client and caller_owns_booking
+            else caller_user.id if caller_role is not None else None
+        )
         await db.commit()
 
-    if caller_email is None:
+    if caller_email is None or caller_id is None or caller_role is None:
         return booking_id, None
 
-    access_token = create_access_token(
-        {
-            "sub": caller_email,
-            "role": caller_role.value if caller_role is not None else "",
-        }
-    )
+    access_token = await committed_access(caller_id, caller_role.value)
     return booking_id, access_token
 
 
@@ -266,5 +260,5 @@ async def test_booking_cancel_authenticated_disallowed_teacher() -> None:
         f"case=disallowed_teacher http={response.status_code} booking={stored.value}"
     )
 
-    assert response.status_code >= status.HTTP_400_BAD_REQUEST, response.text
+    assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
     assert stored == BookingStatus.confirmed

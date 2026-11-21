@@ -10,7 +10,6 @@ from datetime import UTC, date, datetime, time, timedelta
 import httpx
 import pytest
 from fastapi import status
-from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.enums import (
@@ -19,7 +18,7 @@ from app.core.enums import (
     ClassSessionStatus,
     UserRole,
 )
-from app.core.security import create_access_token
+from auth_session_test_helpers import require_local_test_database, staged_access
 from app.core.timezone import LOCAL_TZ
 from app.db.models import (
     Booking,
@@ -52,12 +51,8 @@ class WeeklyDemandFixture:
 
 @pytest.fixture(autouse=True)
 def require_isolated_test_database() -> None:
-    database_name = make_url(settings.DATABASE_URL).database
-    assert database_name == "fitflow_test", (
-        "Weekly demand contract requires fitflow_test; "
-        f"configured database is {database_name!r}."
-    )
-
+    # Fail closed before any synthetic DB writes, even with python -O.
+    require_local_test_database()
 
 @pytest.fixture(autouse=True)
 async def dispose_engine_pool_after_test() -> AsyncIterator[None]:
@@ -240,9 +235,7 @@ async def _seed_weekly_demand_fixture() -> WeeklyDemandFixture:
             },
             schedule_id=schedule.id,
             tokens={
-                role: create_access_token(
-                    {"sub": str(user.id), "role": role.value}
-                )
+                role: staged_access(db, user.id, role.value)
                 for role, user in auth_users.items()
             },
         )

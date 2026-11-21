@@ -50,6 +50,42 @@ def test_staging_accepts_explicit_non_development_configuration() -> None:
     assert configured.DEBUG is False
 
 
+def test_implicit_production_profile_rejects_local_http_origin() -> None:
+    with pytest.raises(ValidationError, match="localhost CORS origins are forbidden"):
+        make_settings(
+            ENV="production", REDIS_URL=None, DEBUG=False,
+            BACKEND_CORS_ORIGINS=["http://localhost:5173"],
+        )
+
+
+def test_production_explicit_https_origin_is_accepted() -> None:
+    result = make_settings(
+        ENV="production", REDIS_URL=None, DEBUG=False,
+        BACKEND_CORS_ORIGINS=["https://fitflow.example"],
+    )
+    assert result.ENV == "production"
+    assert result.DEBUG is False
+
+
+@pytest.mark.parametrize("profile", ["staging", "production"])
+def test_public_http_origin_is_forbidden_for_nonlocal_profiles(profile: str) -> None:
+    with pytest.raises(ValidationError, match="HTTPS CORS origins are required"):
+        make_settings(ENV=profile, BACKEND_CORS_ORIGINS=["http://fitflow.example"])
+
+
+def test_typo_profile_is_not_an_insecure_cookie_profile() -> None:
+    with pytest.raises(ValidationError, match="ENV must explicitly name"):
+        make_settings(ENV="developmet")
+
+
+def test_development_profile_requires_loopback_origin() -> None:
+    with pytest.raises(ValidationError, match="Local profiles require loopback"):
+        make_settings(
+            ENV="development", DEBUG=True,
+            BACKEND_CORS_ORIGINS=["http://public.example"],
+        )
+
+
 def test_application_uses_configured_cors_origins() -> None:
     cors = next(middleware for middleware in app.user_middleware if middleware.cls is CORSMiddleware)
 
@@ -74,3 +110,33 @@ def test_staging_fails_closed_on_unsafe_or_missing_values(
 ) -> None:
     with pytest.raises(ValidationError, match=message):
         make_settings(**override)
+
+
+@pytest.mark.parametrize(
+    "bad_origin",
+    [
+        "https://fitflow.example/path",
+        "https://fitflow.example/",
+        "https://fitflow.example?debug=1",
+        "https://fitflow.example/#fragment",
+        "https://fitflow.example:bad",
+        "https://fitflow.example:99999",
+        "https://fitflow.example:",
+        "https://user:password@fitflow.example",
+        "https://fitflow.example\\unexpected",
+    ],
+)
+@pytest.mark.parametrize("profile", ["staging", "production"])
+def test_nonlocal_profiles_require_canonical_origin_syntax(
+    bad_origin: str, profile: str,
+) -> None:
+    with pytest.raises(ValidationError, match="serialized CORS origins"):
+        make_settings(ENV=profile, BACKEND_CORS_ORIGINS=[bad_origin])
+
+
+def test_local_profile_also_rejects_path_bearing_origin() -> None:
+    with pytest.raises(ValidationError, match="loopback CORS origins"):
+        make_settings(
+            ENV="development",
+            BACKEND_CORS_ORIGINS=["http://localhost:5173/stealth"],
+        )

@@ -9,7 +9,7 @@ import httpx
 import pytest
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.core.security import create_access_token
+from auth_session_test_helpers import committed_access
 from app.db.models import Client, User
 from app.db.session import AsyncSessionLocal, engine
 from fastapi import status
@@ -57,12 +57,7 @@ async def _client_access_token() -> str:
         user_id = user.id
         await db.commit()
 
-    return create_access_token(
-        {
-            "sub": str(user_id),
-            "role": UserRole.client.value,
-        }
-    )
+    return await committed_access(user_id, UserRole.client.value)
 
 
 async def test_read_my_bookings_accepts_canonical_user_id_subject(

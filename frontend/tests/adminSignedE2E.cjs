@@ -44,23 +44,751 @@ async function runtimeSessionState(page) {
   });
 }
 
-async function loginUsingSignedToken(page, token) {
-  // Replays the same *real backend-signed* token to exercise identical-token
-  // re-login. Other API requests continue against the real disposable backend.
-  const routePattern = '**/api/v1/auth/token';
-  await page.route(routePattern, (route) => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ access_token: token, token_type: 'bearer', refresh_token: 'synthetic-e2e-only' }),
-  }));
+async function activeAccessToken(page) {
+  // Runtime module introspection only inside synthetic E2E; never print JWT.
+  return page.evaluate(async () => {
+    const api = (await import('/src/services/api.ts')).default;
+    const header = api.defaults.headers.common.Authorization;
+    return typeof header === 'string' && header.startsWith('Bearer ')
+      ? header.slice(7) : null;
+  });
+}
+
+async function loginWithNewSignedSession(page) {
+  // Replaying the old signed JWT after durable logout must NOT grant access.
+  // Preserve the mounted React generation: page.goto would reset the
+  // session epoch, masking the stale-response protection being tested.
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Contraseña').fill(password);
+  await page.getByRole('button', { name: 'Ingresar' }).click();
+  await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+  assert.ok(await activeAccessToken(page), 'Browser access must live in memory');
+  assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null,
+    'Modern access must not enter localStorage');
+}
+
+
+
+async function verifySameTabRefreshCannotRestoreBearerDuringLogout(browser) {
+  // Hold a real signed refresh HTTP 200 while local logout begins; the
+  // newly bumped same-tab generation must reject that late authorization.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  let announceResponse, releaseResponse;
+  const captured = new Promise(resolve => { announceResponse = resolve; });
+  const held = new Promise(resolve => { releaseResponse = resolve; });
   try {
-    await page.getByLabel('Email').fill(email);
-    await page.getByLabel('Contraseña').fill(password);
-    await page.getByRole('button', { name: 'Ingresar' }).click();
+    await login(page, email);
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), token);
+    const oldAccess = await activeAccessToken(page);
+    assert.ok(oldAccess, 'Initial bearer must be a real signed session');
+
+    await page.route('**/auth/browser/refresh', async route => {
+      const response = await route.fetch();
+      assert.equal(response.status(), 200, 'Synthetic refresh reached the real backend');
+      announceResponse();
+      await held;
+      await route.fulfill({ response });
+    });
+
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    await within(captured, 'held same-tab signed refresh response');
+    const before = await runtimeSessionState(page);
+    await page.getByRole('button', { name: 'Menú de perfil' }).click();
+    await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await page.waitForURL('**/login');
+    assert.equal(await activeAccessToken(page), null,
+      'Local logout must clear bearer before the delayed response');
+    const after = await runtimeSessionState(page);
+    assert.ok(after.generation > before.generation,
+      'Same-tab logout must advance the generation synchronously');
+    releaseResponse();
+    await page.waitForFunction(() => sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal(await activeAccessToken(page), null,
+      'Late refresh may not resurrect an in-memory bearer after logout');
+    const old = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    });
+    assert.equal(old.status, 401, 'Real PostgreSQL revocation must still hold');
   } finally {
-    await page.unroute(routePattern);
+    releaseResponse?.();
+    await context.close();
+  }
+}
+
+async function verifyPendingLogoutCannotBeSilentlyReplaced(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  try {
+    await login(page, email);
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const access = await activeAccessToken(page);
+    assert.ok(access, 'Signed family was registered');
+    // Abort BEFORE forwarding, so the server has no revocation COMMIT.
+    await page.route('**/auth/browser/logout', async route => route.abort());
+    await page.getByRole('button', { name: 'Menú de perfil' }).click();
+    await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await page.waitForURL('**/login');
+    await page.getByRole('button', { name: 'Reintentar salida segura' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), true,
+      'No login may overwrite a pending durable logout cookie');
+    const stillActive = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + access },
+    });
+    assert.equal(stillActive.status, 200, 'Aborted logout did not revoke old family');
+    await page.unroute('**/auth/browser/logout');
+    await page.getByRole('button', { name: 'Reintentar salida segura' }).click();
+    await page.waitForFunction(() => sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), false,
+      'Login unblocks only after PG-confirmed logout or exact replay');
+    const revoked = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + access },
+    });
+    assert.equal(revoked.status, 401);
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyCrossTabCookieSynchronizationAndReplacementGuard(browser) {
+  // Tabs share one actual browser cookie but have distinct React memory.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const first = await context.newPage();
+  const second = await context.newPage();
+  try {
+    await login(first, email);
+    await first.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    assert.ok(await activeAccessToken(first));
+    await second.goto(WEB + '/admin');
+    await second.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    assert.ok(await activeAccessToken(second), 'Other tab must rehydrate same cookie');
+
+    // Another login must not overwrite a still-registered durable family.
+    await second.goto(WEB + '/login');
+    await second.getByLabel('Email').fill(email);
+    await second.getByLabel('Contraseña').fill(password);
+    const denial = second.waitForResponse(response =>
+      response.url() === API + '/auth/browser/token' && response.status() === 409);
+    await second.getByRole('button', { name: 'Ingresar' }).click();
+    await within(denial, 'active family replacement must return 409');
+
+    // Server-confirmed logout propagates a nonsecret storage event to both tabs.
+    await first.getByRole('button', { name: 'Menú de perfil' }).click();
+    await first.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await first.waitForURL('**/login');
+    await second.waitForFunction(async () => {
+      const api = (await import('/src/services/api.ts')).default;
+      return !api.defaults.headers.common.Authorization;
+    });
+    assert.equal(await activeAccessToken(second), null);
+  } finally {
+    await context.close();
+  }
+}
+
+
+async function verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser) {
+  // Single-tab cookie expiry after a network-aborted logout (no PG COMMIT).
+  // The separate two-tab test covers automatic orphaned logout recovery.
+  // Here no surviving peer can independently COMMIT before cookie removal.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const first = await context.newPage();
+  try {
+    await login(first, email);
+    await first.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const priorAccess = await activeAccessToken(first);
+    assert.ok(priorAccess);
+    await first.route('**/auth/browser/logout', route => route.abort());
+    await first.getByRole('button', { name: 'Menú de perfil' }).click();
+    await first.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await first.waitForURL('**/login');
+    await first.getByRole('button', { name: 'Reintentar salida segura' }).waitFor();
+    assert.equal(await first.getByRole('button', { name: 'Ingresar' }).isDisabled(), true);
+
+    // Browser expires/discards the cookie while the logout remains pending.
+    await context.clearCookies();
+    await first.unroute('**/auth/browser/logout');
+    await first.getByRole('button', { name: 'Reintentar salida segura' }).click();
+    await first.getByText('La cookie de sesión ya no está disponible.', { exact: false }).waitFor();
+    assert.equal(await first.getByRole('button', { name: 'Ingresar' }).isDisabled(), false);
+    // No false server ACK: abort-before-forwarding means original access
+    // remains active in PG until its signed expiration.
+    const oldStillLive = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + priorAccess },
+    });
+    assert.equal(oldStillLive.status, 200, 'Missing cookie must not be reported as PG revocation');
+
+    await loginWithNewSignedSession(first);
+    assert.ok(await activeAccessToken(first), 'New login registers a separate durable family');
+  } finally {
+    await context.close();
+  }
+}
+
+
+async function verifyLateLoginResponseRejectedAfterCrossTabLogout(browser) {
+  // Synthetic network interleaving: hold a real HTTP 200 login response
+  // until a different tab announces a newer logout generation.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const observer = await context.newPage();
+  const pending = await context.newPage();
+  let release;
+  let captured;
+  const blocked = new Promise(resolve => { release = resolve; });
+  const wasCaptured = new Promise(resolve => { captured = resolve; });
+  try {
+    await observer.goto(WEB + '/login');
+    await pending.goto(WEB + '/login');
+    const before = await runtimeSessionState(pending);
+    await pending.route('**/auth/browser/token', async route => {
+      const response = await route.fetch();
+      assert.equal(response.status(), 200, 'Synthetic login was successfully registered');
+      captured();
+      await blocked;
+      await route.fulfill({ response });
+    });
+    await pending.getByLabel('Email').fill(email);
+    await pending.getByLabel('Contraseña').fill(password);
+    await pending.getByRole('button', { name: 'Ingresar' }).click();
+    await within(wasCaptured, 'held successful browser login');
+    await observer.evaluate(() => {
+      localStorage.setItem('fitflow_browser_auth_epoch',
+        'logout-confirmed|' + Date.now() + '|' + crypto.randomUUID());
+    });
+    await pending.waitForFunction(async (initial) => {
+      const epochs = await import('/src/utils/authSessionGeneration.ts');
+      return epochs.getAuthSessionGeneration() > initial;
+    }, before.generation);
+    release();
+    await pending.waitForFunction(() => {
+      const button = document.querySelector('button[type=submit]');
+      return button && !button.disabled;
+    });
+    assert.equal(new URL(pending.url()).pathname, '/login',
+      'Late HTTP 200 must not navigate after a newer logout');
+    assert.equal(await activeAccessToken(pending), null,
+      'A stale successful login must not restore memory bearer');
+  } finally {
+    release?.();
+    await context.close();
+  }
+}
+
+
+async function verifyQueuedLoginCannotResurrectAfterRealLogout(browser) {
+  // The queued browser login begins before another tab confirms logout.
+  // Real PG logout must commit while the lock is held by test instrumentation;
+  // after the shared epoch advances the queued login must NEVER POST or set cookie.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const owner = await context.newPage();
+  const contender = await context.newPage();
+  let releaseHeld;
+  let loginPosts = 0;
+  try {
+    await login(owner, email);
+    await owner.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(owner);
+    assert.ok(oldAccess);
+    await contender.goto(WEB + '/login');
+    await contender.getByLabel('Email').waitFor();
+    const before = await runtimeSessionState(contender);
+    const heldLock = owner.evaluate(async () => {
+      await navigator.locks.request('fitflow-auth-cookie-write', async () => {
+        window.__ffHoldLoginQueue = true;
+        await new Promise(resolve => { window.__ffReleaseLoginQueue = resolve; });
+      });
+    });
+    releaseHeld = () => owner.evaluate(() => window.__ffReleaseLoginQueue?.());
+    await owner.waitForFunction(() => window.__ffHoldLoginQueue === true);
+    contender.on('request', request => {
+      if (request.method() === 'POST' && request.url() === API + '/auth/browser/token') {
+        loginPosts++;
+      }
+    });
+    await contender.getByLabel('Email').fill(email);
+    await contender.getByLabel('Contraseña').fill(password);
+    await contender.getByRole('button', { name: 'Ingresar' }).click();
+    await contender.waitForFunction(async () => {
+      const state = await navigator.locks.query();
+      return state.pending.some(item => item.name === 'fitflow-auth-cookie-write');
+    });
+
+    const proof = await context.request.get(API + '/auth/browser/logout-proof', {
+      headers: { Origin: WEB },
+    });
+    assert.equal(proof.status(), 200);
+    const csrf = (await proof.json()).csrf_token;
+    const logout = await context.request.post(API + '/auth/browser/logout', {
+      headers: { Origin: WEB, 'X-CSRF-Token': csrf },
+    });
+    assert.equal(logout.status(), 204, 'Real PostgreSQL logout must confirm COMMIT');
+    const revoked = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    });
+    assert.equal(revoked.status, 401);
+    // The backend DID return a real PG HTTP204 above. Simulate the
+    // provider's receipt+broadcast pair, not a naked untrusted storage ACK.
+    // The separate real-provider test verifies the actual broadcast path.
+    await owner.evaluate(() => {
+      const operation = crypto.randomUUID();
+      localStorage.setItem('fitflow_logout_confirmed_history',
+        JSON.stringify([operation]));
+      localStorage.setItem('fitflow_logout_confirmed_operation', operation);
+      localStorage.setItem('fitflow_browser_auth_epoch',
+        'logout-confirmed|' + Date.now() + '|' + operation);
+    });
+    await contender.waitForFunction(async initial => {
+      const epochs = await import('/src/utils/authSessionGeneration.ts');
+      return epochs.getAuthSessionGeneration() > initial;
+    }, before.generation);
+    await releaseHeld();
+    await heldLock;
+    await contender.waitForFunction(() => {
+      const loginButton = document.querySelector('button[type=submit]');
+      return loginButton && !loginButton.disabled;
+    });
+    assert.equal(loginPosts, 0, 'Superseded queued login must not issue HTTP POST');
+    assert.equal(new URL(contender.url()).pathname, '/login');
+    assert.equal(await activeAccessToken(contender), null);
+    const cookies = await context.cookies(API + '/auth/browser');
+    assert.equal(cookies.some(cookie => cookie.name === 'fitflow_browser_refresh'), false,
+      'A queued stale login cannot re-create HttpOnly cookie after real logout');
+  } finally {
+    await releaseHeld?.().catch(() => {});
+    await context.close();
+  }
+}
+
+
+async function verifySurvivingTabRecoversOrphanedLogout(browser) {
+  // Real cookie-bound HTTP revocation after the initiator closes without
+  // reaching the server. No synthetic localStorage ACK is supplied.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const initiator = await context.newPage();
+  const survivor = await context.newPage();
+  let releaseHeld;
+  let reportCaptured;
+  const release = new Promise(resolve => { releaseHeld = resolve; });
+  const captured = new Promise(resolve => { reportCaptured = resolve; });
+  try {
+    await login(initiator, email);
+    await initiator.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(initiator);
+    assert.ok(oldAccess);
+    await survivor.goto(WEB + '/admin');
+    await survivor.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await initiator.route('**/auth/browser/logout', route => route.abort());
+    await survivor.route('**/auth/browser/logout', async route => {
+      reportCaptured();
+      await release;
+      await route.continue();
+    });
+    await initiator.getByRole('button', { name: 'Menú de perfil' }).click();
+    await initiator.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(captured, 'survivor auto recovery POST');
+    assert.equal(await survivor.evaluate(
+      () => sessionStorage.getItem('fitflow_logout_pending')), '1');
+    assert.equal((await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    })).status, 200, 'Intercepted survivor POST has not revoked the old family');
+    await initiator.close(); // Origin dies; the surviving tab owns the recovery.
+    const ack = survivor.waitForResponse(response =>
+      response.url() === API + '/auth/browser/logout' && response.status() === 204);
+    releaseHeld();
+    await within(ack, 'real PG revocation ACK in survivor');
+    await survivor.waitForFunction(
+      () => sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal((await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    })).status, 401, 'Confirmed survivor ACK must revoke the old family');
+    await survivor.goto(WEB + '/login');
+    assert.equal(await survivor.getByRole('button', { name: 'Ingresar' }).isDisabled(),
+      false, 'Sign-in unblocks only after real revocation ACK');
+  } finally {
+    releaseHeld?.();
+    await context.close();
+  }
+}
+
+
+
+async function verifyEarlierRealLogoutReceiptSurvivesLaterConfirmedFamily(browser) {
+  // Both receipts originate from real signed PostgreSQL 204 responses.
+  // A surviving tab may reload after a different later family is revoked.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const owner = await context.newPage();
+  try {
+    await login(owner, email);
+    await owner.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await owner.getByRole('button', { name: 'Menú de perfil' }).click();
+    const firstAck = owner.waitForResponse(response =>
+      response.url() === API + '/auth/browser/logout' && response.status() === 204);
+    await owner.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(firstAck, 'first genuine PostgreSQL logout 204');
+    await owner.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    const first = await owner.evaluate(
+      () => localStorage.getItem('fitflow_logout_confirmed_operation'));
+    assert.ok(first, 'First confirmed logout must have a nonsecret operation');
+
+    await owner.goto(WEB + '/login');
+    await loginWithNewSignedSession(owner);
+    await owner.getByRole('button', { name: 'Menú de perfil' }).click();
+    const secondAck = owner.waitForResponse(response =>
+      response.url() === API + '/auth/browser/logout' && response.status() === 204);
+    await owner.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(secondAck, 'second genuine PostgreSQL logout 204');
+    await owner.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    const saved = await owner.evaluate(() => ({
+      last: localStorage.getItem('fitflow_logout_confirmed_operation'),
+      history: JSON.parse(localStorage.getItem('fitflow_logout_confirmed_history') || '[]'),
+    }));
+    assert.notEqual(saved.last, first, 'Two different session revocations have different IDs');
+    assert.ok(saved.history.includes(first) && saved.history.includes(saved.last),
+      'Previous real server ACK must survive a later family confirmation');
+
+    const survivor = await context.newPage();
+    await survivor.goto(WEB + '/login');
+    await survivor.evaluate(operation => {
+      sessionStorage.setItem('fitflow_logout_pending', '1');
+      sessionStorage.setItem('fitflow_logout_operation', operation);
+    }, first);
+    await survivor.reload();
+    await survivor.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal(await survivor.getByText(
+      'La cookie de sesión ya no está disponible.', { exact: false }).count(), 0,
+    'A reloaded previous pending operation must recognize its real 204');
+    assert.equal(await survivor.getByRole('button', { name: 'Ingresar' }).isDisabled(),
+      false, 'Previously committed logout cannot regress to pending');
+  } finally {
+    await context.close();
+  }
+}
+
+async function verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser) {
+  // The origin's real server COMMIT happens before the first tab receives
+  // HTTP 204; a peer auto-recovery waits on the same Web Lock.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const origin = await context.newPage();
+  const peer = await context.newPage();
+  let free;
+  let captured;
+  const held = new Promise(resolve => { free = resolve; });
+  const intercepted = new Promise(resolve => { captured = resolve; });
+  try {
+    await login(origin, email);
+    await origin.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(origin);
+    assert.ok(oldAccess);
+    await peer.goto(WEB + '/admin');
+    await peer.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await origin.route('**/auth/browser/logout', async route => {
+      const response = await route.fetch();
+      assert.equal(response.status(), 204, 'Original real PG revocation must COMMIT');
+      captured();
+      await held;
+      await route.fulfill({ response });
+    });
+    await origin.getByRole('button', { name: 'Menú de perfil' }).click();
+    await origin.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(intercepted, 'held real logout HTTP 204');
+    await peer.waitForFunction(async () => {
+      const locks = await navigator.locks.query();
+      return locks.pending.some(lock => lock.name === 'fitflow-auth-cookie-write');
+    });
+    const operation = await peer.evaluate(
+      () => sessionStorage.getItem('fitflow_logout_operation'));
+    assert.ok(operation, 'Both tabs must refer to the same pending logout');
+    free();
+    await origin.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    await peer.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    const both = await Promise.all([origin, peer].map(page => page.evaluate(() => ({
+      confirmed: localStorage.getItem('fitflow_logout_confirmed_operation'),
+      epoch: localStorage.getItem('fitflow_browser_auth_epoch'),
+      pending: sessionStorage.getItem('fitflow_logout_pending'),
+      operation: sessionStorage.getItem('fitflow_logout_operation'),
+    }))));
+    for (const state of both) {
+      assert.equal(state.confirmed, operation, 'Real 204 must persist exact nonsecret receipt');
+      assert.equal(state.pending, null);
+      assert.equal(state.operation, null);
+      assert.ok(state.epoch.startsWith('logout-confirmed|') &&
+        state.epoch.endsWith('|' + operation),
+      'A later missing proof 401 must not downgrade confirmed status');
+    }
+    assert.equal(await peer.getByText(
+      'La cookie de sesión ya no está disponible.', { exact: false }).count(), 0,
+    'A peer must not show expired-unconfirmed after a real PG ACK');
+    const revoked = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    });
+    assert.equal(revoked.status, 401, 'Original access family is revoked');
+  } finally {
+    free?.();
+    await context.close();
+  }
+}
+
+
+async function verifyNon204LogoutCannotInventAck(browser) {
+  // Axios considers all 2xx successful. Neither 200 nor 202 is a durable
+  // server revocation receipt. The old signed bearer must remain active.
+  for (const bogusStatus of [200, 202]) {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    try {
+      await login(page, email);
+      await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+      const oldAccess = await activeAccessToken(page);
+      assert.ok(oldAccess);
+      await page.route('**/auth/browser/logout', route =>
+        route.fulfill({ status: bogusStatus, body: 'not-a-commit' }));
+      await page.getByRole('button', { name: 'Menú de perfil' }).click();
+      await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+      await page.waitForURL('**/login');
+      await page.getByRole('button', { name: 'Reintentar salida segura' }).waitFor();
+      assert.equal(await page.evaluate(
+        () => sessionStorage.getItem('fitflow_logout_pending')), '1');
+      assert.equal(await page.evaluate(
+        () => localStorage.getItem('fitflow_logout_confirmed_operation')), null,
+      'A non-204 response must not record a false ACK');
+      assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), true);
+      assert.equal((await fetch(API + '/auth/me', {
+        headers: { Authorization: 'Bearer ' + oldAccess },
+      })).status, 200, 'A mocked non-204 never revokes the PG family');
+      await page.unroute('**/auth/browser/logout');
+      await page.getByRole('button', { name: 'Reintentar salida segura' }).click();
+      await page.waitForFunction(
+        () => sessionStorage.getItem('fitflow_logout_pending') === null);
+      assert.ok(await page.evaluate(
+        () => localStorage.getItem('fitflow_logout_confirmed_operation')),
+      'Only the later real PG 204 may record a confirmed operation');
+      assert.equal((await fetch(API + '/auth/me', {
+        headers: { Authorization: 'Bearer ' + oldAccess },
+      })).status, 401, 'Real retry must revoke the original family');
+    } finally {
+      await context.close();
+    }
+  }
+}
+
+
+async function verifyQueuedLoginHonorsRealProviderLogoutBroadcast(browser) {
+  // Unlike the synthetic epoch test, only mounted AuthProvider may broadcast.
+  // Hold the cookie Web Lock, queue a login, then trigger real UI logout.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const owner = await context.newPage();
+  const contender = await context.newPage();
+  const holder = await context.newPage();
+  let freeHeld;
+  try {
+    await login(owner, email);
+    await owner.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(owner);
+    assert.ok(oldAccess);
+    await contender.goto(WEB + '/login');
+    await contender.getByLabel('Email').waitFor();
+    await holder.goto(WEB + '/login');
+    await contender.evaluate(() => {
+      window.__ffRealAuthBroadcasts = [];
+      window.addEventListener('storage', event => {
+        if (event.key === 'fitflow_browser_auth_epoch' && event.newValue) {
+          window.__ffRealAuthBroadcasts.push(event.newValue);
+        }
+      });
+    });
+    const held = holder.evaluate(async () => {
+      await navigator.locks.request('fitflow-auth-cookie-write', async () => {
+        window.__ffRealLockHeld = true;
+        await new Promise(resolve => { window.__ffReleaseRealLock = resolve; });
+      });
+    });
+    freeHeld = () => holder.evaluate(() => window.__ffReleaseRealLock?.());
+    await holder.waitForFunction(() => window.__ffRealLockHeld === true);
+    let loginPosts = 0;
+    contender.on('request', request => {
+      if (request.method() === 'POST' && request.url() === API + '/auth/browser/token') {
+        loginPosts++;
+      }
+    });
+    await contender.getByLabel('Email').fill(email);
+    await contender.getByLabel('Contraseña').fill(password);
+    await contender.getByRole('button', { name: 'Ingresar' }).click();
+    await contender.waitForFunction(async () =>
+      (await navigator.locks.query()).pending.some(lock =>
+        lock.name === 'fitflow-auth-cookie-write'));
+    // The real React handler emits logout-pending while both real HTTP writers
+    // remain queued. No direct API logout or synthetic storage epoch is used.
+    await owner.getByRole('button', { name: 'Menú de perfil' }).click();
+    await owner.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await contender.waitForFunction(() =>
+      window.__ffRealAuthBroadcasts.some(value => value.startsWith('logout-pending|')));
+    await freeHeld();
+    await held;
+    await owner.waitForURL('**/login');
+    await owner.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    await contender.waitForFunction(() =>
+      window.__ffRealAuthBroadcasts.some(value => value.startsWith('logout-confirmed|')));
+    assert.equal(loginPosts, 0,
+      'The real logout-pending broadcast must stop an already queued login POST');
+    assert.equal(new URL(contender.url()).pathname, '/login');
+    assert.equal(await activeAccessToken(contender), null);
+    assert.equal((await context.cookies()).some(
+      cookie => cookie.name === 'fitflow_browser_refresh'), false);
+    const response = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    });
+    assert.equal(response.status, 401,
+      'Real React logout must revoke old signed PG family');
+  } finally {
+    await freeHeld?.().catch(() => {});
+    await context.close();
+  }
+}
+
+async function verifySameTabConcurrentLogoutRetriesJoinOriginal(browser) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  let release;
+  let notify;
+  let logoutPosts = 0;
+  const hold = new Promise(resolve => { release = resolve; });
+  const intercepted = new Promise(resolve => { notify = resolve; });
+  try {
+    await login(page, email);
+    await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await page.route('**/auth/browser/logout', async route => {
+      logoutPosts++;
+      const response = await route.fetch();
+      assert.equal(response.status(), 204);
+      notify();
+      await hold;
+      await route.fulfill({ response });
+    });
+    await page.getByRole('button', { name: 'Menú de perfil' }).click();
+    await page.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(intercepted, 'held real PG logout response');
+    await page.waitForURL('**/login');
+    const retry = page.getByRole('button', { name: 'Reintentar salida segura' });
+    await retry.waitFor();
+    await retry.click();
+    await retry.click();
+    release();
+    await page.waitForFunction(() => sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal(logoutPosts, 1, 'Manual retries must join the original request');
+    assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), false);
+    assert.equal(await page.getByText('La cookie de sesión ya no está disponible.', { exact: false }).count(), 0,
+      'A proven 204 cannot be overwritten by an expired-unconfirmed retry');
+  } finally {
+    release?.();
+    await context.close();
+  }
+}
+
+async function verifyRefreshReadsCsrfAfterQueuedCookieLock(browser) {
+  // An external API request rotates the shared cookie while a tab is
+  // queued on the Web Lock. Refresh MUST read the latest signed proof.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const first = await context.newPage();
+  const second = await context.newPage();
+  try {
+    await login(first, email);
+    await first.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await second.goto(WEB + '/admin');
+    await second.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const beforeProof = await context.request.get(API + '/auth/browser/logout-proof', {
+      headers: { Origin: WEB },
+    });
+    assert.equal(beforeProof.status(), 200);
+    const originalCsrf = (await beforeProof.json()).csrf_token;
+    const held = first.evaluate(async () => {
+      await navigator.locks.request('fitflow-auth-cookie-write', async () => {
+        window.__fitflowHeldLock = true;
+        await new Promise(resolve => { window.__fitflowReleaseLock = resolve; });
+      });
+    });
+    await first.waitForFunction(() => window.__fitflowHeldLock === true);
+    const queued = second.evaluate(async () => {
+      const service = (await import('/src/services/classService.ts')).default;
+      return service.refreshBrowserSession();
+    });
+    await second.waitForFunction(async () => {
+      const state = await navigator.locks.query();
+      return state.pending.some(lock => lock.name === 'fitflow-auth-cookie-write');
+    });
+    try {
+      const logout = await context.request.post(API + '/auth/browser/logout', {
+        headers: { Origin: WEB, 'X-CSRF-Token': originalCsrf },
+      });
+      assert.equal(logout.status(), 204);
+      const replacement = await context.request.post(API + '/auth/browser/token', {
+        headers: { Origin: WEB },
+        form: { username: email, password },
+      });
+      assert.equal(replacement.status(), 200);
+    } finally {
+      await first.evaluate(() => window.__fitflowReleaseLock());
+    }
+    await held;
+    const refreshed = await within(queued, 'post-lock refresh of rotated cookie');
+    assert.ok(refreshed.access_token, 'Refresh must return access for replacement family');
+    assert.notEqual(refreshed.csrf_token, originalCsrf,
+      'Refresh must read the new cookie-bound proof within the acquired lock');
+  } finally {
+    await first.evaluate(() => window.__fitflowReleaseLock?.()).catch(() => {});
+    await context.close();
+  }
+}
+
+async function verifyStalledProofReleasesCookieLock(browser) {
+  // Real two-tab liveness test: proof GET intentionally never answers until
+  // its requester aborts. The second tab must eventually acquire the lock.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const first = await context.newPage();
+  const second = await context.newPage();
+  let releaseBlockedProof;
+  let markIntercepted;
+  const gate = new Promise(resolve => { releaseBlockedProof = resolve; });
+  const intercepted = new Promise(resolve => { markIntercepted = resolve; });
+  try {
+    await login(first, email);
+    await first.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await second.goto(WEB + '/login');
+    await second.getByLabel('Email').fill(email);
+    await second.getByLabel('Contraseña').fill(password);
+
+    await first.route('**/auth/browser/logout-proof', async route => {
+      markIntercepted();
+      await gate;
+      await route.abort().catch(() => {});
+    });
+    const slowRefresh = first.evaluate(async () => {
+      const client = (await import('/src/services/classService.ts')).default;
+      try {
+        await client.refreshBrowserSession();
+        return 'UNEXPECTED_SUCCESS';
+      } catch {
+        return 'ABORTED';
+      }
+    });
+    await within(intercepted, 'stalled csrf proof intercept');
+    const startedAt = Date.now();
+    const denied = second.waitForResponse(response =>
+      response.url() === API + '/auth/browser/token' && response.status() === 409);
+    await second.getByRole('button', { name: 'Ingresar' }).click();
+    const result = await within(slowRefresh, 'abort of stalled auth lock', 18000);
+    assert.equal(result, 'ABORTED');
+    await within(denied, 'second tab released after auth lock budget', 18000);
+    assert.ok(Date.now() - startedAt < 18000,
+      'Auth Web Lock must release before bounded browser test deadline');
+  } finally {
+    releaseBlockedProof?.();
+    await context.close();
   }
 }
 
@@ -75,8 +803,9 @@ async function verifyRapidReLoginAndStale401(browser) {
     });
     await login(page, email);
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    const signedToken = await page.evaluate(() => localStorage.getItem('access_token'));
-    assert.ok(signedToken, 'Live browser session must retain signed token');
+    const signedToken = await activeAccessToken(page);
+    assert.ok(signedToken, 'Browser must hold signed access only in memory');
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null);
     const firstState = await runtimeSessionState(page);
     assert.equal(firstState.activeInterceptors, 1, 'Exactly one Axios response interceptor on initial mount');
     assert.ok(firstState.generation > 0, 'Login must synchronously create an auth generation');
@@ -96,7 +825,8 @@ async function verifyRapidReLoginAndStale401(browser) {
     // retained signed token again without installing duplicate interceptors.
     await page.reload();
     await page.getByRole('heading', { name: 'Clientes', exact: true }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken);
+    assert.ok(await activeAccessToken(page), 'HttpOnly cookie should rehydrate a signed access');
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null);
     assert.ok(authMeRequests > requestsBeforeNavigation &&
       authMeRequests <= requestsBeforeNavigation + 2, 'Rehydration rechecks one verified identity');
     const rehydratedState = await runtimeSessionState(page);
@@ -156,10 +886,13 @@ async function verifyRapidReLoginAndStale401(browser) {
     const loggedOutGeneration = (await runtimeSessionState(page)).generation;
     assert.ok(loggedOutGeneration > rehydratedState.generation,
       'Logout must advance the epoch within the rehydrated browser module');
-    await loginUsingSignedToken(page, signedToken);
+    await loginWithNewSignedSession(page);
+    const successorToken = await activeAccessToken(page);
+    assert.ok(successorToken && successorToken !== signedToken,
+      'Durable relogin must issue a new SID, never replay a revoked SID');
     const newGeneration = (await runtimeSessionState(page)).generation;
     assert.ok(newGeneration > loggedOutGeneration,
-      'Same-token re-login must have a distinct generation');
+      'Same-user re-login must have a distinct generation');
     assert.equal((await runtimeSessionState(page)).activeInterceptors, 1,
       'New ADMIN session must install exactly one interceptor');
     releaseResolve();
@@ -170,8 +903,9 @@ async function verifyRapidReLoginAndStale401(browser) {
       'old Axios promise rejected with actual HTTP 401');
     assert.equal(oldResult.kind, 'rejected', 'Old response must reject in the original Axios consumer');
     assert.equal(oldResult.status, 401, 'Old Axios consumer must observe HTTP 401, not cancellation');
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), signedToken,
-      'Old 401 must not log out a newer same-token generation');
+    assert.ok((await activeAccessToken(page)) === successorToken,
+      'Old 401 must not log out a later session generation');
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null);
     assert.equal((await runtimeSessionState(page)).generation, newGeneration,
       'Late old-generation 401 must not change session generation');
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
@@ -268,7 +1002,7 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
 
     await login(page, email);
     await within(firstProfileSeen, 'first pending TanStack /auth/me request');
-    const firstSignedToken = await page.evaluate(() => localStorage.getItem('access_token'));
+    const firstSignedToken = await activeAccessToken(page);
     assert.ok(firstSignedToken, 'Signed JWT must exist during the first pending identity check');
 
     // Hold an additional *noncancellable* Axios /auth/me request from the OLD
@@ -284,14 +1018,40 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
     });
     await within(probeSeen, 'old noncancellable /auth/me Axios probe');
 
+    // The legacy test originally attempted to overwrite an ACTIVE HttpOnly
+    // family. That is now correctly blocked (HTTP 409). Revoke the first
+    // disposable family via the exact signed refresh before re-login; hold
+    // the old /auth/me responses so the stale-401 race is still exercised.
+    // Use real browser logout: PG commits and server clears HttpOnly
+    // refresh cookie. A direct API /session/logout revokes PG but deliberately
+    // leaves a cookie that the browser-login guard must not overwrite.
+    const oldFamilyCookie = (await context.cookies()).find(
+      (cookie) => cookie.name === 'fitflow_browser_refresh');
+    assert.ok(oldFamilyCookie && oldFamilyCookie.httpOnly);
+    const proof = await context.request.get(API + '/auth/browser/session', {
+      headers: { Origin: WEB },
+    });
+    assert.equal(proof.status(), 200, 'Old family must still be valid');
+    const { csrf_token: oldCsrf } = await proof.json();
+    const durableRevoke = await context.request.post(API + '/auth/browser/logout', {
+      headers: { Origin: WEB, 'X-CSRF-Token': oldCsrf },
+    });
+    assert.equal(durableRevoke.status(), 204,
+      'Browser logout must COMMIT and clear the old cookie');
+    assert.equal((await context.cookies()).some(
+      (cookie) => cookie.name === 'fitflow_browser_refresh'), false,
+      'No signed refresh cookie may be replaced before confirmed logout');
     await page.evaluate(() => {
       history.pushState({}, '', '/login');
       dispatchEvent(new PopStateEvent('popstate'));
     });
     await page.getByRole('heading', { name: 'Iniciar Sesión' }).waitFor();
-    await loginUsingSignedToken(page, firstSignedToken);
+    await loginWithNewSignedSession(page);
+    const secondSignedToken = await activeAccessToken(page);
+    assert.ok(secondSignedToken && secondSignedToken !== firstSignedToken,
+      'Same user relogin must register a new signed session family');
     const newState = await runtimeSessionState(page);
-    assert.ok(newState.generation >= 2, 'New same-token login must advance auth generation');
+    assert.ok(newState.generation >= 2, 'New same-user login must advance auth generation');
     assert.equal(newState.activeInterceptors, 1, 'Only current identity guard interceptor survives');
     assert.ok(identityCount >= 2, 'New generation must independently confirm backend identity');
 
@@ -325,9 +1085,11 @@ async function verifyDelayedIdentityAcrossSameTokenReLogin(browser) {
     assert.equal(probeResult.status, 401, 'Old /auth/me Axios consumer must receive 401, not cancellation');
 
     await page.getByRole('heading', { name: 'Panel de administración' }).waitFor();
-    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), firstSignedToken);
+    assert.ok((await activeAccessToken(page)) === secondSignedToken,
+      'Old delayed 401 cannot revoke newer session UX');
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null);
     assert.equal((await runtimeSessionState(page)).generation, newState.generation,
-      'Old delivered identity 401 must not invalidate the newer same-token login');
+      'Old delivered identity 401 must not invalidate the newer same-user login');
     console.log('ADMIN_DELAYED_IDENTITY_RACE_PASS: original query network outcome=' + networkOutcome.kind
       + ', old Axios 401 delivered to consumer');
   } finally {
@@ -572,6 +1334,20 @@ async function run() {
     assert.equal(await wrongPage.getByRole('heading', { name: 'Panel de administración' }).count(), 0);
     await wrongRole.close();
     await context.close();
+    await verifySameTabRefreshCannotRestoreBearerDuringLogout(browser);
+    await verifyPendingLogoutCannotBeSilentlyReplaced(browser);
+    await verifyExpiredLogoutProofUnblocksWithoutFalseAck(browser);
+    await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
+    await verifySurvivingTabRecoversOrphanedLogout(browser);
+    await verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser);
+    await verifyEarlierRealLogoutReceiptSurvivesLaterConfirmedFamily(browser);
+    await verifyNon204LogoutCannotInventAck(browser);
+    await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
+    await verifyQueuedLoginCannotResurrectAfterRealLogout(browser);
+    await verifyQueuedLoginHonorsRealProviderLogoutBroadcast(browser);
+    await verifySameTabConcurrentLogoutRetriesJoinOriginal(browser);
+    await verifyRefreshReadsCsrfAfterQueuedCookieLock(browser);
+    await verifyStalledProofReleasesCookieLock(browser);
     await verifyRapidReLoginAndStale401(browser);
     await verifyDelayedIdentityAcrossSameTokenReLogin(browser);
     await qualifySyntheticFailureDiagnostic(browser);

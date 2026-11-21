@@ -15,10 +15,10 @@ import httpx
 import pytest
 from fastapi import status
 from sqlalchemy import delete, func, select
-from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.enums import ActivityType, UserRole
+from auth_session_test_helpers import committed_access, require_local_test_database
 from app.core.security import create_access_token
 from app.db.models import GymClass, User
 from app.db.session import AsyncSessionLocal, engine
@@ -41,9 +41,7 @@ class SecurityActors:
 
 @pytest.fixture(autouse=True)
 def require_disposable_database() -> None:
-    assert make_url(settings.DATABASE_URL).database == "fitflow_test", (
-        "Security HTTP contract may use only fitflow_test"
-    )
+    require_local_test_database()
 
 
 @pytest.fixture(autouse=True)
@@ -83,15 +81,11 @@ async def actors() -> AsyncIterator[SecurityActors]:
         await db.commit()
     identities = {user.role.value: user.id for user in users}
     tokens = {
-        name: create_access_token({"sub": str(user_id), "role": name})
+        name: await committed_access(user_id, name)
         for name, user_id in identities.items()
     }
-    tokens["inactive"] = create_access_token(
-        {"sub": str(inactive.id), "role": "client"}
-    )
-    tokens["forged_admin"] = create_access_token(
-        {"sub": str(identities["client"]), "role": "admin"}
-    )
+    tokens["inactive"] = await committed_access(inactive.id, "client")
+    tokens["forged_admin"] = await committed_access(identities["client"], "admin")
     try:
         yield SecurityActors(
             marker=marker,
@@ -331,7 +325,9 @@ async def test_inactive_user_is_denied_even_with_signed_token(
         f"{API}/users/public",
         headers=actors.headers("inactive"),
     )
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.headers.get("www-authenticate") == "Bearer"
+    assert response.json() == {"detail": "Token inválido o usuario no autorizado."}
     assert "p0-" not in response.text
 
 
@@ -350,3 +346,20 @@ async def test_auth_me_preserves_valid_admin_identity_and_rejects_invalid_token(
         headers={"Authorization": "Bearer not-a-valid-jwt"},
     )
     assert invalid.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+
+@pytest.mark.parametrize(
+    "invalid_url",
+    [
+        "postgresql://synthetic@remote.example/fitflow_test",
+        "postgresql://synthetic@127.0.0.1/fitflow_prod",
+    ],
+)
+def test_synthetic_session_helper_denies_non_disposable_database_even_without_assert(
+    monkeypatch: pytest.MonkeyPatch, invalid_url: str,
+) -> None:
+    """A RuntimeError—not an optimized-away assert—must precede DB writes."""
+    monkeypatch.setattr(settings, "DATABASE_URL", invalid_url)
+    with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
+        require_local_test_database()

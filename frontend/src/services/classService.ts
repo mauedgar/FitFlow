@@ -1,5 +1,8 @@
 // src/services/classService.ts
+import axios from 'axios';
 import apiClient from './api';
+import { withExclusiveBrowserCookie } from '../utils/browserCookieLock';
+import { AUTH_SYNC_KEY, getAuthSessionGeneration } from '../utils/authSessionGeneration';
 
 import {
   type GymClass,
@@ -9,7 +12,7 @@ import {
   type ClassSession,
   type Booking,
   type BookingCreatePayload,
-  type TokenResponse,
+  type BrowserSessionResponse,
   type ClientWeeklyAgendaView
 } from '../types';
 
@@ -18,19 +21,110 @@ interface LoginPayload {
   password: string;
 }
 
+/** Missing/expired signed cookie: no exact server revocation receipt possible. */
+export class BrowserLogoutProofUnavailable extends Error {
+  constructor() {
+    super('La credencial del logout ya no está disponible.');
+    this.name = 'BrowserLogoutProofUnavailable';
+  }
+}
+
+/** Stale queued logins must not write a new cookie after a real logout. */
+export class BrowserLoginSuperseded extends Error {
+  constructor() {
+    super('El estado de la sesión cambió antes de iniciar el login.');
+    this.name = 'BrowserLoginSuperseded';
+  }
+}
+
 const classService = {
   // --- Autenticación ---
-  async login(payload: LoginPayload): Promise<TokenResponse> {
-    const formData = new URLSearchParams();
-    formData.append('username', payload.username);
-    formData.append('password', payload.password);
-
-    const response = await apiClient.post<TokenResponse>('/auth/token', formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+  async login(
+    payload: LoginPayload,
+    expectedGeneration: number,
+    expectedSharedEpoch: string | null,
+  ): Promise<BrowserSessionResponse> {
+    return withExclusiveBrowserCookie(async (signal) => {
+      // Evaluate inside the Web Lock before POST/Set-Cookie. Cross-tab storage
+      // events can arrive late, so compare the actual shared epoch too.
+      if (getAuthSessionGeneration() !== expectedGeneration ||
+          localStorage.getItem(AUTH_SYNC_KEY) !== expectedSharedEpoch ||
+          sessionStorage.getItem('fitflow_logout_pending') === '1') {
+        throw new BrowserLoginSuperseded();
+      }
+      const formData = new URLSearchParams();
+      formData.append('username', payload.username);
+      formData.append('password', payload.password);
+      const response = await apiClient.post<BrowserSessionResponse>(
+        '/auth/browser/token', formData,
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal },
+      );
+      return response.data;
     });
+  },
+
+  async restoreBrowserSession(): Promise<BrowserSessionResponse> {
+    const result = await apiClient.get<BrowserSessionResponse>('/auth/browser/session');
+    return result.data;
+  },
+
+  async refreshBrowserSession(): Promise<BrowserSessionResponse> {
+    // Acquire the lock BEFORE reading the cookie-bound CSRF proof. A token
+    // captured by React before the lock wait may belong to another cookie.
+    return withExclusiveBrowserCookie(async (signal) => {
+      const proof = await apiClient.get<{ csrf_token: string }>(
+        '/auth/browser/logout-proof', { signal },
+      );
+      const result = await apiClient.post<BrowserSessionResponse>(
+        '/auth/browser/refresh', undefined,
+        { headers: { 'X-CSRF-Token': proof.data.csrf_token }, signal },
+      );
+      return result.data;
+    });
+  },
+
+  async recoverLogoutProof(): Promise<{ csrf_token: string }> {
+    const response = await apiClient.get<{ csrf_token: string }>(
+      '/auth/browser/logout-proof',
+    );
     return response.data;
+  },
+
+  async logoutBrowserSession(): Promise<void> {
+    // Deprecated compatibility wrapper: never trust a proof captured before
+    // acquiring the Web Lock. Obtain the current proof and revoke atomically.
+    await this.retryBrowserLogoutFromCookie();
+  },
+
+  async retryBrowserLogoutFromCookie(onConfirmed?: () => void): Promise<void> {
+    // Lock GET proof and POST revocation as one cookie-dependent operation.
+    // Only a 401 at the proof GET proves that no usable signed cookie can
+    // identify the former session; a failed POST remains unconfirmed.
+    await withExclusiveBrowserCookie(async (signal) => {
+      let csrf: string;
+      try {
+        const proof = await apiClient.get<{ csrf_token: string }>(
+          '/auth/browser/logout-proof', { signal },
+        );
+        csrf = proof.data.csrf_token;
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          throw new BrowserLogoutProofUnavailable();
+        }
+        throw error;
+      }
+      const response = await apiClient.post<void>(
+        '/auth/browser/logout', undefined,
+        { headers: { 'X-CSRF-Token': csrf }, signal },
+      );
+      if (response.status !== 204) {
+        // Axios accepts any 2xx by default; only HTTP 204 is the durable
+        // PostgreSQL revocation ACK. Other 2xx leave logout pending.
+        throw new Error('El servidor no confirmó la revocación de la sesión.');
+      }
+      // Invoke ONLY after exact HTTP 204 while Web Lock is still held.
+      onConfirmed?.();
+    });
   },
 
   // --- GymClass Endpoints ---

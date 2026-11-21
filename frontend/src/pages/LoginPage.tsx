@@ -4,8 +4,9 @@ import { Box, Button, Heading, Input, VStack, Text, Link, Container, Field } fro
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query'; // ⭐ Importamos useMutation
 import { useAuth } from '../context/useAuth'; // ⭐ Importamos el contexto de Auth
-import classService from '../services/classService'; // ⭐ Usaremos classService para el login
-import { UserRole, type TokenResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
+import classService, { BrowserLoginSuperseded } from '../services/classService'; // ⭐ Login con Web Lock
+import { AUTH_SYNC_KEY, getAuthSessionGeneration } from '../utils/authSessionGeneration';
+import { UserRole, type BrowserSessionResponse } from '../types'; // ⭐ Importamos el tipo de respuesta del token
 import { AxiosError } from 'axios'; // ⭐ Para un manejo de errores más específico
 import { type TokenPayload } from '../types';
 import {jwtDecode} from 'jwt-decode'
@@ -15,19 +16,35 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const { login } = useAuth(); // ⭐ Obtenemos la función login, y el estado del usuario/rol
+  const { login, logoutConfirmation, retryLogout } = useAuth(); // ⭐ Obtenemos la función login, y el estado del usuario/rol
   const navigate = useNavigate();
 
   // ⭐ 1. Definimos la mutación de login
-  const loginMutation = useMutation<TokenResponse, AxiosError, { username: string; password: string }>({
+  const loginMutation = useMutation<{ session: BrowserSessionResponse; startedGeneration: number; startedEpoch: string | null }, AxiosError, { username: string; password: string }>({
     // La función que ejecuta la llamada a la API
-    mutationFn: (credentials) => classService.login(credentials),
+    mutationFn: async (credentials) => {
+      if (logoutConfirmation === "pending") {
+        throw new Error("Logout pendiente de confirmación");
+      }
+      // Capture BEFORE network dispatch: a later cross-tab logout invalidates
+      // this operation even if the server eventually returns HTTP 200.
+      const startedGeneration = getAuthSessionGeneration();
+      const startedEpoch = localStorage.getItem(AUTH_SYNC_KEY);
+      const session = await classService.login(credentials, startedGeneration, startedEpoch);
+      return { session, startedGeneration, startedEpoch };
+    },
 
     // Callback que se ejecuta si la mutación es exitosa
-    onSuccess: (data) => {
+    onSuccess: ({ session: data, startedGeneration, startedEpoch }) => {
+      // A late 200 is not an authorization to overwrite a newer tab logout.
+      // Do not call useAuth.login or navigate for a stale generation.
+      if (startedGeneration !== getAuthSessionGeneration() ||
+          localStorage.getItem(AUTH_SYNC_KEY) !== startedEpoch ||
+          sessionStorage.getItem("fitflow_logout_pending") === "1") return;
       // Llamamos a la función login del AuthContext, pasando solo el token
       // El AuthContext ya se encarga de decodificar y establecer el rol
-      login(data.access_token);
+      const accepted = login(data.access_token, data.csrf_token);
+      if (!accepted) return; // No false success toast or navigation on rejection.
       toaster.create({
         title: "Inicio de sesión exitoso",
         type: "success",
@@ -52,9 +69,12 @@ const LoginPage = () => {
 
     // Callback que se ejecuta si la mutación falla
     onError: (error) => {
+      if (error instanceof BrowserLoginSuperseded) return; // A newer logout won.
       // El objeto AxiosError puede contener credenciales en config.data.
       // No se registra ni se muestra información arbitraria del servidor.
-      const errorMessage = error.response?.status === 401
+      const errorMessage = error.response?.status === 409
+        ? "Confirmá el logout de la sesión anterior antes de ingresar nuevamente."
+        : error.response?.status === 401
         ? "Email o contraseña incorrectos."
         : error.message === "Network Error"
           ? "Error de red. Asegúrate de que el servidor está corriendo."
@@ -72,6 +92,7 @@ const LoginPage = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (logoutConfirmation === "pending" || loginMutation.isPending) return;
     // ⭐ 3. Disparamos la mutación con las credenciales
     loginMutation.mutate({ username: email, password });
   };
@@ -80,6 +101,15 @@ const LoginPage = () => {
     <Container maxW="40rem" py={10}>
       <VStack gap={8}>
         <Heading>Iniciar Sesión</Heading>
+        {logoutConfirmation === 'pending' && (
+          <VStack role="alert" gap={2}>
+            <Text>Saliste de esta pantalla, pero el servidor no confirmó la revocación. Podés reintentar cuando vuelva la conexión.</Text>
+            <Button onClick={() => void retryLogout()}>Reintentar salida segura</Button>
+          </VStack>
+        )}
+        {logoutConfirmation === 'expired-unconfirmed' && (
+          <Text role="alert">La cookie de sesión ya no está disponible. No pudimos confirmar la revocación en el servidor; podés iniciar sesión nuevamente con tus credenciales.</Text>
+        )}
 
         {/* ⭐ El estado de carga lo gestiona directamente la mutación */}
         <Box w="100%" asChild><form onSubmit={handleSubmit}>
@@ -93,7 +123,7 @@ const LoginPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@email.com"
                   autoComplete='email'
-                  disabled={loginMutation.isPending}
+                  disabled={loginMutation.isPending || logoutConfirmation === 'pending'}
                 />
               </Field.Root>
 
@@ -106,7 +136,7 @@ const LoginPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="********"
                   autoComplete="current-password"
-                  disabled={loginMutation.isPending}
+                  disabled={loginMutation.isPending || logoutConfirmation === 'pending'}
                 />
               </Field.Root>
 
@@ -115,7 +145,7 @@ const LoginPage = () => {
                 colorPalette="teal"
                 w="100%"
                 loading={loginMutation.isPending}
-                disabled={loginMutation.isPending}
+                disabled={loginMutation.isPending || logoutConfirmation === 'pending'}
               >
                 Ingresar
               </Button>

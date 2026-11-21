@@ -24,6 +24,7 @@ from app.core.enums import (
     ActivityType, BookingStatus, ClassSessionStatus, MembershipPlan,
     MembershipStatus, UserRole,
 )
+from auth_session_test_helpers import committed_access
 from app.core.security import create_access_token
 from app.db.models import (
     Booking, ClassSchedule, ClassSession, Client, GymClass, Membership, User,
@@ -179,11 +180,12 @@ async def profile_fixture() -> ClientProfileFixture:
         await db.commit()
 
     tokens = {
-        name: create_access_token({"sub": str(identity), "role": (
+        name: await committed_access(
+            identity,
             UserRole.admin.value if name == "admin"
             else UserRole.teacher.value if name == "teacher"
-            else UserRole.client.value
-        )})
+            else UserRole.client.value,
+        )
         for name, identity in actors.items()
     }
     return ClientProfileFixture(

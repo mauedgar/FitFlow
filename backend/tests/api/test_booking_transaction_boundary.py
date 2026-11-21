@@ -18,7 +18,7 @@ from app.core.enums import (
     MembershipStatus,
     UserRole,
 )
-from app.core.security import create_access_token
+from auth_session_test_helpers import committed_access
 from app.crud.crud_booking import booking as booking_crud
 from app.db.models import (
     Booking,
@@ -121,12 +121,7 @@ async def _booking_fixture() -> tuple[UUID, str]:
         session_id = class_session.id
         await db.commit()
 
-    access_token = create_access_token(
-        {
-            "sub": client_email,
-            "role": UserRole.client.value,
-        }
-    )
+    access_token = await committed_access(client_user.id, UserRole.client.value)
     return session_id, access_token
 
 

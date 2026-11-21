@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.core.security import create_access_token
+from auth_session_test_helpers import committed_access
 from app.db.models.client import Client
 from app.db.models.person import Person
 from app.db.models.user import User
@@ -119,9 +119,7 @@ async def test_client_signup_persists_real_person_and_client_and_me(
             assert profile.first_name == "María Elena"
             assert profile.last_name == "de la Cruz"
 
-        jwt = create_access_token(
-            {"sub": body["id"], "role": UserRole.client.value}
-        )
+        jwt = await committed_access(uuid.UUID(body["id"]), UserRole.client.value)
         client_me = await api_client.get(
             f"{API}/clients/me",
             headers={"Authorization": f"Bearer {jwt}"},

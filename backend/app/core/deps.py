@@ -19,13 +19,15 @@ from pydantic import ValidationError
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.core.security import decode_token
+from app.core.security import decode_token, is_access_token_payload
+from app.crud import auth_session as session_ledger
+from sqlalchemy.exc import SQLAlchemyError
 from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
 from app.schemas.user import UserPublic  # noqa: TC001
 from app.services.auth_service import get_user_from_token
-from app.services.errors import AuthError, PermissionDeniedError
+from app.services.errors import AuthError
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -50,7 +52,7 @@ async def get_current_user(
 ) -> User:
     """Valida el JWT, obtiene el usuario y verifica que esté activo."""
     payload = decode_token(token)
-    if payload is None:
+    if payload is None or not is_access_token_payload(payload):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado",
@@ -79,12 +81,34 @@ async def get_current_user(
             detail="Token mal formado",
         ) from err
 
-    user = await user_crud.get(db, obj_id=user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    try:
+        allowed = await session_ledger.is_active(
+            db, sid=payload["sid"], subject=token_data.sub,
+        )
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503, detail="Persistencia de sesiones no disponible."
+        ) from exc
+    if not allowed:
+        raise HTTPException(
+            status_code=401, detail="Sesión no registrada o revocada.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    if not user.active:  # type: ignore[reportGeneralTypeIssues]
-        raise HTTPException(status_code=400, detail="Usuario inactivo")
+    try:
+        user = await user_crud.get(db, obj_id=user_id)
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503, detail="Persistencia de sesiones no disponible."
+        ) from exc
+    # Identical authentication denial for missing, deleted and inactive users:
+    # avoid leaking whether an account exists or has been deactivated.
+    if not user or user.deleted_at is not None or not user.active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o usuario no autorizado.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return user
 
@@ -97,12 +121,19 @@ async def require_current_user(
     db: AsyncSession = Depends(get_async_session),
     token: str = Depends(oauth2_scheme),
 ) -> UserPublic:
-    """Devuelve el usuario autenticado usando el servicio de Auth."""
-    user = await get_user_from_token(token, db)
-    if user is None:
-        msg = "Token inválido o ausente."
-        raise AuthError(msg)
-    return user
+    """Devuelve usuario autenticado o HTTP 401, sin filtrar excepciones internas."""
+    try:
+        return await get_user_from_token(token, db)
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503, detail="Persistencia de sesiones no disponible."
+        ) from exc
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o usuario no autorizado.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
 
 
@@ -116,9 +147,9 @@ def require_roles(*allowed_roles: UserRole) -> Callable[..., Awaitable[UserPubli
         if user.role not in allowed_roles:
             roles_list = ", ".join(r.value for r in allowed_roles)
             msg = f"Este recurso requiere uno de los siguientes roles: {roles_list}."
-            raise PermissionDeniedError(
-                msg,
-            )
+            # Dependency failures must map to 403, never an uncaught
+            # domain exception converted to an HTTP 500.
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
         return user
 
     return guard
@@ -146,7 +177,7 @@ def require_admin_or_self(id_param_name: str = "user_id") -> Callable[..., Await
             return user
 
         msg = "Acceso denegado."
-        raise PermissionDeniedError(msg)
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=msg)
 
     return guard
 
