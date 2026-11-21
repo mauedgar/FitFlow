@@ -203,13 +203,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => window.removeEventListener("storage", onSharedSession);
   }, [decodeToken, queryClient]);
 
-  const login = (accessToken: string, csrf: string) => {
+  const login = (accessToken: string, csrf: string): boolean => {
     if (sessionStorage.getItem(PENDING_LOGOUT) === "1" ||
         localStorage.getItem(SYNC_KEY)?.startsWith('logout-pending|')) {
       setLogoutConfirmation("pending");
-      return; // A stale login response must not erase logout recovery.
+      return false; // No generation change or false success on rejection.
     }
-    if (!csrf || !accessToken) return; // No access-only/legacy login.
+    if (!csrf || !accessToken) return false; // No access-only/legacy login.
+    try {
+      const parsed = jwtDecode<TokenPayload>(accessToken);
+      if (!parsed.role || !parsed.sub ||
+          typeof parsed.exp !== 'number' ||
+          parsed.exp * 1000 <= Date.now()) return false;
+    } catch { return false; }
     // A successful new identity supersedes earlier async reads and retries.
     advanceAuthSessionGeneration();
     localStorage.removeItem(LEGACY_ACCESS);
@@ -223,6 +229,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
     queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
     notifyOtherTabs("login");
+    return true;
   };
 
   const retryLogout = useCallback((): Promise<void> => {

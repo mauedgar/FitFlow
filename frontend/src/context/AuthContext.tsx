@@ -13,7 +13,7 @@ export interface AuthContextType {
   isClient: boolean;
   isTrainer: boolean;
   isAdmin: boolean;
-  login: (accessToken: string, csrfToken: string) => void;
+  login: (accessToken: string, csrfToken: string) => boolean;
   logout: () => void;
   logoutConfirmation: LogoutConfirmation;
   retryLogout: () => Promise<void>;

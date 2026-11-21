@@ -43,7 +43,8 @@ const LoginPage = () => {
           sessionStorage.getItem("fitflow_logout_pending") === "1") return;
       // Llamamos a la función login del AuthContext, pasando solo el token
       // El AuthContext ya se encarga de decodificar y establecer el rol
-      login(data.access_token, data.csrf_token);
+      const accepted = login(data.access_token, data.csrf_token);
+      if (!accepted) return; // No false success toast or navigation on rejection.
       toaster.create({
         title: "Inicio de sesión exitoso",
         type: "success",

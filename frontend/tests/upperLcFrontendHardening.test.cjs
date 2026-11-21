@@ -102,9 +102,10 @@ test('Login responses are rejected after newer auth generation; refresh proof is
   const provider = load('context/AuthProvider.tsx');
   assert.ok(page.includes('startedGeneration = getAuthSessionGeneration()'));
   assert.ok(page.includes('startedGeneration !== getAuthSessionGeneration()'));
-  assert.ok(!page.includes('login(data.access_token, data.csrf_token);') ||
-    page.indexOf('startedGeneration !== getAuthSessionGeneration()') <
-      page.indexOf('login(data.access_token, data.csrf_token);'));
+  assert.ok(page.includes('const accepted = login(data.access_token, data.csrf_token);'));
+  assert.ok(page.indexOf('startedGeneration !== getAuthSessionGeneration()') <
+    page.indexOf('const accepted = login(data.access_token, data.csrf_token);'));
+  assert.ok(page.includes('if (!accepted) return;'));
   const refresh = service.split('async refreshBrowserSession()')[1]
     .split('async recoverLogoutProof')[0];
   assert.ok(refresh.includes('withExclusiveBrowserCookie(async (signal) => {'));
@@ -233,4 +234,18 @@ test('Only exact HTTP204 may record a browser logout ACK, even without local pen
   assert.ok(logout.indexOf('response.status !== 204') < logout.indexOf('onConfirmed?.();'));
   assert.ok(provider.includes('action === "logout-confirmed" && !realAck'));
   assert.ok(provider.includes('setLogoutConfirmation(realAck ? "confirmed" : "expired-unconfirmed")'));
+});
+
+test('Rejected login never bumps generation or sends a success toast', () => {
+  const hook = load('context/useAuth.tsx');
+  const provider = load('context/AuthProvider.tsx');
+  const ctx = load('context/AuthContext.tsx');
+  const page = load('pages/LoginPage.tsx');
+  assert.ok(!hook.includes('advanceAuthSessionGeneration();'));
+  assert.ok(ctx.includes('login: (accessToken: string, csrfToken: string) => boolean;'));
+  const section = provider.split('const login = (accessToken: string, csrf: string): boolean')[1]
+    .split('const retryLogout = useCallback')[0];
+  assert.ok(section.indexOf("return false;") < section.indexOf('advanceAuthSessionGeneration();'));
+  assert.ok(section.includes('return true;'));
+  assert.ok(page.indexOf('if (!accepted) return;') < page.indexOf('title: "Inicio de sesión exitoso"'));
 });
