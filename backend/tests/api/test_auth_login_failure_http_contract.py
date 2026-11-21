@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import httpx
 import pytest
 from fastapi import status
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core import security
 from app.core.config import settings
@@ -118,6 +119,21 @@ async def test_login_lookup_external_error_returns_503(
     response = await _post_login(api_client)
     assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
     assert response.json() == {"detail": "Login dependency unavailable."}
+
+
+async def test_login_lookup_sqlalchemy_error_maps_to_503(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A database outage must not become a generic 500 on the /auth/token alias."""
+    async def unavailable(*, db: object, email: str) -> None:
+        del db, email
+        raise SQLAlchemyError("synthetic DB details must never reach client")
+
+    monkeypatch.setattr(auth_router, "user_get_by_email", unavailable)
+    response = await _post_login(api_client)
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert response.json() == {"detail": "Persistencia de sesiones no disponible."}
+    assert "synthetic DB details" not in response.text
 
 
 async def test_login_lookup_generic_failure_maps_to_500(

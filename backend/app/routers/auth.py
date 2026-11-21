@@ -50,8 +50,13 @@ async def login_for_tokens(
         user = await user_get_by_email(db=db, email=form_data.username)
     except ExternalServiceError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Persistencia de sesiones no disponible.",
+        ) from exc
     except Exception as exc:
-        logger.exception("DB error on get_by_email during login")
+        logger.exception("Unexpected get_by_email failure during login")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno") from exc
 
     if (
