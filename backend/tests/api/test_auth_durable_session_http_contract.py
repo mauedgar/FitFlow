@@ -63,6 +63,7 @@ async def new_session(client: httpx.AsyncClient, email: str, password: str) -> t
         data={"username": email, "password": password},
     )
     assert response.status_code == 200, response.text
+    assert response.headers.get("Cache-Control") == "no-store"
     return response.json()["access_token"], response.json()["refresh_token"]
 
 
@@ -88,6 +89,7 @@ async def test_durable_login_refresh_logout_idempotence_without_access_bearer(
         json={"refresh_token": refresh},
     )
     assert renewal.status_code == 200, renewal.text
+    assert renewal.headers.get("Cache-Control") == "no-store"
     renewed_access = renewal.json()["access_token"]
     assert security.decode_token(renewed_access)["sid"] == r["sid"]
     # No bearer is supplied: a lost/expired access credential cannot block revoke.

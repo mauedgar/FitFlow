@@ -93,6 +93,7 @@ async def test_login_access_token_subject_resolves_same_user_through_me(
     )
 
     assert login_response.status_code == status.HTTP_200_OK, login_response.text
+    assert login_response.headers.get("Cache-Control") == "no-store"
 
     token_pair = login_response.json()
     assert token_pair["access_token"]
@@ -228,6 +229,7 @@ async def test_refresh_registered_token_returns_access_token_with_same_user_id_s
         json={"refresh_token": logged.json()["refresh_token"]},
     )
     assert refreshed.status_code == status.HTTP_200_OK, refreshed.text
+    assert refreshed.headers.get("Cache-Control") == "no-store"
     payload = security.decode_token(refreshed.json()["access_token"])
     assert payload is not None
     assert payload["sub"] == str(uid)

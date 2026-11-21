@@ -42,6 +42,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/token", response_model=TokenPair, status_code=status.HTTP_200_OK)
 async def login_for_tokens(
     *,
+    response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> TokenPair:
@@ -65,7 +66,7 @@ async def login_for_tokens(
         or user.deleted_at is not None
         or not security.verify_password(form_data.password, user.hashed_password)
     ):
-        logger.warning("Failed login attempt for email=%s", form_data.username)
+        logger.warning("Failed durable API login authentication")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contraseña incorrectos",
@@ -93,12 +94,14 @@ async def login_for_tokens(
         ) from exc
 
     logger.info("User %s logged in with durable session", user.id)
+    response.headers["Cache-Control"] = "no-store"
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post("/refresh", response_model=Token, status_code=status.HTTP_200_OK)
 async def refresh_access_token(
     *,
+    response: Response,
     token_request: RefreshTokenRequest,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> Token:
@@ -106,7 +109,9 @@ async def refresh_access_token(
     payload = security.decode_token(token_request.refresh_token)
     if not security.is_refresh_token_payload(payload) or "sid" not in payload:
         raise HTTPException(status_code=401, detail="Refresh de sesión inválido.")
-    return await refresh_durable_session(token_request=token_request, db=db)
+    return await refresh_durable_session(
+        response=response, token_request=token_request, db=db,
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
@@ -148,6 +153,7 @@ async def get_me(
 @router.post("/session/token", response_model=TokenPair, status_code=status.HTTP_200_OK)
 async def create_durable_login(
     *,
+    response: Response,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> TokenPair:
@@ -185,12 +191,14 @@ async def create_durable_login(
         raise HTTPException(
             status_code=503, detail="Persistencia de sesiones no disponible."
         ) from exc
+    response.headers["Cache-Control"] = "no-store"
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post("/session/refresh", response_model=Token, status_code=status.HTTP_200_OK)
 async def refresh_durable_session(
     *,
+    response: Response,
     token_request: RefreshTokenRequest,
     db: Annotated[AsyncSession, Depends(get_async_session)],
 ) -> Token:
@@ -225,6 +233,7 @@ async def refresh_durable_session(
     access_token = security.create_access_token(
         {"sub": str(user.id), "role": user.role.value, "sid": payload["sid"]}
     )
+    response.headers["Cache-Control"] = "no-store"
     return Token(access_token=access_token)
 
 
@@ -314,7 +323,9 @@ async def browser_cookie_login(
             status_code=409,
             detail="Confirmá la revocación del logout anterior antes de iniciar otra sesión.",
         )
-    pair = await create_durable_login(form_data=form_data, db=db)
+    pair = await create_durable_login(
+        response=response, form_data=form_data, db=db,
+    )
     browser_session.set_refresh_cookie(response, pair.refresh_token)
     return {
         "access_token": pair.access_token,
