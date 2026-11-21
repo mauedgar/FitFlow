@@ -9,11 +9,10 @@ from dataclasses import dataclass
 import httpx
 import pytest
 from fastapi import status
-from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from auth_session_test_helpers import staged_access
+from auth_session_test_helpers import require_local_test_database, staged_access
 from app.db.models import Client, User
 from app.db.session import AsyncSessionLocal, engine
 
@@ -35,12 +34,8 @@ class LookupFixture:
 
 @pytest.fixture(autouse=True)
 def require_isolated_test_database() -> None:
-    database_name = make_url(settings.DATABASE_URL).database
-    assert database_name == "fitflow_test", (
-        "Front Desk Client lookup contract requires fitflow_test; "
-        f"configured database is {database_name!r}."
-    )
-
+    # Fail closed before any synthetic DB writes, even with python -O.
+    require_local_test_database()
 
 @pytest.fixture(autouse=True)
 async def dispose_engine_pool_after_test() -> AsyncIterator[None]:
