@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from app.core.security import decode_token, is_access_token_payload
+from pydantic import ValidationError
 from app.crud import auth_session as session_ledger
 from app.crud.crud_user import user as user_crud
 from app.schemas.token import TokenPayload
@@ -34,7 +35,7 @@ async def get_user_from_token(token: str, db: "AsyncSession") -> UserPublic:
 
     try:
         token_data = TokenPayload(**payload)
-    except Exception as err:
+    except ValidationError as err:
         msg_1 = "Token mal formado."
         raise AuthError(msg_1) from err
 

@@ -101,14 +101,14 @@ async def get_current_user(
         raise HTTPException(
             status_code=503, detail="Persistencia de sesiones no disponible."
         ) from exc
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    if user.deleted_at is not None:
-        raise HTTPException(status_code=401, detail="Usuario eliminado")
-
-    if not user.active:  # type: ignore[reportGeneralTypeIssues]
-        raise HTTPException(status_code=400, detail="Usuario inactivo")
+    # Identical authentication denial for missing, deleted and inactive users:
+    # avoid leaking whether an account exists or has been deactivated.
+    if not user or user.deleted_at is not None or not user.active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o usuario no autorizado.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return user
 

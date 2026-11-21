@@ -368,3 +368,67 @@ async def test_current_user_final_pg_lookup_error_returns_503(
     )
     assert response.status_code == 503, response.text
     assert response.json() == {"detail": "Persistencia de sesiones no disponible."}
+
+
+@pytest.mark.parametrize("principal_state", ["missing", "inactive", "deleted"])
+async def test_registered_sid_denies_unavailable_principal_uniformly(
+    api_client: httpx.AsyncClient,
+    persisted_auth_user: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    principal_state: str,
+) -> None:
+    """Registered signed SID cannot authenticate a missing/inactive/deleted user."""
+    _uid, email, password = persisted_auth_user
+    issued = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": email, "password": password},
+    )
+    assert issued.status_code == 200, issued.text
+    access = issued.json()["access_token"]
+    real_get = auth_deps.user_crud.get
+
+    async def state_get(*args: object, **kwargs: object) -> User | None:
+        existing = await real_get(*args, **kwargs)
+        if principal_state == "missing":
+            return None
+        assert existing is not None
+        if principal_state == "inactive":
+            existing.active = False
+        else:
+            existing.deleted_at = datetime.now(tz=UTC)
+        return existing
+
+    monkeypatch.setattr(auth_deps.user_crud, "get", state_get)
+    denied = await api_client.get(
+        f"{settings.API_V1_STR}/auth/me",
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert denied.status_code == status.HTTP_401_UNAUTHORIZED, denied.text
+    assert denied.json() == {"detail": "Token inválido o usuario no autorizado."}
+    assert denied.headers.get("www-authenticate") == "Bearer"
+
+
+async def test_registered_sid_database_lookup_outage_returns_503(
+    api_client: httpx.AsyncClient,
+    persisted_auth_user: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A session-ledger failure cannot be disguised as invalid credentials."""
+    _uid, email, password = persisted_auth_user
+    issued = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": email, "password": password},
+    )
+    assert issued.status_code == 200, issued.text
+
+    async def ledger_unavailable(*_args: object, **_kwargs: object) -> bool:
+        raise SQLAlchemyError("synthetic ledger outage")
+
+    monkeypatch.setattr(auth_deps.session_ledger, "is_active", ledger_unavailable)
+    denied = await api_client.get(
+        f"{settings.API_V1_STR}/auth/me",
+        headers={"Authorization": f"Bearer {issued.json()['access_token']}"},
+    )
+    assert denied.status_code == status.HTTP_503_SERVICE_UNAVAILABLE, denied.text
+    assert denied.json() == {"detail": "Persistencia de sesiones no disponible."}
+    assert "synthetic ledger outage" not in denied.text
