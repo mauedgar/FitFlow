@@ -515,6 +515,81 @@ async function verifyNon204LogoutCannotInventAck(browser) {
   }
 }
 
+
+async function verifyQueuedLoginHonorsRealProviderLogoutBroadcast(browser) {
+  // Unlike the synthetic epoch test, only mounted AuthProvider may broadcast.
+  // Hold the cookie Web Lock, queue a login, then trigger real UI logout.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const owner = await context.newPage();
+  const contender = await context.newPage();
+  const holder = await context.newPage();
+  let freeHeld;
+  try {
+    await login(owner, email);
+    await owner.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(owner);
+    assert.ok(oldAccess);
+    await contender.goto(WEB + '/login');
+    await contender.getByLabel('Email').waitFor();
+    await holder.goto(WEB + '/login');
+    await contender.evaluate(() => {
+      window.__ffRealAuthBroadcasts = [];
+      window.addEventListener('storage', event => {
+        if (event.key === 'fitflow_browser_auth_epoch' && event.newValue) {
+          window.__ffRealAuthBroadcasts.push(event.newValue);
+        }
+      });
+    });
+    const held = holder.evaluate(async () => {
+      await navigator.locks.request('fitflow-auth-cookie-write', async () => {
+        window.__ffRealLockHeld = true;
+        await new Promise(resolve => { window.__ffReleaseRealLock = resolve; });
+      });
+    });
+    freeHeld = () => holder.evaluate(() => window.__ffReleaseRealLock?.());
+    await holder.waitForFunction(() => window.__ffRealLockHeld === true);
+    let loginPosts = 0;
+    contender.on('request', request => {
+      if (request.method() === 'POST' && request.url() === API + '/auth/browser/token') {
+        loginPosts++;
+      }
+    });
+    await contender.getByLabel('Email').fill(email);
+    await contender.getByLabel('Contraseña').fill(password);
+    await contender.getByRole('button', { name: 'Ingresar' }).click();
+    await contender.waitForFunction(async () =>
+      (await navigator.locks.query()).pending.some(lock =>
+        lock.name === 'fitflow-auth-cookie-write'));
+    // The real React handler emits logout-pending while both real HTTP writers
+    // remain queued. No direct API logout or synthetic storage epoch is used.
+    await owner.getByRole('button', { name: 'Menú de perfil' }).click();
+    await owner.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await contender.waitForFunction(() =>
+      window.__ffRealAuthBroadcasts.some(value => value.startsWith('logout-pending|')));
+    await freeHeld();
+    await held;
+    await owner.waitForURL('**/login');
+    await owner.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    await contender.waitForFunction(() =>
+      window.__ffRealAuthBroadcasts.some(value => value.startsWith('logout-confirmed|')));
+    assert.equal(loginPosts, 0,
+      'The real logout-pending broadcast must stop an already queued login POST');
+    assert.equal(new URL(contender.url()).pathname, '/login');
+    assert.equal(await activeAccessToken(contender), null);
+    assert.equal((await context.cookies()).some(
+      cookie => cookie.name === 'fitflow_browser_refresh'), false);
+    const response = await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    });
+    assert.equal(response.status, 401,
+      'Real React logout must revoke old signed PG family');
+  } finally {
+    await freeHeld?.().catch(() => {});
+    await context.close();
+  }
+}
+
 async function verifySameTabConcurrentLogoutRetriesJoinOriginal(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
@@ -1207,6 +1282,7 @@ async function run() {
     await verifyNon204LogoutCannotInventAck(browser);
     await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
     await verifyQueuedLoginCannotResurrectAfterRealLogout(browser);
+    await verifyQueuedLoginHonorsRealProviderLogoutBroadcast(browser);
     await verifySameTabConcurrentLogoutRetriesJoinOriginal(browser);
     await verifyRefreshReadsCsrfAfterQueuedCookieLock(browser);
     await verifyStalledProofReleasesCookieLock(browser);
