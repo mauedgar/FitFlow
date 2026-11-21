@@ -326,12 +326,17 @@ async function verifyQueuedLoginCannotResurrectAfterRealLogout(browser) {
       headers: { Authorization: 'Bearer ' + oldAccess },
     });
     assert.equal(revoked.status, 401);
-    // Only a nonsecret status crosses tabs. This simulates the broadcast
-    // that the normal AuthProvider emits following the HTTP 204 response.
-    await owner.evaluate(() => localStorage.setItem(
-      'fitflow_browser_auth_epoch',
-      'logout-confirmed|' + Date.now() + '|' + crypto.randomUUID(),
-    ));
+    // The backend DID return a real PG HTTP204 above. Simulate the
+    // provider's receipt+broadcast pair, not a naked untrusted storage ACK.
+    // The separate real-provider test verifies the actual broadcast path.
+    await owner.evaluate(() => {
+      const operation = crypto.randomUUID();
+      localStorage.setItem('fitflow_logout_confirmed_history',
+        JSON.stringify([operation]));
+      localStorage.setItem('fitflow_logout_confirmed_operation', operation);
+      localStorage.setItem('fitflow_browser_auth_epoch',
+        'logout-confirmed|' + Date.now() + '|' + operation);
+    });
     await contender.waitForFunction(async initial => {
       const epochs = await import('/src/utils/authSessionGeneration.ts');
       return epochs.getAuthSessionGeneration() > initial;
