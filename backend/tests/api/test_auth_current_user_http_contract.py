@@ -32,11 +32,17 @@ pytestmark = [
 @pytest.fixture(autouse=True)
 def require_isolated_test_database() -> None:
     """Fail closed unless this Auth contract uses fitflow_test."""
-    database_name = make_url(settings.DATABASE_URL).database
-    assert database_name == "fitflow_test", (
-        "Auth current-user HTTP contract requires fitflow_test; "
-        f"configured database is {database_name!r}."
-    )
+    target = make_url(settings.DATABASE_URL)
+    if (
+        target.database != "fitflow_test"
+        or (target.host or "").lower() not in {"127.0.0.1", "localhost", "::1"}
+        or settings.ENV != "test"
+        or not settings.TESTING
+    ):
+        raise RuntimeError(
+            "Auth current-user HTTP contract requires local fitflow_test "
+            "with ENV=test and TESTING=true before writing fixtures."
+        )
 
 
 @pytest.fixture(autouse=True)

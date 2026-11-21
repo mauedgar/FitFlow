@@ -171,3 +171,24 @@ cookies are not considered replay proof.
 The bearer guard also maps a PostgreSQL failure during its final user
 lookup to the same HTTP503 persistence-unavailable contract as an error
 during the SID ledger lookup. Both cases have dedicated negative HTTP tests.
+
+## FitFlow C015 — IR008 monotonic cross-tab logout receipt (candidate)
+
+- A `logout-pending` signal carries a random nonsecret operation UUID.
+  A surviving or reloaded tab retains the same operation identity locally
+  while attempting to revoke the shared signed HttpOnly cookie.
+- A real HTTP 204 from PostgreSQL is the only source of a
+  `fitflow_logout_confirmed_operation` marker. It is recorded inside
+  the exclusive browser cookie Web Lock before releasing it, so a queued
+  peer receiving proof GET 401 cannot downgrade the same confirmed logout.
+- Missing or expired cookie without a matching 204 marker is still
+  `expired-unconfirmed`, never a manufactured server ACK. Other operation
+  IDs cannot settle the pending operation or erase newer login state.
+- Browser E2E holds the origin 204 while a surviving peer queues on
+  the Web Lock and checks the old signed bearer is really revoked.
+  The separate single-tab test preserves missing-cookie/no-ACK behavior.
+- Authenticated missing, deleted and inactive user principals uniformly
+  return HTTP 401 with Bearer challenge, while registered SID ledger
+  or final user database outages remain HTTP 503 without exception leaks.
+- These are candidate semantics pending exact-HEAD CI and a new
+  independent review; this document does not accept the Product.
