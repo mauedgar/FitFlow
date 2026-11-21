@@ -86,7 +86,7 @@ jobs:
         with:
           python-version: "3.15.2"
       - name: Setup uv 0.13.6
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           version: "0.13.6"
       - name: Lock and dependency invariants
@@ -157,7 +157,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Setup uv 0.13.6
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           version: "0.13.6"
       - name: Install isolated security dependencies only
@@ -288,7 +288,7 @@ jobs:
         with:
           python-version: "3.15.2"
       - name: Setup uv 0.13.6
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d
         with:
           version: "0.13.6"
       - name: Install pinned backend requirements for type analysis
