@@ -406,6 +406,62 @@ async function verifySurvivingTabRecoversOrphanedLogout(browser) {
 }
 
 
+
+async function verifyEarlierRealLogoutReceiptSurvivesLaterConfirmedFamily(browser) {
+  // Both receipts originate from real signed PostgreSQL 204 responses.
+  // A surviving tab may reload after a different later family is revoked.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const owner = await context.newPage();
+  try {
+    await login(owner, email);
+    await owner.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await owner.getByRole('button', { name: 'Menú de perfil' }).click();
+    const firstAck = owner.waitForResponse(response =>
+      response.url() === API + '/auth/browser/logout' && response.status() === 204);
+    await owner.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(firstAck, 'first genuine PostgreSQL logout 204');
+    await owner.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    const first = await owner.evaluate(
+      () => localStorage.getItem('fitflow_logout_confirmed_operation'));
+    assert.ok(first, 'First confirmed logout must have a nonsecret operation');
+
+    await owner.goto(WEB + '/login');
+    await loginWithNewSignedSession(owner);
+    await owner.getByRole('button', { name: 'Menú de perfil' }).click();
+    const secondAck = owner.waitForResponse(response =>
+      response.url() === API + '/auth/browser/logout' && response.status() === 204);
+    await owner.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(secondAck, 'second genuine PostgreSQL logout 204');
+    await owner.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    const saved = await owner.evaluate(() => ({
+      last: localStorage.getItem('fitflow_logout_confirmed_operation'),
+      history: JSON.parse(localStorage.getItem('fitflow_logout_confirmed_history') || '[]'),
+    }));
+    assert.notEqual(saved.last, first, 'Two different session revocations have different IDs');
+    assert.ok(saved.history.includes(first) && saved.history.includes(saved.last),
+      'Previous real server ACK must survive a later family confirmation');
+
+    const survivor = await context.newPage();
+    await survivor.goto(WEB + '/login');
+    await survivor.evaluate(operation => {
+      sessionStorage.setItem('fitflow_logout_pending', '1');
+      sessionStorage.setItem('fitflow_logout_operation', operation);
+    }, first);
+    await survivor.reload();
+    await survivor.waitForFunction(() =>
+      sessionStorage.getItem('fitflow_logout_pending') === null);
+    assert.equal(await survivor.getByText(
+      'La cookie de sesión ya no está disponible.', { exact: false }).count(), 0,
+    'A reloaded previous pending operation must recognize its real 204');
+    assert.equal(await survivor.getByRole('button', { name: 'Ingresar' }).isDisabled(),
+      false, 'Previously committed logout cannot regress to pending');
+  } finally {
+    await context.close();
+  }
+}
+
 async function verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser) {
   // The origin's real server COMMIT happens before the first tab receives
   // HTTP 204; a peer auto-recovery waits on the same Web Lock.
@@ -1279,6 +1335,7 @@ async function run() {
     await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
     await verifySurvivingTabRecoversOrphanedLogout(browser);
     await verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser);
+    await verifyEarlierRealLogoutReceiptSurvivesLaterConfirmedFamily(browser);
     await verifyNon204LogoutCannotInventAck(browser);
     await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
     await verifyQueuedLoginCannotResurrectAfterRealLogout(browser);
