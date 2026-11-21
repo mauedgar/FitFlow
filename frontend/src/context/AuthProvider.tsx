@@ -14,13 +14,31 @@ const PENDING_LOGOUT = "fitflow_logout_pending";
 const PENDING_CSRF = "fitflow_logout_csrf";
 const PENDING_OPERATION = "fitflow_logout_operation";
 const CONFIRMED_OPERATION = "fitflow_logout_confirmed_operation";
+const CONFIRMED_HISTORY = "fitflow_logout_confirmed_history";
+const MAX_CONFIRMED_HISTORY = 128;
 const SYNC_KEY = AUTH_SYNC_KEY;
 
 /** A server-confirmed operation UUID is never a bearer/CSRF credential. */
 const signalOperation = (epoch: string | null): string | null =>
   epoch?.split("|")[2] || null;
+const confirmedHistory = (): string[] => {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(CONFIRMED_HISTORY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(
+      (value): value is string => typeof value === "string" && value.length <= 64,
+    ).slice(-MAX_CONFIRMED_HISTORY) : [];
+  } catch { return []; }
+};
 const isConfirmedLogout = (operation: string | null): boolean =>
-  !!operation && localStorage.getItem(CONFIRMED_OPERATION) === operation;
+  !!operation && (localStorage.getItem(CONFIRMED_OPERATION) === operation ||
+    confirmedHistory().includes(operation));
+const recordConfirmedLogout = (operation: string): void => {
+  // The caller holds the browser cookie Web Lock and has just received 204.
+  const bounded = [...confirmedHistory().filter(id => id !== operation),
+    operation].slice(-MAX_CONFIRMED_HISTORY);
+  localStorage.setItem(CONFIRMED_HISTORY, JSON.stringify(bounded));
+  localStorage.setItem(CONFIRMED_OPERATION, operation);
+};
 const clearPendingLogout = (): void => {
   sessionStorage.removeItem(PENDING_LOGOUT);
   sessionStorage.removeItem(PENDING_CSRF);
@@ -133,6 +151,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const action = eventEpoch.split("|")[0];
       const operation = signalOperation(eventEpoch);
       const pendingOperation = sessionStorage.getItem(PENDING_OPERATION);
+      // Validate terminal identity BEFORE clearing a newer tab session.
+      if ((action === "logout-confirmed" ||
+           action === "logout-expired-unconfirmed") &&
+          pendingOperation && pendingOperation !== operation) return;
+      if (action === "logout-confirmed" && !isConfirmedLogout(operation)) return;
       const generation = advanceAuthSessionGeneration();
       // Initial cookie restoration may have been invalidated by this event.
       // Never leave the UI indefinitely behind the auth-loading gate.
@@ -237,16 +260,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (retryLogoutInFlight.current) return retryLogoutInFlight.current;
     const expectedGeneration = getAuthSessionGeneration();
     const operation = sessionStorage.getItem(PENDING_OPERATION);
-    const activeOperation = (): boolean => {
-      if (!operation) {
-        return getAuthSessionGeneration() === expectedGeneration &&
-          sessionStorage.getItem(PENDING_LOGOUT) === '1';
-      }
-      const epoch = localStorage.getItem(SYNC_KEY);
-      return sessionStorage.getItem(PENDING_OPERATION) === operation ||
-        (signalOperation(epoch) === operation &&
-          epoch?.split("|")[0]?.startsWith("logout-") === true);
-    };
+    const activeOperation = (): boolean =>
+      getAuthSessionGeneration() === expectedGeneration &&
+      sessionStorage.getItem(PENDING_LOGOUT) === '1' &&
+      sessionStorage.getItem(PENDING_OPERATION) === operation;
     const confirmLocal = (): void => {
       needsOrphanRecovery.current = false;
       csrfRef.current = null;
@@ -260,9 +277,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Only a real HTTP 204 records an ACK. Do so BEFORE releasing the
           // shared Web Lock so that queued proof-401 responses cannot win.
           if (operation) {
-            localStorage.setItem(CONFIRMED_OPERATION, operation);
+            recordConfirmedLogout(operation);
             const epoch = localStorage.getItem(SYNC_KEY);
-            if (signalOperation(epoch) === operation &&
+            if (activeOperation() &&
+                signalOperation(epoch) === operation &&
                 !epoch?.startsWith("logout-confirmed|")) {
               notifyOtherTabs("logout-confirmed", operation);
             }

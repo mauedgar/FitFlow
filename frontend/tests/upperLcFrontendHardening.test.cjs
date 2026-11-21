@@ -216,6 +216,8 @@ test('A real HTTP204 ACK is recorded while the exclusive cookie Web Lock remains
   assert.ok(provider.includes('const CONFIRMED_OPERATION = "fitflow_logout_confirmed_operation"'));
   assert.ok(provider.includes('sessionStorage.setItem(PENDING_OPERATION, operation)'));
   assert.ok(provider.includes('localStorage.setItem(CONFIRMED_OPERATION, operation)'));
+  assert.ok(provider.includes('recordConfirmedLogout(operation)'));
+  assert.ok(provider.includes('confirmedHistory().includes(operation)'));
   assert.ok(provider.includes('isConfirmedLogout(operation)'));
   assert.ok(provider.includes('signalOperation(epoch) === operation'));
   const logout = service.split('async retryBrowserLogoutFromCookie(onConfirmed?: () => void)')[1]
@@ -248,4 +250,21 @@ test('Rejected login never bumps generation or sends a success toast', () => {
   assert.ok(section.indexOf("return false;") < section.indexOf('advanceAuthSessionGeneration();'));
   assert.ok(section.includes('return true;'));
   assert.ok(page.indexOf('if (!accepted) return;') < page.indexOf('title: "Inicio de sesión exitoso"'));
+});
+
+test('Terminal logout validates pending identity before clearing a newer bearer', () => {
+  const p = load('context/AuthProvider.tsx');
+  const eventHandler = p.split('const onSharedSession = (event: StorageEvent) => {')[1]
+    .split('window.addEventListener("storage", onSharedSession)')[0];
+  assert.ok(eventHandler.indexOf('pendingOperation && pendingOperation !== operation) return') <
+    eventHandler.indexOf('const generation = advanceAuthSessionGeneration();'));
+  assert.ok(eventHandler.indexOf('action === "logout-confirmed" && !isConfirmedLogout(operation)') <
+    eventHandler.indexOf('setToken(null);'));
+  const retry = p.split('const retryLogout = useCallback')[1]
+    .split("  // A peer's logout-pending signal")[0];
+  assert.ok(retry.includes('recordConfirmedLogout(operation)'));
+  assert.ok(retry.includes('if (activeOperation() &&'));
+  assert.ok(retry.includes('sessionStorage.getItem(PENDING_OPERATION) === operation'));
+  assert.ok(p.includes('const MAX_CONFIRMED_HISTORY = 128'));
+  assert.ok(p.includes('confirmedHistory().includes(operation)'));
 });
