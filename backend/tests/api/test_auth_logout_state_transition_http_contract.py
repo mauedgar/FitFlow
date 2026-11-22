@@ -37,12 +37,12 @@ async def account() -> AsyncIterator[tuple[uuid.UUID, str, str]]:
     uid = uuid.uuid4()
     email = f"logout-modern-{uid.hex}@example.com"
     password = "SyntheticLogout!123"
-    async with AsyncSessionLocal() as db:
-        db.add(User(id=uid, email=email,
-                    hashed_password=security.get_password_hash(password),
-                    role=UserRole.client, active=True))
-        await db.commit()
     try:
+        async with AsyncSessionLocal() as db:
+            db.add(User(id=uid, email=email,
+                        hashed_password=security.get_password_hash(password),
+                        role=UserRole.client, active=True))
+            await db.commit()
         yield uid, email, password
     finally:
         async with AsyncSessionLocal() as db:

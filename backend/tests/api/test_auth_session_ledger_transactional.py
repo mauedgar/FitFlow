@@ -38,14 +38,14 @@ async def release_pool() -> AsyncIterator[None]:
 @pytest.fixture
 async def owner() -> AsyncIterator[uuid.UUID]:
     owner_id = uuid.uuid4()
-    async with AsyncSessionLocal() as db:
-        db.add(User(
-            id=owner_id, email=f"auth-ledger-{owner_id.hex}@example.com",
-            hashed_password=security.get_password_hash("synthetic-only"),
-            role=UserRole.client, active=True,
-        ))
-        await db.commit()
     try:
+        async with AsyncSessionLocal() as db:
+            db.add(User(
+                id=owner_id, email=f"auth-ledger-{owner_id.hex}@example.com",
+                hashed_password=security.get_password_hash("synthetic-only"),
+                role=UserRole.client, active=True,
+            ))
+            await db.commit()
         yield owner_id
     finally:
         async with AsyncSessionLocal() as db:

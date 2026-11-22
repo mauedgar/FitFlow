@@ -20,6 +20,7 @@ from app.core.redis_client import get_redis_client
 from app.core.config import settings
 from app.core.token_store import delete_refresh_token, store_refresh_token
 from app.core.enums import UserRole
+from app.db.models.auth_session import AuthSession
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
 from app.routers import auth as auth_router
@@ -41,17 +42,18 @@ async def release_engine_pool() -> AsyncIterator[None]:
 @pytest.fixture
 async def subject() -> AsyncIterator[uuid.UUID]:
     identifier = uuid.uuid4()
-    async with AsyncSessionLocal() as db:
-        db.add(User(
-            id=identifier, email=f"jwt-purpose-{identifier.hex}@example.com",
-            hashed_password=security.get_password_hash("synthetic-only"),
-            role=UserRole.client, active=True,
-        ))
-        await db.commit()
     try:
+        async with AsyncSessionLocal() as db:
+            db.add(User(
+                id=identifier, email=f"jwt-purpose-{identifier.hex}@example.com",
+                hashed_password=security.get_password_hash("synthetic-only"),
+                role=UserRole.client, active=True,
+            ))
+            await db.commit()
         yield identifier
     finally:
         async with AsyncSessionLocal() as db:
+            await db.execute(delete(AuthSession).where(AuthSession.user_id == identifier))
             await db.execute(delete(User).where(User.id == identifier))
             await db.commit()
 
