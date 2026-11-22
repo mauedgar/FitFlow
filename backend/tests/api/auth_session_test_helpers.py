@@ -14,15 +14,21 @@ from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token
 from app.crud.auth_session import fingerprint, signed_refresh_family
 from app.db.models.auth_session import AuthSession
-from app.db.session import AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, engine
 
 
 def require_local_test_database() -> None:
     """Fail before any synthetic INSERT, even if no bearer will be minted."""
     target = make_url(settings.DATABASE_URL)
+    actual = engine.url  # The connection pool was constructed before tests.
     if not (
-        target.database == "fitflow_test"
+        target.drivername.startswith("postgresql")
+        and target.database == "fitflow_test"
         and (target.host or "").lower() in {"127.0.0.1", "localhost", "::1"}
+        and target.port in {None, 5432, 55432}
+        and actual.database == target.database
+        and (actual.host or "").lower() == (target.host or "").lower()
+        and (actual.port or 5432) == (target.port or 5432)
         and settings.ENV == "test"
         and settings.TESTING
     ):

@@ -9,10 +9,9 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 from sqlalchemy import delete, text
-from sqlalchemy.engine import make_url
 
 from app.core import security
-from auth_session_test_helpers import committed_access
+from auth_session_test_helpers import committed_access, require_local_test_database
 from app.core.config import settings
 from app.core.token_keys import legacy_jwt_key, opaque_jwt_key
 from app.core.token_store import (
@@ -27,13 +26,14 @@ pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
 @pytest.fixture(autouse=True)
 def strict_disposable_services() -> None:
-    assert make_url(settings.DATABASE_URL).database == "fitflow_test"
+    require_local_test_database()
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("Real Redis effects only on isolated GitHub Actions")
     url = urlparse(settings.REDIS_URL or "")
-    assert (url.scheme, url.hostname, url.port, url.path) == (
+    if (url.scheme, url.hostname, url.port, url.path) != (
         "redis", "127.0.0.1", 6379, "/0",
-    )
+    ):
+        raise RuntimeError("BLOCKED_PRECONDITION: only local disposable Redis /0 is allowed")
 
 
 @pytest.fixture(autouse=True)
@@ -66,7 +66,8 @@ async def test_signed_registry_owner_and_opaque_positive_ttl(
     token = security.create_refresh_token({"sub": str(subject)})
     redis = get_redis_client()
     redis_major = int(redis.info(section="server")["redis_version"].split(".")[0])
-    assert redis_major == 7  # Exact disposable CI server, not URL assumption.
+    if redis_major != 7:
+        raise RuntimeError("BLOCKED_PRECONDITION: Redis 7 test service required")
     async with AsyncSessionLocal() as db:
         pg_version = int(await db.scalar(text("SHOW server_version_num")))
     assert 150000 <= pg_version < 160000  # Disposable PostgreSQL15.

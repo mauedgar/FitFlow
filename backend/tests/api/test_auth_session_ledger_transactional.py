@@ -11,9 +11,9 @@ from jose import jwt
 import pytest
 from sqlalchemy import delete, select
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.engine import make_url
 
 from app.core import security
+from auth_session_test_helpers import require_local_test_database
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.crud.auth_session import fingerprint, is_active, register, revoke, signed_refresh_family
@@ -26,7 +26,7 @@ pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
 @pytest.fixture(autouse=True)
 def require_disposable_postgres() -> None:
-    assert make_url(settings.DATABASE_URL).database == "fitflow_test"
+    require_local_test_database()
 
 
 @pytest.fixture(autouse=True)

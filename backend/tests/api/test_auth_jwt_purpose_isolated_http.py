@@ -12,10 +12,9 @@ import pytest
 from fastapi import status
 from jose import jwt
 from sqlalchemy import delete, update
-from sqlalchemy.engine import make_url
 
 from app.core import security
-from auth_session_test_helpers import committed_access
+from auth_session_test_helpers import committed_access, require_local_test_database
 from app.core.blacklist import BLACKLIST_PREFIX, blacklist_token
 from app.core.redis_client import get_redis_client
 from app.core.config import settings
@@ -30,7 +29,7 @@ pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
 @pytest.fixture(autouse=True)
 def require_disposable_db() -> None:
-    assert make_url(settings.DATABASE_URL).database == "fitflow_test"
+    require_local_test_database()
 
 
 @pytest.fixture(autouse=True)

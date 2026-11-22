@@ -9,10 +9,10 @@ import httpx
 import pytest
 from jose import jwt
 from sqlalchemy import delete, select
-from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core import security, browser_session
+from auth_session_test_helpers import require_local_test_database
 from app.core.config import settings
 from app.core.enums import UserRole
 from app.db.models.auth_session import AuthSession
@@ -25,8 +25,9 @@ pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
 @pytest.fixture(autouse=True)
 def only_disposable_database() -> None:
-    assert make_url(settings.DATABASE_URL).database == "fitflow_test"
-    assert settings.BACKEND_CORS_ORIGINS
+    require_local_test_database()
+    if not settings.BACKEND_CORS_ORIGINS:
+        raise RuntimeError("BLOCKED_PRECONDITION: synthetic browser Origin required")
 
 
 @pytest.fixture(autouse=True)

@@ -6,7 +6,6 @@ from uuid import UUID
 import httpx
 import pytest
 from fastapi import status
-from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -18,7 +17,7 @@ from app.core.enums import (
     MembershipStatus,
     UserRole,
 )
-from auth_session_test_helpers import committed_access
+from auth_session_test_helpers import committed_access, require_local_test_database
 from app.crud.crud_booking import booking as booking_crud
 from app.db.models import (
     Booking,
@@ -43,11 +42,7 @@ async def dispose_engine_pool_after_test() -> AsyncIterator[None]:
 
 @pytest.fixture(autouse=True)
 def require_isolated_test_database() -> None:
-    database_name = make_url(settings.DATABASE_URL).database
-    assert database_name == "fitflow_test", (
-        "Booking API integration tests require fitflow_test; "
-        f"configured database is {database_name!r}."
-    )
+    require_local_test_database()
 
 
 async def _booking_fixture() -> tuple[UUID, str]:

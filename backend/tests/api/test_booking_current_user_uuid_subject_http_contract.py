@@ -9,11 +9,10 @@ import httpx
 import pytest
 from app.core.config import settings
 from app.core.enums import UserRole
-from auth_session_test_helpers import committed_access
+from auth_session_test_helpers import committed_access, require_local_test_database
 from app.db.models import Client, User
 from app.db.session import AsyncSessionLocal, engine
 from fastapi import status
-from sqlalchemy.engine import make_url
 
 pytestmark = [
     pytest.mark.api,
@@ -30,11 +29,7 @@ async def dispose_engine_pool_after_test() -> AsyncIterator[None]:
 
 @pytest.fixture(autouse=True)
 def require_isolated_test_database() -> None:
-    database_name = make_url(settings.DATABASE_URL).database
-    assert database_name == "fitflow_test", (
-        "R006 Booking current-user HTTP contract requires fitflow_test; "
-        f"configured database is {database_name!r}."
-    )
+    require_local_test_database()
 
 
 async def _client_access_token() -> str:

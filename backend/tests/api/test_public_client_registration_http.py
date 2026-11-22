@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from auth_session_test_helpers import committed_access
+from auth_session_test_helpers import committed_access, require_local_test_database
 from app.db.models.client import Client
 from app.db.models.person import Person
 from app.db.models.user import User
@@ -50,9 +50,11 @@ def _safe_disposable_test_target(
 
 @pytest.fixture(autouse=True)
 def require_disposable_test_database() -> None:
-    assert _safe_disposable_test_target(
+    if not _safe_disposable_test_target(
         settings.DATABASE_URL, os.environ.get("ENV"), os.environ.get("TESTING")
-    ), "BLOCKED_PRECONDITION: local disposable PostgreSQL test profile required"
+    ):
+        raise RuntimeError("BLOCKED_PRECONDITION: local disposable PostgreSQL test profile required")
+    require_local_test_database()
 
 
 @pytest.mark.parametrize(

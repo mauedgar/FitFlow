@@ -354,12 +354,27 @@ async def test_auth_me_preserves_valid_admin_identity_and_rejects_invalid_token(
     [
         "postgresql://synthetic@remote.example/fitflow_test",
         "postgresql://synthetic@127.0.0.1/fitflow_prod",
+        "postgresql://synthetic@127.0.0.1:5555/fitflow_test",
     ],
 )
-def test_synthetic_session_helper_denies_non_disposable_database_even_without_assert(
+async def test_synthetic_session_helper_denies_non_disposable_database_even_without_assert(
     monkeypatch: pytest.MonkeyPatch, invalid_url: str,
 ) -> None:
     """A RuntimeError—not an optimized-away assert—must precede DB writes."""
     monkeypatch.setattr(settings, "DATABASE_URL", invalid_url)
+    with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
+        require_local_test_database()
+
+
+@pytest.mark.parametrize(
+    ("env", "testing"),
+    [("production", True), ("test", False), ("development", True)],
+)
+async def test_synthetic_session_helper_denies_non_test_profiles_before_db_access(
+    monkeypatch: pytest.MonkeyPatch, env: str, testing: bool,
+) -> None:
+    """Check settings directly; no remote connection is made by these tests."""
+    monkeypatch.setattr(settings, "ENV", env)
+    monkeypatch.setattr(settings, "TESTING", testing)
     with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
         require_local_test_database()
