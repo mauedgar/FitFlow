@@ -20,7 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from auth_session_test_helpers import committed_access, require_local_test_database
+from auth_session_test_helpers import (
+    committed_access, require_local_test_database, finish_synthetic_cleanup,
+)
 from app.db.models.client import Client
 from app.db.models.person import Person
 from app.db.models.user import User
@@ -88,6 +90,10 @@ async def _cleanup_synthetic_account(email: str) -> None:
                 await db.execute(delete(Person).where(Person.id == person.id))
             await db.execute(delete(User).where(User.id == user.id))
             await db.commit()
+    # An uncertain or interrupted teardown must not be silently accepted.
+    async with AsyncSessionLocal() as check:
+        if await check.scalar(select(User.id).where(User.email == email)) is not None:
+            raise RuntimeError("BLOCKED_POSTCONDITION: signup synthetic user remains")
 
 
 async def test_client_signup_persists_real_person_and_client_and_me(
@@ -130,7 +136,7 @@ async def test_client_signup_persists_real_person_and_client_and_me(
         assert client_me.json()["full_name"] == "María Elena de la Cruz"
         assert client_me.json()["email"] == email
     finally:
-        await _cleanup_synthetic_account(email)
+        await finish_synthetic_cleanup(_cleanup_synthetic_account(email))
 
 
 @pytest.mark.parametrize(
@@ -146,15 +152,18 @@ async def test_client_signup_rejects_missing_or_incomplete_name_without_effect(
     family: str | None,
 ) -> None:
     email = f"onboarding-invalid-{uuid.uuid4().hex}@example.com"
-    payload = {"email": email, "password": "Only-Synthetic-Password-42"}
-    if given is not None:
-        payload["first_name"] = given
-    if family is not None:
-        payload["last_name"] = family
-    response = await api_client.post(f"{API}/users/register-client", json=payload)
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
-    async with AsyncSessionLocal() as db:
-        assert await db.scalar(select(User).where(User.email == email)) is None
+    try:
+        payload = {"email": email, "password": "Only-Synthetic-Password-42"}
+        if given is not None:
+            payload["first_name"] = given
+        if family is not None:
+            payload["last_name"] = family
+        response = await api_client.post(f"{API}/users/register-client", json=payload)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
+        async with AsyncSessionLocal() as db:
+            assert await db.scalar(select(User).where(User.email == email)) is None
+    finally:
+        await finish_synthetic_cleanup(_cleanup_synthetic_account(email))
 
 
 @pytest.mark.parametrize("role", ["admin", "client", "teacher", "front_desk"])
@@ -163,19 +172,22 @@ async def test_client_signup_rejects_caller_role_even_client(
     role: str,
 ) -> None:
     email = f"onboarding-role-{uuid.uuid4().hex}@example.com"
-    response = await api_client.post(
-        f"{API}/users/register-client",
-        json={
-            "email": email,
-            "password": "Only-Synthetic-Password-42",
-            "first_name": "Safe",
-            "last_name": "Client",
-            "role": role,
-        },
-    )
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
-    async with AsyncSessionLocal() as db:
-        assert await db.scalar(select(User).where(User.email == email)) is None
+    try:
+        response = await api_client.post(
+            f"{API}/users/register-client",
+            json={
+                "email": email,
+                "password": "Only-Synthetic-Password-42",
+                "first_name": "Safe",
+                "last_name": "Client",
+                "role": role,
+            },
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
+        async with AsyncSessionLocal() as db:
+            assert await db.scalar(select(User).where(User.email == email)) is None
+    finally:
+        await finish_synthetic_cleanup(_cleanup_synthetic_account(email))
 
 
 async def test_client_signup_duplicate_email_has_no_extra_profile(
@@ -202,7 +214,7 @@ async def test_client_signup_duplicate_email_has_no_extra_profile(
             )).all()
             assert len(profiles) == 1
     finally:
-        await _cleanup_synthetic_account(email)
+        await finish_synthetic_cleanup(_cleanup_synthetic_account(email))
 
 
 async def test_normalized_name_uses_post_normalization_length(
@@ -229,25 +241,28 @@ async def test_normalized_name_uses_post_normalization_length(
             assert profile.first_name == "Ana"
             assert profile.last_name == "Cliente"
     finally:
-        await _cleanup_synthetic_account(email)
+        await finish_synthetic_cleanup(_cleanup_synthetic_account(email))
 
 
 async def test_normalized_name_over_limit_is_rejected_without_effect(
     api_client: httpx.AsyncClient,
 ) -> None:
     email = f"onboarding-long-{uuid.uuid4().hex}@example.com"
-    response = await api_client.post(
-        f"{API}/users/register-client",
-        json={
-            "email": email,
-            "password": "Only-Synthetic-Password-42",
-            "first_name": "Ana",
-            "last_name": "X" * 201,
-        },
-    )
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
-    async with AsyncSessionLocal() as db:
-        assert await db.scalar(select(User).where(User.email == email)) is None
+    try:
+        response = await api_client.post(
+            f"{API}/users/register-client",
+            json={
+                "email": email,
+                "password": "Only-Synthetic-Password-42",
+                "first_name": "Ana",
+                "last_name": "X" * 201,
+            },
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
+        async with AsyncSessionLocal() as db:
+            assert await db.scalar(select(User).where(User.email == email)) is None
+    finally:
+        await finish_synthetic_cleanup(_cleanup_synthetic_account(email))
 
 
 async def test_two_simultaneous_http_signups_share_one_unique_account(
@@ -282,14 +297,12 @@ async def test_two_simultaneous_http_signups_share_one_unique_account(
         return None
 
     monkeypatch.setattr(users_router.user_crud, "get_by_email", simultaneous_precheck)
+    requests = [
+        asyncio.create_task(api_client.post(f"{API}/users/register-client", json=payload))
+        for _ in range(2)
+    ]
     try:
-        responses = await asyncio.wait_for(
-            asyncio.gather(
-                api_client.post(f"{API}/users/register-client", json=payload),
-                api_client.post(f"{API}/users/register-client", json=payload),
-            ),
-            timeout=30,
-        )
+        responses = await asyncio.wait_for(asyncio.gather(*requests), timeout=30)
         assert sorted(response.status_code for response in responses) == [201, 400]
         async with AsyncSessionLocal() as db:
             users = (await db.scalars(select(User).where(User.email == email))).all()
@@ -299,7 +312,11 @@ async def test_two_simultaneous_http_signups_share_one_unique_account(
             )).all()
             assert len(clients) == 1
     finally:
-        await _cleanup_synthetic_account(email)
+        for request in requests:
+            if not request.done():
+                request.cancel()
+        await asyncio.gather(*requests, return_exceptions=True)
+        await finish_synthetic_cleanup(_cleanup_synthetic_account(email))
 
 
 async def test_db_failure_rolls_back_account_when_person_insert_fails(
@@ -308,21 +325,25 @@ async def test_db_failure_rolls_back_account_when_person_insert_fails(
 ) -> None:
     """Inject a NOT NULL failure in Person after staging a new User."""
     email = f"onboarding-rollback-{uuid.uuid4().hex}@example.com"
-    original = signup_service.Client
+    try:
+        original = signup_service.Client
 
-    def broken_profile(*, first_name: str, last_name: str, user: User) -> Client:
-        return original(first_name=first_name, last_name=None, user=user)
+        def broken_profile(*, first_name: str, last_name: str, user: User) -> Client:
+            return original(first_name=first_name, last_name=None, user=user)
 
-    monkeypatch.setattr(signup_service, "Client", broken_profile)
-    response = await api_client.post(
-        f"{API}/users/register-client",
-        json={
-            "email": email,
-            "password": "Only-Synthetic-Password-42",
-            "first_name": "Atomic",
-            "last_name": "Failure",
-        },
-    )
-    assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-    async with AsyncSessionLocal() as db:
-        assert await db.scalar(select(User).where(User.email == email)) is None
+        monkeypatch.setattr(signup_service, "Client", broken_profile)
+        response = await api_client.post(
+            f"{API}/users/register-client",
+            json={
+                "email": email,
+                "password": "Only-Synthetic-Password-42",
+                "first_name": "Atomic",
+                "last_name": "Failure",
+            },
+        )
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        async with AsyncSessionLocal() as db:
+            assert await db.scalar(select(User).where(User.email == email)) is None
+
+    finally:
+        await finish_synthetic_cleanup(_cleanup_synthetic_account(email))

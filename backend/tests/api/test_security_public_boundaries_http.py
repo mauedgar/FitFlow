@@ -10,6 +10,9 @@ import uuid
 from collections.abc import AsyncIterator
 from datetime import timedelta
 from dataclasses import dataclass
+from types import SimpleNamespace
+from sqlalchemy.engine import make_url
+import auth_session_test_helpers as fixture_guard
 
 import httpx
 import pytest
@@ -18,7 +21,7 @@ from sqlalchemy import delete, func, select
 
 from app.core.config import settings
 from app.core.enums import ActivityType, UserRole
-from auth_session_test_helpers import committed_access, require_local_test_database
+from auth_session_test_helpers import committed_access, require_local_test_database, require_local_test_redis
 from app.core.security import create_access_token
 from app.db.models import GymClass, User
 from app.db.session import AsyncSessionLocal, engine
@@ -378,3 +381,51 @@ async def test_synthetic_session_helper_denies_non_test_profiles_before_db_acces
     monkeypatch.setattr(settings, "TESTING", testing)
     with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
         require_local_test_database()
+
+
+@pytest.mark.parametrize(
+    "engine_override",
+    [
+        {"drivername": "sqlite+aiosqlite"},
+        {"host": "remote.example.org"},
+        {"database": "fitflow_retained"},
+        {"port": 5555},
+    ],
+)
+async def test_synthetic_preflight_rejects_actual_engine_mismatch_without_io(
+    monkeypatch: pytest.MonkeyPatch, engine_override: dict[str, object],
+) -> None:
+    expected = make_url(settings.DATABASE_URL_ASYNC)
+    fake = SimpleNamespace(url=expected.set(**engine_override), dialect=engine.dialect)
+    monkeypatch.setattr(fixture_guard, "engine", fake)
+    with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
+        fixture_guard.require_local_test_database()
+
+
+async def test_synthetic_preflight_rejects_non_postgres_actual_dialect_without_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = SimpleNamespace(
+        url=make_url(settings.DATABASE_URL_ASYNC),
+        dialect=SimpleNamespace(name="sqlite", driver="aiosqlite"),
+    )
+    monkeypatch.setattr(fixture_guard, "engine", fake)
+    with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
+        fixture_guard.require_local_test_database()
+
+
+@pytest.mark.parametrize(
+    "redis_url",
+    [
+        None, "redis://remote.example.org:6379/0",
+        "redis://127.0.0.1:6380/0", "redis://127.0.0.1:6379/1",
+        "redis://guest@127.0.0.1:6379/0",
+        "redis://127.0.0.1:6379/0?unsafe=true",
+    ],
+)
+async def test_synthetic_redis_preflight_rejects_unsafe_target_without_io(
+    monkeypatch: pytest.MonkeyPatch, redis_url: str | None,
+) -> None:
+    monkeypatch.setattr(settings, "REDIS_URL", redis_url)
+    with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
+        require_local_test_redis()

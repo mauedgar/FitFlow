@@ -23,7 +23,10 @@ from app.core.enums import (
     ActivityType, BookingStatus, ClassSessionStatus, MembershipPlan,
     MembershipStatus, UserRole,
 )
-from auth_session_test_helpers import committed_access, require_local_test_database
+from auth_session_test_helpers import (
+    committed_access, require_local_test_database,
+    cleanup_synthetic_fixture, finish_synthetic_cleanup,
+)
 from app.core.security import create_access_token
 from app.db.models import (
     Booking, ClassSchedule, ClassSession, Client, GymClass, Membership, User,
@@ -62,7 +65,7 @@ async def dispose_engine_pool_after_test() -> AsyncIterator[None]:
 
 
 @pytest.fixture
-async def profile_fixture() -> ClientProfileFixture:
+async def profile_fixture() -> AsyncIterator[ClientProfileFixture]:
     marker = uuid.uuid4().hex
     owner_email = f"client-profile-owner-{marker}@example.com"
     owner = Client(
@@ -151,51 +154,65 @@ async def profile_fixture() -> ClientProfileFixture:
     )
     booking = Booking(client=owner, class_session=session, status=BookingStatus.confirmed)
 
-    async with AsyncSessionLocal() as db:
-        db.add_all([
-            owner, neighbor, deleted, admin, teacher, unprofiled,
-            deleted_user_client, membership, gym_class, schedule, session, booking,
-        ])
-        await db.flush()
-        owner_id = owner.user_id
-        profile_id = owner.id
-        neighbor_id = neighbor.id
-        deleted_id = deleted.id
-        membership_id = membership.id
-        booking_id = booking.id
-        unprofiled_user_id = unprofiled.id
-        deleted_user_profile_id = deleted_user_client.id
-        actors = {
-            "owner": owner.user_id,
-            "neighbor": neighbor.user_id,
-            "deleted": deleted.user_id,
-            "admin": admin.id,
-            "teacher": teacher.id,
-            "deleted_user": deleted_user_client.user_id,
-        }
-        await db.commit()
+    created_users: list[uuid.UUID] = []
+    try:
+        async with AsyncSessionLocal() as db:
+            db.add_all([
+                owner, neighbor, deleted, admin, teacher, unprofiled,
+                deleted_user_client, membership, gym_class, schedule, session, booking,
+            ])
+            await db.flush()
+            owner_id = owner.user_id
+            profile_id = owner.id
+            neighbor_id = neighbor.id
+            deleted_id = deleted.id
+            membership_id = membership.id
+            booking_id = booking.id
+            unprofiled_user_id = unprofiled.id
+            deleted_user_profile_id = deleted_user_client.id
+            actors = {
+                "owner": owner.user_id,
+                "neighbor": neighbor.user_id,
+                "deleted": deleted.user_id,
+                "admin": admin.id,
+                "teacher": teacher.id,
+                "deleted_user": deleted_user_client.user_id,
+            }
+            created_users = [
+                owner.user_id, neighbor.user_id, deleted.user_id,
+                admin.id, teacher.id, unprofiled.id, deleted_user_client.user_id,
+            ]
+            await db.commit()
 
-    tokens = {
-        name: await committed_access(
-            identity,
-            UserRole.admin.value if name == "admin"
-            else UserRole.teacher.value if name == "teacher"
-            else UserRole.client.value,
+        tokens = {
+            name: await committed_access(
+                identity,
+                UserRole.admin.value if name == "admin"
+                else UserRole.teacher.value if name == "teacher"
+                else UserRole.client.value,
+            )
+            for name, identity in actors.items()
+        }
+        yield ClientProfileFixture(
+            owner_id=owner_id,
+            profile_id=profile_id,
+            neighbor_id=neighbor_id,
+            deleted_id=deleted_id,
+            owner_email=owner_email,
+            membership_id=membership_id,
+            booking_id=booking_id,
+            unprofiled_user_id=unprofiled_user_id,
+            deleted_user_profile_id=deleted_user_profile_id,
+            tokens=tokens,
         )
-        for name, identity in actors.items()
-    }
-    return ClientProfileFixture(
-        owner_id=owner_id,
-        profile_id=profile_id,
-        neighbor_id=neighbor_id,
-        deleted_id=deleted_id,
-        owner_email=owner_email,
-        membership_id=membership_id,
-        booking_id=booking_id,
-        unprofiled_user_id=unprofiled_user_id,
-        deleted_user_profile_id=deleted_user_profile_id,
-        tokens=tokens,
-    )
+    finally:
+        if created_users:
+            await finish_synthetic_cleanup(cleanup_synthetic_fixture(
+                user_ids=created_users,
+                class_session_ids=(session.id,),
+                class_schedule_ids=(schedule.id,),
+                gym_class_ids=(gym_class.id,),
+            ))
 
 
 def headers(fixture: ClientProfileFixture, name: str) -> dict[str, str]:
@@ -607,20 +624,26 @@ async def test_concurrent_http_put_then_delete_serializes_client_profile(
         await asyncio.wait_for(delete_started.wait(), timeout=10)
         assert not put_task.done()
         assert not delete_task.done()
+        continue_put.set()
+        response_put = await asyncio.wait_for(put_task, timeout=15)
+        assert response_put.status_code == status.HTTP_200_OK, response_put.text
+        assert delete_task is not None
+        response_delete = await asyncio.wait_for(delete_task, timeout=15)
+        assert response_delete.status_code == status.HTTP_202_ACCEPTED, response_delete.text
+        async with AsyncSessionLocal() as db:
+            saved = await db.scalar(
+                select(Client).where(Client.id == profile_fixture.profile_id)
+            )
+            assert saved is not None
+            assert saved.first_name == "BeforeDelete"
+            assert saved.deleted_at is not None
     finally:
         continue_put.set()
-    response_put = await asyncio.wait_for(put_task, timeout=15)
-    assert response_put.status_code == status.HTTP_200_OK, response_put.text
-    assert delete_task is not None
-    response_delete = await asyncio.wait_for(delete_task, timeout=15)
-    assert response_delete.status_code == status.HTTP_202_ACCEPTED, response_delete.text
-    async with AsyncSessionLocal() as db:
-        saved = await db.scalar(
-            select(Client).where(Client.id == profile_fixture.profile_id)
-        )
-        assert saved is not None
-        assert saved.first_name == "BeforeDelete"
-        assert saved.deleted_at is not None
+        pending = [task for task in (put_task, delete_task) if task is not None]
+        for task in pending:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
 
 
 async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(

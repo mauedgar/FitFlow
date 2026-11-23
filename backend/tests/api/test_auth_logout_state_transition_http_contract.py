@@ -122,12 +122,12 @@ async def test_logout_rejects_other_owner_refresh(
     second = uuid.uuid4()
     other_email = f"logout-foreign-{second.hex}@example.com"
     other_password = "SyntheticForeign!123"
-    async with AsyncSessionLocal() as db:
-        db.add(User(id=second, email=other_email,
-                    hashed_password=security.get_password_hash(other_password),
-                    role=UserRole.client, active=True))
-        await db.commit()
     try:
+        async with AsyncSessionLocal() as db:
+            db.add(User(id=second, email=other_email,
+                        hashed_password=security.get_password_hash(other_password),
+                        role=UserRole.client, active=True))
+            await db.commit()
         access, _refresh = await login(api_client, email, password)
         _foreign_access, foreign_refresh = await login(api_client, other_email, other_password)
         denied = await logout(api_client, access, foreign_refresh)

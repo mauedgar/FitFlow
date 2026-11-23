@@ -4,14 +4,15 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncIterator
-from urllib.parse import urlparse
 
 import httpx
 import pytest
 from sqlalchemy import delete, text
 
 from app.core import security
-from auth_session_test_helpers import committed_access, require_local_test_database
+from auth_session_test_helpers import (
+    committed_access, require_local_test_database, require_local_test_redis,
+)
 from app.core.config import settings
 from app.core.token_keys import legacy_jwt_key, opaque_jwt_key
 from app.core.token_store import (
@@ -30,11 +31,7 @@ def strict_disposable_services() -> None:
     require_local_test_database()
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("Real Redis effects only on isolated GitHub Actions")
-    url = urlparse(settings.REDIS_URL or "")
-    if (url.scheme, url.hostname, url.port, url.path) != (
-        "redis", "127.0.0.1", 6379, "/0",
-    ):
-        raise RuntimeError("BLOCKED_PRECONDITION: only local disposable Redis /0 is allowed")
+    require_local_test_redis()
 
 
 @pytest.fixture(autouse=True)
@@ -44,8 +41,17 @@ async def dispose_test_pool() -> AsyncIterator[None]:
 
 
 @pytest.fixture
-async def subject() -> AsyncIterator[uuid.UUID]:
+async def subject(strict_disposable_services: None) -> AsyncIterator[uuid.UUID]:
     identifier = uuid.uuid4()
+    # Exact service versions must qualify before the synthetic User COMMIT.
+    redis = get_redis_client()
+    redis_major = int(redis.info(section="server")["redis_version"].split(".")[0])
+    if redis_major != 7:
+        raise RuntimeError("BLOCKED_PRECONDITION: Redis 7 test service required")
+    async with AsyncSessionLocal() as probe:
+        pg_version = int(await probe.scalar(text("SHOW server_version_num")))
+    if not 150000 <= pg_version < 160000:
+        raise RuntimeError("BLOCKED_PRECONDITION: PostgreSQL 15 test service required")
     try:
         async with AsyncSessionLocal() as db:
             db.add(User(
@@ -67,12 +73,6 @@ async def test_signed_registry_owner_and_opaque_positive_ttl(
 ) -> None:
     token = security.create_refresh_token({"sub": str(subject)})
     redis = get_redis_client()
-    redis_major = int(redis.info(section="server")["redis_version"].split(".")[0])
-    if redis_major != 7:
-        raise RuntimeError("BLOCKED_PRECONDITION: Redis 7 test service required")
-    async with AsyncSessionLocal() as db:
-        pg_version = int(await db.scalar(text("SHOW server_version_num")))
-    assert 150000 <= pg_version < 160000  # Disposable PostgreSQL15.
     key = opaque_jwt_key(REFRESH_PREFIX, token)
     legacy = legacy_jwt_key(REFRESH_PREFIX, token)
     assert redis.exists(key) == 0 and redis.exists(legacy) == 0

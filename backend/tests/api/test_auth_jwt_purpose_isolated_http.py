@@ -5,7 +5,6 @@ import os
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from urllib.parse import urlparse
 
 import httpx
 import pytest
@@ -14,7 +13,9 @@ from jose import jwt
 from sqlalchemy import delete, update
 
 from app.core import security
-from auth_session_test_helpers import committed_access, require_local_test_database
+from auth_session_test_helpers import (
+    committed_access, require_local_test_database, require_local_test_redis,
+)
 from app.core.blacklist import BLACKLIST_PREFIX, blacklist_token
 from app.core.redis_client import get_redis_client
 from app.core.config import settings
@@ -219,12 +220,7 @@ async def test_actual_disposable_redis_registration_and_refresh(
     """One real Redis7 registration: CI-only, localhost, synthetic user only."""
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("No real Redis effects outside isolated GitHub Actions CI")
-    redis_url = settings.REDIS_URL
-    assert redis_url is not None
-    parsed = urlparse(redis_url)
-    assert parsed.scheme == "redis"
-    assert parsed.hostname == "127.0.0.1" and parsed.port == 6379
-    assert parsed.path == "/0"
+    require_local_test_redis()
     token = security.create_refresh_token({"sub": str(subject)})
     store_refresh_token(str(subject), token)
     try:
@@ -280,12 +276,7 @@ async def test_actual_disposable_redis_registration_blacklist_and_logout(
     """Real Redis7 negative/positive flows only on explicitly isolated CI."""
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("Never touch real Redis outside disposable GitHub Actions CI")
-    redis_url = settings.REDIS_URL
-    assert redis_url is not None
-    parsed = urlparse(redis_url)
-    assert parsed.scheme == "redis"
-    assert parsed.hostname == "127.0.0.1" and parsed.port == 6379
-    assert parsed.path == "/0"
+    require_local_test_redis()
 
     refresh = security.create_refresh_token({"sub": str(subject)})
     access = security.create_access_token({
@@ -333,12 +324,7 @@ async def test_actual_disposable_redis_blacklist_preempts_registered_refresh(
     """Blacklisted but registered refresh fails on real ephemeral Redis."""
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("Never touch real Redis outside disposable GitHub Actions CI")
-    redis_url = settings.REDIS_URL
-    assert redis_url is not None
-    parsed = urlparse(redis_url)
-    assert parsed.scheme == "redis"
-    assert parsed.hostname == "127.0.0.1" and parsed.port == 6379
-    assert parsed.path == "/0"
+    require_local_test_redis()
 
     token = security.create_refresh_token({"sub": str(subject)})
     redis = get_redis_client()
