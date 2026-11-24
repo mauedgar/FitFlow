@@ -534,6 +534,161 @@ async function verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser) {
 }
 
 
+
+async function verifyDistinctPendingLogoutPreservesOriginalReceipt(browser) {
+  // Force a distinct peer operation and a premature peer proof-loss signal
+  // while a genuine origin HTTP204 is withheld. The signals are explicit
+  // test instrumentation; only the actual signed backend response is an ACK.
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const origin = await context.newPage();
+  const peer = await context.newPage();
+  let release;
+  let markCaptured;
+  const held = new Promise(resolve => { release = resolve; });
+  const captured = new Promise(resolve => { markCaptured = resolve; });
+  try {
+    await login(origin, email);
+    await origin.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    const oldAccess = await activeAccessToken(origin);
+    assert.ok(oldAccess);
+    await peer.goto(WEB + '/admin');
+    await peer.getByRole('heading', { name: 'Panel de administración' }).waitFor();
+    await origin.evaluate(() => {
+      window.__ffConflictSignals = [];
+      window.addEventListener('storage', event => {
+        if (event.key === 'fitflow_browser_auth_epoch' && event.newValue) {
+          window.__ffConflictSignals.push(event.newValue);
+        }
+      });
+    });
+    await origin.route('**/auth/browser/logout', async route => {
+      const response = await route.fetch();
+      assert.equal(response.status(), 204, 'Real PostgreSQL revocation must commit');
+      markCaptured();
+      await held;
+      await route.fulfill({ response });
+    });
+    await origin.getByRole('button', { name: 'Menú de perfil' }).click();
+    await origin.getByRole('menuitem', { name: 'Cerrar Sesión' }).click();
+    await within(captured, 'withheld original PG logout ACK');
+    const original = await origin.evaluate(() =>
+      sessionStorage.getItem('fitflow_logout_operation'));
+    assert.ok(original);
+    const generation = (await runtimeSessionState(origin)).generation;
+
+    // A matching but unconfirmed peer signal must not clear an in-flight
+    // original before its own definitive response.
+    await peer.evaluate(operation => {
+      localStorage.setItem('fitflow_browser_auth_epoch',
+        'logout-expired-unconfirmed|' + Date.now() + '|' + operation);
+    }, original);
+    await origin.waitForFunction(operation => window.__ffConflictSignals.some(value =>
+      value.startsWith('logout-expired-unconfirmed|') && value.endsWith('|' + operation)), original);
+    assert.equal(await origin.evaluate(() =>
+      sessionStorage.getItem('fitflow_logout_operation')), original);
+
+    // Deliberately introduce another operation ID as if two tab clicks raced.
+    // Reload the peer with that pending identity so its real cookie-proof
+    // recovery owns B, not the original A's queued task.
+    const foreign = await peer.evaluate(() => {
+      const operation = crypto.randomUUID();
+      sessionStorage.setItem('fitflow_logout_pending', '1');
+      sessionStorage.setItem('fitflow_logout_operation', operation);
+      localStorage.setItem('fitflow_browser_auth_epoch',
+        'logout-pending|' + Date.now() + '|' + operation);
+      return operation;
+    });
+    assert.notEqual(foreign, original);
+    await origin.waitForFunction(operation => window.__ffConflictSignals.some(value =>
+      value.startsWith('logout-pending|') && value.endsWith('|' + operation)), foreign);
+    assert.equal(await origin.evaluate(() =>
+      sessionStorage.getItem('fitflow_logout_operation')), original,
+      'Distinct peer pending must not replace the original operation');
+    assert.equal((await runtimeSessionState(origin)).generation, generation,
+      'Peer conflict must not invalidate the original in-flight receipt');
+    await peer.reload();
+    await peer.waitForFunction(operation =>
+      sessionStorage.getItem('fitflow_logout_operation') === operation, foreign);
+    await peer.waitForFunction(async () => (await navigator.locks.query()).pending.some(lock =>
+      lock.name === 'fitflow-auth-cookie-write'));
+    release();
+    await origin.waitForFunction(() => sessionStorage.getItem('fitflow_logout_pending') === null);
+    await peer.waitForFunction(() => sessionStorage.getItem('fitflow_logout_pending') === null);
+    await origin.waitForFunction(operation => window.__ffConflictSignals.some(value =>
+      value.startsWith('logout-expired-unconfirmed|') && value.endsWith('|' + operation)), foreign);
+    const receipt = await origin.evaluate(() => ({
+      last: localStorage.getItem('fitflow_logout_confirmed_operation'),
+      history: JSON.parse(localStorage.getItem('fitflow_logout_confirmed_history') || '[]'),
+    }));
+    assert.equal(receipt.last, original, 'Only the exact original HTTP204 is confirmed');
+    assert.ok(receipt.history.includes(original));
+    assert.ok(!receipt.history.includes(foreign), 'No invented ACK for another operation');
+    assert.equal(await origin.getByText('La cookie de sesión ya no está disponible.',
+      { exact: false }).count(), 0, 'Foreign proof loss cannot downgrade the local receipt');
+    await peer.getByText('La cookie de sesión ya no está disponible.', { exact: false }).waitFor();
+    for (const page of [origin, peer]) {
+      assert.equal(await activeAccessToken(page), null);
+      assert.equal(await page.getByRole('button', { name: 'Ingresar' }).isDisabled(), false);
+    }
+    assert.equal((await fetch(API + '/auth/me', {
+      headers: { Authorization: 'Bearer ' + oldAccess },
+    })).status, 401, 'Original PostgreSQL family is revoked');
+  } finally {
+    release?.();
+    await context.close();
+  }
+}
+
+
+async function verifyNonCooperativeCookieWriterKeepsExclusiveLock(browser) {
+  const context = await browser.newContext();
+  const first = await context.newPage();
+  const second = await context.newPage();
+  let original;
+  let successor;
+  try {
+    await first.goto(WEB + '/login');
+    await second.goto(WEB + '/login');
+    original = first.evaluate(async () => {
+      const { withExclusiveBrowserCookie } = await import('/src/utils/browserCookieLock.ts');
+      await withExclusiveBrowserCookie(async signal => {
+        window.__ffNonCooperativeStarted = true;
+        signal.addEventListener('abort', () => { window.__ffNonCooperativeAborted = true; });
+        // Deliberately ignore AbortSignal for completion, no network mutation.
+        await new Promise(resolve => { window.__ffReleaseNonCooperative = resolve; });
+      });
+      return 'ORIGINAL_SETTLED';
+    });
+    void original.catch(() => {});
+    await first.waitForFunction(() => window.__ffNonCooperativeStarted === true);
+    await first.waitForFunction(() => window.__ffNonCooperativeAborted === true,
+      undefined, { timeout: 18000 });
+    successor = second.evaluate(async () => {
+      const { withExclusiveBrowserCookie } = await import('/src/utils/browserCookieLock.ts');
+      await withExclusiveBrowserCookie(async () => {
+        window.__ffSuccessorEntered = true;
+      });
+      return 'SUCCESSOR_SETTLED';
+    });
+    void successor.catch(() => {});
+    await second.waitForFunction(async () => {
+      const locks = await navigator.locks.query();
+      return locks.held.some(lock => lock.name === 'fitflow-auth-cookie-write') &&
+        locks.pending.some(lock => lock.name === 'fitflow-auth-cookie-write');
+    });
+    assert.equal(await second.evaluate(() => !!window.__ffSuccessorEntered), false,
+      'Cancellation budget cannot force-release a noncooperative original writer');
+    await first.evaluate(() => window.__ffReleaseNonCooperative());
+    assert.equal(await within(original, 'original cookie writer settlement'), 'ORIGINAL_SETTLED');
+    assert.equal(await within(successor, 'subsequent exclusive writer'), 'SUCCESSOR_SETTLED');
+    assert.equal(await second.evaluate(() => window.__ffSuccessorEntered), true);
+  } finally {
+    await first.evaluate(() => window.__ffReleaseNonCooperative?.()).catch(() => {});
+    await context.close();
+    await Promise.allSettled([original, successor].filter(Boolean));
+  }
+}
+
 async function verifyNon204LogoutCannotInventAck(browser) {
   // Axios considers all 2xx successful. Neither 200 nor 202 is a durable
   // server revocation receipt. The old signed bearer must remain active.
@@ -1340,6 +1495,7 @@ async function run() {
     await verifyCrossTabCookieSynchronizationAndReplacementGuard(browser);
     await verifySurvivingTabRecoversOrphanedLogout(browser);
     await verifyCrossTabLogoutAckDominatesQueuedMissingProof(browser);
+    await verifyDistinctPendingLogoutPreservesOriginalReceipt(browser);
     await verifyEarlierRealLogoutReceiptSurvivesLaterConfirmedFamily(browser);
     await verifyNon204LogoutCannotInventAck(browser);
     await verifyLateLoginResponseRejectedAfterCrossTabLogout(browser);
@@ -1348,6 +1504,7 @@ async function run() {
     await verifySameTabConcurrentLogoutRetriesJoinOriginal(browser);
     await verifyRefreshReadsCsrfAfterQueuedCookieLock(browser);
     await verifyStalledProofReleasesCookieLock(browser);
+    await verifyNonCooperativeCookieWriterKeepsExclusiveLock(browser);
     await verifyRapidReLoginAndStale401(browser);
     await verifyDelayedIdentityAcrossSameTokenReLogin(browser);
     await qualifySyntheticFailureDiagnostic(browser);

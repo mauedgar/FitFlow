@@ -55,6 +55,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const csrfRef = useRef<string | null>(null);
   const retryLogoutInFlight = useRef<Promise<void> | null>(null);
+  // An exact local receipt belongs to this mounted tab, not another peer's
+  // subsequently reported proof loss. Clear it only for a new local session.
+  const locallyConfirmedOperation = useRef<string | null>(null);
   // Only a surviving tab or a reloaded pending session needs automatic
   // orphan recovery; the initiating tab already owns its original POST.
   const needsOrphanRecovery = useRef(false);
@@ -93,9 +96,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     let cancelled = false;
     const generation = getAuthSessionGeneration();
     const sharedEpoch = localStorage.getItem(SYNC_KEY);
+    // A fresh/reloaded survivor may have missed the storage event entirely.
+    // Adopt the current pending identity only if this tab has no local one.
+    if (sessionStorage.getItem(PENDING_LOGOUT) !== '1' &&
+        sharedEpoch?.startsWith('logout-pending|')) {
+      const sharedOperation = signalOperation(sharedEpoch);
+      if (sharedOperation) {
+        sessionStorage.setItem(PENDING_OPERATION, sharedOperation);
+        sessionStorage.setItem(PENDING_LOGOUT, '1');
+      }
+    }
     if (sessionStorage.getItem(PENDING_LOGOUT) === '1') {
       const operation = sessionStorage.getItem(PENDING_OPERATION);
       if (isConfirmedLogout(operation)) {
+        locallyConfirmedOperation.current = operation;
         needsOrphanRecovery.current = false;
         clearPendingLogout();
         csrfRef.current = null;
@@ -119,6 +133,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (cancelled || generation !== getAuthSessionGeneration() ||
           localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
           sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
+      locallyConfirmedOperation.current = null;
       csrfRef.current = session.csrf_token;
       setCsrfToken(session.csrf_token);
       setToken(session.access_token);
@@ -151,6 +166,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const action = eventEpoch.split("|")[0];
       const operation = signalOperation(eventEpoch);
       const pendingOperation = sessionStorage.getItem(PENDING_OPERATION);
+      const localPending = sessionStorage.getItem(PENDING_LOGOUT) === "1";
+      // A peer signal cannot replace or invalidate a live local operation.
+      // Even another pending event for the same ID must not bump generation:
+      // the original cookie request still owns its exact HTTP receipt.
+      if (localPending && pendingOperation) {
+        if (action !== "logout-confirmed" && action !== "logout-expired-unconfirmed") return;
+        if (action === "logout-expired-unconfirmed" && retryLogoutInFlight.current &&
+            !isConfirmedLogout(operation)) return;
+      }
+      // A distinct peer's unconfirmed proof loss is not a downgrade of this
+      // tab's already observed exact 204. A newly adopted pending operation
+      // or a successful new login clears that local receipt state.
+      if (!localPending && action === "logout-expired-unconfirmed" &&
+          locallyConfirmedOperation.current &&
+          locallyConfirmedOperation.current !== operation) return;
       // Validate terminal identity BEFORE clearing a newer tab session.
       if ((action === "logout-confirmed" ||
            action === "logout-expired-unconfirmed") &&
@@ -167,6 +197,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       delete apiClient.defaults.headers.common["Authorization"];
       queryClient.clear();
       if (action === "logout-pending") {
+        locallyConfirmedOperation.current = null;
         // The origin tab may close before POST. A surviving tab must recover
         // the signed cookie using its own bounded, deduplicated attempt.
         needsOrphanRecovery.current = true;
@@ -194,6 +225,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
         needsOrphanRecovery.current = false;
+        locallyConfirmedOperation.current = realAck ? operation : null;
         clearPendingLogout();
         csrfRef.current = null;
         setCsrfToken(null);
@@ -208,6 +240,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (getAuthSessionGeneration() !== generation ||
             localStorage.getItem(SYNC_KEY) !== eventEpoch ||
             sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
+        locallyConfirmedOperation.current = null;
         csrfRef.current = session.csrf_token;
         setCsrfToken(session.csrf_token);
         setToken(session.access_token);
@@ -240,6 +273,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           parsed.exp * 1000 <= Date.now()) return false;
     } catch { return false; }
     // A successful new identity supersedes earlier async reads and retries.
+    locallyConfirmedOperation.current = null;
     advanceAuthSessionGeneration();
     localStorage.removeItem(LEGACY_ACCESS);
     csrfRef.current = csrf;
@@ -272,6 +306,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       sessionStorage.getItem(PENDING_LOGOUT) === '1' &&
       sessionStorage.getItem(PENDING_OPERATION) === operation;
     const confirmLocal = (): void => {
+      locallyConfirmedOperation.current = operation;
       needsOrphanRecovery.current = false;
       csrfRef.current = null;
       setCsrfToken(null);
@@ -310,7 +345,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setCsrfToken(null);
           clearPendingLogout();
           setLogoutConfirmation('expired-unconfirmed');
-          notifyOtherTabs("logout-expired-unconfirmed", operation ?? undefined);
+          const epoch = localStorage.getItem(SYNC_KEY);
+          // Do not overwrite a distinct peer's still-pending operation.
+          if (epoch?.startsWith("logout-pending|") && signalOperation(epoch) === operation) {
+            notifyOtherTabs("logout-expired-unconfirmed", operation ?? undefined);
+          }
           if (operation && isConfirmedLogout(operation)) confirmLocal();
           return;
         }
@@ -355,7 +394,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // in-flight refresh, login and restoration before clearing auth state.
     advanceAuthSessionGeneration();
     needsOrphanRecovery.current = false;
-    const operation = crypto.randomUUID();
+    locallyConfirmedOperation.current = null;
+    // Prefer the current shared pending ID when a peer's event has not yet
+    // reached this tab. Simultaneous new IDs can still race; the event guard
+    // above keeps each original distinct rather than inventing equivalence.
+    const epoch = localStorage.getItem(SYNC_KEY);
+    const sharedOperation = epoch?.startsWith("logout-pending|") ? signalOperation(epoch) : null;
+    const operation = sharedOperation ?? crypto.randomUUID();
     sessionStorage.setItem(PENDING_OPERATION, operation);
     sessionStorage.setItem(PENDING_LOGOUT, '1');
     localStorage.removeItem(LEGACY_ACCESS);
@@ -368,7 +413,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Always attempt an exact cookie-bound server logout before concluding.
     sessionStorage.removeItem(PENDING_CSRF);
     setLogoutConfirmation('pending');
-    notifyOtherTabs("logout-pending", operation);
+    if (!sharedOperation) notifyOtherTabs("logout-pending", operation);
     void retryLogout();
   };
 

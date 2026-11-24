@@ -128,11 +128,13 @@ must revalidate this candidate before Product acceptance.
 
 ## Control 015 — IR004 bounded browser Web Lock (candidate)
 
-The exclusive cookie mutation Web Lock has a total 12-second budget
-including queue acquisition and network work. Each login, refresh and
-signed logout operation propagates the AbortSignal into its Axios
-requests. A stalled proof GET cannot retain the mutation lock without
-a bounded cancellation; an aborted logout remains unconfirmed in UI.
+The exclusive cookie mutation Web Lock requests cooperative cancellation
+after a total 12-second budget including queue acquisition and network
+work. Each login, refresh and signed logout operation propagates the
+AbortSignal into its Axios requests. The browser releases an already
+acquired lock only when its callback settles; abort is not a guaranteed
+hard hold-time bound. Never release it early while a late cookie-writing
+callback remains active. An aborted logout remains unconfirmed in UI.
 Legacy logoutBrowserSession accepts its old argument but ignores that
 stale proof and delegates to the exact cookie proof read under the lock.
 A signed two-tab Playwright regression intentionally stalls the proof
@@ -213,3 +215,31 @@ The current bearer guards reject historical signed SID-less or untyped
 access tokens. Old Redis registration keys are not an HTTP refresh
 fallback. All these statements describe **candidate code**, not an accepted
 merge, deployed behavior or proof independent of actual tests.
+
+
+## FitFlow C016 — IR011 P1 operation identity and cooperative lock (candidate)
+
+A tab with a pending local operation does not replace it or advance its
+generation on a peer's distinct or duplicate pending signal. A peer's
+unconfirmed proof-loss signal cannot interrupt an original in-flight
+logout or downgrade an exact locally observed 204 for a different
+operation. Only the original operation's real 204 enters confirmed
+history; another operation may separately terminate expired-unconfirmed.
+When no local pending identity exists, a reloaded tab can adopt the
+current shared pending operation for the existing cookie-proof recovery.
+A fresh logout prefers the already-shared pending ID; concurrent
+independent IDs are not treated as proof of the same server family.
+A login checks the actual shared pending epoch inside the cookie lock
+before any browser login POST. A proof-loss notification is published
+only while its own pending epoch remains current, never overwriting a
+distinct pending operation.
+
+The new browser regressions hold a real PostgreSQL logout HTTP204 across
+controlled peer-operation signals and assert exact receipt correlation
+and independent unconfirmed convergence; a separate noncooperative
+callback ignores abort to demonstrate that the subsequent Web Lock
+writer cannot enter until the original settles. The existing cooperative
+stalled-network test is retained. These are candidate tests, not claims
+of deployment or independent review. A historical receipt is retained
+only within the existing bounded 128-operation history; no indefinite
+confirmation retention or provider-enforced callback deadline is claimed.

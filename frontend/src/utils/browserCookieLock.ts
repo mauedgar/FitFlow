@@ -1,8 +1,10 @@
 /** Serialize all browser cookie writers across tabs; never send secrets by lock.
  *
- * The budget covers time queued AND time holding the lock. Every callback
- * must propagate the provided AbortSignal to every network request, ensuring
- * stalled network promises cancel before another tab may write the cookie.
+ * The 12-second budget requests cooperative cancellation across queue and
+ * execution. Every callback must pass the AbortSignal to its network calls.
+ * Aborting a running callback does NOT force-release a Web Lock: it remains
+ * exclusive until that callback settles. Never race it against a timeout
+ * promise that could release it while a late cookie writer is still active.
  */
 const COOKIE_OPERATION_BUDGET_MS = 12_000;
 

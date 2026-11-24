@@ -49,6 +49,7 @@ const classService = {
       // events can arrive late, so compare the actual shared epoch too.
       if (getAuthSessionGeneration() !== expectedGeneration ||
           localStorage.getItem(AUTH_SYNC_KEY) !== expectedSharedEpoch ||
+          localStorage.getItem(AUTH_SYNC_KEY)?.startsWith('logout-pending|') ||
           sessionStorage.getItem('fitflow_logout_pending') === '1') {
         throw new BrowserLoginSuperseded();
       }

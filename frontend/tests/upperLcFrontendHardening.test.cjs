@@ -117,7 +117,7 @@ test('Login responses are rejected after newer auth generation; refresh proof is
 });
 
 
-test('Cookie Web Lock uses a finite abort budget and all auth writers propagate AbortSignal', () => {
+test('Cookie Web Lock requests cooperative cancellation without forced release; writers propagate AbortSignal', () => {
   const lock = load('utils/browserCookieLock.ts');
   const service = load('services/classService.ts');
   assert.ok(lock.includes('COOKIE_OPERATION_BUDGET_MS = 12_000'));
@@ -125,6 +125,8 @@ test('Cookie Web Lock uses a finite abort budget and all auth writers propagate 
   assert.ok(lock.includes('signal: controller.signal'));
   assert.ok(lock.includes('() => operation(controller.signal)'));
   assert.ok(lock.includes('clearTimeout(timeoutId)'));
+  assert.ok(lock.includes('does NOT force-release a Web Lock'));
+  assert.doesNotMatch(lock, /Promise\.race\s*\(/);
   const login = service.split('async login(')[1]
     .split('async restoreBrowserSession')[0];
   const refresh = service.split('async refreshBrowserSession()')[1]
@@ -180,6 +182,7 @@ test('Queued browser login rechecks the cross-tab epoch inside its Web Lock', ()
   assert.ok(login.indexOf('localStorage.getItem(AUTH_SYNC_KEY) !== expectedSharedEpoch') <
     login.indexOf("'/auth/browser/token'"));
   assert.ok(login.includes('throw new BrowserLoginSuperseded()'));
+  assert.ok(login.includes("localStorage.getItem(AUTH_SYNC_KEY)?.startsWith('logout-pending|')"));
   assert.ok(provider.includes('retryLogoutInFlight.current'));
 });
 
@@ -269,4 +272,20 @@ test('Terminal logout validates pending identity before clearing a newer bearer'
   assert.ok(p.includes('const operation = storedOperation ?? crypto.randomUUID()'));
   assert.ok(p.includes("if (!storedOperation && sessionStorage.getItem(PENDING_LOGOUT) === '1')"));
   assert.ok(p.includes('confirmedHistory().includes(operation)'));
+});
+
+
+test('Pending logout protects local operation identity before generation changes', () => {
+  const provider = load('context/AuthProvider.tsx');
+  const handler = provider.split('const onSharedSession = (event: StorageEvent) => {')[1]
+    .split('window.addEventListener("storage", onSharedSession)')[0];
+  const protect = handler.indexOf('if (localPending && pendingOperation)');
+  const generation = handler.indexOf('const generation = advanceAuthSessionGeneration();');
+  assert.ok(protect >= 0 && protect < generation);
+  assert.ok(handler.indexOf('retryLogoutInFlight.current &&') < generation);
+  assert.ok(handler.includes('locallyConfirmedOperation.current !== operation'));
+  assert.ok(provider.includes('const operation = sharedOperation ?? crypto.randomUUID()'));
+  const retry = provider.split('const retryLogout = useCallback')[1]
+    .split("// A peer's logout-pending signal")[0];
+  assert.ok(retry.includes('epoch?.startsWith("logout-pending|") && signalOperation(epoch) === operation'));
 });
