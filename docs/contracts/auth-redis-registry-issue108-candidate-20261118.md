@@ -13,10 +13,15 @@ PR116 snapshot. Earlier scoped independent IRs remain historical.
 
 Redis token_store requires signed purpose, subject and live exp; it compares
 persisted registration owner against JWT sub (never mere key existence).
-New registrations use opaque SHA256-derived key names and signed-exp-bounded
-positive TTL. Mismatched opaque owners fail closed without fallback to old
-raw keys. Historical SID-less raw registration keys are read-only and not
-automatically rewritten. Existing raw-key/blacklist remnants may outlive
+New registrations use opaque SHA256-derived key names and an absolute Redis
+EXAT cutoff at floor(signed exp), with application and Redis wall clocks
+assumed synchronized. The cutoff is not extended by client/ping/SET latency;
+near-expiry registration is rejected rather than rounded up. Owner comparison
+uses UTF-8 bytes, rejects invalid encodings and rechecks live expiry after
+lookup. Mismatched opaque owners fail closed without fallback to old raw
+keys. Historical SID-less raw registrations are never created or rewritten;
+explicit exact-token deletion can remove both opaque and historical keys.
+Existing raw-key/blacklist remnants may outlive
 their token expiry and require separate authorized retained keyspace
 inventory/sunset, never an implicit bulk cleanup.
 

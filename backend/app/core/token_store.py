@@ -4,13 +4,14 @@ Este módulo permite almacenar, validar y eliminar tokens de refresco
 utilizados en el flujo de autenticación OAuth2.
 """
 
+from datetime import UTC, datetime
 from hmac import compare_digest
 
 from redis.exceptions import RedisError
 
 from app.core.redis_client import get_redis_client
 from app.core.security import decode_token, is_refresh_token_payload
-from app.core.token_keys import legacy_jwt_key, opaque_jwt_key, signed_jwt_seconds_remaining
+from app.core.token_keys import legacy_jwt_key, opaque_jwt_key, signed_jwt_expiration_epoch
 from app.services.errors import ExternalServiceError
 
 # Prefijo para las claves de tokens de refresco en Redis.
@@ -28,9 +29,17 @@ def store_refresh_token(user_id: str, token: str) -> None:
     payload = decode_token(token)
     if not is_refresh_token_payload(payload) or payload["sub"] != user_id:
         raise ValueError("El propietario Redis no coincide con el refresh JWT firmado")
-    ttl = signed_jwt_seconds_remaining(token)
+    # Reject strings that cannot be represented in Redis before any write.
+    user_id.encode("utf-8")
+    expires_at = signed_jwt_expiration_epoch(token)
     try:
-        get_redis_client().set(opaque_jwt_key(REFRESH_PREFIX, token), user_id, ex=ttl)
+        client = get_redis_client()
+        if expires_at <= datetime.now(tz=UTC).timestamp():
+            raise ValueError("JWT vencido")
+        if client.set(opaque_jwt_key(REFRESH_PREFIX, token), user_id, exat=expires_at) is not True:
+            raise ExternalServiceError("Registro Redis no confirmado.")
+        if expires_at <= datetime.now(tz=UTC).timestamp():
+            raise ValueError("JWT vencido")
     except RedisError as exc:
         raise ExternalServiceError("Redis no está disponible.") from exc
 
@@ -57,7 +66,12 @@ def is_refresh_token_valid(token: str) -> bool:
         if value is None:
             # Historical raw key is read-only; no fallback on mismatched new key.
             value = client.get(legacy_jwt_key(REFRESH_PREFIX, token))
-        return isinstance(value, str) and compare_digest(value, subject)
+        if not isinstance(value, str) or not is_refresh_token_payload(payload):
+            return False
+        try:
+            return compare_digest(value.encode("utf-8"), subject.encode("utf-8"))
+        except UnicodeError:
+            return False
     except RedisError as exc:
         raise ExternalServiceError("Redis no está disponible.") from exc
 

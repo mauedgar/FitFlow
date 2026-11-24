@@ -217,3 +217,51 @@ async def test_soft_deleted_account_denied_by_both_auth_pipelines(
         headers={"Authorization": f"Bearer {signed}"},
     )
     assert response.status_code == 401, response.text
+
+
+async def test_registry_unicode_owner_matches_without_type_error(subject: uuid.UUID) -> None:
+    """Legacy helper remains non-authoritative; comparisons must be total."""
+    owner = f"sintético-{subject}"
+    token = security.create_refresh_token({"sub": owner})
+    client = get_redis_client()
+    opaque = opaque_jwt_key(REFRESH_PREFIX, token)
+    legacy = legacy_jwt_key(REFRESH_PREFIX, token)
+    assert client.exists(opaque) == 0 and client.exists(legacy) == 0
+    try:
+        store_refresh_token(owner, token)
+        assert is_refresh_token_valid(token)
+        client.set(opaque, f"otro-{subject}", ex=60)
+        client.set(legacy, owner, ex=60)
+        assert not is_refresh_token_valid(token)
+        client.delete(opaque)
+        assert is_refresh_token_valid(token)
+        client.set(legacy, f"otro-{subject}", ex=60)
+        assert not is_refresh_token_valid(token)
+    finally:
+        delete_refresh_token(token)
+
+
+async def test_registry_absolute_expiration_is_not_extended_by_rounding(subject: uuid.UUID) -> None:
+    """Redis 7 stores an absolute cutoff no later than signed JWT exp."""
+    from datetime import UTC, datetime
+    from math import floor
+
+    from jose import jwt
+
+    exp = floor(datetime.now(tz=UTC).timestamp()) + 120.5
+    token = jwt.encode(
+        {"sub": str(subject), "token_use": "refresh", "exp": exp},
+        settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+    )
+    client = get_redis_client()
+    key = opaque_jwt_key(REFRESH_PREFIX, token)
+    legacy = legacy_jwt_key(REFRESH_PREFIX, token)
+    assert client.exists(key) == 0 and client.exists(legacy) == 0
+    try:
+        store_refresh_token(str(subject), token)
+        assert client.pexpiretime(key) == floor(exp) * 1000
+        assert is_refresh_token_valid(token)
+        client.set(key, f"corrupto-ñ-{subject}", ex=60)
+        assert not is_refresh_token_valid(token)
+    finally:
+        delete_refresh_token(token)
