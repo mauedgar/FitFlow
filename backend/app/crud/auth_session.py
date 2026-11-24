@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from hashlib import sha256
 from hmac import compare_digest
-from math import isfinite
 
 from jose import JWTError, jwt
 from uuid import UUID
@@ -13,7 +12,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import decode_token, is_refresh_token_payload
+from app.core.security import (
+    canonical_subject, decode_token, is_modern_refresh_token_payload, signed_expiry_datetime,
+)
 from app.db.models.auth_session import AuthSession
 
 
@@ -35,15 +36,12 @@ def fingerprint(token: str) -> str:
 def signed_refresh_family(token: str) -> tuple[UUID, UUID, datetime] | None:
     """Only valid signed modern refresh JWTs can identify durable sessions."""
     payload = decode_token(token)
-    if not is_refresh_token_payload(payload) or not isinstance(payload, dict):
+    if not is_modern_refresh_token_payload(payload) or not isinstance(payload, dict):
         return None
     family = _uuid4(payload.get("sid"))
-    try:
-        owner = UUID(payload["sub"])
-        expires = datetime.fromtimestamp(payload["exp"], tz=UTC)
-    except (KeyError, ValueError, TypeError, OverflowError):
-        return None
-    if family is None or expires <= datetime.now(tz=UTC):
+    owner = canonical_subject(payload.get("sub"))
+    expires = signed_expiry_datetime(payload.get("exp"))
+    if family is None or owner is None or expires is None or expires <= datetime.now(tz=UTC):
         return None
     return family, owner, expires
 
@@ -60,26 +58,25 @@ def signed_refresh_family_for_replay(token: str) -> tuple[UUID, UUID, datetime] 
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM],
             options={"verify_exp": False},
         )
-    except (JWTError, TypeError, ValueError):
+    except (JWTError, TypeError, ValueError, OverflowError):
         return None
     if not isinstance(payload, dict) or payload.get("token_use") != "refresh":
         return None
     if "role" in payload or not isinstance(payload.get("sub"), str):
         return None
     sid = _uuid4(payload.get("sid"))
-    exp = payload.get("exp")
-    if sid is None or isinstance(exp, bool) or not isinstance(exp, (int, float)):
-        return None
-    if not isfinite(exp):
-        return None
-    try:
-        owner = UUID(payload["sub"])
-        expiry = datetime.fromtimestamp(exp, tz=UTC)
-    except (ValueError, TypeError, OverflowError):
-        return None
-    if str(owner) != payload["sub"]:
+    owner = canonical_subject(payload.get("sub"))
+    expiry = signed_expiry_datetime(payload.get("exp"))
+    if sid is None or owner is None or expiry is None:
         return None
     return sid, owner, expiry
+
+
+def _valid_digest(value: object) -> bool:
+    return (
+        isinstance(value, str) and len(value) == 64
+        and all(ch in "0123456789abcdef" for ch in value)
+    )
 
 
 async def register(db: AsyncSession, *, subject: UUID, refresh_token: str) -> AuthSession:
@@ -117,12 +114,13 @@ async def is_active(
     Ordinary bearer verification uses a nonlocking MVCC read.
     """
     family = _uuid4(sid)
-    try:
-        owner = UUID(subject)
-    except (TypeError, ValueError, AttributeError):
+    owner = canonical_subject(subject)
+    if family is None or owner is None:
         return False
-    if family is None:
-        return False
+    if refresh_token is not None:
+        claim = signed_refresh_family(refresh_token)
+        if claim is None or claim[:2] != (family, owner):
+            return False
     query = select(AuthSession).where(
         AuthSession.id == family, AuthSession.user_id == owner,
     )
@@ -133,7 +131,13 @@ async def is_active(
         return False
     if row.expires_at <= datetime.now(tz=UTC):
         return False
-    return refresh_token is None or compare_digest(
+    if not _valid_digest(row.refresh_digest):
+        return False
+    if refresh_token is None:
+        return True  # The caller must have verified a signed, typed access JWT.
+    # The signed lifetime may have elapsed while waiting for the row lock.
+    claim = signed_refresh_family(refresh_token)
+    return claim is not None and claim[:2] == (family, owner) and compare_digest(
         row.refresh_digest, fingerprint(refresh_token)
     )
 
@@ -153,7 +157,7 @@ async def revoke(db: AsyncSession, *, refresh_token: str) -> str:
                 AuthSession.id == sid, AuthSession.user_id == owner,
             ).with_for_update()
         )
-        if row is None or not compare_digest(
+        if row is None or not _valid_digest(row.refresh_digest) or not compare_digest(
             row.refresh_digest, fingerprint(refresh_token)
         ):
             await db.rollback()
@@ -170,5 +174,9 @@ async def revoke(db: AsyncSession, *, refresh_token: str) -> str:
         await db.commit()
         return "COMMITTED"
     except Exception:
-        await db.rollback()
+        # Cleanup failure must not replace the original uncertain transaction error.
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         raise

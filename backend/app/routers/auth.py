@@ -107,7 +107,7 @@ async def refresh_access_token(
 ) -> Token:
     """Only PostgreSQL-backed SID sessions may refresh; Redis is never read."""
     payload = security.decode_token(token_request.refresh_token)
-    if not security.is_refresh_token_payload(payload) or "sid" not in payload:
+    if not security.is_modern_refresh_token_payload(payload):
         raise HTTPException(status_code=401, detail="Refresh de sesión inválido.")
     return await refresh_durable_session(
         response=response, token_request=token_request, db=db,
@@ -125,7 +125,7 @@ async def logout(
     payload = security.decode_token(token_request.refresh_token)
     if not security.is_refresh_token_payload(payload):
         raise HTTPException(status_code=400, detail="Refresh token inválido.")
-    if "sid" not in payload:
+    if not security.is_modern_refresh_token_payload(payload):
         raise HTTPException(status_code=401, detail="Refresh de sesión inválido.")
     if str(current_user.id) != str(payload["sub"]):
         raise HTTPException(status_code=403, detail="No autorizado para invalidar este token.")
@@ -205,7 +205,7 @@ async def refresh_durable_session(
     """Mint access only from a still-active, exact signed PostgreSQL family."""
     refresh_token = token_request.refresh_token
     payload = security.decode_token(refresh_token)
-    if not security.is_refresh_token_payload(payload) or "sid" not in payload:
+    if not security.is_modern_refresh_token_payload(payload):
         raise HTTPException(status_code=401, detail="Refresh de sesión inválido.")
     try:
         allowed = await session_ledger.is_active(
@@ -277,7 +277,7 @@ async def _browser_access(
 ) -> dict[str, str]:
     """Validate signed purpose, exact session digest and current persisted role."""
     payload = security.decode_token(refresh_token)
-    if not security.is_refresh_token_payload(payload) or "sid" not in payload:
+    if not security.is_modern_refresh_token_payload(payload):
         raise HTTPException(status_code=401, detail="Sesión de navegador inválida.")
     try:
         active = await session_ledger.is_active(

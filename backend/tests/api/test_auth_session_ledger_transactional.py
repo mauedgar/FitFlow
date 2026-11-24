@@ -16,7 +16,9 @@ from app.core import security
 from auth_session_test_helpers import require_local_test_database
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.crud.auth_session import fingerprint, is_active, register, revoke, signed_refresh_family
+from app.crud.auth_session import (
+    fingerprint, is_active, register, revoke, signed_refresh_family, signed_refresh_family_for_replay,
+)
 from app.db.models.auth_session import AuthSession
 from app.db.models.user import User
 from app.db.session import AsyncSessionLocal, engine
@@ -198,3 +200,43 @@ async def test_expired_refresh_replays_only_an_already_revoked_exact_family(
         assert await is_active(db, sid=str(active_sid), subject=str(owner)) is False
         row = await db.get(AuthSession, active_sid)
         assert row is not None and row.revoked_at is None
+
+
+async def test_durable_parsers_reject_untyped_and_noncanonical_signed_claims(owner: uuid.UUID) -> None:
+    sid, good = new_login(owner)
+    live = int((datetime.now(tz=UTC) + timedelta(minutes=5)).timestamp())
+    # UUID accepts brace-wrapped text, but the durable contract does not.
+    for claims in (
+        {"sub": str(owner), "sid": sid, "exp": live},
+        {"sub": "{" + str(owner) + "}", "sid": sid, "token_use": "refresh", "exp": live},
+    ):
+        bad = jwt.encode(claims, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        assert signed_refresh_family(bad) is None
+        assert signed_refresh_family_for_replay(bad) is None
+        async with AsyncSessionLocal() as db:
+            with pytest.raises(ValueError):
+                await register(db, subject=owner, refresh_token=bad)
+            assert await revoke(db, refresh_token=bad) == "INVALID"
+    async with AsyncSessionLocal() as db:
+        await register(db, subject=owner, refresh_token=good)
+        assert not await is_active(db, sid=sid, subject="{" + str(owner) + "}")
+        assert await is_active(db, sid=sid, subject=str(owner), refresh_token=good)
+        row = await db.get(AuthSession, uuid.UUID(sid))
+        assert row is not None
+        row.refresh_digest = "ñ" * 64
+        await db.flush()
+        assert not await is_active(db, sid=sid, subject=str(owner), refresh_token=good)
+        assert not await is_active(db, sid=sid, subject=str(owner))
+        await db.rollback()
+        assert await revoke(db, refresh_token=good) == "COMMITTED"
+
+
+@pytest.mark.parametrize("exp", [float("nan"), float("inf"), -float("inf"), 10 ** 1000, 10 ** 30, True])
+async def test_durable_expiry_claims_fail_closed(exp: object) -> None:
+    signed = jwt.encode(
+        {"sub": str(uuid.uuid4()), "sid": str(uuid.uuid4()), "token_use": "refresh", "exp": exp},
+        settings.SECRET_KEY, algorithm=settings.ALGORITHM,
+    )
+    assert security.signed_expiry_datetime(exp) is None
+    assert signed_refresh_family(signed) is None
+    assert signed_refresh_family_for_replay(signed) is None

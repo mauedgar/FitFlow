@@ -117,19 +117,36 @@ def decode_token(token: str) -> dict | None:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except ExpiredSignatureError:
         return None
-    except JWTError:
+    except (JWTError, TypeError, ValueError, OverflowError):
         return None
 
 
 
+def signed_expiry_datetime(exp: object) -> datetime | None:
+    """Reject invalid or unrepresentable signed NumericDate values."""
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        return None
+    try:
+        # NaN, infinities and extreme integers cannot represent a UTC instant.
+        return datetime.fromtimestamp(exp, tz=UTC)
+    except (ValueError, TypeError, OverflowError, OSError):
+        return None
+
+
+def canonical_subject(value: object) -> UUID | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        owner = UUID(value)
+    except ValueError:
+        return None
+    return owner if str(owner) == value else None
+
+
 def _has_live_expiry(payload: dict) -> bool:
-    """Require signed expiration even for historical untyped JWTs."""
-    exp = payload.get("exp")
-    return (
-        not isinstance(exp, bool)
-        and isinstance(exp, (int, float))
-        and exp > datetime.now(tz=UTC).timestamp()
-    )
+    """Require a representable signed expiration, strictly in the future."""
+    expiry = signed_expiry_datetime(payload.get("exp"))
+    return expiry is not None and expiry > datetime.now(tz=UTC)
 
 
 def is_access_token_payload(payload: dict | None) -> bool:
@@ -168,3 +185,13 @@ def is_refresh_token_payload(payload: dict | None) -> bool:
         return False
     purpose = payload.get("token_use")
     return purpose == "refresh" or "token_use" not in payload
+
+
+def is_modern_refresh_token_payload(payload: dict | None) -> bool:
+    """Durable refresh never accepts an untyped or noncanonical identity."""
+    if not is_refresh_token_payload(payload) or not isinstance(payload, dict):
+        return False
+    if payload.get("token_use") != "refresh" or canonical_subject(payload.get("sub")) is None:
+        return False
+    sid = canonical_subject(payload.get("sid"))
+    return sid is not None and sid.version == 4

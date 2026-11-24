@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
     REFRESH_TOKEN_ROTATION: bool = True
 
+    @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES", "REFRESH_TOKEN_EXPIRE_MINUTES")
+    @classmethod
+    def validate_jwt_duration(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("JWT lifetime must be positive")
+        return value
+
     # -----------------------------------------------------------------------
     # API
     # -----------------------------------------------------------------------

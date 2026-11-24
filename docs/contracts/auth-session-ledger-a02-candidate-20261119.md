@@ -83,3 +83,17 @@ Ordinary bearer verification and cookie session rehydrate remain
 nonlocking to avoid serializing normal reads. A disposable real
 PostgreSQL NOWAIT regression witnesses the lock boundary and its release.
 Source and tests remain subject to new exact-commit CI and IR.
+
+
+## IR018 S02 repair — strict durable claim boundary (candidate)
+
+Durable register, refresh, activity and replay require canonical owner UUID,
+UUID4 SID and explicit refresh purpose for refresh credentials. Historical
+registry helpers are not modern HTTP authority. NumericDate must represent
+an actual UTC instant; nonfinite and out-of-range values fail closed. The
+refresh path rechecks signed expiration after row-lock acquisition. A corrupt
+nonhex or non-ASCII persisted digest is denied, including bearer-only checks;
+this is a runtime validation, not a new schema constraint or retained-data
+migration. Rollback cleanup does not replace the original transaction error.
+Configuration rejects nonpositive JWT lifetimes. No unreviewed release or
+migration authority follows from this candidate.
