@@ -212,53 +212,61 @@ async def test_booking_creation_allows_reference_capacity_overflow(
 ) -> None:
     session_id, access_token = booking_fixture
 
-    async with AsyncSessionLocal() as db:
-        class_session = await db.get(ClassSession, session_id)
-        assert class_session is not None
-        class_session.capacity_snapshot = 1
+    extra_user_id = uuid.uuid4()
+    try:
+        async with AsyncSessionLocal() as db:
+            class_session = await db.get(ClassSession, session_id)
+            assert class_session is not None
+            class_session.capacity_snapshot = 1
 
-        token = uuid.uuid4().hex
-        existing_user = User(
-            email=f"booking-capacity-existing-{token}@example.com",
-            hashed_password="not-a-real-password",
-            role=UserRole.client,
-        )
-        existing_client = Client(
-            first_name="Existing",
-            last_name="Booking",
-            document_number=f"existing-{token}",
-            user=existing_user,
-        )
-        db.add(existing_client)
-        await db.flush()
-        db.add(
-            Booking(
-                client_id=existing_client.id,
-                class_session_id=session_id,
-                status=BookingStatus.confirmed,
+            token = uuid.uuid4().hex
+            existing_user = User(
+                id=extra_user_id,
+                email=f"booking-capacity-existing-{token}@example.com",
+                hashed_password="not-a-real-password",
+                role=UserRole.client,
             )
+            existing_client = Client(
+                first_name="Existing",
+                last_name="Booking",
+                document_number=f"existing-{token}",
+                user=existing_user,
+            )
+            db.add(existing_client)
+            await db.flush()
+            db.add(
+                Booking(
+                    client_id=existing_client.id,
+                    class_session_id=session_id,
+                    status=BookingStatus.confirmed,
+                )
+            )
+            await db.commit()
+
+        response = await _post_booking(
+            session_id=session_id,
+            access_token=access_token,
         )
-        await db.commit()
+        assert response.status_code == status.HTTP_201_CREATED, response.text
 
-    response = await _post_booking(
-        session_id=session_id,
-        access_token=access_token,
-    )
-    assert response.status_code == status.HTTP_201_CREATED, response.text
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://fitflow.test",
+        ) as client:
+            capacity_response = await client.get(
+                f"{settings.API_V1_STR}/bookings/sessions/{session_id}/can-book"
+            )
 
-    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
-    async with httpx.AsyncClient(
-        transport=transport,
-        base_url="http://fitflow.test",
-    ) as client:
-        capacity_response = await client.get(
-            f"{settings.API_V1_STR}/bookings/sessions/{session_id}/can-book"
-        )
-
-    assert capacity_response.status_code == status.HTTP_200_OK, capacity_response.text
-    assert capacity_response.json()["capacity"] == 1
-    assert capacity_response.json()["used"] == 2
-    assert capacity_response.json()["available"] == 0
+        assert capacity_response.status_code == status.HTTP_200_OK, capacity_response.text
+        assert capacity_response.json()["capacity"] == 1
+        assert capacity_response.json()["used"] == 2
+        assert capacity_response.json()["available"] == 0
+    finally:
+        # This user was explicitly minted by THIS test, not inferred from Booking.
+        await finish_synthetic_cleanup(cleanup_synthetic_fixture(
+            user_ids=(extra_user_id,),
+        ))
 
 
 @pytest.mark.api

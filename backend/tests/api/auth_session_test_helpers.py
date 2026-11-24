@@ -41,6 +41,8 @@ def require_local_test_database() -> None:
         and target.database == "fitflow_test"
         and (target.host or "").lower() in {"127.0.0.1", "localhost", "::1"}
         and target.port in {None, 5432, 55432}
+        and not target.query  # No asyncpg query option can override the destination.
+        and not actual.query
         and actual == target.set(drivername="postgresql+asyncpg")
         and engine.dialect.name == "postgresql"
         and engine.dialect.driver == "asyncpg"
@@ -77,11 +79,28 @@ async def finish_synthetic_cleanup(work: Awaitable[None]) -> None:
     Any failure surfaces; never retry an uncertain DB effect implicitly.
     """
     task = asyncio.create_task(work)
-    try:
-        await asyncio.shield(task)
-    except asyncio.CancelledError:
-        await asyncio.shield(task)
-        raise
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 15.0
+    cancelled = False
+    while not task.done():
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise RuntimeError(
+                "BLOCKED_POSTCONDITION: synthetic cleanup still running; reconcile effect"
+            )
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=remaining)
+        except asyncio.CancelledError:
+            # A second (or further) cancellation must not skip the original join.
+            cancelled = True
+        except TimeoutError as error:
+            raise RuntimeError(
+                "BLOCKED_POSTCONDITION: synthetic cleanup timeout; reconcile effect"
+            ) from error
+    # The task may have raised, including a cancellation of its own.
+    await task
+    if cancelled:
+        raise asyncio.CancelledError
 
 
 async def cleanup_synthetic_fixture(
@@ -96,18 +115,8 @@ async def cleanup_synthetic_fixture(
     users = set(user_ids)
     sessions = tuple(class_session_ids)
     async with AsyncSessionLocal() as db:
-        if sessions:
-            booked_clients = (
-                await db.scalars(
-                    select(Booking.client_id).where(Booking.class_session_id.in_(sessions))
-                )
-            ).all()
-            if booked_clients:
-                users.update((
-                    await db.scalars(
-                        select(Person.user_id).where(Person.id.in_(booked_clients))
-                    )
-                ).all())
+        # Deletion authority consists ONLY of caller-provided fixture-owned UUIDs.
+        # A booking on a synthetic session never makes its owner disposable.
         person_ids = (
             (await db.scalars(select(Person.id).where(Person.user_id.in_(users)))).all()
             if users else []
@@ -145,6 +154,18 @@ async def cleanup_synthetic_fixture(
             select(ClassSession.id).where(ClassSession.id.in_(sessions))
         )) is not None:
             raise RuntimeError("BLOCKED_POSTCONDITION: synthetic session cleanup incomplete")
+        if class_schedule_ids and (await db.scalar(
+            select(ClassSchedule.id).where(ClassSchedule.id.in_(class_schedule_ids))
+        )) is not None:
+            raise RuntimeError("BLOCKED_POSTCONDITION: synthetic schedule cleanup incomplete")
+        if gym_class_ids and (await db.scalar(
+            select(GymClass.id).where(GymClass.id.in_(gym_class_ids))
+        )) is not None:
+            raise RuntimeError("BLOCKED_POSTCONDITION: synthetic class cleanup incomplete")
+        if users and (await db.scalar(
+            select(Person.id).where(Person.user_id.in_(users))
+        )) is not None:
+            raise RuntimeError("BLOCKED_POSTCONDITION: synthetic person cleanup incomplete")
 
 
 def staged_access(db: AsyncSession, user_id: UUID, role: str) -> str:

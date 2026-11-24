@@ -10,11 +10,12 @@ import httpx
 import pytest
 from fastapi import status
 from jose import jwt
-from sqlalchemy import delete, update
+from sqlalchemy import text, update
 
 from app.core import security
 from auth_session_test_helpers import (
-    committed_access, require_local_test_database, require_local_test_redis,
+    cleanup_synthetic_fixture, committed_access, finish_synthetic_cleanup,
+    require_local_test_database, require_local_test_redis,
 )
 from app.core.blacklist import BLACKLIST_PREFIX, blacklist_token
 from app.core.redis_client import get_redis_client
@@ -40,8 +41,13 @@ async def release_engine_pool() -> AsyncIterator[None]:
     await engine.dispose()
 
 
-@pytest.fixture
-async def subject() -> AsyncIterator[uuid.UUID]:
+async def _synthetic_subject() -> AsyncIterator[uuid.UUID]:
+    """No PostgreSQL writes until the exact test-service version is verified."""
+    require_local_test_database()
+    async with AsyncSessionLocal() as probe:
+        pg_version = int(await probe.scalar(text("SHOW server_version_num")))
+    if not 150000 <= pg_version < 160000:
+        raise RuntimeError("BLOCKED_PRECONDITION: PostgreSQL 15 test service required")
     identifier = uuid.uuid4()
     try:
         async with AsyncSessionLocal() as db:
@@ -53,10 +59,34 @@ async def subject() -> AsyncIterator[uuid.UUID]:
             await db.commit()
         yield identifier
     finally:
-        async with AsyncSessionLocal() as db:
-            await db.execute(delete(AuthSession).where(AuthSession.user_id == identifier))
-            await db.execute(delete(User).where(User.id == identifier))
-            await db.commit()
+        await finish_synthetic_cleanup(cleanup_synthetic_fixture(
+            user_ids=(identifier,),
+        ))
+
+
+@pytest.fixture
+async def subject() -> AsyncIterator[uuid.UUID]:
+    async for identifier in _synthetic_subject():
+        yield identifier
+
+
+@pytest.fixture
+def real_redis7_preflight() -> None:
+    """Skip and verify Redis before constructing any Redis test's PG user."""
+    require_local_test_database()
+    if os.getenv("GITHUB_ACTIONS") != "true":
+        pytest.skip("Real Redis effects only on isolated GitHub Actions")
+    require_local_test_redis()
+    redis = get_redis_client()
+    redis_major = int(redis.info(section="server")["redis_version"].split(".")[0])
+    if redis_major != 7:
+        raise RuntimeError("BLOCKED_PRECONDITION: Redis 7 test service required")
+
+
+@pytest.fixture
+async def redis_subject(real_redis7_preflight: None) -> AsyncIterator[uuid.UUID]:
+    async for identifier in _synthetic_subject():
+        yield identifier
 
 
 def legacy(subject: str, role: str | None) -> str:
@@ -215,8 +245,9 @@ async def test_signed_purpose_override_expiry_and_role_rules() -> None:
 
 
 async def test_actual_disposable_redis_registration_and_refresh(
-    api_client: httpx.AsyncClient, subject: uuid.UUID,
+    api_client: httpx.AsyncClient, redis_subject: uuid.UUID,
 ) -> None:
+    subject = redis_subject
     """One real Redis7 registration: CI-only, localhost, synthetic user only."""
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("No real Redis effects outside isolated GitHub Actions CI")
@@ -271,8 +302,9 @@ async def test_signed_role_never_overrides_current_database_role(
     assert response.status_code == status.HTTP_403_FORBIDDEN, response.text
 
 async def test_actual_disposable_redis_registration_blacklist_and_logout(
-    api_client: httpx.AsyncClient, subject: uuid.UUID,
+    api_client: httpx.AsyncClient, redis_subject: uuid.UUID,
 ) -> None:
+    subject = redis_subject
     """Real Redis7 negative/positive flows only on explicitly isolated CI."""
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("Never touch real Redis outside disposable GitHub Actions CI")
@@ -319,8 +351,9 @@ async def test_actual_disposable_redis_registration_blacklist_and_logout(
 
 
 async def test_actual_disposable_redis_blacklist_preempts_registered_refresh(
-    api_client: httpx.AsyncClient, subject: uuid.UUID,
+    api_client: httpx.AsyncClient, redis_subject: uuid.UUID,
 ) -> None:
+    subject = redis_subject
     """Blacklisted but registered refresh fails on real ephemeral Redis."""
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("Never touch real Redis outside disposable GitHub Actions CI")

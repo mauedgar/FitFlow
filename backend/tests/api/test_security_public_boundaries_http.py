@@ -21,7 +21,10 @@ from sqlalchemy import delete, func, select
 
 from app.core.config import settings
 from app.core.enums import ActivityType, UserRole
-from auth_session_test_helpers import committed_access, require_local_test_database, require_local_test_redis
+from auth_session_test_helpers import (
+    cleanup_synthetic_fixture, committed_access, finish_synthetic_cleanup,
+    require_local_test_database, require_local_test_redis,
+)
 from app.core.security import create_access_token
 from app.db.models import GymClass, User
 from app.db.session import AsyncSessionLocal, engine
@@ -60,6 +63,7 @@ async def actors() -> AsyncIterator[SecurityActors]:
     class_name = f"P0 Audit {marker}"
     users = [
         User(
+            id=uuid.uuid4(),
             email=f"p0-{marker}-{role.value}@example.com",
             hashed_password="synthetic-no-login",
             role=role,
@@ -67,29 +71,32 @@ async def actors() -> AsyncIterator[SecurityActors]:
         for role in (UserRole.admin, UserRole.client, UserRole.teacher, UserRole.front_desk)
     ]
     inactive = User(
+        id=uuid.uuid4(),
         email=f"p0-{marker}-inactive@example.com",
         hashed_password="synthetic-no-login",
         role=UserRole.client,
         active=False,
     )
     gym_class = GymClass(
+        id=uuid.uuid4(),
         name=class_name,
         description="Disposable security route fixture",
         activity_type=ActivityType.group_class,
         duration_minutes=60,
         default_capacity=8,
     )
-    async with AsyncSessionLocal() as db:
-        db.add_all([*users, inactive, gym_class])
-        await db.commit()
-    identities = {user.role.value: user.id for user in users}
-    tokens = {
-        name: await committed_access(user_id, name)
-        for name, user_id in identities.items()
-    }
-    tokens["inactive"] = await committed_access(inactive.id, "client")
-    tokens["forged_admin"] = await committed_access(identities["client"], "admin")
+    owned_user_ids = tuple(user.id for user in [*users, inactive])
     try:
+        async with AsyncSessionLocal() as db:
+            db.add_all([*users, inactive, gym_class])
+            await db.commit()
+        identities = {user.role.value: user.id for user in users}
+        tokens = {
+            name: await committed_access(user_id, name)
+            for name, user_id in identities.items()
+        }
+        tokens["inactive"] = await committed_access(inactive.id, "client")
+        tokens["forged_admin"] = await committed_access(identities["client"], "admin")
         yield SecurityActors(
             marker=marker,
             class_id=gym_class.id,
@@ -98,14 +105,10 @@ async def actors() -> AsyncIterator[SecurityActors]:
             tokens=tokens,
         )
     finally:
-        async with AsyncSessionLocal() as db:
-            await db.execute(
-                delete(GymClass).where(GymClass.name.like(f"P0 Audit {marker}%"))
-            )
-            await db.execute(
-                delete(User).where(User.email.like(f"p0-{marker}-%@example.com"))
-            )
-            await db.commit()
+        await finish_synthetic_cleanup(cleanup_synthetic_fixture(
+            user_ids=owned_user_ids,
+            gym_class_ids=(gym_class.id,),
+        ))
 
 
 @pytest.mark.parametrize("supplied_role", ["admin", "teacher", "front_desk", "client"])
@@ -114,17 +117,27 @@ async def test_public_registration_rejects_any_role_and_creates_no_user(
     supplied_role: str,
 ) -> None:
     email = f"p0-spoof-{uuid.uuid4().hex}@example.com"
-    response = await api_client.post(
-        f"{API}/users/register",
-        json={
-            "email": email,
-            "password": "Synthetic-password-not-a-secret",
-            "role": supplied_role,
-        },
-    )
-    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
-    async with AsyncSessionLocal() as db:
-        assert await db.scalar(select(User).where(User.email == email)) is None
+    try:
+        response = await api_client.post(
+            f"{API}/users/register",
+            json={
+                "email": email,
+                "password": "Synthetic-password-not-a-secret",
+                "role": supplied_role,
+            },
+        )
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
+        async with AsyncSessionLocal() as db:
+            assert await db.scalar(select(User).where(User.email == email)) is None
+    finally:
+        async with AsyncSessionLocal() as cleanup_db:
+            unexpected_user_id = await cleanup_db.scalar(
+                select(User.id).where(User.email == email)
+            )
+        if unexpected_user_id is not None:
+            await finish_synthetic_cleanup(cleanup_synthetic_fixture(
+                user_ids=(unexpected_user_id,),
+            ))
 
 
 async def test_public_registration_remains_client_only_and_accepts_legacy_full_name(
@@ -358,6 +371,8 @@ async def test_auth_me_preserves_valid_admin_identity_and_rejects_invalid_token(
         "postgresql://synthetic@remote.example/fitflow_test",
         "postgresql://synthetic@127.0.0.1/fitflow_prod",
         "postgresql://synthetic@127.0.0.1:5555/fitflow_test",
+        "postgresql://synthetic@127.0.0.1/fitflow_test?host=remote.example.org",
+        "postgresql://synthetic@127.0.0.1/fitflow_test?sslmode=prefer",
     ],
 )
 async def test_synthetic_session_helper_denies_non_disposable_database_even_without_assert(
