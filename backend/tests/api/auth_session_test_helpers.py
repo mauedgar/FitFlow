@@ -6,11 +6,14 @@ current PostgreSQL transaction before using these signed access JWTs.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Sequence
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, or_, select
+import pytest
+from sqlalchemy import delete, event, or_, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,8 +35,15 @@ from app.db.models.auth_session import AuthSession
 from app.db.session import AsyncSessionLocal, engine
 
 
+_CLEANUP_TIMEOUT_SECONDS = 15.0
+_cleanup_quarantined = False
+_creation_scope: ContextVar[object | None] = ContextVar("synthetic_http_creation_scope", default=None)
+
+
 def require_local_test_database() -> None:
     """Fail before any synthetic INSERT, even if no bearer will be minted."""
+    if _cleanup_quarantined:
+        raise RuntimeError("BLOCKED_PRECONDITION: test process quarantined after unresolved cleanup")
     target = make_url(settings.DATABASE_URL)
     actual = engine.url  # The connection pool was constructed before tests.
     if not (
@@ -54,6 +64,8 @@ def require_local_test_database() -> None:
 
 def require_local_test_redis() -> None:
     """Reject non-disposable Redis before any client operation, including under -O."""
+    if _cleanup_quarantined:
+        raise RuntimeError("BLOCKED_PRECONDITION: test process quarantined after unresolved cleanup")
     try:
         redis_url = urlparse(settings.REDIS_URL or "")
         valid = (
@@ -73,34 +85,130 @@ def require_local_test_redis() -> None:
         raise RuntimeError("BLOCKED_PRECONDITION: only local disposable Redis /0 is allowed")
 
 
-async def finish_synthetic_cleanup(work: Awaitable[None]) -> None:
-    """Join a scoped cleanup even when its caller receives cancellation.
+async def require_postgres15_test_service() -> None:
+    """Verify the actual server before fixture writes."""
+    require_local_test_database()
+    async with AsyncSessionLocal() as probe:
+        version = int(await probe.scalar(text("SHOW server_version_num")))
+    if not 150000 <= version < 160000:
+        raise RuntimeError("BLOCKED_PRECONDITION: PostgreSQL 15 test service required")
 
-    Any failure surfaces; never retry an uncertain DB effect implicitly.
+
+async def finish_synthetic_cleanup(work: Awaitable[None]) -> None:
+    """Own the original task until terminal, including repeated caller cancellation.
+
+    A soft deadline quarantines the test process, not the task. Never abandon a
+    potentially committing coroutine, start a retry, or return to pool disposal
+    while it is alive. A stuck task keeps this join blocked; CI's existing job
+    deadline bounds the entire disposable service lifetime. On a late terminal
+    result or failed cleanup, stop the suite rather than permit further tests.
     """
-    task = asyncio.create_task(work)
+    global _cleanup_quarantined
+    task = asyncio.ensure_future(work)
     loop = asyncio.get_running_loop()
-    deadline = loop.time() + 15.0
-    cancelled = False
+    deadline = loop.time() + _CLEANUP_TIMEOUT_SECONDS
+    caller_cancelled = False
+    expired = False
     while not task.done():
-        remaining = deadline - loop.time()
-        if remaining <= 0:
-            raise RuntimeError(
-                "BLOCKED_POSTCONDITION: synthetic cleanup still running; reconcile effect"
-            )
+        remaining = max(0.0, deadline - loop.time())
+        if not expired and remaining == 0:
+            expired = True
+            _cleanup_quarantined = True
         try:
-            await asyncio.wait_for(asyncio.shield(task), timeout=remaining)
+            # asyncio.wait never cancels the original task when its waiter
+            # is cancelled or the observation deadline expires.
+            await asyncio.wait({task}, timeout=None if expired else remaining)
         except asyncio.CancelledError:
-            # A second (or further) cancellation must not skip the original join.
-            cancelled = True
-        except TimeoutError as error:
-            raise RuntimeError(
-                "BLOCKED_POSTCONDITION: synthetic cleanup timeout; reconcile effect"
-            ) from error
-    # The task may have raised, including a cancellation of its own.
-    await task
-    if cancelled:
+            caller_cancelled = True
+    try:
+        task.result()  # terminal only; retrieve every exception
+    except BaseException as error:
+        _cleanup_quarantined = True
+        pytest.exit(
+            f"BLOCKED_POSTCONDITION: synthetic cleanup terminal error ({type(error).__name__}); "
+            "effect not accepted; disposable test process quarantined",
+            returncode=1,
+        )
+    if expired:
+        pytest.exit(
+            "BLOCKED_POSTCONDITION: cleanup deadline exceeded; original joined; "
+            "disposable test process quarantined",
+            returncode=1,
+        )
+    if caller_cancelled:
         raise asyncio.CancelledError
+
+
+async def cancel_and_join_http_tasks(tasks: Sequence[asyncio.Task]) -> None:
+    """Cancel owned HTTP tasks once and join them before fixture deletion."""
+    async def join_originals() -> None:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    await finish_synthetic_cleanup(join_originals())
+
+
+@asynccontextmanager
+async def capture_http_creations(
+    *, email: str | None = None, class_name: str | None = None,
+) -> AsyncIterator[None]:
+    """Track actual ORM INSERT identities in this request scope, never by lookup.
+
+    Mapper after_insert records a successful SQL INSERT before any COMMIT ACK.
+    Existing rows or failed unique inserts do not grant deletion authority.
+    ContextVar confines collection to the caller and its explicitly joined
+    request tasks. Email/name checks only detect collisions/untracked rows.
+    """
+    require_local_test_database()
+    async with AsyncSessionLocal() as db:
+        if email is not None and await db.scalar(
+            select(User.id).where(User.email == email)
+        ) is not None:
+            raise RuntimeError("BLOCKED_PRECONDITION: signup marker already exists")
+        if class_name is not None and await db.scalar(
+            select(GymClass.id).where(GymClass.name == class_name)
+        ) is not None:
+            raise RuntimeError("BLOCKED_PRECONDITION: catalog marker already exists")
+
+    marker = object()
+    users: set[UUID] = set()
+    classes: set[UUID] = set()
+
+    def record_user(_mapper, _connection, target: User) -> None:
+        if _creation_scope.get() is marker:
+            users.add(target.id)
+
+    def record_class(_mapper, _connection, target: GymClass) -> None:
+        if _creation_scope.get() is marker:
+            classes.add(target.id)
+
+    async def cleanup_and_verify() -> None:
+        await cleanup_synthetic_fixture(user_ids=tuple(users), gym_class_ids=tuple(classes))
+        async with AsyncSessionLocal() as db:
+            if email is not None and await db.scalar(
+                select(User.id).where(User.email == email)
+            ) is not None:
+                raise RuntimeError("BLOCKED_POSTCONDITION: unowned signup marker remains")
+            if class_name is not None and await db.scalar(
+                select(GymClass.id).where(GymClass.name == class_name)
+            ) is not None:
+                raise RuntimeError("BLOCKED_POSTCONDITION: unowned catalog marker remains")
+
+    token = _creation_scope.set(marker)
+    event.listen(User, "after_insert", record_user)
+    try:
+        event.listen(GymClass, "after_insert", record_class)
+        try:
+            yield
+        finally:
+            event.remove(GymClass, "after_insert", record_class)
+    finally:
+        event.remove(User, "after_insert", record_user)
+        _creation_scope.reset(token)
+        await finish_synthetic_cleanup(cleanup_and_verify())
 
 
 async def cleanup_synthetic_fixture(
@@ -114,13 +222,60 @@ async def cleanup_synthetic_fixture(
     require_local_test_database()
     users = set(user_ids)
     sessions = tuple(class_session_ids)
+    schedules = tuple(class_schedule_ids)
+    classes = tuple(gym_class_ids)
     async with AsyncSessionLocal() as db:
+        for model, ids in ((User, users), (GymClass, classes),
+                           (ClassSchedule, schedules), (ClassSession, sessions)):
+            if ids:
+                await db.execute(select(model.id).where(model.id.in_(ids)).with_for_update())
         # Deletion authority consists ONLY of caller-provided fixture-owned UUIDs.
         # A booking on a synthetic session never makes its owner disposable.
         person_ids = (
-            (await db.scalars(select(Person.id).where(Person.user_id.in_(users)))).all()
+            (await db.scalars(select(Person.id).where(Person.user_id.in_(users)).with_for_update())).all()
             if users else []
         )
+        # Refuse any cross-scope descendant rather than letting FK CASCADE
+        # or SET NULL mutate a retained row. The only implicit dependent roots
+        # are profiles, membership, bookings and auth sessions of owned users.
+        if person_ids:
+            for model in (Client, Teacher):
+                await db.execute(select(model.id).where(model.id.in_(person_ids)).with_for_update())
+        schedule_links = []
+        if classes:
+            schedule_links.append(ClassSchedule.gym_class_id.in_(classes))
+        if person_ids:
+            schedule_links.append(ClassSchedule.teacher_id.in_(person_ids))
+        if users:
+            schedule_links.extend((ClassSchedule.created_by_id.in_(users),
+                                   ClassSchedule.updated_by_id.in_(users)))
+        if schedule_links and await db.scalar(
+            select(ClassSchedule.id).where(or_(*schedule_links), ClassSchedule.id.not_in(schedules))
+        ) is not None:
+            raise RuntimeError("BLOCKED_PRECONDITION: cross-scope schedule reference")
+        if schedules and await db.scalar(
+            select(ClassSession.id).where(
+                ClassSession.class_schedule_id.in_(schedules), ClassSession.id.not_in(sessions)
+            )
+        ) is not None:
+            raise RuntimeError("BLOCKED_PRECONDITION: cross-scope class session")
+        if sessions and await db.scalar(
+            select(Booking.id).where(
+                Booking.class_session_id.in_(sessions), Booking.client_id.not_in(person_ids)
+            )
+        ) is not None:
+            raise RuntimeError("BLOCKED_PRECONDITION: retained booking on fixture session")
+        dependent_ids = []
+        if person_ids:
+            for model, foreign_key in ((Booking, Booking.client_id), (Membership, Membership.client_id)):
+                dependent_ids.append((model, (await db.scalars(
+                    select(model.id).where(foreign_key.in_(person_ids))
+                )).all()))
+        if users:
+            dependent_ids.append((AuthSession, (await db.scalars(
+                select(AuthSession.id).where(AuthSession.user_id.in_(users))
+            )).all()))
+        dependent_ids.extend((model, person_ids) for model in (Client, Teacher, Person))
         if sessions or person_ids:
             predicates = []
             if sessions:
@@ -148,6 +303,9 @@ async def cleanup_synthetic_fixture(
         await db.commit()
     # An exact postcondition read is not an automatic retry of an uncertain commit.
     async with AsyncSessionLocal() as db:
+        for model, ids in dependent_ids:
+            if ids and await db.scalar(select(model.id).where(model.id.in_(ids))) is not None:
+                raise RuntimeError(f"BLOCKED_POSTCONDITION: owned {model.__name__} remains")
         if users and (await db.scalar(select(User.id).where(User.id.in_(users)))) is not None:
             raise RuntimeError("BLOCKED_POSTCONDITION: synthetic User cleanup incomplete")
         if sessions and (await db.scalar(

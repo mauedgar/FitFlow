@@ -25,7 +25,7 @@ from app.core.enums import (
 )
 from auth_session_test_helpers import (
     committed_access, require_local_test_database,
-    cleanup_synthetic_fixture, finish_synthetic_cleanup,
+    cancel_and_join_http_tasks, cleanup_synthetic_fixture, finish_synthetic_cleanup,
 )
 from app.core.security import create_access_token
 from app.db.models import (
@@ -625,10 +625,10 @@ async def test_concurrent_http_put_then_delete_serializes_client_profile(
         assert not put_task.done()
         assert not delete_task.done()
         continue_put.set()
-        response_put = await asyncio.wait_for(put_task, timeout=15)
+        response_put = await asyncio.wait_for(asyncio.shield(put_task), timeout=15)
         assert response_put.status_code == status.HTTP_200_OK, response_put.text
         assert delete_task is not None
-        response_delete = await asyncio.wait_for(delete_task, timeout=15)
+        response_delete = await asyncio.wait_for(asyncio.shield(delete_task), timeout=15)
         assert response_delete.status_code == status.HTTP_202_ACCEPTED, response_delete.text
         async with AsyncSessionLocal() as db:
             saved = await db.scalar(
@@ -640,10 +640,7 @@ async def test_concurrent_http_put_then_delete_serializes_client_profile(
     finally:
         continue_put.set()
         pending = [task for task in (put_task, delete_task) if task is not None]
-        for task in pending:
-            if not task.done():
-                task.cancel()
-        await asyncio.gather(*pending, return_exceptions=True)
+        await cancel_and_join_http_tasks(pending)
 
 
 async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
@@ -723,17 +720,14 @@ async def test_concurrent_http_delete_then_put_never_writes_deleted_profile(
         assert not put_task.done(), "PUT must wait on DELETE's row lock"
         assert not delete_task.done(), "DELETE must hold its lock"
         allow_delete_commit.set()
-        delete_response = await asyncio.wait_for(delete_task, timeout=15)
+        delete_response = await asyncio.wait_for(asyncio.shield(delete_task), timeout=15)
         assert delete_response.status_code == status.HTTP_202_ACCEPTED, delete_response.text
-        put_response = await asyncio.wait_for(put_task, timeout=15)
+        put_response = await asyncio.wait_for(asyncio.shield(put_task), timeout=15)
         assert put_response.status_code == status.HTTP_404_NOT_FOUND, put_response.text
     finally:
         allow_delete_commit.set()
         tasks = [task for task in (put_task, delete_task) if task is not None]
-        for task in tasks:
-            if not task.done():
-                task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await cancel_and_join_http_tasks(tasks)
     async with AsyncSessionLocal() as db:
         saved = await db.scalar(
             select(Client).where(Client.id == profile_fixture.profile_id)

@@ -6,6 +6,7 @@ from uuid import UUID
 import httpx
 import pytest
 from fastapi import status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -19,7 +20,7 @@ from app.core.enums import (
 )
 from auth_session_test_helpers import (
     committed_access, require_local_test_database,
-    cleanup_synthetic_fixture, finish_synthetic_cleanup,
+    cleanup_synthetic_fixture, finish_synthetic_cleanup, require_postgres15_test_service,
 )
 from app.crud.crud_booking import booking as booking_crud
 from app.db.models import (
@@ -50,6 +51,7 @@ def require_isolated_test_database() -> None:
 
 @pytest.fixture
 async def booking_fixture() -> AsyncIterator[tuple[UUID, str]]:
+    await require_postgres15_test_service()
     token = uuid.uuid4().hex
     teacher_user_id = uuid.uuid4()
     client_user_id = uuid.uuid4()
@@ -262,6 +264,14 @@ async def test_booking_creation_allows_reference_capacity_overflow(
         assert capacity_response.json()["capacity"] == 1
         assert capacity_response.json()["used"] == 2
         assert capacity_response.json()["available"] == 0
+        # A session is not authority to delete bookings/accounts of other users.
+        with pytest.raises(RuntimeError, match="retained booking"):
+            await cleanup_synthetic_fixture(user_ids=(), class_session_ids=(session_id,))
+        async with AsyncSessionLocal() as db:
+            assert await db.get(User, extra_user_id) is not None
+            assert await db.scalar(select(Booking.id).where(
+                Booking.class_session_id == session_id, Booking.client_id == existing_client.id
+            )) is not None
     finally:
         # This user was explicitly minted by THIS test, not inferred from Booking.
         await finish_synthetic_cleanup(cleanup_synthetic_fixture(

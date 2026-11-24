@@ -6,6 +6,7 @@ Never point these tests at retained staging or production data.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from datetime import timedelta
@@ -17,12 +18,12 @@ import auth_session_test_helpers as fixture_guard
 import httpx
 import pytest
 from fastapi import status
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 
 from app.core.config import settings
 from app.core.enums import ActivityType, UserRole
 from auth_session_test_helpers import (
-    cleanup_synthetic_fixture, committed_access, finish_synthetic_cleanup,
+    capture_http_creations, cleanup_synthetic_fixture, committed_access, finish_synthetic_cleanup,
     require_local_test_database, require_local_test_redis,
 )
 from app.core.security import create_access_token
@@ -117,7 +118,7 @@ async def test_public_registration_rejects_any_role_and_creates_no_user(
     supplied_role: str,
 ) -> None:
     email = f"p0-spoof-{uuid.uuid4().hex}@example.com"
-    try:
+    async with capture_http_creations(email=email):
         response = await api_client.post(
             f"{API}/users/register",
             json={
@@ -129,22 +130,13 @@ async def test_public_registration_rejects_any_role_and_creates_no_user(
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY, response.text
         async with AsyncSessionLocal() as db:
             assert await db.scalar(select(User).where(User.email == email)) is None
-    finally:
-        async with AsyncSessionLocal() as cleanup_db:
-            unexpected_user_id = await cleanup_db.scalar(
-                select(User.id).where(User.email == email)
-            )
-        if unexpected_user_id is not None:
-            await finish_synthetic_cleanup(cleanup_synthetic_fixture(
-                user_ids=(unexpected_user_id,),
-            ))
 
 
 async def test_public_registration_remains_client_only_and_accepts_legacy_full_name(
     api_client: httpx.AsyncClient,
 ) -> None:
     email = f"p0-new-{uuid.uuid4().hex}@example.com"
-    try:
+    async with capture_http_creations(email=email):
         response = await api_client.post(
             f"{API}/users/register",
             json={
@@ -160,10 +152,6 @@ async def test_public_registration_remains_client_only_and_accepts_legacy_full_n
             stored = await db.scalar(select(User).where(User.email == email))
             assert stored is not None
             assert stored.role == UserRole.client
-    finally:
-        async with AsyncSessionLocal() as db:
-            await db.execute(delete(User).where(User.email == email))
-            await db.commit()
 
 
 @pytest.mark.parametrize("path_kind", ["list", "detail"])
@@ -240,23 +228,25 @@ async def test_class_mutators_deny_unauthorized_without_side_effects(
         if method == "PUT"
         else None
     )
-    response = await api_client.request(
-        method,
-        path,
-        headers={} if actor == "guest" else actors.headers(actor),
-        json=payload,
-    )
-    expected = status.HTTP_401_UNAUTHORIZED if actor == "guest" else status.HTTP_403_FORBIDDEN
-    assert response.status_code == expected, response.text
-    async with AsyncSessionLocal() as db:
-        original = await db.scalar(select(GymClass).where(GymClass.id == actors.class_id))
-        assert original is not None and original.name == actors.class_name
-        count = await db.scalar(
-            select(func.count()).select_from(GymClass).where(
-                GymClass.name.like(f"P0 Audit {actors.marker}%")
-            )
+    marker_name = payload["name"] if method == "POST" else None
+    async with capture_http_creations(class_name=marker_name):
+        response = await api_client.request(
+            method,
+            path,
+            headers={} if actor == "guest" else actors.headers(actor),
+            json=payload,
         )
-        assert count == 1
+        expected = status.HTTP_401_UNAUTHORIZED if actor == "guest" else status.HTTP_403_FORBIDDEN
+        assert response.status_code == expected, response.text
+        async with AsyncSessionLocal() as db:
+            original = await db.scalar(select(GymClass).where(GymClass.id == actors.class_id))
+            assert original is not None and original.name == actors.class_name
+            count = await db.scalar(
+                select(func.count()).select_from(GymClass).where(
+                    GymClass.name.like(f"P0 Audit {actors.marker}%")
+                )
+            )
+            assert count == 1
 
 
 async def test_admin_can_create_update_and_soft_delete_class(
@@ -265,31 +255,32 @@ async def test_admin_can_create_update_and_soft_delete_class(
 ) -> None:
     headers = actors.headers("admin")
     name = f"P0 Audit {actors.marker} admin-created"
-    created = await api_client.post(
-        f"{API}/gym-classes/",
-        headers=headers,
-        json={
-            "name": name,
-            "description": "Admin-only controlled creation",
-            "duration_minutes": 60,
-            "default_capacity": 8,
-            "activity_type": "group_class",
-        },
-    )
-    assert created.status_code == status.HTTP_201_CREATED, created.text
-    new_id = created.json()["id"]
-    edited = await api_client.put(
-        f"{API}/gym-classes/{new_id}",
-        headers=headers,
-        json={"name": name + " updated"},
-    )
-    assert edited.status_code == status.HTTP_200_OK, edited.text
-    assert edited.json()["name"] == name + " updated"
-    removed = await api_client.delete(
-        f"{API}/gym-classes/{new_id}",
-        headers=headers,
-    )
-    assert removed.status_code == status.HTTP_202_ACCEPTED, removed.text
+    async with capture_http_creations(class_name=name):
+        created = await api_client.post(
+            f"{API}/gym-classes/",
+            headers=headers,
+            json={
+                "name": name,
+                "description": "Admin-only controlled creation",
+                "duration_minutes": 60,
+                "default_capacity": 8,
+                "activity_type": "group_class",
+            },
+        )
+        assert created.status_code == status.HTTP_201_CREATED, created.text
+        new_id = created.json()["id"]
+        edited = await api_client.put(
+            f"{API}/gym-classes/{new_id}",
+            headers=headers,
+            json={"name": name + " updated"},
+        )
+        assert edited.status_code == status.HTTP_200_OK, edited.text
+        assert edited.json()["name"] == name + " updated"
+        removed = await api_client.delete(
+            f"{API}/gym-classes/{new_id}",
+            headers=headers,
+        )
+        assert removed.status_code == status.HTTP_202_ACCEPTED, removed.text
 
 
 async def test_public_class_catalog_stays_accessible_without_credentials(
@@ -444,3 +435,58 @@ async def test_synthetic_redis_preflight_rejects_unsafe_target_without_io(
     monkeypatch.setattr(settings, "REDIS_URL", redis_url)
     with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
         require_local_test_redis()
+
+
+async def test_cleanup_joins_original_despite_repeated_caller_cancellation() -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+    finished = asyncio.Event()
+
+    async def cleanup() -> None:
+        started.set()
+        await release.wait()
+        finished.set()
+
+    owner = asyncio.create_task(finish_synthetic_cleanup(cleanup()))
+    try:
+        await started.wait()
+        owner.cancel()
+        await asyncio.sleep(0)
+        owner.cancel()
+        await asyncio.sleep(0)
+        assert not owner.done()
+    finally:
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await owner
+    assert finished.is_set()
+
+
+async def test_cleanup_timeout_quarantines_and_joins_original(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(fixture_guard, "_CLEANUP_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(fixture_guard, "_cleanup_quarantined", False)
+    finished = asyncio.Event()
+
+    async def slow_cleanup() -> None:
+        await asyncio.sleep(0.03)
+        finished.set()
+
+    with pytest.raises(pytest.exit.Exception, match="original joined"):
+        await finish_synthetic_cleanup(slow_cleanup())
+    assert finished.is_set()
+    with pytest.raises(RuntimeError, match="quarantined"):
+        fixture_guard.require_local_test_database()
+
+
+async def test_actual_engine_query_override_rejected_without_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = SimpleNamespace(
+        url=make_url(settings.DATABASE_URL_ASYNC).update_query_dict({"host": "remote.example.org"}),
+        dialect=engine.dialect,
+    )
+    monkeypatch.setattr(fixture_guard, "engine", fake)
+    with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
+        fixture_guard.require_local_test_database()

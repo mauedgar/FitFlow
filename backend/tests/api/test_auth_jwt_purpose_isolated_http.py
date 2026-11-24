@@ -4,23 +4,25 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
 from fastapi import status
 from jose import jwt
-from sqlalchemy import text, update
+from sqlalchemy import update
 
 from app.core import security
 from auth_session_test_helpers import (
     cleanup_synthetic_fixture, committed_access, finish_synthetic_cleanup,
-    require_local_test_database, require_local_test_redis,
+    require_local_test_database, require_local_test_redis, require_postgres15_test_service,
 )
 from app.core.blacklist import BLACKLIST_PREFIX, blacklist_token
 from app.core.redis_client import get_redis_client
 from app.core.config import settings
-from app.core.token_store import delete_refresh_token, store_refresh_token
+from app.core.token_store import REFRESH_PREFIX, store_refresh_token
+from app.core.token_keys import legacy_jwt_key, opaque_jwt_key
 from app.core.enums import UserRole
 from app.db.models.auth_session import AuthSession
 from app.db.models.user import User
@@ -41,13 +43,10 @@ async def release_engine_pool() -> AsyncIterator[None]:
     await engine.dispose()
 
 
+@asynccontextmanager
 async def _synthetic_subject() -> AsyncIterator[uuid.UUID]:
     """No PostgreSQL writes until the exact test-service version is verified."""
-    require_local_test_database()
-    async with AsyncSessionLocal() as probe:
-        pg_version = int(await probe.scalar(text("SHOW server_version_num")))
-    if not 150000 <= pg_version < 160000:
-        raise RuntimeError("BLOCKED_PRECONDITION: PostgreSQL 15 test service required")
+    await require_postgres15_test_service()
     identifier = uuid.uuid4()
     try:
         async with AsyncSessionLocal() as db:
@@ -66,7 +65,7 @@ async def _synthetic_subject() -> AsyncIterator[uuid.UUID]:
 
 @pytest.fixture
 async def subject() -> AsyncIterator[uuid.UUID]:
-    async for identifier in _synthetic_subject():
+    async with _synthetic_subject() as identifier:
         yield identifier
 
 
@@ -85,8 +84,23 @@ def real_redis7_preflight() -> None:
 
 @pytest.fixture
 async def redis_subject(real_redis7_preflight: None) -> AsyncIterator[uuid.UUID]:
-    async for identifier in _synthetic_subject():
+    async with _synthetic_subject() as identifier:
         yield identifier
+
+
+def cleanup_redis_test_token(token: str) -> None:
+    """One exact-key cleanup after a possible SET, including uncertain ACK."""
+    require_local_test_redis()
+    redis = get_redis_client()
+    keys = (
+        opaque_jwt_key(REFRESH_PREFIX, token),
+        legacy_jwt_key(REFRESH_PREFIX, token),
+        f"{BLACKLIST_PREFIX}{token}",
+    )
+    # No sequential cleanup hole and no retry of a failed command.
+    redis.delete(*keys)
+    if redis.exists(*keys) != 0:
+        raise RuntimeError("BLOCKED_POSTCONDITION: synthetic Redis token remains")
 
 
 def legacy(subject: str, role: str | None) -> str:
@@ -247,14 +261,14 @@ async def test_signed_purpose_override_expiry_and_role_rules() -> None:
 async def test_actual_disposable_redis_registration_and_refresh(
     api_client: httpx.AsyncClient, redis_subject: uuid.UUID,
 ) -> None:
+    """Real Redis7 registration: unregistered PG family remains denied."""
     subject = redis_subject
-    """One real Redis7 registration: CI-only, localhost, synthetic user only."""
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("No real Redis effects outside isolated GitHub Actions CI")
     require_local_test_redis()
     token = security.create_refresh_token({"sub": str(subject)})
-    store_refresh_token(str(subject), token)
     try:
+        store_refresh_token(str(subject), token)
         response = await api_client.post(
             f"{settings.API_V1_STR}/auth/refresh",
             json={"refresh_token": token},
@@ -267,7 +281,7 @@ async def test_actual_disposable_redis_registration_and_refresh(
         )
         assert bearer.status_code == status.HTTP_401_UNAUTHORIZED
     finally:
-        delete_refresh_token(token)
+        cleanup_redis_test_token(token)
 
 
 async def test_refresh_rejects_soft_deleted_active_account(
@@ -304,8 +318,8 @@ async def test_signed_role_never_overrides_current_database_role(
 async def test_actual_disposable_redis_registration_blacklist_and_logout(
     api_client: httpx.AsyncClient, redis_subject: uuid.UUID,
 ) -> None:
+    """Real Redis7 registration alone cannot authorize refresh or logout."""
     subject = redis_subject
-    """Real Redis7 negative/positive flows only on explicitly isolated CI."""
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("Never touch real Redis outside disposable GitHub Actions CI")
     require_local_test_redis()
@@ -323,8 +337,8 @@ async def test_actual_disposable_redis_registration_blacklist_and_logout(
     )
     assert denied.status_code == status.HTTP_401_UNAUTHORIZED, denied.text
 
-    store_refresh_token(str(subject), refresh)
     try:
+        store_refresh_token(str(subject), refresh)
         good = await api_client.post(
             f"{settings.API_V1_STR}/auth/refresh",
             json={"refresh_token": refresh},
@@ -345,24 +359,22 @@ async def test_actual_disposable_redis_registration_blacklist_and_logout(
         )
         assert denied_again.status_code == status.HTTP_401_UNAUTHORIZED, denied_again.text
     finally:
-        delete_refresh_token(refresh)
-        redis.delete(f"{BLACKLIST_PREFIX}{refresh}")
+        cleanup_redis_test_token(refresh)
     assert redis.exists(f"{BLACKLIST_PREFIX}{refresh}") == 0
 
 
 async def test_actual_disposable_redis_blacklist_preempts_registered_refresh(
     api_client: httpx.AsyncClient, redis_subject: uuid.UUID,
 ) -> None:
-    subject = redis_subject
     """Blacklisted but registered refresh fails on real ephemeral Redis."""
+    subject = redis_subject
     if os.getenv("GITHUB_ACTIONS") != "true":
         pytest.skip("Never touch real Redis outside disposable GitHub Actions CI")
     require_local_test_redis()
 
     token = security.create_refresh_token({"sub": str(subject)})
-    redis = get_redis_client()
-    store_refresh_token(str(subject), token)
     try:
+        store_refresh_token(str(subject), token)
         blacklist_token(token)
         response = await api_client.post(
             f"{settings.API_V1_STR}/auth/refresh",
@@ -370,5 +382,4 @@ async def test_actual_disposable_redis_blacklist_preempts_registered_refresh(
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
     finally:
-        delete_refresh_token(token)
-        redis.delete(f"{BLACKLIST_PREFIX}{token}")
+        cleanup_redis_test_token(token)
