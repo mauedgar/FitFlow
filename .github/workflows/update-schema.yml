@@ -81,16 +81,26 @@ jobs:
           cat > "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" <<'PY'
           import os
           import sys
-          from alembic.config import main
-          from sqlalchemy.engine import make_url
-          from app.core.config import settings
-
+          # Reject unapproved raw targets before importing application or
+          # migration modules. This also makes the negative proof deterministic.
           owners = {
               "fitflow_db": ("fitflow_admin", "fitflow-ci-postgres"),
               "fitflow_guard": ("fitflow_admin", "fitflow-ci-postgres"),
               "fitflow_ci_role": ("fitflow_ci_migrator", "fitflow-ci-migrator-only"),
               "fitflow_ci_rls": ("fitflow_ci_migrator", "fitflow-ci-migrator-only"),
           }
+          raw_url = os.environ.get("DATABASE_URL")
+          allowed_urls = {
+              f"postgresql+psycopg://{user}:{password}@127.0.0.1:5432/{database}"
+              for database, (user, password) in owners.items()
+          }
+          if raw_url not in allowed_urls:
+              raise SystemExit("BLOCKED_PRECONDITION: schema CI requires exact disposable PG target")
+
+          from alembic.config import main
+          from sqlalchemy.engine import make_url
+          from app.core.config import settings
+
           url = make_url(settings.DATABASE_URL)
           owner = owners.get(url.database)
           if (
@@ -113,7 +123,10 @@ jobs:
             echo "FAIL: disallowed migration target was admitted" >&2
             exit 1
           fi
-          grep -Fq 'BLOCKED_PRECONDITION: schema CI requires exact disposable PG target' "$RUNNER_TEMP/fitflow-schema-target-denied.log"
+          if ! grep -Fxq 'BLOCKED_PRECONDITION: schema CI requires exact disposable PG target' "$RUNNER_TEMP/fitflow-schema-target-denied.log"; then
+            echo "FAIL: negative guard did not emit its exact denial receipt" >&2
+            exit 1
+          fi
           echo "FF_SCHEMA_DISPOSABLE_TARGET_GUARD_PASS"
           PYTHONPATH="$PWD" python "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" head
 
