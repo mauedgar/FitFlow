@@ -177,3 +177,11 @@ test('provider alone advances generation for accepted login and immediate logout
   assert.equal(mod.advanceAuthSessionGeneration(), 2);
   assert.equal(mod.getAuthSessionGeneration(), 2);
 });
+
+
+test('mobile ADMIN drawer specifies initial link and final trigger focus', () => {
+  assert.match(nav, /initialFocusEl=\{\(\) => menuInitialFocus\.current\}/);
+  assert.match(nav, /finalFocusEl=\{\(\) => menuTrigger\.current\}/);
+  assert.match(nav, /ref=\{link\.to === '\/admin' \? menuInitialFocus : undefined\}/);
+  assert.match(nav, /lazyMount unmountOnExit/);
+});

@@ -1416,13 +1416,36 @@ async function run() {
     assert.equal(widthMobile[0], 390);
     assert.ok(widthMobile[1] <= 390, 'ADMIN dashboard must not overflow at 390px');
     const mobileMenu = page.getByRole('button', { name: 'Menú', exact: true });
+    const mobileDrawer = page.getByRole('dialog', { name: 'Secciones de administración' });
+    const waitForDrawerLinkFocus = (href) => page.waitForFunction((expectedHref) => {
+      const active = document.activeElement;
+      return active?.tagName === 'A' && active.getAttribute('href') === expectedHref &&
+        Boolean(active.closest('[role="dialog"]'));
+    }, href);
     await mobileMenu.click();
+    await mobileDrawer.waitFor({ state: 'visible' });
+    await waitForDrawerLinkFocus('/admin');
     await page.keyboard.press('Escape');
+    // A close animation and the focus-trap teardown are separate from the
+    // controlled open flag. Observe both before initiating a new open.
+    await mobileDrawer.waitFor({ state: 'hidden' });
+    await page.waitForFunction(() => {
+      const trigger = document.querySelector('button[aria-label="Menú"]');
+      return trigger?.getAttribute('aria-expanded') === 'false' &&
+        document.activeElement === trigger;
+    });
     assert.equal(await mobileMenu.getAttribute('aria-expanded'), 'false');
     assert.equal(await mobileMenu.evaluate((element) => element === document.activeElement), true,
       'Escape must restore keyboard focus to mobile menu trigger');
-    await mobileMenu.click();
-    await page.getByRole('link', { name: 'Profesores', exact: true }).focus();
+    // Reopen from the actual focused trigger and traverse the modal via Tab.
+    // Never programmatically force focus on the desired destination.
+    await page.keyboard.press('Enter');
+    await mobileDrawer.waitFor({ state: 'visible' });
+    await waitForDrawerLinkFocus('/admin');
+    await page.keyboard.press('Tab');
+    await waitForDrawerLinkFocus('/admin/clients');
+    await page.keyboard.press('Tab');
+    await waitForDrawerLinkFocus('/admin/teachers');
     await page.keyboard.press('Enter');
     await qualifyTeachersKeyboardRoute(page);
     await page.getByText('Profesora Sintética', { exact: true }).filter({ visible: true }).first().waitFor();
