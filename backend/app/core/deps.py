@@ -65,12 +65,14 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token mal formado",
+            headers={"WWW-Authenticate": "Bearer"},
         ) from err
 
     if token_data.sub is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token sin sujeto válido",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     try:
@@ -79,6 +81,7 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token mal formado",
+            headers={"WWW-Authenticate": "Bearer"},
         ) from err
 
     try:
@@ -103,7 +106,10 @@ async def get_current_user(
         ) from exc
     # Identical authentication denial for missing, deleted and inactive users:
     # avoid leaking whether an account exists or has been deactivated.
-    if not user or user.deleted_at is not None or not user.active:
+    if (
+        not user or user.deleted_at is not None or not user.active
+        or not is_access_token_payload(payload)
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o usuario no autorizado.",
@@ -160,7 +166,10 @@ def require_roles(*allowed_roles: UserRole) -> Callable[..., Awaitable[UserPubli
 # --------------------------------------------------------------------------- #
 
 def require_admin_or_self(id_param_name: str = "user_id") -> Callable[..., Awaitable[UserPublic]]:
-    """Permite acceso si el usuario es admin o si el recurso pertenece al propio usuario."""
+    """Guard for an actual User UUID parameter, not a Person/profile ID.
+
+    Profile ownership must be resolved against its persisted user_id.
+    """
     async def guard(
         request: Request,
         user: UserPublic = Depends(require_current_user),

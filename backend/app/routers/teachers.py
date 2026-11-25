@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from app.core.deps import (
     require_admin,
     require_admin_or_teacher,
-    require_admin_teacher_or_self,
+    get_current_user,
 )
 from app.core.enums import UserRole
 from app.crud.crud_class_schedule import class_schedule
@@ -149,6 +149,23 @@ async def read_public_teachers(
     return [to_teacher_public(t) for t in teachers]
 
 
+async def _private_teacher(
+    db: AsyncSession, teacher_id: UUID, current_user: User,
+) -> Teacher:
+    """Admin or the account owning this exact Person/Teacher, not UUID equality."""
+    if current_user.role not in (UserRole.admin, UserRole.teacher):
+        raise HTTPException(403, "Acceso denegado.")
+    owner_user_id = None if current_user.role == UserRole.admin else current_user.id
+    profile = await teacher.get_private(
+        db, obj_id=teacher_id, owner_user_id=owner_user_id,
+    )
+    if profile is None:
+        if owner_user_id is not None:
+            raise HTTPException(403, "Acceso denegado.")
+        raise HTTPException(404, "Profesor no encontrado.")
+    return profile
+
+
 # --------------------------------------------------------------------------- #
 # Obtener Teacher por ID (privado)
 # --------------------------------------------------------------------------- #
@@ -157,7 +174,7 @@ async def read_teacher_by_id(
     *,
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
-    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> TeacherWithRelations:
     """Obtiene el perfil privado de un profesor por ID.
 
@@ -167,14 +184,7 @@ async def read_teacher_by_id(
     Reglas:
         • Solo admin, el propio profesor o roles autorizados pueden acceder.
     """
-    teacher_ = await teacher.get(
-        db=db,
-        obj_id=teacher_id,
-        include_relations=True,
-    )
-    if not teacher_:
-        raise HTTPException(404, "Profesor no encontrado.")
-
+    teacher_ = await _private_teacher(db, teacher_id, current_user)
     return TeacherWithRelations.model_validate(teacher_)
 
 
@@ -211,7 +221,7 @@ async def update_teacher(
     db: Annotated[AsyncSession, Depends(get_async_session)],
     teacher_id: UUID,
     teacher_in: TeacherUpdate,
-    current_user: Annotated[User, Depends(require_admin_teacher_or_self)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> TeacherWithRelations:
     """Actualiza el perfil privado de un profesor.
 
@@ -220,11 +230,10 @@ async def update_teacher(
     Reglas:
         • Solo admin o el propio profesor pueden actualizar su perfil.
     """
-    teacher_ = await teacher.get(db=db, obj_id=teacher_id)
-    if not teacher_:
-        raise HTTPException(404, "Profesor no encontrado.")
-
-    updated = await teacher.update(db=db, db_obj=teacher_, obj_in=teacher_in)
+    teacher_ = await _private_teacher(db, teacher_id, current_user)
+    await teacher.update(db=db, db_obj=teacher_, obj_in=teacher_in)
+    # Reload required nested relations after the write transaction returns.
+    updated = await _private_teacher(db, teacher_id, current_user)
     return TeacherWithRelations.model_validate(updated)
 
 

@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
+from app.db.models.class_schedule import ClassSchedule
 from app.db.models.teacher import Teacher
 from app.schemas.teacher import TeacherCreate, TeacherUpdate
 
@@ -46,6 +47,27 @@ class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
             else None
         )
         return await super().get(db, obj_id=obj_id, options=opts)
+
+    async def get_private(
+        self,
+        db: AsyncSession,
+        *,
+        obj_id: UUID,
+        owner_user_id: UUID | None,
+    ) -> Teacher | None:
+        """Select the exact profile and, for self access, its persisted owner."""
+        stmt = select(Teacher).where(
+            Teacher.id == obj_id,
+            Teacher.deleted_at.is_(None),
+        )
+        if owner_user_id is not None:
+            stmt = stmt.where(Teacher.user_id == owner_user_id)
+        stmt = stmt.options(
+            selectinload(Teacher.class_schedules).selectinload(ClassSchedule.gym_class),
+            selectinload(Teacher.class_schedules).selectinload(ClassSchedule.teacher),
+        ).execution_options(populate_existing=True)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
     # ------------------------------------------------------------------ #
     # Búsquedas específicas

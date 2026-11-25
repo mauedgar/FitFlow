@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections.abc import AsyncIterator
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from dataclasses import dataclass
 from types import SimpleNamespace
 from sqlalchemy.engine import make_url
@@ -17,6 +17,7 @@ import auth_session_test_helpers as fixture_guard
 
 import httpx
 import pytest
+from jose import jwt
 from fastapi import status
 from sqlalchemy import func, select
 
@@ -25,9 +26,10 @@ from app.core.enums import ActivityType, UserRole
 from auth_session_test_helpers import (
     capture_http_creations, cleanup_synthetic_fixture, committed_access, finish_synthetic_cleanup,
     require_local_test_database, require_local_test_redis,
+    require_postgres15_test_service, staged_access,
 )
-from app.core.security import create_access_token
-from app.db.models import GymClass, User
+from app.core.security import create_access_token, decode_token
+from app.db.models import Client, GymClass, Teacher, User
 from app.db.session import AsyncSessionLocal, engine
 
 pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
@@ -490,3 +492,133 @@ async def test_actual_engine_query_override_rejected_without_io(
     monkeypatch.setattr(fixture_guard, "engine", fake)
     with pytest.raises(RuntimeError, match="BLOCKED_PRECONDITION"):
         fixture_guard.require_local_test_database()
+
+
+@dataclass(frozen=True)
+class ProfileActors:
+    user_ids: dict[str, uuid.UUID]
+    profile_ids: dict[str, uuid.UUID]
+    tokens: dict[str, str]
+
+    def headers(self, name: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.tokens[name]}"}
+
+
+@pytest.fixture
+async def profile_actors() -> AsyncIterator[ProfileActors]:
+    """Capture actual inserted user identities; all profiles belong to them."""
+    await require_postgres15_test_service()
+    marker = uuid.uuid4().hex
+    accounts = {
+        name: User(
+            id=uuid.uuid4(), email=f"profile-{marker}-{name}@example.com",
+            hashed_password="synthetic-no-login", role=role, active=True,
+        )
+        for name, role in (
+            ("teacher", UserRole.teacher), ("peer", UserRole.teacher),
+            ("client", UserRole.client), ("admin", UserRole.admin),
+        )
+    }
+    profiles = {
+        name: model(
+            id=uuid.uuid4(), user_id=accounts[name].id,
+            first_name=f"Synthetic {name}", last_name=marker,
+        )
+        for name, model in (("teacher", Teacher), ("peer", Teacher), ("client", Client))
+    }
+    async with capture_http_creations(email=accounts["teacher"].email):
+        async with AsyncSessionLocal() as db:
+            db.add_all(list(accounts.values()))
+            await db.flush()
+            db.add_all(list(profiles.values()))
+            tokens = {
+                name: staged_access(db, account.id, account.role.value)
+                for name, account in accounts.items()
+            }
+            await db.commit()
+        yield ProfileActors(
+            user_ids={name: account.id for name, account in accounts.items()},
+            profile_ids={name: profile.id for name, profile in profiles.items()},
+            tokens=tokens,
+        )
+
+
+async def test_self_profile_and_stats_resolve_authenticated_account(
+    api_client: httpx.AsyncClient, profile_actors: ProfileActors,
+) -> None:
+    for name in ("teacher", "peer", "client", "admin"):
+        # An unrelated query identifier must never become the resource selector.
+        query = {"user_id": str(profile_actors.user_ids["admin"])}
+        response = await api_client.get(
+            f"{API}/users/me", params=query, headers=profile_actors.headers(name),
+        )
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["id"] == str(profile_actors.user_ids[name])
+        if name in ("teacher", "peer"):
+            assert data["teacher"]["id"] == str(profile_actors.profile_ids[name])
+            assert data["client"] is None
+        elif name == "client":
+            assert data["client"]["id"] == str(profile_actors.profile_ids[name])
+            assert data["teacher"] is None
+        else:
+            assert data["client"] is None and data["teacher"] is None
+        stats = await api_client.get(
+            f"{API}/users/me/stats", params=query, headers=profile_actors.headers(name),
+        )
+        assert stats.status_code == 200, stats.text
+        assert stats.json()["id"] == str(profile_actors.user_ids[name])
+        assert stats.json()["total_bookings"] == 0
+        assert stats.json()["upcoming_bookings"] == 0
+        assert stats.json()["total_classes_taught"] == 0
+
+
+async def test_teacher_private_get_put_bind_persisted_profile_owner(
+    api_client: httpx.AsyncClient, profile_actors: ProfileActors,
+) -> None:
+    own_id = profile_actors.profile_ids["teacher"]
+    other_id = profile_actors.profile_ids["peer"]
+    assert own_id != profile_actors.user_ids["teacher"]
+    own = f"{API}/teachers/{own_id}"
+    other = f"{API}/teachers/{other_id}"
+    response = await api_client.get(own, headers=profile_actors.headers("teacher"))
+    assert response.status_code == 200, response.text
+    assert response.json()["id"] == str(own_id)
+    for actor in ("peer", "client"):
+        denied = await api_client.get(own, headers=profile_actors.headers(actor))
+        assert denied.status_code == 403, denied.text
+        denied = await api_client.put(
+            own, headers=profile_actors.headers(actor), json={"bio": "must not write"},
+        )
+        assert denied.status_code == 403, denied.text
+    denied = await api_client.put(
+        other, headers=profile_actors.headers("teacher"),
+        params={"teacher_id": str(own_id)}, json={"bio": "must not write"},
+    )
+    assert denied.status_code == 403, denied.text
+    updated = await api_client.put(
+        own, headers=profile_actors.headers("teacher"), json={"bio": "owned update"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["bio"] == "owned update"
+    peer = await api_client.get(other, headers=profile_actors.headers("admin"))
+    assert peer.status_code == 200, peer.text
+    assert peer.json()["id"] == str(other_id) and peer.json()["bio"] is None
+    admin_update = await api_client.put(
+        other, headers=profile_actors.headers("admin"), json={"bio": "admin update"},
+    )
+    assert admin_update.status_code == 200, admin_update.text
+    assert admin_update.json()["bio"] == "admin update"
+
+
+async def test_fractional_access_expiration_denied_by_both_bearer_pipelines(
+    api_client: httpx.AsyncClient, actors: SecurityActors,
+) -> None:
+    payload = decode_token(actors.tokens["admin"])
+    assert payload is not None
+    payload["exp"] = int(datetime.now(tz=UTC).timestamp()) + 90.5
+    malformed = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    for path in (f"{API}/auth/me", f"{API}/teachers/"):
+        response = await api_client.get(path, headers={"Authorization": f"Bearer {malformed}"})
+        assert response.status_code == 401, response.text
+        assert response.headers.get("WWW-Authenticate") == "Bearer"

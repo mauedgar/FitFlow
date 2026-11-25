@@ -54,3 +54,28 @@ ledger after a signed SID check, without Redis fallback or SID-less issuance.
 The original /auth/logout alias requires a modern SID-backed refresh and
 authenticated owner bearer; both bearer guards reject SID-less tokens.
 Native CI and independent review on exact successor SHA remain mandatory.
+
+
+## Control 016 — guard consumer and claim parity repair (candidate)
+
+Access issuance uses integer NumericDate; both bearer pipelines now reject
+noninteger access expiration with HTTP 401 and Bearer challenge. Refresh
+NumericDate handling is unchanged. Both paths recheck the signed access
+predicate after awaited user/session lookup. The delegated service denies
+missing/invalid account state and invalid public projections rather than
+defaulting to an active account. PostgreSQL remains authority: bearer
+admission is not cancellation of a request already admitted before a
+concurrent revocation. No claim of atomicity across all business operations.
+
+The existing /users/me and /users/me/stats resolve the authenticated User
+directly, then select only its nondeleted Client/Teacher by Person.user_id;
+a request query identifier is not authority. Required ORM relations are
+loaded explicitly. Private GET/PUT /teachers/{teacher_id} uses the exact
+persisted Teacher owner for a teacher account; administrators retain access.
+A profile UUID is not a User UUID. Wrong-owner or wrong-role attempts deny
+access before mutation, including a forged query parameter. Response schemas
+and the existing statistics definitions are preserved.
+
+These are bounded repairs of observed consumer/guard defects; actual native
+CI and independent successor review are still required. No retained-data
+migration, release, new API endpoint or change to revocation policy.

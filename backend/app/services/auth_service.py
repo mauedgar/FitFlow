@@ -59,10 +59,15 @@ async def get_user_from_token(token: str, db: "AsyncSession") -> UserPublic:
         msg_3 = "Usuario no encontrado."
         raise AuthError(msg_3)
 
-    if not getattr(user, "active", True):  # type: ignore[reportGeneralTypeIssues]
+    if getattr(user, "active", False) is not True:
         msg_4 = "Usuario inactivo."
         raise AuthError(msg_4)
 
-    if getattr(user, "deleted_at", None) is not None:
-        raise AuthError("Usuario eliminado.")
-    return UserPublic.model_validate(user)
+    if getattr(user, "deleted_at", object()) is not None:
+        raise AuthError("Usuario eliminado o estado inválido.")
+    if not is_access_token_payload(payload):
+        raise AuthError("Token inválido o expirado.")
+    try:
+        return UserPublic.model_validate(user)
+    except ValidationError as exc:
+        raise AuthError("Usuario inválido.") from exc

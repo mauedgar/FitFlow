@@ -157,7 +157,9 @@ def is_access_token_payload(payload: dict | None) -> bool:
     """
     if not isinstance(payload, dict) or payload.get("token_use") != "access":
         return False
-    if not _has_live_expiry(payload):
+    # Access issuance uses integer NumericDate; both bearer guards use the
+    # same strict predicate before Pydantic projection.
+    if not isinstance(payload.get("exp"), int) or not _has_live_expiry(payload):
         return False
     if not isinstance(payload.get("role"), str) or not payload["role"]:
         return False
