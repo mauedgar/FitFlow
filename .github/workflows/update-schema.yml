@@ -1,5 +1,7 @@
 name: Validate migration schema artifact
 
+# Pull requests and explicit dispatch may qualify an exact non-develop
+# candidate. Push is restricted to develop; every route is read-only CI.
 on:
   pull_request:
     paths:
@@ -64,12 +66,56 @@ jobs:
       - name: Install backend dependencies for develop baseline
         run: |
           set -euo pipefail
+          uv --version
+          uv --version | grep -Eq '^uv 0\.13\.6([[:space:]]|$)'
           uv pip install --system --no-cache-dir -r backend/requirements_backend.txt
           python -m pip check
 
-      - name: Upgrade disposable PostgreSQL to exact Alembic head
+      - name: Guard actual disposable target and upgrade exact Alembic head
         working-directory: backend
-        run: alembic upgrade head
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The same Python process validates Settings and invokes Alembic.
+          # Temporary CI entrypoint only; not a new runtime migration API.
+          cat > "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" <<'PY'
+          import os
+          import sys
+          from alembic.config import main
+          from sqlalchemy.engine import make_url
+          from app.core.config import settings
+
+          owners = {
+              "fitflow_db": ("fitflow_admin", "fitflow-ci-postgres"),
+              "fitflow_guard": ("fitflow_admin", "fitflow-ci-postgres"),
+              "fitflow_ci_role": ("fitflow_ci_migrator", "fitflow-ci-migrator-only"),
+              "fitflow_ci_rls": ("fitflow_ci_migrator", "fitflow-ci-migrator-only"),
+          }
+          url = make_url(settings.DATABASE_URL)
+          owner = owners.get(url.database)
+          if (
+              os.environ.get("GITHUB_ACTIONS") != "true"
+              or settings.ENV != "test" or settings.TESTING is not True
+              or settings.DATABASE_URL != os.environ.get("DATABASE_URL")
+              or url.drivername != "postgresql+psycopg"
+              or url.host != "127.0.0.1" or url.port != 5432 or url.query
+              or owner is None or (url.username, url.password) != owner
+              or len(sys.argv) != 2 or sys.argv[1] not in ("head", "a2b62b427037")
+          ):
+              raise SystemExit("BLOCKED_PRECONDITION: schema CI requires exact disposable PG target")
+          main(argv=["upgrade", sys.argv[1]])
+          PY
+          # Negative case uses only a nonexistent local fixture database, not
+          # a staging/production URL, even if the precondition were broken.
+          if DATABASE_URL='postgresql+psycopg://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_disallowed' \
+              PYTHONPATH="$PWD" python "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" head \
+              > "$RUNNER_TEMP/fitflow-schema-target-denied.log" 2>&1; then
+            echo "FAIL: disallowed migration target was admitted" >&2
+            exit 1
+          fi
+          grep -Fq 'BLOCKED_PRECONDITION: schema CI requires exact disposable PG target' "$RUNNER_TEMP/fitflow-schema-target-denied.log"
+          echo "FF_SCHEMA_DISPOSABLE_TARGET_GUARD_PASS"
+          PYTHONPATH="$PWD" python "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" head
 
       - name: Negative proof — retain data and Alembic revision on populated pre-refactor PG15
         shell: bash
@@ -86,7 +132,7 @@ jobs:
           with create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT").connect() as c:
               c.execute(text("CREATE DATABASE fitflow_guard"))
           PY
-          (cd backend && alembic upgrade a2b62b427037)
+          (cd backend && PYTHONPATH="$PWD" python "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" a2b62b427037)
           # Real legacy target from the pre-refactor schema; no unrelated
           # sentinel table that could be detected first by the catalog scan.
           python - <<'PY'
@@ -99,7 +145,7 @@ jobs:
                           'Guard fixture', 'Discardable CI', 45, 8)
               """))
           PY
-          if (cd backend && alembic upgrade head) > "$RUNNER_TEMP/fitflow-negative-migration.log" 2>&1; then
+          if (cd backend && PYTHONPATH="$PWD" python "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" head) > "$RUNNER_TEMP/fitflow-negative-migration.log" 2>&1; then
             echo "FAIL: populated direct Product table was upgraded" >&2
             exit 1
           fi
@@ -131,7 +177,7 @@ jobs:
                   VALUES (1, '00000000-0000-0000-0000-000000000071')
               """))
           PY
-          if (cd backend && alembic upgrade head) > "$RUNNER_TEMP/fitflow-negative-fk.log" 2>&1; then
+          if (cd backend && PYTHONPATH="$PWD" python "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" head) > "$RUNNER_TEMP/fitflow-negative-fk.log" 2>&1; then
             echo "FAIL: retained FK-dependent Product data was upgraded" >&2
             exit 1
           fi
@@ -167,7 +213,7 @@ jobs:
               assert c.scalar(text("SELECT rolsuper FROM pg_roles WHERE rolname=current_user")) is False
               assert c.scalar(text("SELECT current_schema()")) == "public"
           PY
-          (cd backend && alembic upgrade head)
+          (cd backend && PYTHONPATH="$PWD" python "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" head)
           echo "PG15_NON_SUPERUSER_OWNER_MIGRATION_PASS"
           # RLS regression: a real non-superuser owner with FORCE RLS cannot
           # see retained gym_classes rows; the migration must still refuse DDL.
@@ -179,7 +225,7 @@ jobs:
               c.execute(text("CREATE DATABASE fitflow_ci_rls OWNER fitflow_ci_migrator"))
           PY
           export DATABASE_URL='postgresql+psycopg://fitflow_ci_migrator:fitflow-ci-migrator-only@127.0.0.1:5432/fitflow_ci_rls'
-          (cd backend && alembic upgrade a2b62b427037)
+          (cd backend && PYTHONPATH="$PWD" python "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" a2b62b427037)
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
@@ -195,7 +241,7 @@ jobs:
               c.execute(text("ALTER TABLE gym_classes FORCE ROW LEVEL SECURITY"))
               assert c.scalar(text("SELECT count(*) FROM gym_classes")) == 0
           PY
-          if (cd backend && alembic upgrade head) > "$RUNNER_TEMP/fitflow-negative-rls.log" 2>&1; then
+          if (cd backend && PYTHONPATH="$PWD" python "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" head) > "$RUNNER_TEMP/fitflow-negative-rls.log" 2>&1; then
             echo "FAIL: FORCE RLS hidden retained Product data was upgraded" >&2
             exit 1
           fi
@@ -223,9 +269,58 @@ jobs:
           docker run --rm --network host --read-only --tmpfs /tmp postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984 pg_dump --version
           docker run --rm --network host --read-only --tmpfs /tmp -e PGPASSWORD="$PGPASSWORD" postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984 pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges > "$RUNNER_TEMP/fitflow-schema/schema.sql"
           docker run --rm --network host --read-only --tmpfs /tmp -e PGPASSWORD="$PGPASSWORD" postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984 pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges > "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql"
-          # Compare SQL excluding ONLY the randomized psql restrict/unrestrict keys.
-          # Never replace keys with a constant or remove them from the original dump.
-          diff -u <(grep -vE '^\\(un)?restrict ' "$RUNNER_TEMP/fitflow-schema/schema.sql") <(grep -vE '^\\(un)?restrict ' "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql")
+          # Validate the actual directive pair before comparing; normalize only
+          # randomized key values in memory, preserving all other raw bytes.
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          def normalize_dump(data):
+              records = data.splitlines(keepends=True)
+              candidates = [
+                  (index, re.fullmatch(rb"\\(un)?restrict ([A-Za-z0-9]+)\n", line))
+                  for index, line in enumerate(records)
+                  if line.startswith((b"\\restrict", b"\\unrestrict"))
+              ]
+              if len(candidates) != 2 or any(match is None for _, match in candidates):
+                  raise ValueError("expected exactly one valid restrict/unrestrict pair")
+              (first, opening), (last, closing) = candidates
+              if opening.group(1) is not None or closing.group(1) != b"un":
+                  raise ValueError("invalid restrict/unrestrict order")
+              if opening.group(2) != closing.group(2):
+                  raise ValueError("mismatched restrict/unrestrict keys")
+              key = opening.group(2)
+              records[first] = b"\\restrict <volatile-key>\n"
+              records[last] = b"\\unrestrict <volatile-key>\n"
+              return b"".join(records), key
+
+          fixture = b"\\restrict A1\nSELECT 1;\n\\unrestrict A1\n"
+          equivalent = b"\\restrict B2\nSELECT 1;\n\\unrestrict B2\n"
+          if normalize_dump(fixture)[0] != normalize_dump(equivalent)[0]:
+              raise SystemExit("FAIL: key-only difference rejected")
+          if normalize_dump(fixture)[0] == normalize_dump(fixture.replace(b"SELECT 1", b"SELECT 2"))[0]:
+              raise SystemExit("FAIL: SQL difference hidden")
+          for bad in (
+              b"SELECT 1;\n\\unrestrict A1\n",
+              b"\\restrict A1\n\\restrict A1\nSELECT 1;\n\\unrestrict A1\n",
+              b"\\restrict A1\nSELECT 1;\n\\unrestrict B2\n",
+              b"\\unrestrict A1\nSELECT 1;\n\\restrict A1\n",
+              b"\\restrict A-1\nSELECT 1;\n\\unrestrict A-1\n",
+          ):
+              try:
+                  normalize_dump(bad)
+              except ValueError:
+                  continue
+              raise SystemExit("FAIL: malformed directive pair accepted")
+          print("FF_SCHEMA_DIRECTIVE_NORMALIZER_NEGATIVE_PASS")
+          directory = Path(os.environ["RUNNER_TEMP"]) / "fitflow-schema"
+          first, first_key = normalize_dump((directory / "schema.sql").read_bytes())
+          second, second_key = normalize_dump((directory / "schema-repeat.sql").read_bytes())
+          if first_key == second_key or first != second:
+              raise SystemExit("FAIL: schema repeatability or randomized guard key")
+          print("FF_SCHEMA_DIRECTIVE_PAIR_AND_RANDOMIZATION_PASS")
+          PY
           test -s "$RUNNER_TEMP/fitflow-schema/schema.sql"
           (cd "$RUNNER_TEMP/fitflow-schema" && sha256sum schema.sql > schema.sha256)
           printf 'subject_sha=%s\nsubject_tree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')" > "$RUNNER_TEMP/fitflow-schema/subject.txt"
