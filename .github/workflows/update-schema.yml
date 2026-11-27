@@ -131,6 +131,35 @@ jobs:
             exit 1
           fi
           echo "FF_SCHEMA_DISPOSABLE_TARGET_GUARD_PASS"
+          # Distinguish the effective Settings check from the raw allowlist.
+          # Both URLs are allowed synthetic targets; deliberately cache Settings
+          # before changing the raw environment inside this isolated process.
+          if python -E -P - "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" > "$RUNNER_TEMP/fitflow-schema-settings-denied.log" 2>&1 <<'PY'
+          import os
+          import runpy
+          import sys
+          from alembic.config import main  # installed package, before cwd
+          sys.path.append(os.getcwd())
+          from app.core.config import settings
+          original = os.environ["DATABASE_URL"]
+          alternate = "postgresql+psycopg://fitflow_admin:fitflow-ci-postgres@127.0.0.1:5432/fitflow_guard"
+          assert settings.DATABASE_URL == original
+          assert original != alternate
+          os.environ["DATABASE_URL"] = alternate
+          assert settings.DATABASE_URL != os.environ["DATABASE_URL"]
+          script = sys.argv[1]
+          sys.argv = [script, "head"]
+          runpy.run_path(script, run_name="__main__")
+          PY
+          then
+            echo "FAIL: mismatched effective Settings target was admitted" >&2
+            exit 1
+          fi
+          if ! grep -Fxq 'BLOCKED_PRECONDITION: schema CI requires exact disposable PG target' "$RUNNER_TEMP/fitflow-schema-settings-denied.log"; then
+            echo "FAIL: effective Settings guard did not emit its exact denial receipt" >&2
+            exit 1
+          fi
+          echo "FF_SCHEMA_EFFECTIVE_SETTINGS_GUARD_PASS"
           python -E "$RUNNER_TEMP/fitflow-schema-ci-upgrade.py" head
 
       - name: Negative proof — retain data and Alembic revision on populated pre-refactor PG15
@@ -176,8 +205,10 @@ jobs:
           assert count == 1, count
           print("FAIL_CLOSED_PG15_DIRECT_TARGET_PASS")
           PY
-          # A real FK child is a potential TRUNCATE CASCADE target even with
-          # its own rows; the refusal must preserve the entire dependency.
+          # A real FK child is a potential TRUNCATE CASCADE target.
+          # The guard scans relations by schema/name, so the named child sorts
+          # before gym_classes. Require its specific rejection, not the prior
+          # generic retained-data error, and verify both rows remain.
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
@@ -197,7 +228,7 @@ jobs:
             echo "FAIL: retained FK-dependent Product data was upgraded" >&2
             exit 1
           fi
-          grep -q "f5453ed20cdc refuses to discard retained Product data" "$RUNNER_TEMP/fitflow-negative-fk.log"
+          grep -Fq 'f5453ed20cdc refuses to discard retained Product data; nonempty table "public"."core_refactor_guard_child"' "$RUNNER_TEMP/fitflow-negative-fk.log"
           python - <<'PY'
           import os
           from sqlalchemy import create_engine, text
@@ -287,6 +318,8 @@ jobs:
           docker run --rm --network host --read-only --tmpfs /tmp -e PGPASSWORD="$PGPASSWORD" postgres:15-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984 pg_dump -h 127.0.0.1 -U fitflow_admin -d fitflow_db --schema-only --no-owner --no-privileges > "$RUNNER_TEMP/fitflow-schema/schema-repeat.sql"
           # Validate the actual directive pair before comparing; normalize only
           # randomized key values in memory, preserving all other raw bytes.
+          # This is a comparison of the pinned generator's two local outputs,
+          # not a SQL/psql parser, arbitrary-input framing or restore validator.
           python - <<'PY'
           import os
           import re
