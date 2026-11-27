@@ -53,12 +53,12 @@ async function run() {
     await page.getByLabel('Contraseña', { exact: true }).fill(password);
     const tokenResponse = page.waitForResponse((response) => {
       const request = response.request();
-      return response.url() === API + '/auth/token' && request.method() === 'POST';
+      return response.url() === API + '/auth/browser/token' && request.method() === 'POST';
     }, { timeout: 20000 });
     await page.getByRole('button', { name: 'Ingresar' }).click();
     const authResponse = await tokenResponse;
     assert.equal(authResponse.status(), 200,
-      'Newly registered client must be able to authenticate through real /auth/token');
+      'Newly registered client must authenticate with real HttpOnly session cookie');
 
     try {
       await page.waitForURL('**/home', { timeout: 10000 });
@@ -72,8 +72,15 @@ async function run() {
       console.error('CLIENT_SIGNUP_NAVIGATION_DIAGNOSTIC', JSON.stringify(browserState));
       throw error;
     }
-    const signed = await page.evaluate(() => localStorage.getItem('access_token'));
-    assert.ok(signed, 'Login must retain a real signed JWT');
+    const signed = await page.evaluate(async () => {
+      const api = (await import('/src/services/api.ts')).default;
+      const header = api.defaults.headers.common.Authorization;
+      return typeof header === 'string' && header.startsWith('Bearer ')
+        ? header.slice(7) : null;
+    });
+    assert.ok(signed, 'Login must hold a real signed access JWT in memory');
+    assert.equal(await page.evaluate(() => localStorage.getItem('access_token')), null,
+      'Modern browser access must not persist in localStorage');
     const me = await fetch(API + '/clients/me', {
       headers: { Authorization: 'Bearer ' + signed },
     });

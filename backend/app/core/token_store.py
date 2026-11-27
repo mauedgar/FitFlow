@@ -4,7 +4,15 @@ Este módulo permite almacenar, validar y eliminar tokens de refresco
 utilizados en el flujo de autenticación OAuth2.
 """
 
+from datetime import UTC, datetime
+from hmac import compare_digest
+
+from redis.exceptions import RedisError
+
 from app.core.redis_client import get_redis_client
+from app.core.security import decode_token, is_refresh_token_payload
+from app.core.token_keys import legacy_jwt_key, opaque_jwt_key, signed_jwt_expiration_epoch
+from app.services.errors import ExternalServiceError
 
 # Prefijo para las claves de tokens de refresco en Redis.
 REFRESH_PREFIX = "refresh_token:"
@@ -18,7 +26,22 @@ def store_refresh_token(user_id: str, token: str) -> None:
         token: Token de refresco emitido por el sistema.
 
     """
-    get_redis_client().set(f"{REFRESH_PREFIX}{token}", user_id)
+    payload = decode_token(token)
+    if not is_refresh_token_payload(payload) or payload["sub"] != user_id:
+        raise ValueError("El propietario Redis no coincide con el refresh JWT firmado")
+    # Reject strings that cannot be represented in Redis before any write.
+    user_id.encode("utf-8")
+    expires_at = signed_jwt_expiration_epoch(token)
+    try:
+        client = get_redis_client()
+        if expires_at <= datetime.now(tz=UTC).timestamp():
+            raise ValueError("JWT vencido")
+        if client.set(opaque_jwt_key(REFRESH_PREFIX, token), user_id, exat=expires_at) is not True:
+            raise ExternalServiceError("Registro Redis no confirmado.")
+        if expires_at <= datetime.now(tz=UTC).timestamp():
+            raise ValueError("JWT vencido")
+    except RedisError as exc:
+        raise ExternalServiceError("Redis no está disponible.") from exc
 
 
 def is_refresh_token_valid(token: str) -> bool:
@@ -31,7 +54,26 @@ def is_refresh_token_valid(token: str) -> bool:
         True si el token está almacenado en Redis; False en caso contrario.
 
     """
-    return get_redis_client().exists(f"{REFRESH_PREFIX}{token}") == 1
+    if not isinstance(token, str):
+        return False
+    payload = decode_token(token)
+    if not is_refresh_token_payload(payload):
+        return False
+    subject = payload["sub"]
+    try:
+        client = get_redis_client()
+        value = client.get(opaque_jwt_key(REFRESH_PREFIX, token))
+        if value is None:
+            # Historical raw key is read-only; no fallback on mismatched new key.
+            value = client.get(legacy_jwt_key(REFRESH_PREFIX, token))
+        if not isinstance(value, str) or not is_refresh_token_payload(payload):
+            return False
+        try:
+            return compare_digest(value.encode("utf-8"), subject.encode("utf-8"))
+        except UnicodeError:
+            return False
+    except RedisError as exc:
+        raise ExternalServiceError("Redis no está disponible.") from exc
 
 
 def delete_refresh_token(token: str) -> None:
@@ -41,4 +83,10 @@ def delete_refresh_token(token: str) -> None:
         token: Token de refresco que debe invalidarse.
 
     """
-    get_redis_client().delete(f"{REFRESH_PREFIX}{token}")
+    try:
+        get_redis_client().delete(
+            opaque_jwt_key(REFRESH_PREFIX, token),
+            legacy_jwt_key(REFRESH_PREFIX, token),
+        )
+    except RedisError as exc:
+        raise ExternalServiceError("Redis no está disponible.") from exc

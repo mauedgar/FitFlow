@@ -9,11 +9,10 @@ from dataclasses import dataclass
 import httpx
 import pytest
 from fastapi import status
-from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.enums import UserRole
-from app.core.security import create_access_token
+from auth_session_test_helpers import require_local_test_database, staged_access
 from app.db.models import Client, User
 from app.db.session import AsyncSessionLocal, engine
 
@@ -35,12 +34,8 @@ class LookupFixture:
 
 @pytest.fixture(autouse=True)
 def require_isolated_test_database() -> None:
-    database_name = make_url(settings.DATABASE_URL).database
-    assert database_name == "fitflow_test", (
-        "Front Desk Client lookup contract requires fitflow_test; "
-        f"configured database is {database_name!r}."
-    )
-
+    # Fail closed before any synthetic DB writes, even with python -O.
+    require_local_test_database()
 
 @pytest.fixture(autouse=True)
 async def dispose_engine_pool_after_test() -> AsyncIterator[None]:
@@ -110,18 +105,10 @@ async def _seed_lookup_fixture() -> LookupFixture:
         neighbor_id = neighbor.id
 
         tokens = {
-            UserRole.admin: create_access_token(
-                {"sub": str(admin_user.id), "role": UserRole.admin.value}
-            ),
-            UserRole.front_desk: create_access_token(
-                {"sub": str(front_desk_user.id), "role": UserRole.front_desk.value}
-            ),
-            UserRole.client: create_access_token(
-                {"sub": str(client_caller.id), "role": UserRole.client.value}
-            ),
-            UserRole.teacher: create_access_token(
-                {"sub": str(teacher_user.id), "role": UserRole.teacher.value}
-            ),
+            UserRole.admin: staged_access(db, admin_user.id, UserRole.admin.value),
+            UserRole.front_desk: staged_access(db, front_desk_user.id, UserRole.front_desk.value),
+            UserRole.client: staged_access(db, client_caller.id, UserRole.client.value),
+            UserRole.teacher: staged_access(db, teacher_user.id, UserRole.teacher.value),
         }
         await db.commit()
 

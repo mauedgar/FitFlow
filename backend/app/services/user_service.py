@@ -9,12 +9,16 @@ Incluye:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.crud.crud_user import user as user_crud
+from app.db.models.booking import Booking
+from app.db.models.client import Client
+from app.db.models.teacher import Teacher
 from app.schemas.user import UserPublic, UserWithProfile, UserWithStats
 from app.services.client_service import (
     get_client_total_bookings,
@@ -45,21 +49,22 @@ def to_user_public(user: User) -> UserPublic:
 # 2. Extender User con su perfil (cliente o profesor)
 # --------------------------------------------------------------------------- #
 
-def to_user_with_profile(user: User) -> UserWithProfile:
-    """Extiende el usuario con su perfil asociado."""
-    client_public = None
-    teacher_public = None
-
-    if user.person_profile and hasattr(user.person_profile, "client"):
-        client_public = to_client_public(user.person_profile.client) # pyright: ignore[reportAttributeAccessIssue]
-
-    if user.person_profile and hasattr(user.person_profile, "teacher"):
-        teacher_public = to_teacher_public(user.person_profile.teacher) # pyright: ignore[reportAttributeAccessIssue]
-
+async def to_user_with_profile(db: AsyncSession, user: User) -> UserWithProfile:
+    """Resolve only profiles owned by this authenticated User."""
+    client = await db.scalar(
+        select(Client).where(
+            Client.user_id == user.id, Client.deleted_at.is_(None),
+        ).options(selectinload(Client.user))
+    )
+    teacher = await db.scalar(
+        select(Teacher).where(
+            Teacher.user_id == user.id, Teacher.deleted_at.is_(None),
+        )
+    )
     return UserWithProfile(
         **to_user_public(user).model_dump(),
-        client=client_public,
-        teacher=teacher_public,
+        client=to_client_public(client) if client is not None else None,
+        teacher=to_teacher_public(teacher) if teacher is not None else None,
     )
 
 
@@ -67,28 +72,23 @@ def to_user_with_profile(user: User) -> UserWithProfile:
 # 3. Extender User con estadísticas completas
 # --------------------------------------------------------------------------- #
 
-def to_user_with_stats(user: User) -> UserWithStats:
-    """Extiende el usuario con estadísticas completas."""
-    now = datetime.now(tz=timezone.utc)  # noqa: F841
-
-    total_bookings = 0
-    upcoming_bookings = 0
-    total_classes_taught = 0
-
-    if user.person_profile and hasattr(user.person_profile, "client"):
-        client = user.person_profile.client # pyright: ignore[reportAttributeAccessIssue]
-        total_bookings = get_client_total_bookings(client)
-        upcoming_bookings = len(get_client_upcoming_bookings(client))
-
-    if user.person_profile and hasattr(user.person_profile, "teacher"):
-        teacher = user.person_profile.teacher # pyright: ignore[reportAttributeAccessIssue]
-        total_classes_taught = len(teacher.class_schedules)
-
+async def to_user_with_stats(db: AsyncSession, user: User) -> UserWithStats:
+    """Load the exact owned profile and required relations, never lazy IO."""
+    client = await db.scalar(
+        select(Client).where(
+            Client.user_id == user.id, Client.deleted_at.is_(None),
+        ).options(selectinload(Client.bookings).selectinload(Booking.class_session))
+    )
+    teacher = await db.scalar(
+        select(Teacher).where(
+            Teacher.user_id == user.id, Teacher.deleted_at.is_(None),
+        ).options(selectinload(Teacher.class_schedules))
+    )
     return UserWithStats(
         **to_user_public(user).model_dump(),
-        total_bookings=total_bookings,
-        upcoming_bookings=upcoming_bookings,
-        total_classes_taught=total_classes_taught,
+        total_bookings=get_client_total_bookings(client) if client is not None else 0,
+        upcoming_bookings=len(get_client_upcoming_bookings(client)) if client is not None else 0,
+        total_classes_taught=len(teacher.class_schedules) if teacher is not None else 0,
     )
 
 

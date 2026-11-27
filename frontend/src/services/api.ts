@@ -5,37 +5,14 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 // 1. Creamos una instancia de Axios con configuración base
 const apiClient = axios.create({
   baseURL: API_BASE_URL, // La URL base de tu backend FastAPI
+  withCredentials: true, // HttpOnly refresh scoped to /auth/browser/*
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// 2. Definimos la función de login
-// Nota: Le cambiamos el nombre a loginUser para evitar confusión con el login del AuthContext
-export const loginUser = async (email: string, password: string) => {
-  // FastAPI con OAuth2PasswordRequestForm espera datos de formulario, no JSON.
-  // Usamos URLSearchParams para formatear los datos correctamente.
-  const formData = new URLSearchParams();
-  formData.append('username', email); // 'username' es el campo que espera FastAPI
-  formData.append('password', password);
-
-  try {
-    const response = await apiClient.post('/login/token', formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    });
-    // La respuesta de FastAPI contiene { access_token: "...", token_type: "bearer" }
-    return response.data; 
-  } catch (error) {
-    // Si Axios recibe un error (ej. 401 Unauthorized), lo lanzará.
-    // Lo personalizamos para que sea más claro.
-    if (axios.isAxiosError(error) && error.response) {
-      throw new Error(error.response.data.detail || 'Error al iniciar sesión');
-    }
-    throw new Error('Ocurrió un error de red inesperado.');
-  }
-};
+// Browser sign-in is exclusively through classService.login (Web Lock).
+// This module only provides the shared Axios client and account registration.
 
 // Aquí añadiremos más funciones en el futuro (ej. registerUser)
 export const registerUser = async (firstName: string, lastName: string, email: string, password: string) => {

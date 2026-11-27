@@ -20,6 +20,7 @@ const AdminNavBar: React.FC = () => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTrigger = useRef<HTMLButtonElement>(null);
+  const menuInitialFocus = useRef<HTMLAnchorElement>(null);
 
   const handleLogout = () => {
     logout();
@@ -43,7 +44,9 @@ const AdminNavBar: React.FC = () => {
       boxShadow="sm"
     >
       <Drawer.Root open={menuOpen} onOpenChange={({ open }) => setMenuOpen(open)}
-        placement="start" finalFocusEl={() => menuTrigger.current}>
+        placement="start" lazyMount unmountOnExit
+        initialFocusEl={() => menuInitialFocus.current}
+        finalFocusEl={() => menuTrigger.current}>
         <Drawer.Trigger asChild>
           <Button ref={menuTrigger} display={{ base: 'inline-flex', md: 'none' }}
             variant="ghost" aria-label="Menú" aria-expanded={menuOpen}>
@@ -63,6 +66,7 @@ const AdminNavBar: React.FC = () => {
                   {adminLinks.map((link) => (
                     <Box key={link.to} asChild _focusVisible={{ outline: '3px solid', outlineColor: 'teal.200', outlineOffset: '2px' }}>
                       <RouterNavLink to={link.to} end={link.end}
+                        ref={link.to === '/admin' ? menuInitialFocus : undefined}
                         onClick={() => setMenuOpen(false)}
                         style={({ isActive }) => ({
                           display: 'flex', alignItems: 'center', gap: '12px', padding: '12px',

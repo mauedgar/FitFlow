@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user, require_admin_or_self_guard
+from app.core.deps import get_current_user
 from app.core.enums import UserRole
 from app.db.models.user import User
 from app.db.session import get_async_session
@@ -188,8 +188,8 @@ async def read_public_user(
 @router.get("/me", response_model=UserWithProfile)
 async def read_my_profile(
     *,
-    db: Annotated[AsyncSession, Depends(get_async_session)],  # noqa: ARG001
-    current_user: Annotated[User, Depends(require_admin_or_self_guard)],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> UserWithProfile:
     """Devuelve el perfil del usuario actual.
 
@@ -197,7 +197,7 @@ async def read_my_profile(
         • datos públicos
         • perfil asociado (cliente o profesor)
     """
-    return to_user_with_profile(current_user)
+    return await to_user_with_profile(db, current_user)
 
 
 # --------------------------------------------------------------------------- #
@@ -206,8 +206,8 @@ async def read_my_profile(
 @router.get("/me/stats", response_model=UserWithStats)
 async def read_my_stats(
     *,
-    db: Annotated[AsyncSession, Depends(get_async_session)],  # noqa: ARG001
-    current_user: Annotated[User, Depends(require_admin_or_self_guard)],
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> UserWithStats:
     """Devuelve estadísticas básicas del usuario actual.
 
@@ -216,4 +216,4 @@ async def read_my_stats(
         • reservas futuras (si es cliente)
         • clases dictadas (si es profesor)
     """
-    return to_user_with_stats(current_user)
+    return await to_user_with_stats(db, current_user)

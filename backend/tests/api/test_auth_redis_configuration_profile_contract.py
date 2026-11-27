@@ -32,6 +32,8 @@ class LoginUserStub:
     id: uuid.UUID
     hashed_password: str = "synthetic-hash"
     role: UserRole = UserRole.client
+    active: bool = True
+    deleted_at: object | None = None
 
 
 @dataclass(frozen=True)
@@ -83,7 +85,7 @@ async def test_non_redis_route_remains_available_when_redis_is_unconfigured(
     assert response.json() == {"message": "Welcome to FitFlow API"}
 
 
-async def test_login_returns_503_when_redis_is_unconfigured(
+async def test_new_durable_login_does_not_depend_on_redis(
     api_client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -97,66 +99,63 @@ async def test_login_returns_503_when_redis_is_unconfigured(
     monkeypatch.setattr(auth_router, "user_get_by_email", get_user)
     monkeypatch.setattr(auth_router.security, "verify_password", lambda _plain, _hashed: True)
 
+    captured: list[str] = []
+
+    async def registered(_db: object, *, subject: uuid.UUID, refresh_token: str) -> None:
+        assert subject == user.id
+        captured.append(refresh_token)
+
+    monkeypatch.setattr(auth_router.session_ledger, "register", registered)
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/token",
         data={"username": "redis-contract@example.com", "password": "synthetic-password"},
     )
+    assert response.status_code == status.HTTP_200_OK, response.text
+    signed = security.decode_token(response.json()["refresh_token"])
+    assert signed and signed["sid"] and signed["sub"] == str(user.id)
+    assert captured == [response.json()["refresh_token"]]
 
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está configurado."}
 
 
-async def test_refresh_returns_503_when_redis_is_unconfigured(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_sidless_refresh_denied_when_redis_is_unconfigured(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "REDIS_URL", None)
-
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
         json={"refresh_token": "opaque-refresh-token"},
     )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh de sesión inválido."}
 
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está configurado."}
 
-
-async def test_logout_returns_503_when_redis_is_unconfigured(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_sidless_logout_returns_401_without_redis_dependency(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
     authenticated_owner: uuid.UUID,
 ) -> None:
     monkeypatch.setattr(settings, "REDIS_URL", None)
-    refresh_token = security.create_refresh_token(data={"sub": str(authenticated_owner)})
-
-    response = await api_client.post(
-        f"{settings.API_V1_STR}/auth/logout",
-        json={"refresh_token": refresh_token},
+    refresh = security.create_refresh_token({"sub": str(authenticated_owner)})
+    result = await api_client.post(
+        f"{settings.API_V1_STR}/auth/logout", json={"refresh_token": refresh},
     )
+    assert result.status_code == status.HTTP_401_UNAUTHORIZED
+    assert result.json() == {"detail": "Refresh de sesión inválido."}
 
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está configurado."}
-
-
-async def test_refresh_returns_503_when_configured_redis_is_unavailable(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_sidless_refresh_denied_without_redis_ping(
+    api_client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class UnavailableRedisClient:
         def ping(self) -> None:
-            raise RedisError("synthetic Redis outage")
-
+            raise AssertionError("Refresh must never contact Redis")
     monkeypatch.setattr(settings, "REDIS_URL", "redis://configured-but-unavailable:6379/0")
     monkeypatch.setattr(
-        redis_client.Redis,
-        "from_url",
+        redis_client.Redis, "from_url",
         lambda *_args, **_kwargs: UnavailableRedisClient(),
     )
-
     response = await api_client.post(
         f"{settings.API_V1_STR}/auth/refresh",
         json={"refresh_token": "opaque-refresh-token"},
     )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Refresh de sesión inválido."}
 
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está disponible."}

@@ -1,112 +1,501 @@
-import React, { useState, useEffect, useCallback, type ReactNode } from "react";
+import React, { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { jwtDecode } from "jwt-decode";
+import axios from "axios";
 import apiClient from "../services/api";
-import classService from "../services/classService";
-import { AuthContext } from "./AuthContext";
+import classService, { BrowserLogoutProofUnavailable } from "../services/classService";
+import { AuthContext, type LogoutConfirmation } from "./AuthContext";
+import { AUTH_SYNC_KEY, advanceAuthSessionGeneration, getAuthSessionGeneration } from "../utils/authSessionGeneration";
 import type { User, TokenPayload, UserRole, Booking, Client } from "../types";
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
+interface AuthProviderProps { children: ReactNode; }
+const LEGACY_ACCESS = "access_token";
+const PENDING_LOGOUT = "fitflow_logout_pending";
+const PENDING_CSRF = "fitflow_logout_csrf";
+const PENDING_OPERATION = "fitflow_logout_operation";
+const CONFIRMED_OPERATION = "fitflow_logout_confirmed_operation";
+const CONFIRMED_HISTORY = "fitflow_logout_confirmed_history";
+const MAX_CONFIRMED_HISTORY = 128;
+const SYNC_KEY = AUTH_SYNC_KEY;
 
-// Componente Provider que maneja la lógica de autenticación y provee el contexto
+/** A server-confirmed operation UUID is never a bearer/CSRF credential. */
+const signalOperation = (epoch: string | null): string | null =>
+  epoch?.split("|")[2] || null;
+const confirmedHistory = (): string[] => {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(CONFIRMED_HISTORY) || "[]");
+    return Array.isArray(parsed) ? parsed.filter(
+      (value): value is string => typeof value === "string" && value.length <= 64,
+    ).slice(-MAX_CONFIRMED_HISTORY) : [];
+  } catch { return []; }
+};
+const isConfirmedLogout = (operation: string | null): boolean =>
+  !!operation && (localStorage.getItem(CONFIRMED_OPERATION) === operation ||
+    confirmedHistory().includes(operation));
+const recordConfirmedLogout = (operation: string): void => {
+  // The caller holds the browser cookie Web Lock and has just received 204.
+  const bounded = [...confirmedHistory().filter(id => id !== operation),
+    operation].slice(-MAX_CONFIRMED_HISTORY);
+  localStorage.setItem(CONFIRMED_HISTORY, JSON.stringify(bounded));
+  localStorage.setItem(CONFIRMED_OPERATION, operation);
+};
+const clearPendingLogout = (): void => {
+  sessionStorage.removeItem(PENDING_LOGOUT);
+  sessionStorage.removeItem(PENDING_CSRF);
+  sessionStorage.removeItem(PENDING_OPERATION);
+};
+/** Broadcast only nonsecret state changes across tabs. */
+const notifyOtherTabs = (action: string, operation: string = crypto.randomUUID()): void => {
+  localStorage.setItem(SYNC_KEY, `${action}|${Date.now()}|${operation}`);
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(localStorage.getItem("access_token"));
+  // Access bearer remains in memory. No prior localStorage bearer is trusted.
+  const [token, setToken] = useState<string | null>(null);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const csrfRef = useRef<string | null>(null);
+  const retryLogoutInFlight = useRef<Promise<void> | null>(null);
+  // An exact local receipt belongs to this mounted tab, not another peer's
+  // subsequently reported proof loss. Clear it only for a new local session.
+  const locallyConfirmedOperation = useRef<string | null>(null);
+  // Only a surviving tab or a reloaded pending session needs automatic
+  // orphan recovery; the initiating tab already owns its original POST.
+  const needsOrphanRecovery = useRef(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [logoutConfirmation, setLogoutConfirmation] = useState<LogoutConfirmation>('idle');
   const [currentClient] = useState<Client | null>(null);
   const queryClient = useQueryClient();
 
-  // Decodifica el accessToken y setea el usuario y rol
   const decodeToken = useCallback((accessToken: string | null) => {
     if (!accessToken) {
       setCurrentUser(null);
       setUserRole(null);
-      setIsLoadingAuth(false);
       delete apiClient.defaults.headers.common["Authorization"];
       return;
     }
     try {
-      const decoded: TokenPayload = jwtDecode(accessToken);
+      const decoded = jwtDecode<TokenPayload>(accessToken);
+      if (typeof decoded.exp !== 'number' || decoded.exp * 1000 <= Date.now()) {
+        throw new Error('Access token expired');
+      }
       setCurrentUser({ email: decoded.sub!, role: decoded.role! });
       setUserRole(decoded.role || null);
       apiClient.defaults.headers.common["Authorization"] = `Bearer ${accessToken}`;
-    } catch (error) {
-      // Manejo de error si el token está corrupto o expiró
-      console.error("Failed to decode token:", error);
-      localStorage.removeItem("access_token");
+    } catch {
+      localStorage.removeItem(LEGACY_ACCESS);
       setToken(null);
       setCurrentUser(null);
       setUserRole(null);
       delete apiClient.defaults.headers.common["Authorization"];
-    } finally {
-      setIsLoadingAuth(false);
     }
   }, []);
 
-  // Al montar, intenta rehidratar el token y usuario desde localStorage
   useEffect(() => {
-    const storedToken = localStorage.getItem("access_token");
-    setToken(storedToken);
-    decodeToken(storedToken);
-    if (!storedToken) setIsLoadingAuth(false); // Si no hay token, termina la carga inicial
+    let cancelled = false;
+    const generation = getAuthSessionGeneration();
+    const sharedEpoch = localStorage.getItem(SYNC_KEY);
+    // A fresh/reloaded survivor may have missed the storage event entirely.
+    // Adopt the current pending identity only if this tab has no local one.
+    if (sessionStorage.getItem(PENDING_LOGOUT) !== '1' &&
+        sharedEpoch?.startsWith('logout-pending|')) {
+      const sharedOperation = signalOperation(sharedEpoch);
+      if (sharedOperation) {
+        sessionStorage.setItem(PENDING_OPERATION, sharedOperation);
+        sessionStorage.setItem(PENDING_LOGOUT, '1');
+      }
+    }
+    if (sessionStorage.getItem(PENDING_LOGOUT) === '1') {
+      const operation = sessionStorage.getItem(PENDING_OPERATION);
+      if (isConfirmedLogout(operation)) {
+        locallyConfirmedOperation.current = operation;
+        needsOrphanRecovery.current = false;
+        clearPendingLogout();
+        csrfRef.current = null;
+        setCsrfToken(null);
+        setLogoutConfirmation('confirmed');
+      } else {
+        needsOrphanRecovery.current = true;
+        csrfRef.current = sessionStorage.getItem(PENDING_CSRF);
+        setCsrfToken(csrfRef.current);
+        setLogoutConfirmation('pending');
+      }
+      setIsLoadingAuth(false);
+      return;
+    }
+    // Pre-consumer cutover: drop even signed-looking historical localStorage
+    // credentials without decoding or accepting them as a browser session.
+    localStorage.removeItem(LEGACY_ACCESS);
+    void classService.restoreBrowserSession().then((session) => {
+      // Storage events can be missed or delivered out of order. Verify the
+      // shared epoch at the point of accepting an asynchronous bearer.
+      if (cancelled || generation !== getAuthSessionGeneration() ||
+          localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+          sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
+      locallyConfirmedOperation.current = null;
+      csrfRef.current = session.csrf_token;
+      setCsrfToken(session.csrf_token);
+      setToken(session.access_token);
+      decodeToken(session.access_token);
+      setLogoutConfirmation('idle');
+    }).catch(() => {
+      if (cancelled || generation !== getAuthSessionGeneration() ||
+          localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+          sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
+      setToken(null);
+      decodeToken(null);
+    }).finally(() => {
+      if (!cancelled && generation === getAuthSessionGeneration() &&
+          localStorage.getItem(SYNC_KEY) === sharedEpoch &&
+          sessionStorage.getItem(PENDING_LOGOUT) !== '1') {
+        setIsLoadingAuth(false);
+      }
+    });
+    return () => { cancelled = true; };
   }, [decodeToken]);
 
-  // Login: guarda el token y decodifica
-  const login = (accessToken: string) => {
-    localStorage.setItem("access_token", accessToken);
+  // Tabs share the HttpOnly cookie, but not React memory or sessionStorage.
+  // Reconcile the actual cookie on a versioned nonsecret storage event.
+  useEffect(() => {
+    const onSharedSession = (event: StorageEvent) => {
+      if (event.key !== SYNC_KEY || !event.newValue) return;
+      const eventEpoch = event.newValue;
+      // A delayed old storage event must not undo a newer logout.
+      if (localStorage.getItem(SYNC_KEY) !== eventEpoch) return;
+      const action = eventEpoch.split("|")[0];
+      const operation = signalOperation(eventEpoch);
+      const pendingOperation = sessionStorage.getItem(PENDING_OPERATION);
+      const localPending = sessionStorage.getItem(PENDING_LOGOUT) === "1";
+      // A peer signal cannot replace or invalidate a live local operation.
+      // Even another pending event for the same ID must not bump generation:
+      // the original cookie request still owns its exact HTTP receipt.
+      if (localPending && pendingOperation) {
+        if (action !== "logout-confirmed" && action !== "logout-expired-unconfirmed") return;
+        if (action === "logout-expired-unconfirmed" && retryLogoutInFlight.current &&
+            !isConfirmedLogout(operation)) return;
+      }
+      // A distinct peer's unconfirmed proof loss is not a downgrade of this
+      // tab's already observed exact 204. A newly adopted pending operation
+      // or a successful new login clears that local receipt state.
+      if (!localPending && action === "logout-expired-unconfirmed" &&
+          locallyConfirmedOperation.current &&
+          locallyConfirmedOperation.current !== operation) return;
+      // Validate terminal identity BEFORE clearing a newer tab session.
+      if ((action === "logout-confirmed" ||
+           action === "logout-expired-unconfirmed") &&
+          pendingOperation && pendingOperation !== operation) return;
+      if (action === "logout-confirmed" && !isConfirmedLogout(operation)) return;
+      const generation = advanceAuthSessionGeneration();
+      // Initial cookie restoration may have been invalidated by this event.
+      // Never leave the UI indefinitely behind the auth-loading gate.
+      setIsLoadingAuth(false);
+      localStorage.removeItem(LEGACY_ACCESS);
+      setToken(null);
+      setCurrentUser(null);
+      setUserRole(null);
+      delete apiClient.defaults.headers.common["Authorization"];
+      queryClient.clear();
+      if (action === "logout-pending") {
+        locallyConfirmedOperation.current = null;
+        // The origin tab may close before POST. A surviving tab must recover
+        // the signed cookie using its own bounded, deduplicated attempt.
+        needsOrphanRecovery.current = true;
+        sessionStorage.setItem(PENDING_LOGOUT, "1");
+        if (operation) sessionStorage.setItem(PENDING_OPERATION, operation);
+        // CSRF belongs to the original tab's cookie snapshot. Never copy
+        // that stale proof into another tab after an auth generation change.
+        sessionStorage.removeItem(PENDING_CSRF);
+        csrfRef.current = null;
+        setCsrfToken(null);
+        setLogoutConfirmation("pending");
+        return;
+      }
+      if (action === "logout-confirmed" ||
+          action === "logout-expired-unconfirmed") {
+        if (pendingOperation && pendingOperation !== operation) {
+          setLogoutConfirmation("pending");
+          return; // A terminal for a different operation cannot settle this one.
+        }
+        const realAck = isConfirmedLogout(operation);
+        if (action === "logout-confirmed" && !realAck) {
+          // Even without a local pending marker, a storage signal alone
+          // cannot prove an exact PostgreSQL HTTP 204.
+          if (pendingOperation) setLogoutConfirmation("pending");
+          return;
+        }
+        needsOrphanRecovery.current = false;
+        locallyConfirmedOperation.current = realAck ? operation : null;
+        clearPendingLogout();
+        csrfRef.current = null;
+        setCsrfToken(null);
+        setLogoutConfirmation(realAck ? "confirmed" : "expired-unconfirmed");
+        return;
+      }
+      if (sessionStorage.getItem(PENDING_LOGOUT) === "1") {
+        setLogoutConfirmation("pending");
+        return; // Never abandon a pending family to follow a new cookie.
+      }
+      void classService.restoreBrowserSession().then(session => {
+        if (getAuthSessionGeneration() !== generation ||
+            localStorage.getItem(SYNC_KEY) !== eventEpoch ||
+            sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
+        locallyConfirmedOperation.current = null;
+        csrfRef.current = session.csrf_token;
+        setCsrfToken(session.csrf_token);
+        setToken(session.access_token);
+        decodeToken(session.access_token);
+        setLogoutConfirmation("idle");
+      }).catch(() => {
+        if (getAuthSessionGeneration() !== generation ||
+            localStorage.getItem(SYNC_KEY) !== eventEpoch ||
+            sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
+        csrfRef.current = null;
+        setCsrfToken(null);
+        decodeToken(null);
+      });
+    };
+    window.addEventListener("storage", onSharedSession);
+    return () => window.removeEventListener("storage", onSharedSession);
+  }, [decodeToken, queryClient]);
+
+  const login = (accessToken: string, csrf: string): boolean => {
+    if (sessionStorage.getItem(PENDING_LOGOUT) === "1" ||
+        localStorage.getItem(SYNC_KEY)?.startsWith('logout-pending|')) {
+      setLogoutConfirmation("pending");
+      return false; // No generation change or false success on rejection.
+    }
+    if (!csrf || !accessToken) return false; // No access-only/legacy login.
+    try {
+      const parsed = jwtDecode<TokenPayload>(accessToken);
+      if (!parsed.role || !parsed.sub ||
+          typeof parsed.exp !== 'number' ||
+          parsed.exp * 1000 <= Date.now()) return false;
+    } catch { return false; }
+    // A successful new identity supersedes earlier async reads and retries.
+    locallyConfirmedOperation.current = null;
+    advanceAuthSessionGeneration();
+    localStorage.removeItem(LEGACY_ACCESS);
+    csrfRef.current = csrf;
+    setCsrfToken(csrf);
+    clearPendingLogout();
+    setLogoutConfirmation('idle');
     setToken(accessToken);
     decodeToken(accessToken);
+    setIsLoadingAuth(false);
     queryClient.invalidateQueries({ queryKey: ["myBookings"] });
     queryClient.invalidateQueries({ queryKey: ["currentUserProfile"] });
+    notifyOtherTabs("login");
+    return true;
   };
 
-  // Logout: limpia todo el estado y la cache de queries
+  const retryLogout = useCallback((): Promise<void> => {
+    // Join same-tab original; distinct tabs use the exclusive cookie Web Lock.
+    if (retryLogoutInFlight.current) return retryLogoutInFlight.current;
+    const expectedGeneration = getAuthSessionGeneration();
+    const storedOperation = sessionStorage.getItem(PENDING_OPERATION);
+    // An old pending tab may lack an operation ID after an upgrade.
+    // Establish a nonsecret ID before attempting signed-cookie revocation.
+    const operation = storedOperation ?? crypto.randomUUID();
+    if (!storedOperation && sessionStorage.getItem(PENDING_LOGOUT) === '1') {
+      sessionStorage.setItem(PENDING_OPERATION, operation);
+      notifyOtherTabs("logout-pending", operation);
+    }
+    const activeOperation = (): boolean =>
+      getAuthSessionGeneration() === expectedGeneration &&
+      sessionStorage.getItem(PENDING_LOGOUT) === '1' &&
+      sessionStorage.getItem(PENDING_OPERATION) === operation;
+    const confirmLocal = (): void => {
+      locallyConfirmedOperation.current = operation;
+      needsOrphanRecovery.current = false;
+      csrfRef.current = null;
+      setCsrfToken(null);
+      clearPendingLogout();
+      setLogoutConfirmation('confirmed');
+    };
+    const task = (async (): Promise<void> => {
+      try {
+        await classService.retryBrowserLogoutFromCookie(() => {
+          // Only a real HTTP 204 records an ACK. Do so BEFORE releasing the
+          // shared Web Lock so that queued proof-401 responses cannot win.
+          if (operation) {
+            recordConfirmedLogout(operation);
+            const epoch = localStorage.getItem(SYNC_KEY);
+            if (activeOperation() &&
+                signalOperation(epoch) === operation &&
+                !epoch?.startsWith("logout-confirmed|")) {
+              notifyOtherTabs("logout-confirmed", operation);
+            }
+          }
+        });
+        if (!activeOperation()) return; // Never erase a newer identity.
+        confirmLocal();
+        if (!operation) notifyOtherTabs("logout-confirmed");
+      } catch (error) {
+        if (operation && isConfirmedLogout(operation)) {
+          // Another tab got HTTP 204; a subsequent missing cookie is not
+          // permitted to downgrade its confirmed receipt.
+          if (activeOperation()) confirmLocal();
+          return;
+        }
+        if (!activeOperation()) return;
+        if (error instanceof BrowserLogoutProofUnavailable) {
+          // No signed proof is an unconfirmed result, NEVER a server ACK.
+          csrfRef.current = null;
+          setCsrfToken(null);
+          clearPendingLogout();
+          setLogoutConfirmation('expired-unconfirmed');
+          const epoch = localStorage.getItem(SYNC_KEY);
+          // Do not overwrite a distinct peer's still-pending operation.
+          if (epoch?.startsWith("logout-pending|") && signalOperation(epoch) === operation) {
+            notifyOtherTabs("logout-expired-unconfirmed", operation ?? undefined);
+          }
+          if (operation && isConfirmedLogout(operation)) confirmLocal();
+          return;
+        }
+        setLogoutConfirmation('pending');
+      }
+    })();
+    retryLogoutInFlight.current = task;
+    void task.finally(() => {
+      if (retryLogoutInFlight.current === task) retryLogoutInFlight.current = null;
+    });
+    return task;
+  }, []);
+
+  // A peer's logout-pending signal or a tab reload is not an ACK. Try one
+  // signed cookie-bound recovery after the pending UI is visible, and retry
+  // only on a genuine online transition after a transient failure. The
+  // existing in-flight ref and cookie Web Lock prevent same-tab duplicates.
+  useEffect(() => {
+    if (logoutConfirmation !== 'pending' ||
+        sessionStorage.getItem(PENDING_LOGOUT) !== '1') return;
+    const recover = () => {
+      if (sessionStorage.getItem(PENDING_LOGOUT) === '1') void retryLogout();
+    };
+    window.addEventListener('online', recover);
+    let timer: number | undefined;
+    if (needsOrphanRecovery.current) {
+      needsOrphanRecovery.current = false;
+      timer = window.setTimeout(recover, 150);
+    }
+    return () => {
+      window.removeEventListener('online', recover);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [logoutConfirmation, retryLogout]);
+
   const logout = () => {
-    localStorage.removeItem("access_token");
+    if (sessionStorage.getItem(PENDING_LOGOUT) === '1') {
+      void retryLogout(); // Join the existing exact recovery attempt.
+      return;
+    }
+    // Same-tab storage events do not fire in their source tab: fence every
+    // in-flight refresh, login and restoration before clearing auth state.
+    advanceAuthSessionGeneration();
+    needsOrphanRecovery.current = false;
+    locallyConfirmedOperation.current = null;
+    // Prefer the current shared pending ID when a peer's event has not yet
+    // reached this tab. Simultaneous new IDs can still race; the event guard
+    // above keeps each original distinct rather than inventing equivalence.
+    const epoch = localStorage.getItem(SYNC_KEY);
+    const sharedOperation = epoch?.startsWith("logout-pending|") ? signalOperation(epoch) : null;
+    const operation = sharedOperation ?? crypto.randomUUID();
+    sessionStorage.setItem(PENDING_OPERATION, operation);
+    sessionStorage.setItem(PENDING_LOGOUT, '1');
+    localStorage.removeItem(LEGACY_ACCESS);
     setToken(null);
     setCurrentUser(null);
     setUserRole(null);
     delete apiClient.defaults.headers.common["Authorization"];
     queryClient.clear();
+    // A missing in-memory CSRF does not prove the HttpOnly cookie is absent.
+    // Always attempt an exact cookie-bound server logout before concluding.
+    sessionStorage.removeItem(PENDING_CSRF);
+    setLogoutConfirmation('pending');
+    if (!sharedOperation) notifyOtherTabs("logout-pending", operation);
+    void retryLogout();
   };
+
+  // Bounded retries for transient refresh failures, generation-guarded.
+  // HTTP 401 means durable revocation, never silently retry an invalid token.
+  useEffect(() => {
+    if (!token || !csrfToken) return;
+    let expiry: number;
+    try { expiry = jwtDecode<TokenPayload>(token).exp * 1000; }
+    catch { return; }
+    if (!Number.isFinite(expiry)) return;
+    const generation = getAuthSessionGeneration();
+    const sharedEpoch = localStorage.getItem(SYNC_KEY);
+    let cancelled = false;
+    let inFlight = false;
+    let retries = 0;
+    let timer: number | undefined;
+    const schedule = (ms: number) => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(() => { void refresh(); }, ms);
+    };
+    const refresh = async () => {
+      if (cancelled || inFlight || generation !== getAuthSessionGeneration() ||
+          localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+          sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
+      inFlight = true;
+      try {
+        const session = await classService.refreshBrowserSession();
+        if (cancelled || generation !== getAuthSessionGeneration() ||
+            localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+            sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
+        csrfRef.current = session.csrf_token;
+        setCsrfToken(session.csrf_token);
+        setToken(session.access_token);
+        decodeToken(session.access_token);
+      } catch (error) {
+        if (cancelled || generation !== getAuthSessionGeneration() ||
+            localStorage.getItem(SYNC_KEY) !== sharedEpoch ||
+            sessionStorage.getItem(PENDING_LOGOUT) === '1') return;
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          csrfRef.current = null;
+          setCsrfToken(null);
+          setToken(null);
+          decodeToken(null);
+          return;
+        }
+        if (retries < 3) {
+          const retryDelays = [2000, 5000, 10000];
+          schedule(retryDelays[retries]);
+          retries += 1;
+        }
+        // After bounded failures, online/reload recovery may retry from cookie.
+        // Never manufacture a server logout ACK or persist the access bearer.
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onOnline = () => { if (!cancelled) void refresh(); };
+    window.addEventListener("online", onOnline);
+    schedule(Math.max(0, expiry - Date.now() - 60000));
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [token, csrfToken, decodeToken]);
 
   const isAuthenticated = !!token && !!currentUser;
   const isClient = userRole === "client";
   const isTrainer = userRole === "trainer";
   const isAdmin = userRole === "admin";
-
-  // TanStack Query obtiene los bookings SOLO si está autenticado y es cliente
   const { data: userBookings, isLoading: isLoadingBookings } = useQuery<Booking[]>({
     queryKey: ["myBookings"],
-    queryFn: () => {
-    return classService.getMyBookings();
-    },    
+    queryFn: () => classService.getMyBookings(),
     enabled: isAuthenticated && isClient,
   });
-
   const value = {
-    token,
-    currentClient,
-    currentUser,
-    userRole,
-    isAuthenticated,
-    isClient,
-    isTrainer,
-    isAdmin,
-    login,
-    logout,
-    userBookings,
-    isLoadingBookings,
-    isLoadingAuth,
+    token, currentClient, currentUser, userRole,
+    isAuthenticated, isClient, isTrainer, isAdmin,
+    login, logout, logoutConfirmation, retryLogout,
+    userBookings, isLoadingBookings, isLoadingAuth,
   };
-
-  if (isLoadingAuth) {
-    // Puedes poner aquí tu spinner o Skeleton si lo prefieres
-    return null;
-  }
-
+  if (isLoadingAuth) return null;
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

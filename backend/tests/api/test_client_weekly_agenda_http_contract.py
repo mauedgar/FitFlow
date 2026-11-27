@@ -11,7 +11,6 @@ import httpx
 import pytest
 from fastapi import status
 from sqlalchemy import func, select
-from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.enums import (
@@ -23,7 +22,7 @@ from app.core.enums import (
     MembershipStatus,
     UserRole,
 )
-from app.core.security import create_access_token
+from auth_session_test_helpers import require_local_test_database, staged_access
 from app.core.timezone import LOCAL_TZ
 from app.db.models import (
     Booking,
@@ -57,12 +56,8 @@ class ClientWeeklyAgendaFixture:
 
 @pytest.fixture(autouse=True)
 def require_isolated_test_database() -> None:
-    database_name = make_url(settings.DATABASE_URL).database
-    assert database_name == "fitflow_test", (
-        "Client weekly agenda contract requires fitflow_test; "
-        f"configured database is {database_name!r}."
-    )
-
+    # Fail closed before any synthetic DB writes, even with python -O.
+    require_local_test_database()
 
 @pytest.fixture(autouse=True)
 async def dispose_engine_pool_after_test() -> AsyncIterator[None]:
@@ -238,13 +233,9 @@ async def _seed_fixture() -> ClientWeeklyAgendaFixture:
             ineligible_session_id=ineligible.id,
             excluded_session_ids={cancelled.id, end_boundary.id},
             tokens={
-                UserRole.client: create_access_token(
-                    {"sub": str(client_user.id), "role": UserRole.client.value}
-                ),
+                UserRole.client: staged_access(db, client_user.id, UserRole.client.value),
                 **{
-                    role: create_access_token(
-                        {"sub": str(user.id), "role": role.value}
-                    )
+                    role: staged_access(db, user.id, role.value)
                     for role, user in auth_users.items()
                 },
             },

@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import bcrypt
 from app.core.config import settings
@@ -65,6 +66,7 @@ def get_password_hash(password: str) -> str:
 def create_access_token(
     data: dict,
     expires_delta: timedelta | None = None,
+    expires_at: datetime | None = None,
 ) -> str:
     """Crea un Access Token JWT firmado.
 
@@ -75,7 +77,9 @@ def create_access_token(
     expire = datetime.now(tz=UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    to_encode = {**data, "exp": expire}
+    if expires_at is not None:
+        expire = min(expire, expires_at)
+    to_encode = {**data, "token_use": "access", "exp": expire}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -94,7 +98,7 @@ def create_refresh_token(data: dict) -> str:
     expire = datetime.now(tz=UTC) + timedelta(
         minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
     )
-    to_encode = {**data, "exp": expire}
+    to_encode = {**{k: v for k, v in data.items() if k != "role"}, "token_use": "refresh", "exp": expire}
 
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -113,5 +117,83 @@ def decode_token(token: str) -> dict | None:
         return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     except ExpiredSignatureError:
         return None
-    except JWTError:
+    except (JWTError, TypeError, ValueError, OverflowError):
         return None
+
+
+
+def signed_expiry_datetime(exp: object) -> datetime | None:
+    """Reject invalid or unrepresentable signed NumericDate values."""
+    if isinstance(exp, bool) or not isinstance(exp, (int, float)):
+        return None
+    try:
+        # NaN, infinities and extreme integers cannot represent a UTC instant.
+        return datetime.fromtimestamp(exp, tz=UTC)
+    except (ValueError, TypeError, OverflowError, OSError):
+        return None
+
+
+def canonical_subject(value: object) -> UUID | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        owner = UUID(value)
+    except ValueError:
+        return None
+    return owner if str(owner) == value else None
+
+
+def _has_live_expiry(payload: dict) -> bool:
+    """Require a representable signed expiration, strictly in the future."""
+    expiry = signed_expiry_datetime(payload.get("exp"))
+    return expiry is not None and expiry > datetime.now(tz=UTC)
+
+
+def is_access_token_payload(payload: dict | None) -> bool:
+    """Only signed, typed UUID/SID access may reach PostgreSQL guards.
+
+    Pre-consumer cutover: untyped, SID-less and email-subject JWTs are no
+    longer bearer credentials, even before their original signed expiry.
+    """
+    if not isinstance(payload, dict) or payload.get("token_use") != "access":
+        return False
+    # Access issuance uses integer NumericDate; both bearer guards use the
+    # same strict predicate before Pydantic projection.
+    if not isinstance(payload.get("exp"), int) or not _has_live_expiry(payload):
+        return False
+    if not isinstance(payload.get("role"), str) or not payload["role"]:
+        return False
+    if not isinstance(payload.get("sub"), str) or not isinstance(payload.get("sid"), str):
+        return False
+    try:
+        subject = UUID(payload["sub"])
+        sid = UUID(payload["sid"])
+    except ValueError:
+        return False
+    return (
+        str(subject) == payload["sub"]
+        and sid.version == 4
+        and str(sid) == payload["sid"]
+    )
+
+
+def is_refresh_token_payload(payload: dict | None) -> bool:
+    """A refresh JWT cannot carry role; only bounded untyped legacy is valid."""
+    if not isinstance(payload, dict):
+        return False
+    if not isinstance(payload.get("sub"), str) or not payload["sub"]:
+        return False
+    if not _has_live_expiry(payload) or "role" in payload:
+        return False
+    purpose = payload.get("token_use")
+    return purpose == "refresh" or "token_use" not in payload
+
+
+def is_modern_refresh_token_payload(payload: dict | None) -> bool:
+    """Durable refresh never accepts an untyped or noncanonical identity."""
+    if not is_refresh_token_payload(payload) or not isinstance(payload, dict):
+        return False
+    if payload.get("token_use") != "refresh" or canonical_subject(payload.get("sub")) is None:
+        return False
+    sid = canonical_subject(payload.get("sid"))
+    return sid is not None and sid.version == 4

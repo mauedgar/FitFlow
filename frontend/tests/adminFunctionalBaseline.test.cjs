@@ -71,7 +71,8 @@ test('ADMIN guard rejects expired tokens and retires same-token stale intercepto
   assert.match(gate, /\[token, currentUser, sessionGeneration\]/);
   assert.match(gate, /logoutRef\.current/);
   assert.match(gate, /shouldInvalidateCurrentAdminSession/);
-  assert.match(gate, /localStorage\.getItem\('access_token'\)/);
+  assert.doesNotMatch(gate, /localStorage\.getItem\('access_token'\)/);
+  assert.match(gate, /sent, token, token/);
   assert.match(gate, /<Navigate to="\/login" replace \/>/);
   assert.match(routes, /<AdminSessionGate><AdminLayout \/><\/AdminSessionGate>/);
 });
@@ -152,10 +153,17 @@ test('session-generation mismatch rejects same-token stale 401 callbacks', () =>
   assert.equal(check(true, 4, 4, 'Bearer tok', 'tok', 'other'), false);
 });
 
-test('auth entrypoints advance their epoch before notifying React context', () => {
+test('provider alone advances generation for accepted login and immediate logout', () => {
   const hook = read('src/context/useAuth.tsx');
-  assert.match(hook, /advanceAuthSessionGeneration\(\);\s*context\.login/);
-  assert.match(hook, /advanceAuthSessionGeneration\(\);\s*context\.logout/);
+  const provider = read('src/context/AuthProvider.tsx');
+  const page = read('src/pages/LoginPage.tsx');
+  assert.doesNotMatch(hook, /advanceAuthSessionGeneration\(\)/);
+  assert.match(hook, /context\.login\(accessToken, csrfToken\)/);
+  assert.match(hook, /context\.logout\(\)/);
+  assert.match(provider, /const login = \(accessToken: string, csrf: string\): boolean/);
+  assert.ok(provider.indexOf('advanceAuthSessionGeneration();', provider.indexOf('const login =')) >
+    provider.indexOf('if (!csrf || !accessToken) return false;'));
+  assert.match(page, /if \(!accepted\) return/);
   assert.match(gate, /expectedGeneration !== getAuthSessionGeneration\(\)/);
   assert.match(gate, /sessionActive, expectedGeneration, getAuthSessionGeneration\(\)/);
   const ts = require('typescript');
@@ -168,4 +176,12 @@ test('auth entrypoints advance their epoch before notifying React context', () =
   assert.equal(before, 1);
   assert.equal(mod.advanceAuthSessionGeneration(), 2);
   assert.equal(mod.getAuthSessionGeneration(), 2);
+});
+
+
+test('mobile ADMIN drawer specifies initial link and final trigger focus', () => {
+  assert.match(nav, /initialFocusEl=\{\(\) => menuInitialFocus\.current\}/);
+  assert.match(nav, /finalFocusEl=\{\(\) => menuTrigger\.current\}/);
+  assert.match(nav, /ref=\{link\.to === '\/admin' \? menuInitialFocus : undefined\}/);
+  assert.match(nav, /lazyMount unmountOnExit/);
 });

@@ -47,11 +47,16 @@ export interface TokenPayload {
   sub: string;      // Email del usuario (subject)
   role: UserRole; // Rol del usuario
   exp: number;      // Expiración del token (timestamp)
+  sid?: string;      // Sesión moderna firmada, nunca inventada
 }
 
-export interface TokenResponse { // Para la respuesta del endpoint /login/token
+export interface TokenResponse { // Credencial de acceso, no refresh
   access_token: string;
   token_type: string;
+}
+
+export interface BrowserSessionResponse extends TokenResponse {
+  csrf_token: string; // No es refresh JWT; sólo X-CSRF-Token.
 }
 
 // --- Teacher ---

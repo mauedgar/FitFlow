@@ -1,230 +1,184 @@
-"""HTTP contract for logout token-state transition behavior."""
-
+"""Modern /auth/logout alias: real disposable PostgreSQL, no Redis authority."""
 from __future__ import annotations
 
 import uuid
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 
 import httpx
 import pytest
+from sqlalchemy import delete
+from auth_session_test_helpers import require_local_test_database
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.core import security
 from app.core.config import settings
-from app.core.deps import get_current_user
-from app.main import app
+from app.core.enums import UserRole
+from app.db.models.auth_session import AuthSession
+from app.db.models.user import User
+from app.db.session import AsyncSessionLocal, engine
 from app.routers import auth as auth_router
-from fastapi import status
 
-pytestmark = [
-    pytest.mark.api,
-    pytest.mark.integration,
-    pytest.mark.asyncio,
-]
+pytestmark = [pytest.mark.api, pytest.mark.integration, pytest.mark.asyncio]
 
 
-@dataclass(frozen=True)
-class CurrentUserStub:
-    id: uuid.UUID
+@pytest.fixture(autouse=True)
+def require_disposable_db() -> None:
+    require_local_test_database()
+
+
+@pytest.fixture(autouse=True)
+async def release_engine_pool() -> AsyncIterator[None]:
+    yield
+    await engine.dispose()
 
 
 @pytest.fixture
-async def authenticated_owner() -> AsyncIterator[uuid.UUID]:
-    owner_id = uuid.uuid4()
-
-    async def override_current_user() -> CurrentUserStub:
-        return CurrentUserStub(id=owner_id)
-
-    app.dependency_overrides[get_current_user] = override_current_user
+async def account() -> AsyncIterator[tuple[uuid.UUID, str, str]]:
+    uid = uuid.uuid4()
+    email = f"logout-modern-{uid.hex}@example.com"
+    password = "SyntheticLogout!123"
     try:
-        yield owner_id
+        async with AsyncSessionLocal() as db:
+            db.add(User(id=uid, email=email,
+                        hashed_password=security.get_password_hash(password),
+                        role=UserRole.client, active=True))
+            await db.commit()
+        yield uid, email, password
     finally:
-        app.dependency_overrides.pop(get_current_user, None)
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(AuthSession).where(AuthSession.user_id == uid))
+            await db.execute(delete(User).where(User.id == uid))
+            await db.commit()
 
-def _refresh_token(user_id: uuid.UUID) -> str:
-    return security.create_refresh_token(data={"sub": str(user_id)})
+
+async def login(client: httpx.AsyncClient, email: str, password: str) -> tuple[str, str]:
+    response = await client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": email, "password": password},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["access_token"], response.json()["refresh_token"]
 
 
-async def _post_logout(
-    api_client: httpx.AsyncClient,
-    refresh_token: str,
-) -> httpx.Response:
-    return await api_client.post(
+async def logout(client: httpx.AsyncClient, access: str | None, refresh: str) -> httpx.Response:
+    headers = {"Authorization": f"Bearer {access}"} if access is not None else {}
+    return await client.post(
         f"{settings.API_V1_STR}/auth/logout",
-        json={"refresh_token": refresh_token},
+        headers=headers, json={"refresh_token": refresh},
     )
 
 
 async def test_logout_requires_authenticated_current_user(
     api_client: httpx.AsyncClient,
 ) -> None:
-    refresh_token = _refresh_token(uuid.uuid4())
-    response = await _post_logout(api_client, refresh_token)
+    refresh = security.create_refresh_token({
+        "sub": str(uuid.uuid4()), "sid": str(uuid.uuid4()),
+    })
+    result = await logout(api_client, None, refresh)
+    assert result.status_code == 401
+    assert result.json() == {"detail": "Not authenticated"}
 
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
-    assert response.json() == {"detail": "Not authenticated"}
-    assert response.headers.get("www-authenticate") == "Bearer"
 
-async def test_logout_owner_deletes_refresh_then_blacklists(
-    api_client: httpx.AsyncClient,
+async def test_logout_owner_persists_revoke_and_blocks_access(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
     monkeypatch: pytest.MonkeyPatch,
-    authenticated_owner: uuid.UUID,
 ) -> None:
-    refresh_token = _refresh_token(authenticated_owner)
-    events: list[tuple[str, str]] = []
-
-    def delete_refresh(token: str) -> None:
-        events.append(("delete", token))
-
-    def blacklist(token: str) -> None:
-        events.append(("blacklist", token))
-
-    monkeypatch.setattr(auth_router, "delete_refresh_token", delete_refresh)
-    monkeypatch.setattr(auth_router, "blacklist_token", blacklist)
-    response = await _post_logout(api_client, refresh_token)
-
-    assert response.status_code == status.HTTP_204_NO_CONTENT
-    assert response.request.url.query == b""
-    assert response.content == b""
-    assert events == [
-        ("delete", refresh_token),
-        ("blacklist", refresh_token),
-    ]
-
-async def test_logout_malformed_refresh_token_returns_400_without_state_change(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-    authenticated_owner: uuid.UUID,
-) -> None:
-    events: list[str] = []
-    monkeypatch.setattr(
-        auth_router,
-        "delete_refresh_token",
-        lambda _token: events.append("delete"),
+    uid, email, password = account
+    monkeypatch.setattr(settings, "REDIS_URL", None)
+    access, refresh = await login(api_client, email, password)
+    result = await logout(api_client, access, refresh)
+    assert result.status_code == 204, result.text
+    claims = security.decode_token(access)
+    assert claims is not None
+    async with AsyncSessionLocal() as db:
+        row = await db.get(AuthSession, uuid.UUID(claims["sid"]))
+        assert row is not None and row.user_id == uid and row.revoked_at is not None
+    blocked = await api_client.get(
+        f"{settings.API_V1_STR}/auth/me",
+        headers={"Authorization": f"Bearer {access}"},
     )
-    monkeypatch.setattr(
-        auth_router,
-        "blacklist_token",
-        lambda _token: events.append("blacklist"),
+    assert blocked.status_code == 401
+
+
+async def test_logout_rejects_sidless_and_malformed_without_mutating_pg(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+) -> None:
+    uid, email, password = account
+    access, refresh = await login(api_client, email, password)
+    legacy = security.create_refresh_token({"sub": str(uid)})
+    for token, expected in ((legacy, 401), ("definitely-not-a-jwt", 400), (access, 400)):
+        denied = await logout(api_client, access, token)
+        assert denied.status_code == expected, denied.text
+    still_active = await api_client.post(
+        f"{settings.API_V1_STR}/auth/refresh", json={"refresh_token": refresh},
     )
-    response = await _post_logout(api_client, "definitely-not-a-jwt")
+    assert still_active.status_code == 200, still_active.text
 
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert response.request.url.query == b""
-    assert "definitely-not-a-jwt" not in response.text
-    assert response.json() == {"detail": "Refresh token inválido."}
-    assert events == []
 
-async def test_logout_cross_user_refresh_token_returns_403_without_state_change(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-    authenticated_owner: uuid.UUID,
+async def test_logout_rejects_other_owner_refresh(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
 ) -> None:
-    refresh_token = _refresh_token(uuid.uuid4())
-    events: list[str] = []
-    monkeypatch.setattr(
-        auth_router,
-        "delete_refresh_token",
-        lambda _token: events.append("delete"),
+    _uid, email, password = account
+    second = uuid.uuid4()
+    other_email = f"logout-foreign-{second.hex}@example.com"
+    other_password = "SyntheticForeign!123"
+    try:
+        async with AsyncSessionLocal() as db:
+            db.add(User(id=second, email=other_email,
+                        hashed_password=security.get_password_hash(other_password),
+                        role=UserRole.client, active=True))
+            await db.commit()
+        access, _refresh = await login(api_client, email, password)
+        _foreign_access, foreign_refresh = await login(api_client, other_email, other_password)
+        denied = await logout(api_client, access, foreign_refresh)
+        assert denied.status_code == 403, denied.text
+        still_active = await api_client.post(
+            f"{settings.API_V1_STR}/auth/session/refresh",
+            json={"refresh_token": foreign_refresh},
+        )
+        assert still_active.status_code == 200, still_active.text
+    finally:
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(AuthSession).where(AuthSession.user_id == second))
+            await db.execute(delete(User).where(User.id == second))
+            await db.commit()
+
+
+async def test_logout_uncertain_ack_never_returns_false_204(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _uid, email, password = account
+    access, refresh = await login(api_client, email, password)
+    async def unavailable(*_args: object, **_kwargs: object) -> str:
+        raise SQLAlchemyError("synthetic PG commit unknown")
+    monkeypatch.setattr(auth_router.session_ledger, "revoke", unavailable)
+    unknown = await logout(api_client, access, refresh)
+    assert unknown.status_code == 503
+    assert unknown.json() == {"detail": "Revocación durable no confirmada."}
+
+
+async def test_logout_lost_ack_replays_without_revoked_access_bearer(
+    api_client: httpx.AsyncClient, account: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _uid, email, password = account
+    access, refresh = await login(api_client, email, password)
+    actual = auth_router.session_ledger.revoke
+
+    async def commit_then_lose_ack(db: object, *, refresh_token: str) -> str:
+        outcome = await actual(db, refresh_token=refresh_token)
+        assert outcome == "COMMITTED"
+        raise ConnectionError("synthetic lost ACK")
+
+    monkeypatch.setattr(auth_router.session_ledger, "revoke", commit_then_lose_ack)
+    unknown = await logout(api_client, access, refresh)
+    assert unknown.status_code == 503
+    monkeypatch.setattr(auth_router.session_ledger, "revoke", actual)
+    denied = await logout(api_client, access, refresh)
+    assert denied.status_code == 401  # Access family revoked, cannot authenticate.
+    replay = await api_client.post(
+        f"{settings.API_V1_STR}/auth/session/logout",
+        json={"refresh_token": refresh},
     )
-    monkeypatch.setattr(
-        auth_router,
-        "blacklist_token",
-        lambda _token: events.append("blacklist"),
-    )
-    response = await _post_logout(api_client, refresh_token)
-
-    assert response.status_code == status.HTTP_403_FORBIDDEN
-    assert response.json() == {"detail": "No autorizado para invalidar este token."}
-    assert events == []
-
-async def test_logout_delete_external_service_error_maps_503_before_blacklist(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-    authenticated_owner: uuid.UUID,
-) -> None:
-    refresh_token = _refresh_token(authenticated_owner)
-    events: list[str] = []
-
-    def unavailable_delete(_token: str) -> None:
-        events.append("delete")
-        raise auth_router.ExternalServiceError("Redis no está disponible.")
-
-    def blacklist(_token: str) -> None:
-        events.append("blacklist")
-
-    monkeypatch.setattr(auth_router, "delete_refresh_token", unavailable_delete)
-    monkeypatch.setattr(auth_router, "blacklist_token", blacklist)
-    response = await _post_logout(api_client, refresh_token)
-
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está disponible."}
-    assert events == ["delete"]
-
-async def test_logout_blacklist_external_service_error_maps_503_after_delete(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-    authenticated_owner: uuid.UUID,
-) -> None:
-    refresh_token = _refresh_token(authenticated_owner)
-    events: list[str] = []
-
-    def delete_refresh(_token: str) -> None:
-        events.append("delete")
-
-    def unavailable_blacklist(_token: str) -> None:
-        events.append("blacklist")
-        raise auth_router.ExternalServiceError("Redis no está disponible.")
-
-    monkeypatch.setattr(auth_router, "delete_refresh_token", delete_refresh)
-    monkeypatch.setattr(auth_router, "blacklist_token", unavailable_blacklist)
-    response = await _post_logout(api_client, refresh_token)
-
-    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-    assert response.json() == {"detail": "Redis no está disponible."}
-    assert events == ["delete", "blacklist"]
-
-async def test_logout_delete_generic_failure_maps_500_before_blacklist(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-    authenticated_owner: uuid.UUID,
-) -> None:
-    refresh_token = _refresh_token(authenticated_owner)
-    events: list[str] = []
-
-    def failing_delete(_token: str) -> None:
-        events.append("delete")
-        raise RuntimeError("synthetic delete failure")
-
-    def blacklist(_token: str) -> None:
-        events.append("blacklist")
-
-    monkeypatch.setattr(auth_router, "delete_refresh_token", failing_delete)
-    monkeypatch.setattr(auth_router, "blacklist_token", blacklist)
-    response = await _post_logout(api_client, refresh_token)
-
-    assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-    assert response.json() == {"detail": "Error interno"}
-    assert events == ["delete"]
-
-async def test_logout_blacklist_generic_failure_maps_500_after_delete(
-    api_client: httpx.AsyncClient,
-    monkeypatch: pytest.MonkeyPatch,
-    authenticated_owner: uuid.UUID,
-) -> None:
-    refresh_token = _refresh_token(authenticated_owner)
-    events: list[str] = []
-
-    def delete_refresh(_token: str) -> None:
-        events.append("delete")
-
-    def failing_blacklist(_token: str) -> None:
-        events.append("blacklist")
-        raise RuntimeError("synthetic blacklist failure")
-
-    monkeypatch.setattr(auth_router, "delete_refresh_token", delete_refresh)
-    monkeypatch.setattr(auth_router, "blacklist_token", failing_blacklist)
-    response = await _post_logout(api_client, refresh_token)
-
-    assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-    assert response.json() == {"detail": "Error interno"}
-    assert events == ["delete", "blacklist"]
+    assert replay.status_code == 204
