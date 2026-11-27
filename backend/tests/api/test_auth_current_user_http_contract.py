@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -440,3 +441,42 @@ async def test_registered_sid_database_lookup_outage_returns_503(
     assert denied.status_code == status.HTTP_503_SERVICE_UNAVAILABLE, denied.text
     assert denied.json() == {"detail": "Persistencia de sesiones no disponible."}
     assert "synthetic ledger outage" not in denied.text
+
+
+@pytest.mark.parametrize("invalid_state", ["truthy_active", "missing_deleted_at", "invalid_role"])
+async def test_both_bearer_pipelines_deny_malformed_principal(
+    api_client: httpx.AsyncClient,
+    persisted_auth_user: tuple[uuid.UUID, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_state: str,
+) -> None:
+    """Real signed session, synthetic malformed lookup, both HTTP guards."""
+    uid, email, password = persisted_auth_user
+    issued = await api_client.post(
+        f"{settings.API_V1_STR}/auth/token",
+        data={"username": email, "password": password},
+    )
+    assert issued.status_code == 200, issued.text
+    fields = {
+        "id": uid,
+        "email": email,
+        "role": UserRole.client,
+        "active": True,
+        "deleted_at": None,
+    }
+    if invalid_state == "truthy_active":
+        fields["active"] = "true"
+    elif invalid_state == "missing_deleted_at":
+        del fields["deleted_at"]
+    else:
+        fields["role"] = "invalid-role"
+
+    async def malformed(*_args: object, **_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(**fields)
+
+    monkeypatch.setattr(auth_deps.user_crud, "get", malformed)
+    headers = {"Authorization": f"Bearer {issued.json()['access_token']}"}
+    for path in ("/auth/me", "/bookings/me"):
+        response = await api_client.get(f"{settings.API_V1_STR}{path}", headers=headers)
+        assert response.status_code == 401, (path, response.text)
+        assert response.headers.get("www-authenticate") == "Bearer"

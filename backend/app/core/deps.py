@@ -26,7 +26,7 @@ from app.crud.crud_user import user as user_crud
 from app.db.session import get_async_session
 from app.schemas.token import TokenPayload
 from app.schemas.user import UserPublic  # noqa: TC001
-from app.services.auth_service import get_user_from_token
+from app.services.auth_service import get_user_from_token, validate_authenticated_principal
 from app.services.errors import AuthError
 
 if TYPE_CHECKING:
@@ -106,15 +106,21 @@ async def get_current_user(
         ) from exc
     # Identical authentication denial for missing, deleted and inactive users:
     # avoid leaking whether an account exists or has been deactivated.
-    if (
-        not user or user.deleted_at is not None or not user.active
-        or not is_access_token_payload(payload)
-    ):
+    if not user or not is_access_token_payload(payload):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o usuario no autorizado.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    try:
+        validate_authenticated_principal(user)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o usuario no autorizado.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
     return user
 
